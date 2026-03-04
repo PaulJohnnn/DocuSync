@@ -1,32 +1,34 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Sun, Moon } from 'lucide-react';
+import * as React from "react";
+import { Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 
-export default function ThemeToggle() {
-    const [isDark, setIsDark] = useState(false);
+export function ThemeToggle() {
+    const [mounted, setMounted] = React.useState(false);
+    const { setTheme, resolvedTheme } = useTheme();
+
+    // useEffect only runs on the client, so now we can safely show the UI
+    React.useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    if (!mounted) {
+        return (
+            <button className="p-2 rounded-full text-zinc-400 relative flex items-center justify-center border border-transparent">
+                <div className="h-[1.2rem] w-[1.2rem] opacity-0" />
+            </button>
+        );
+    }
 
     return (
         <button
-            onClick={() => setIsDark(!isDark)}
-            className={`
-        relative inline-flex items-center h-8 rounded-full w-14 transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500
-        ${isDark ? 'bg-slate-700' : 'bg-slate-300'}
-      `}
-            aria-label="Toggle Dark Mode"
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="p-2 rounded-full text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors relative flex items-center justify-center"
+            aria-label="Toggle theme"
         >
-            <span
-                className={`
-          inline-block w-6 h-6 transform bg-white rounded-full transition-transform duration-300 ease-in-out flex items-center justify-center shadow-md
-          ${isDark ? 'translate-x-7' : 'translate-x-1'}
-        `}
-            >
-                {isDark ? (
-                    <Moon className="w-4 h-4 text-slate-700 transition-all duration-300" />
-                ) : (
-                    <Sun className="w-4 h-4 text-amber-500 transition-all duration-300" />
-                )}
-            </span>
+            <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
         </button>
     );
 }
