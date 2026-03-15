@@ -276,7 +276,9 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             })
             .subscribe();
 
-        return () => { supabase.removeChannel(subscription); };
+        return () => { 
+            if (supabase) supabase.removeChannel(subscription); 
+        };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

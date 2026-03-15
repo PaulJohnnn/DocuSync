@@ -21,7 +21,8 @@ export default function LoginPage() {
         try {
             // 1. Try Supabase Auth if configured
             if (supabase) {
-                const { error: authError } = await supabase.auth.signInWithPassword({
+                const client = supabase;
+                const { error: authError } = await client.auth.signInWithPassword({
                     email,
                     password,
                 });
