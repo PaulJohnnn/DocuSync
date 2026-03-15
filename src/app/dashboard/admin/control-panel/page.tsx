@@ -9,12 +9,17 @@ import {
     Wifi, CheckCircle2, UserPlus, LogOut, X, Clock,
     Mail, Key, Eye, EyeOff, Copy, BadgeCheck
 } from 'lucide-react';
+import { useSyncContext } from '../../../../context/SyncContext';
 
 export default function AdminDashboard() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<string>('System Overview');
     const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
     const [showGenPassword, setShowGenPassword] = useState(false);
+    
+    const [selectedRepoToDelete, setSelectedRepoToDelete] = useState<number | null>(null);
+    
+    const { reposData, deleteRepository } = useSyncContext();
 
     // Approval queue state
     const [pendingUsers, setPendingUsers] = useState<{ id: number; name: string; email: string; requestDate: string; status: 'pending' | 'approved' }[]>([
@@ -166,7 +171,7 @@ export default function AdminDashboard() {
                                         <span className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">Total Workspaces</span>
                                     </div>
                                     <div className="flex items-end gap-2">
-                                        <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">12</span>
+                                        <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{reposData.length}</span>
                                         <span className="text-sm font-bold text-purple-500 mb-1">Repositories</span>
                                     </div>
                                     <div className="mt-3 w-full h-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden"><div className="h-full w-[30%] bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"></div></div>
@@ -174,18 +179,45 @@ export default function AdminDashboard() {
                             </div>
 
                             {/* Delete Group Section */}
-                            <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-6 rounded-2xl shadow-xl">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-rose-100 dark:bg-rose-900/40 text-rose-600 rounded-xl"><Trash2 size={22} /></div>
+                            <div className="bg-white dark:bg-zinc-900/60 border border-zinc-200 dark:border-rose-500/20 p-8 rounded-[2rem] shadow-xl relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full -translate-y-16 translate-x-16"></div>
+                                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+                                    <div className="flex items-center gap-5">
+                                        <div className="p-4 bg-rose-500/10 text-rose-500 rounded-2xl shadow-inner"><Trash2 size={24} /></div>
                                         <div>
-                                            <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Delete Synchronization Group</h3>
-                                            <p className="text-sm text-zinc-500 dark:text-zinc-400">Permanently purge a group workspace and all associated metadata from the system.</p>
+                                            <h3 className="text-xl font-bold text-zinc-900 dark:text-white">Delete Synchronization Group</h3>
+                                            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-md">Permanently purge a group workspace, including all files, version history, and membership data.</p>
                                         </div>
                                     </div>
-                                    <button className="flex items-center gap-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-rose-600 font-bold px-5 py-3 rounded-xl transition-colors border border-rose-200 dark:border-rose-800/50 text-sm whitespace-nowrap">
-                                        <Trash2 size={16} /> Select Group to Delete
-                                    </button>
+                                    
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                                        <select 
+                                            value={selectedRepoToDelete ?? ''} 
+                                            onChange={(e) => setSelectedRepoToDelete(e.target.value ? Number(e.target.value) : null)}
+                                            className="px-5 py-3 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-sm font-semibold outline-none focus:ring-2 focus:ring-rose-500/40 transition-all appearance-none cursor-pointer"
+                                        >
+                                            <option value="">Select a Group...</option>
+                                            {reposData.map(repo => (
+                                                <option key={repo.id} value={repo.id}>{repo.name}</option>
+                                            ))}
+                                        </select>
+                                        
+                                        <button 
+                                            onClick={() => {
+                                                if (selectedRepoToDelete) {
+                                                    const repo = reposData.find(r => r.id === selectedRepoToDelete);
+                                                    if (window.confirm(`CRITICAL: Are you sure you want to permanently delete '${repo?.name}'? This action cannot be undone.`)) {
+                                                        deleteRepository(selectedRepoToDelete);
+                                                        setSelectedRepoToDelete(null);
+                                                    }
+                                                }
+                                            }}
+                                            disabled={!selectedRepoToDelete}
+                                            className="flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-500 disabled:bg-zinc-400 disabled:opacity-50 text-white font-bold px-8 py-3 rounded-xl transition-all shadow-lg shadow-rose-500/25 active:scale-95 disabled:pointer-events-none"
+                                        >
+                                            <Trash2 size={18} /> Purge Group
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>

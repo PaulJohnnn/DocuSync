@@ -1,12 +1,57 @@
 "use client";
 
-import React from 'react';
-import { Mail, Lock } from 'lucide-react';
+import React, { useState } from 'react';
+import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { ThemeToggle } from '../../../components/ThemeToggle';
+import { supabase } from '../../../lib/supabase';
 
 export default function LoginPage() {
     const router = useRouter();
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            // 1. Try Supabase Auth if configured
+            if (supabase) {
+                const { error: authError } = await supabase.auth.signInWithPassword({
+                    email,
+                    password,
+                });
+
+                if (!authError) {
+                    router.push('/dashboard/user/my-drive');
+                    return;
+                }
+                
+                // If Supabase error, only show it if the error is not "Invalid login credentials" 
+                // because we might be using demo credentials
+                if (authError.message !== 'Invalid login credentials') {
+                    setError(authError.message);
+                    setIsLoading(false);
+                    return;
+                }
+            }
+
+            // 2. Demo Fallback
+            if (email === 'user@docusync.edu' && password === 'user123') {
+                router.push('/dashboard/user/my-drive');
+            } else {
+                setError('Invalid workspace credentials. Please check your email and password.');
+            }
+        } catch (err: any) {
+            setError('An unexpected error occurred. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center relative font-sans overflow-hidden transition-colors duration-300">
@@ -42,7 +87,14 @@ export default function LoginPage() {
                     {/* Decorative top bar */}
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-400 via-orange-500 to-purple-500"></div>
 
-                    <form onSubmit={(e) => { e.preventDefault(); router.push('/dashboard/user/my-drive'); }} className="space-y-7">
+                    {error && (
+                        <div className="mb-6 flex items-center gap-3 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-sm font-semibold animate-in fade-in slide-in-from-top-2">
+                            <AlertCircle size={18} className="shrink-0" />
+                            {error}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleLogin} className="space-y-7">
                         <div>
                             <label htmlFor="email" className="block text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2">
                                 Email Address
@@ -54,7 +106,10 @@ export default function LoginPage() {
                                 <input
                                     id="email"
                                     name="email"
-                                    type="text"
+                                    type="email"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
                                     autoComplete="email"
                                     className="block w-full pl-12 rounded-2xl py-3.5 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:bg-white dark:focus:bg-zinc-900 focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 transition-all duration-200 sm:text-sm outline-none font-medium"
                                     placeholder="you@example.com"
@@ -74,6 +129,9 @@ export default function LoginPage() {
                                     id="password"
                                     name="password"
                                     type="password"
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
                                     autoComplete="current-password"
                                     className="block w-full pl-12 rounded-2xl py-3.5 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:bg-white dark:focus:bg-zinc-900 focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500 transition-all duration-200 sm:text-sm outline-none font-medium tracking-wider"
                                     placeholder="••••••••"
@@ -104,9 +162,17 @@ export default function LoginPage() {
                         <div className="pt-4">
                             <button
                                 type="submit"
-                                className="w-full flex justify-center py-4 px-4 border border-transparent rounded-2xl shadow-xl text-sm font-extrabold text-white bg-amber-600 hover:bg-amber-700 shadow-amber-500/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-offset-zinc-900 transition-all duration-300 transform hover:-translate-y-0.5"
+                                disabled={isLoading}
+                                className="w-full flex justify-center items-center py-4 px-4 border border-transparent rounded-2xl shadow-xl text-sm font-extrabold text-white bg-amber-600 hover:bg-amber-700 shadow-amber-500/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 dark:focus:ring-offset-zinc-900 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:pointer-events-none"
                             >
-                                Access Workspace
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                        Authenticating...
+                                    </>
+                                ) : (
+                                    "Access Workspace"
+                                )}
                             </button>
                         </div>
                     </form>

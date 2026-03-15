@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 };
 
 import { ThemeProvider } from "../components/ThemeProvider";
+import { SyncProvider } from "../context/SyncContext";
 
 export default function RootLayout({
   children,
@@ -35,7 +36,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <SyncProvider>
+            {children}
+          </SyncProvider>
         </ThemeProvider>
       </body>
     </html>
