@@ -17,6 +17,7 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [isResetMode, setIsResetMode] = useState(false);
     const [resetSent, setResetSent] = useState(false);
+    const [resetEmail, setResetEmail] = useState('');
     const { pendingUserRequests } = useSyncContext();
 
     // Jitter-style Animation Variants
@@ -61,7 +62,7 @@ export default function LoginPage() {
         setIsLoading(true);
         setError(null);
 
-        const cleanEmail = email.trim();
+        const cleanEmail = resetEmail.trim();
         try {
             if (supabase) {
                 const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {

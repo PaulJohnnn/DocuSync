@@ -1296,7 +1296,7 @@ export default function UserDashboard() {
                                         </div>
                                         <div>
                                             <h2 className="text-lg font-black text-zinc-900 dark:text-white flex items-center gap-2 tracking-tight">
-                                                Suggestion Feed: <span className="opacity-50">{current.name}</span>
+                                                Suggestion Feed: <span className="opacity-50">{current.section}</span>
                                             </h2>
                                             <p className="text-xs text-zinc-500 font-medium tracking-wide uppercase">Consensus Mode • Conflict {conflictIndex + 1} of {1}</p>
                                         </div>
