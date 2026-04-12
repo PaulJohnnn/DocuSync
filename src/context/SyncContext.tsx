@@ -110,8 +110,8 @@ const initialReposData: RepositoryData[] = [
         id: 1, name: 'Thesis_Docs', lastSynced: 'Just now', status: 'Up to date', userRole: 'Owner',
         members: [
             { name: 'Paul John Palamara', role: 'Owner', badge: 'amber', status: 'online', lastActive: 'Now' },
-            { name: 'User S', role: 'Editor', badge: 'purple', status: 'idle', lastActive: '5 min ago' },
-            { name: 'Prof. Davis', role: 'Viewer', badge: 'zinc', status: 'offline', lastActive: '2 hrs ago' },
+            { name: 'Sofia Reyes', role: 'Editor', badge: 'purple', status: 'online', lastActive: 'Now' },
+            { name: 'Prof. Davis', role: 'Viewer', badge: 'zinc', status: 'online', lastActive: 'Now' },
         ],
         pendingRequests: [
             { id: 101, name: 'David Lee', email: 'david.lee@university.edu', date: '10 min ago' },
@@ -278,7 +278,7 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
 
             try {
-                const DATA_VERSION = 'v6-member-status';
+                const DATA_VERSION = 'v7-sofia-reyes';
                 const storedVersion = localStorage.getItem('docusync_data_version');
 
                 // If version mismatch, wipe all cached state and start fresh with new initial data
@@ -691,8 +691,12 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     ...r,
                     files: r.files.map(f =>
                         conflictIds.has(f.id)
-                            ? { ...f, syncStatus: 'conflict' as SyncStatus, serverContent: (f.content || '') + ' [Simulated remote edit from Prof. Anderson]' }
+                            ? { ...f, syncStatus: 'conflict' as SyncStatus, serverContent: (f.content || '') + '\n\n[Sofia Reyes: Added incoming collaborative edits via CRDT sync.]' }
                             : f
+                    ),
+                    // Set Sofia Reyes to 'online' so her card shows active edits in the conflict hub
+                    members: r.members.map(m =>
+                        m.name === 'Sofia Reyes' ? { ...m, status: 'online' as const, lastActive: 'Now' } : m
                     )
                 };
             });

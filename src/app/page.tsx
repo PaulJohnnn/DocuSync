@@ -132,33 +132,7 @@ function RequestAccessForm() {
         }
     } catch { /* ignore */ }
 
-    let supabaseSuccess = false;
-
-    // Try Supabase first
-    try {
-        if (supabase) {
-            const { error: signUpError } = await supabase.auth.signUp({
-                email,
-                password: newPassword,
-                options: { data: { full_name: name } }
-            });
-
-            if (!signUpError) {
-                supabaseSuccess = true;
-            } else if (
-                signUpError.message.toLowerCase().includes('already registered') ||
-                signUpError.message.toLowerCase().includes('already in use') ||
-                signUpError.message.toLowerCase().includes('user already registered')
-            ) {
-                setErrorMessage('Email is already in use. Please use a different email or log in.');
-                setStatus('error');
-                return;
-            }
-            // If other Supabase error (e.g. "Failed to fetch"), fall through to local fallback
-        }
-    } catch { /* Network error — fall through to local */ }
-
-    // Always create local account (as fallback or supplement)
+    // Submit a pending request — admin must approve before login
     try {
         const stored = localStorage.getItem('docusync_user_requests');
         const allRequests = stored ? JSON.parse(stored) : [];
@@ -167,7 +141,7 @@ function RequestAccessForm() {
             name,
             email,
             password: newPassword,
-            status: 'approved',
+            status: 'pending',
             requestDate: new Date().toISOString(),
         });
         localStorage.setItem('docusync_user_requests', JSON.stringify(allRequests));
@@ -186,34 +160,39 @@ function RequestAccessForm() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="p-8 rounded-[3rem] bg-emerald-500/10 border border-emerald-500/20 text-center backdrop-blur-xl shadow-2xl shadow-emerald-500/10"
+            className="p-8 rounded-[3rem] bg-amber-500/10 border border-amber-500/20 text-center backdrop-blur-xl shadow-2xl shadow-amber-500/10"
           >
-            <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/30">
+            <div className="w-16 h-16 bg-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-500/30">
               <CheckCircle2 size={32} className="text-white" />
             </div>
-            <h3 className="text-2xl font-black text-white mb-2">Credentials Generated</h3>
-            <p className="text-emerald-400 text-sm font-medium mb-6">
-              Your account is ready! Please copy your secure auto-generated system password below.
+            <h3 className="text-2xl font-black text-white mb-2">Request Submitted!</h3>
+            <p className="text-amber-300 text-sm font-medium mb-4">
+              Your access request has been sent. An admin will review and approve your account.
             </p>
-            <div className="bg-black/50 rounded-2xl p-4 mb-6 border border-emerald-500/20 flex justify-between items-center">
-              <span className="text-2xl font-mono font-bold text-white tracking-widest">{generatedPassword}</span>
-              <button 
-                onClick={() => {
-                  if(generatedPassword) navigator.clipboard.writeText(generatedPassword);
-                  setIsCopied(true);
-                  setTimeout(() => setIsCopied(false), 2000);
-                }}
-                className="p-3 bg-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-500/40 transition-colors"
-                title="Copy Password"
-              >
-                 {isCopied ? <CheckCircle2 size={24}/> : <Copy size={24}/>}
-              </button>
+            <div className="bg-black/30 rounded-2xl p-4 mb-4 border border-amber-500/20 text-left">
+              <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-2">Your Credentials (save these)</p>
+              <p className="text-xs text-zinc-300 mb-1"><span className="text-zinc-500">Email:</span> {email}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-xs text-zinc-300 flex-1"><span className="text-zinc-500">Password:</span> <span className="font-mono font-bold text-amber-400">{generatedPassword}</span></p>
+                <button 
+                  onClick={() => {
+                    if(generatedPassword) navigator.clipboard.writeText(generatedPassword);
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 2000);
+                  }}
+                  className="p-2 bg-amber-500/20 text-amber-400 rounded-lg hover:bg-amber-500/40 transition-colors"
+                  title="Copy Password"
+                >
+                   {isCopied ? <CheckCircle2 size={16}/> : <Copy size={16}/>}
+                </button>
+              </div>
             </div>
+            <p className="text-xs text-zinc-400 mb-4">Once approved, use your email and password to log in.</p>
             <button 
               onClick={() => router.push('/login')} 
-              className="px-10 py-4 w-full rounded-[2rem] bg-emerald-500 text-white font-black text-sm uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/30 hover:bg-emerald-400 transition-colors"
+              className="px-10 py-4 w-full rounded-[2rem] bg-amber-500 text-white font-black text-sm uppercase tracking-[0.2em] shadow-lg shadow-amber-500/30 hover:bg-amber-400 transition-colors"
             >
-              Proceed to Login
+              Go to Login
             </button>
           </motion.div>
         ) : (
@@ -256,7 +235,7 @@ function RequestAccessForm() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Institutional Email Address"
+                placeholder="Email Address"
                 className="w-full px-8 py-5 rounded-[2rem] bg-white/[0.03] border border-white/10 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 focus:bg-white/[0.08] focus:ring-4 focus:ring-amber-500/10 transition-all font-bold text-base"
               />
             </div>
@@ -423,7 +402,7 @@ export default function LandingPage() {
                 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, delay: 0.6 }}
                 className="text-xl sm:text-2xl text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed max-w-2xl mb-12"
               >
-                How can this system help your team collaborate seamlessly across distributed networks?
+                Real-time file synchronization for teams and individuals — keep your documents in sync, anywhere, on any device.
               </motion.p>
 
               <motion.div 
@@ -435,14 +414,14 @@ export default function LandingPage() {
                   onClick={() => router.push('/login')}
                   className="px-10 py-5 rounded-[2rem] bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black text-lg shadow-2xl shadow-amber-500/40 hover:shadow-amber-500/60 transition-all flex items-center gap-3 group"
                 >
-                  Continue Website <Zap size={20} className="fill-white" />
+                  Continue to App <Zap size={20} className="fill-white" />
                 </motion.button>
                 <motion.button
                   whileHover={{ scale: 1.05, y: -4 }} whileTap={{ scale: 0.95 }}
                   onClick={() => document.getElementById('research')?.scrollIntoView({ behavior: 'smooth' })}
                   className="px-10 py-5 rounded-[2rem] border-2 border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white font-black text-lg hover:bg-zinc-100 dark:hover:bg-white/5 transition-all"
                 >
-                  Join Research
+                  Get Started
                 </motion.button>
               </motion.div>
             </div>
@@ -505,7 +484,7 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.2 }}
               className="text-zinc-500 dark:text-zinc-400 text-lg max-w-md font-medium"
             >
-              DocuSync leverages decentralized state management to ensure your research data remains consistent, even across unstable networks.
+              DocuSync uses decentralized state management to keep your documents consistent — even across unstable networks and multiple devices.
             </motion.p>
           </div>
 
@@ -537,19 +516,19 @@ export default function LandingPage() {
                 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-black/5 dark:border-white/10 bg-white dark:bg-white/5 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em] mb-8"
               >
-                <Database size={14} /> Methodology
+                <Database size={14} /> How It Works
               </motion.div>
               <motion.h2
                 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}
                 className="text-4xl sm:text-6xl font-black tracking-tight text-zinc-900 dark:text-white mb-8"
               >
-                Rigorous <span className="text-amber-500">Framework</span> Validation.
+                Built for <span className="text-amber-500">Real Users</span>.
               </motion.h2>
               <div className="space-y-8">
                 {[
-                  { icon: Cpu, title: 'ISO/IEC 25010 Standards', desc: 'Evaluated against global benchmarks for software quality and reliability.' },
-                  { icon: Activity, title: 'Latency Benchmarking', desc: 'Real-time performance distribution analysis under high-concurrency loads.' },
-                  { icon: Binary, title: 'CRDT Verification', desc: 'Formal mathematical verification of eventually consistent state convergence.' }
+                  { icon: Cpu, title: 'Request an Account', desc: 'Sign up and submit your details. Our admin team reviews and approves your workspace access.' },
+                  { icon: Activity, title: 'Upload & Sync Files', desc: 'Instantly upload your documents and collaborate in real-time across all your devices.' },
+                  { icon: Binary, title: 'Stay in Sync, Always', desc: 'Our CRDT engine automatically merges edits — no conflicts, no lost work, even when offline.' }
                 ].map((item, i) => (
                   <motion.div 
                     key={i} 
@@ -573,17 +552,10 @@ export default function LandingPage() {
               <div className="relative p-1 bg-gradient-to-tr from-amber-500/20 to-orange-600/20 rounded-[3.5rem] shadow-2xl">
                 <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-3xl rounded-[3.25rem] p-10 sm:p-14 border border-white/20 dark:border-white/5">
                   <div className="text-center mb-8">
-                    <h3 className="text-3xl font-black text-zinc-900 dark:text-white mb-3">Join DocuSync</h3>
-                    <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm">Create your account — fill in your details and get a secure auto-generated password.</p>
+                    <h3 className="text-3xl font-black text-zinc-900 dark:text-white mb-3">Request Access</h3>
+                    <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm">Create your account — submit your details and an admin will approve your access shortly.</p>
                   </div>
-                  <motion.button
-                    whileHover={{ scale: 1.02, y: -2 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push('/register')}
-                    className="w-full py-5 rounded-[2rem] bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white font-black text-base shadow-2xl shadow-amber-500/30 hover:shadow-amber-500/50 flex items-center justify-center gap-3 uppercase tracking-widest transition-all"
-                  >
-                    Create Account <ArrowRight size={20} />
-                  </motion.button>
+                  <RequestAccessForm />
                   <p className="text-center text-xs text-zinc-400 dark:text-zinc-600 mt-5 font-medium">
                     Already have an account?{' '}
                     <span onClick={() => router.push('/login')} className="text-amber-500 hover:text-amber-400 cursor-pointer font-bold transition-colors">Log In</span>
@@ -603,9 +575,9 @@ export default function LandingPage() {
               initial={{ opacity: 0, scale: 0.9 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-black/5 dark:border-white/10 bg-zinc-50 dark:bg-white/5 text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.2em] mb-6"
             >
-              <Users size={14} /> Research Faculty
+              <Users size={14} /> The Team
             </motion.div>
-            <h2 className="text-4xl sm:text-6xl font-black text-zinc-900 dark:text-white tracking-tight">The Researchers.</h2>
+            <h2 className="text-4xl sm:text-6xl font-black text-zinc-900 dark:text-white tracking-tight">Who Built This.</h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -638,23 +610,23 @@ export default function LandingPage() {
                 <span className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">DocuSync</span>
               </div>
               <p className="text-zinc-500 dark:text-zinc-400 font-medium leading-relaxed">
-                Advanced real-time file synchronization for academic and enterprise research. Built with mathematical convergence at its core.
+                Advanced real-time file synchronization for teams and individuals. Built with mathematical convergence at its core.
               </p>
             </div>
 
             <div className="md:col-span-8 grid grid-cols-2 sm:grid-cols-3 gap-8">
               <div>
-                <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-6">Institution</h5>
-                <p className="text-sm font-bold text-zinc-900 dark:text-zinc-300">Pamantasan ng Cabuyao</p>
-                <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-2">College of Computing Studies</p>
+                <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-6">Platform</h5>
+                <p className="text-sm font-bold text-zinc-900 dark:text-zinc-300">DocuSync Cloud</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-2">Powered by Supabase</p>
               </div>
               <div>
-                <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-6">Timeline</h5>
-                <p className="text-sm font-bold text-zinc-900 dark:text-zinc-300">Final Defense</p>
-                <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-2">May 2026</p>
+                <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-6">Technology</h5>
+                <p className="text-sm font-bold text-zinc-900 dark:text-zinc-300">CRDT + WebRTC</p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-2">Edge-first Architecture</p>
               </div>
               <div className="col-span-2 sm:col-span-1">
-                <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-6">System</h5>
+                <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600 mb-6">Version</h5>
                 <p className="text-sm font-bold text-zinc-900 dark:text-zinc-300 italic">v4.0 Spring-Protocol</p>
               </div>
             </div>
@@ -662,7 +634,7 @@ export default function LandingPage() {
 
           <div className="pt-12 border-t border-black/5 dark:border-white/5 flex flex-col sm:flex-row items-center justify-between gap-6">
             <p className="text-xs font-bold text-zinc-400 dark:text-zinc-600 uppercase tracking-widest">
-              © 2026 DocuSync Collective Research Team
+              © 2026 DocuSync
             </p>
             <div className="flex gap-8">
               <span className="text-xs font-bold text-zinc-400 dark:text-zinc-600 hover:text-amber-500 cursor-pointer transition-colors uppercase tracking-widest">Terms</span>

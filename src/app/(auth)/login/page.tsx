@@ -95,6 +95,7 @@ export default function LoginPage() {
         try {
             // 1. Look up user by loginId in localStorage
             let matchedUser: any = null;
+            let pendingUser: any = null;
             try {
                 const stored = localStorage.getItem('docusync_user_requests');
                 if (stored) {
@@ -102,6 +103,12 @@ export default function LoginPage() {
                     matchedUser = allRequests.find(
                         (u: any) => u.loginId === cleanId && u.password === cleanPassword && u.status === 'approved'
                     );
+                    // Check if user has submitted request but hasn't been approved yet
+                    if (!matchedUser) {
+                        pendingUser = allRequests.find(
+                            (u: any) => u.email === cleanId && u.status === 'pending'
+                        );
+                    }
                 }
             } catch { /* ignore */ }
 
@@ -115,6 +122,12 @@ export default function LoginPage() {
                     department: matchedUser.department,
                 }));
                 router.push('/dashboard/user/my-drive');
+                return;
+            }
+
+            if (pendingUser) {
+                setError('Your account is pending admin approval. Please wait for an administrator to review your request.');
+                setIsLoading(false);
                 return;
             }
 
@@ -381,7 +394,10 @@ export default function LoginPage() {
                 
                 {/* Secondary Info */}
                 <motion.p variants={itemVariants} className="mt-10 text-center text-xs text-zinc-500 dark:text-zinc-600 font-medium">
-                    New workspace? Contact <span className="text-zinc-900 dark:text-zinc-400 font-bold underline cursor-pointer">Security Admin</span>
+                    Don&apos;t have an account?{' '}
+                    <span onClick={() => router.push('/#access-form')} className="text-amber-500 hover:text-amber-400 cursor-pointer font-bold transition-colors underline">Request Access</span>
+                    {' · '}
+                    <span className="text-zinc-400">Admin? Use Login ID <code className="text-xs bg-zinc-100 dark:bg-zinc-800 px-1 rounded">admin</code></span>
                 </motion.p>
             </motion.div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { ThemeToggle } from '../../../../components/ThemeToggle';
@@ -47,6 +47,9 @@ export default function UserDashboard() {
     // Module 3: File Editor
     const [editingFile, setEditingFile] = useState<{ name: string; content: string; pendingReview?: { previousContent: string; resolvedWith: 'local' | 'server' | 'merge'; resolvedAt: string } | null } | null>(null);
     const [editorText, setEditorText] = useState('');
+    // Always-fresh ref — never stale in closures or modal opens
+    const latestEditorTextRef = useRef('');
+    useEffect(() => { latestEditorTextRef.current = editorText; }, [editorText]);
     // Module 4: Dynamic conflict content (from editor Save & Quit)
     const [dynamicConflict, setDynamicConflict] = useState<{ localContent: string; serverContent: string; originalContent: string } | null>(null);
     // Module 1: Delete repo confirm
@@ -566,7 +569,7 @@ export default function UserDashboard() {
                                                                     // Conflict badge — only visible to Owner, clicking opens Conflict Mode
                                                                     isRepoOwner ? (
                                                                         <motion.div key="conflict" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
-                                                                            onClick={(e) => { e.stopPropagation(); setEditingCardsFile({ name: file.name, content: file.content || '', serverContent: file.serverContent || '' }); setIsEditingCardsOpen(true); }}
+                                                                            onClick={(e) => { e.stopPropagation(); setEditingCardsFile({ name: file.name, content: latestEditorTextRef.current || file.content || '', serverContent: file.serverContent || '' }); setIsEditingCardsOpen(true); }}
                                                                             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-medium animate-pulse cursor-pointer hover:bg-amber-500/20 transition-colors"
                                                                             title="Owner: click to resolve conflict">
                                                                             <AlertTriangle size={14} /> Conflict
@@ -750,12 +753,7 @@ export default function UserDashboard() {
                                 <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl p-8 mb-8 shadow-xl">
                                     <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2"><Shield size={20} className="text-amber-600 dark:text-amber-400" /> System Preferences</h3>
                                     <div className="space-y-4">
-                                        <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
-                                            <div className="flex items-center gap-4"><div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"><Wifi size={18} /></div><div><p className="text-zinc-900 dark:text-white font-medium">Auto-Sync on Cellular</p><p className="text-sm text-zinc-500 dark:text-zinc-400">Allow background syncing when disconnected from Wi-Fi</p></div></div>
-                                            <motion.div whileTap={{ scaleX: 1.15, scaleY: 0.85 }} onClick={() => setAutoSync(!autoSync)} className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors duration-300 shadow-inner ${autoSync ? 'bg-amber-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}>
-                                                <motion.div animate={{ x: autoSync ? 24 : 0 }} transition={{ type: "spring", stiffness: 600, damping: 25 }} className="w-5 h-5 rounded-full bg-white absolute top-0.5 left-0.5 shadow-md"></motion.div>
-                                            </motion.div>
-                                        </div>
+
                                         <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
                                             <div className="flex items-center gap-4"><div className="p-2 rounded-lg bg-purple-500/10 text-purple-400"><Bell size={18} /></div><div><p className="text-zinc-900 dark:text-white font-medium">Desktop Notifications</p><p className="text-sm text-zinc-500 dark:text-zinc-400">Receive alerts for conflicts and completed syncs</p></div></div>
                                             <motion.div whileTap={{ scaleX: 1.15, scaleY: 0.85 }} onClick={() => setNotifications(!notifications)} className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors duration-300 shadow-inner ${notifications ? 'bg-purple-500' : 'bg-zinc-300 dark:bg-zinc-600'}`}>
@@ -1126,8 +1124,17 @@ export default function UserDashboard() {
                                 if (currentRepo && conflictFile) {
                                     // Determine final content based on resolution type
                                     const localC = current.localText;
-                                    // 1. Clean the server string of mock comments (e.g. [Prof. Anderson: ...])
-                                    const serverC = current.serverText.replace(/\[.*?:\s.*?\]/g, '').trim();
+                                    // 1. Prepare server text by converting simulation logs into authentic realistic document text
+                                    let serverC = current.serverText;
+                                    
+                                    // Transform the metadata logs into realistic thesis sentences
+                                    serverC = serverC.replace(/\[Sofia Reyes:.*?\]/g, "<p>Furthermore, our Yjs CRDT implementation facilitates true decentralized real-time collaboration, completely bypassing conventional network bottlenecks.</p>");
+                                    
+                                    if (!serverC.includes('Prof. Davis')) {
+                                        serverC += '\n\n<p>In summary, this research proves that peer-to-peer conflict-free replicated data types drastically outperform traditional operational transformation algorithms in high-latency environments.</p>';
+                                    } else {
+                                        serverC = serverC.replace(/\[Prof\. Davis:.*?\]/g, "<p>In summary, this research proves that peer-to-peer conflict-free replicated data types drastically outperform traditional operational transformation algorithms in high-latency environments.</p>");
+                                    }
 
                                     // Ensure proper HTML format
                                     const formatHtml = (t: string) => {
@@ -1150,7 +1157,10 @@ export default function UserDashboard() {
                                         });
 
                                         if (uniqueServerBlocks.length > 0) {
-                                            return localHtml + `<p><br></p><h3>Merged Remote Changes</h3>` + uniqueServerBlocks.join('');
+                                            const seamlessBlocks = uniqueServerBlocks.map(block => 
+                                                block.replace(/^<([a-z1-6]+)([^>]*)>/i, '<$1$2 class="pl-4 border-l-4 border-emerald-500 bg-emerald-50/30 dark:bg-emerald-900/20 py-2 my-4 text-emerald-950 dark:text-emerald-100 rounded-r-md transition-all">')
+                                            );
+                                            return localHtml + seamlessBlocks.join('');
                                         }
                                         return localHtml;
                                     };
@@ -1304,8 +1314,8 @@ export default function UserDashboard() {
                                     <div className="flex items-center gap-3">
                                         <div className="flex -space-x-3 mr-4">
                                             <div className="w-8 h-8 rounded-full bg-blue-500 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold text-white shadow-lg">P</div>
-                                            <div className="w-8 h-8 rounded-full bg-purple-500 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold text-white shadow-lg">E</div>
-                                            <div className="w-8 h-8 rounded-full bg-zinc-800 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold text-white shadow-lg">+2</div>
+                                            <div className="w-8 h-8 rounded-full bg-purple-500 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold text-white shadow-lg">S</div>
+                                            <div className="w-8 h-8 rounded-full bg-amber-500 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold text-white shadow-lg">P</div>
                                         </div>
                                         <button 
                                             onClick={() => setConflictFile(null)} 
@@ -1364,12 +1374,12 @@ export default function UserDashboard() {
                                                                             
                                                                             {/* Inline Watermark Badge */}
                                                                             <div className="hidden md:block absolute left-4 top-0 -translate-x-full pr-4 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                                                                <span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter bg-blue-100/50 dark:bg-blue-900/30 px-2 py-0.5 rounded shadow-sm border border-blue-500/20">Prof. Anderson</span>
+                                                                                <span className="text-[9px] font-black text-blue-500 uppercase tracking-tighter bg-blue-100/50 dark:bg-blue-900/30 px-2 py-0.5 rounded shadow-sm border border-blue-500/20">You</span>
                                                                             </div>
 
                                                                             <div className="text-[14px] text-zinc-800 dark:text-zinc-200 relative select-none pl-2">
-                                                                                <span className="inline-block text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 rounded mb-2 border border-blue-200 dark:border-blue-800">RECOMMENDED ADDITION — [Prof. Anderson]</span>
-                                                                                <div dangerouslySetInnerHTML={{ __html: current.serverText }} />
+                                                                                <span className="inline-block text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 rounded mb-2 border border-blue-200 dark:border-blue-800">SAVED DRAFT — [You]</span>
+                                                                                <div className="italic font-medium text-zinc-900 dark:text-zinc-100">Please feel free to add your sections below. now</div>
                                                                                 <div className="h-[2px] w-full bg-gradient-to-r from-blue-500/30 to-transparent mt-4"></div>
                                                                             </div>
                                                                         </Reorder.Item>
@@ -1394,16 +1404,16 @@ export default function UserDashboard() {
                                                                             
                                                                             {/* Inline Watermark Badge */}
                                                                             <div className="hidden md:block absolute left-4 top-0 -translate-x-full pr-4 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                                                                <span className="text-[9px] font-black text-purple-500 uppercase tracking-tighter bg-purple-100/50 dark:bg-purple-900/30 px-2 py-0.5 rounded shadow-sm border border-purple-500/20">Elena Rostova</span>
+                                                                                <span className="text-[9px] font-black text-purple-500 uppercase tracking-tighter bg-purple-100/50 dark:bg-purple-900/30 px-2 py-0.5 rounded shadow-sm border border-purple-500/20">Sofia Reyes</span>
                                                                             </div>
 
                                                                             <div className="relative p-6 rounded-2xl border-2 border-dashed border-purple-200 dark:border-purple-800/30 bg-purple-50/20 dark:bg-purple-900/5 hover:border-purple-400 transition-all select-none ml-2">
                                                                                 <div className="flex items-center gap-2 mb-3">
                                                                                     <div className="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center text-[10px] font-black text-white"><GripVertical size={10} /></div>
-                                                                                    <span className="text-[10px] font-bold text-purple-700 dark:text-purple-400 uppercase tracking-tighter">Contributor Trace: Elena Rostova</span>
+                                                                                    <span className="text-[10px] font-bold text-purple-700 dark:text-purple-400 uppercase tracking-tighter">Contributor Trace: Sofia Reyes</span>
                                                                                 </div>
                                                                                 <p className="text-zinc-700 dark:text-zinc-300 italic text-[14px] leading-[2]">
-                                                                                    [Citations: Smith et al. (2023); Johnson (2022)]
+                                                                                    <span className="font-semibold text-purple-600 dark:text-purple-400">Added text:</span> "Furthermore, our Yjs CRDT implementation facilitates true decentralized real-time collaboration, completely bypassing conventional network bottlenecks."
                                                                                 </p>
                                                                             </div>
                                                                         </Reorder.Item>
@@ -1423,15 +1433,15 @@ export default function UserDashboard() {
                                                                             </div>
                                                                             <div className="absolute left-6 top-0 bottom-0 w-1 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.3)]"></div>
                                                                             <div className="hidden md:block absolute left-4 top-0 -translate-x-full pr-4 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                                                                <span className="text-[9px] font-black text-amber-500 uppercase tracking-tighter bg-amber-100/50 dark:bg-amber-900/30 px-2 py-0.5 rounded shadow-sm border border-amber-500/20">Sarah Jenkins</span>
+                                                                                <span className="text-[9px] font-black text-amber-500 uppercase tracking-tighter bg-amber-100/50 dark:bg-amber-900/30 px-2 py-0.5 rounded shadow-sm border border-amber-500/20">Prof. Davis</span>
                                                                             </div>
                                                                             <div className="relative p-6 rounded-2xl border-2 border-dashed border-amber-200 dark:border-amber-800/30 bg-amber-50/20 dark:bg-amber-900/5 hover:border-amber-400 transition-all select-none ml-2">
                                                                                 <div className="flex items-center gap-2 mb-3">
                                                                                     <div className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center text-[10px] font-black text-white"><GripVertical size={10} /></div>
-                                                                                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-tighter">Contributor Trace: Sarah Jenkins</span>
+                                                                                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-tighter">Contributor Trace: Prof. Davis</span>
                                                                                 </div>
                                                                                 <p className="text-zinc-700 dark:text-zinc-300 italic text-[14px] leading-[2]">
-                                                                                    Summary section rewritten to match new thesis scope.
+                                                                                    <span className="font-semibold text-amber-600 dark:text-amber-400">Rewrote summary:</span> "In summary, this research proves that peer-to-peer conflict-free replicated data types drastically outperform traditional operational transformation algorithms in high-latency environments."
                                                                                 </p>
                                                                             </div>
                                                                         </Reorder.Item>
@@ -1471,17 +1481,16 @@ export default function UserDashboard() {
                                                                     className={`p-4 rounded-2xl bg-white dark:bg-zinc-800 border transition-all duration-300 cursor-grab active:cursor-grabbing ${visibleSuggestions.includes('server') ? 'border-blue-500 shadow-lg' : 'border-zinc-200 dark:border-zinc-700 opacity-60'}`}
                                                                 >
                                                                     <div className="flex items-center gap-3 mb-3">
-                                                                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white"><GripVertical size={14} /></div>
+                                                                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-black text-sm">P</div>
                                                                         <div className="flex-1">
-                                                                            <p className="text-xs font-bold text-zinc-900 dark:text-white">Prof. Anderson</p>
-                                                                            <p className="text-[10px] text-zinc-500 italic">Recommends citation tweak</p>
+                                                                            <p className="text-xs font-bold text-zinc-900 dark:text-white">You</p>
+                                                                            <p className="text-[10px] text-zinc-500 italic">Saved local draft edits</p>
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex gap-2">
-                                                                        <button onClick={() => setVisibleSuggestions(prev => prev.includes('server') ? prev.filter(id => id !== 'server') : [...prev, 'server'])} className={`flex-1 py-1.5 rounded-lg border text-[10px] font-bold ${visibleSuggestions.includes('server') ? 'bg-blue-500 text-white' : 'border-zinc-200 text-zinc-400'}`}>
+                                                                        <button onClick={() => setVisibleSuggestions(prev => prev.includes('server') ? prev.filter(id => id !== 'server') : [...prev, 'server'])} className={`w-full py-1.5 rounded-lg border text-[10px] font-bold ${visibleSuggestions.includes('server') ? 'bg-blue-500 text-white' : 'border-zinc-200 text-zinc-400'}`}>
                                                                             {visibleSuggestions.includes('server') ? 'VISIBLE' : 'HIDDEN'}
                                                                         </button>
-                                                                        <button onClick={() => isRepoOwner && handleResolve('server')} disabled={!isRepoOwner} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold ${isRepoOwner ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black cursor-pointer' : 'bg-zinc-300 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 cursor-not-allowed opacity-60'}`} title={!isRepoOwner ? 'Only the repository owner can approve changes' : ''}>{isRepoOwner ? 'APPROVE' : '🔒 OWNER ONLY'}</button>
                                                                     </div>
                                                                 </Reorder.Item>
                                                             );
@@ -1494,17 +1503,16 @@ export default function UserDashboard() {
                                                                     className={`p-4 rounded-2xl bg-white dark:bg-zinc-800 border transition-all duration-300 cursor-grab active:cursor-grabbing ${visibleSuggestions.includes('merge') ? 'border-purple-500 shadow-lg' : 'border-zinc-200 dark:border-zinc-700 opacity-60'}`}
                                                                 >
                                                                     <div className="flex items-center gap-3 mb-3">
-                                                                        <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white"><GripVertical size={14} /></div>
+                                                                        <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-black text-sm">S</div>
                                                                         <div className="flex-1">
-                                                                            <p className="text-xs font-bold text-zinc-900 dark:text-white">Elena Rostova</p>
-                                                                            <p className="text-[10px] text-zinc-500 italic">Added research nodes</p>
+                                                                            <p className="text-xs font-bold text-zinc-900 dark:text-white">Sofia Reyes</p>
+                                                                            <p className="text-[10px] text-zinc-500 italic">Added incoming collaborative edits via CRDT sync.</p>
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex gap-2">
-                                                                        <button onClick={() => setVisibleSuggestions(prev => prev.includes('merge') ? prev.filter(id => id !== 'merge') : [...prev, 'merge'])} className={`flex-1 py-1.5 rounded-lg border text-[10px] font-bold ${visibleSuggestions.includes('merge') ? 'bg-purple-500 text-white' : 'border-zinc-200 text-zinc-400'}`}>
+                                                                        <button onClick={() => setVisibleSuggestions(prev => prev.includes('merge') ? prev.filter(id => id !== 'merge') : [...prev, 'merge'])} className={`w-full py-1.5 rounded-lg border text-[10px] font-bold ${visibleSuggestions.includes('merge') ? 'bg-purple-500 text-white' : 'border-zinc-200 text-zinc-400'}`}>
                                                                             {visibleSuggestions.includes('merge') ? 'VISIBLE' : 'HIDDEN'}
                                                                         </button>
-                                                                        <button onClick={() => isRepoOwner && handleResolve('merge')} disabled={!isRepoOwner} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold ${isRepoOwner ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black cursor-pointer' : 'bg-zinc-300 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 cursor-not-allowed opacity-60'}`} title={!isRepoOwner ? 'Only the repository owner can approve changes' : ''}>{isRepoOwner ? 'APPROVE' : '🔒 OWNER ONLY'}</button>
                                                                     </div>
                                                                 </Reorder.Item>
                                                             );
@@ -1517,17 +1525,16 @@ export default function UserDashboard() {
                                                                     className={`p-4 rounded-2xl bg-white dark:bg-zinc-800 border transition-all duration-300 cursor-grab active:cursor-grabbing ${visibleSuggestions.includes('sarah') ? 'border-amber-500 shadow-lg' : 'border-zinc-200 dark:border-zinc-700 opacity-60'}`}
                                                                 >
                                                                     <div className="flex items-center gap-3 mb-3">
-                                                                        <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white"><GripVertical size={14} /></div>
+                                                                        <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white font-black text-sm">P</div>
                                                                         <div className="flex-1">
-                                                                            <p className="text-xs font-bold text-zinc-900 dark:text-white">Sarah Jenkins</p>
+                                                                            <p className="text-xs font-bold text-zinc-900 dark:text-white">Prof. Davis</p>
                                                                             <p className="text-[10px] text-zinc-500 italic">Rewrote summary section</p>
                                                                         </div>
                                                                     </div>
                                                                     <div className="flex gap-2">
-                                                                        <button onClick={() => setVisibleSuggestions(prev => prev.includes('sarah') ? prev.filter(id => id !== 'sarah') : [...prev, 'sarah'])} className={`flex-1 py-1.5 rounded-lg border text-[10px] font-bold ${visibleSuggestions.includes('sarah') ? 'bg-amber-500 text-white' : 'border-zinc-200 text-zinc-400'}`}>
+                                                                        <button onClick={() => setVisibleSuggestions(prev => prev.includes('sarah') ? prev.filter(id => id !== 'sarah') : [...prev, 'sarah'])} className={`w-full py-1.5 rounded-lg border text-[10px] font-bold ${visibleSuggestions.includes('sarah') ? 'bg-amber-500 text-white' : 'border-zinc-200 text-zinc-400'}`}>
                                                                             {visibleSuggestions.includes('sarah') ? 'VISIBLE' : 'HIDDEN'}
                                                                         </button>
-                                                                        <button onClick={() => isRepoOwner && handleResolve('merge')} disabled={!isRepoOwner} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold ${isRepoOwner ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black cursor-pointer' : 'bg-zinc-300 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 cursor-not-allowed opacity-60'}`} title={!isRepoOwner ? 'Only the repository owner can approve changes' : ''}>{isRepoOwner ? 'APPROVE' : '🔒 OWNER ONLY'}</button>
                                                                     </div>
                                                                 </Reorder.Item>
                                                             );
@@ -1582,8 +1589,8 @@ export default function UserDashboard() {
                     // ── Build editor cards dynamically from real repo members ──
                     const activeRepoForCards = reposData.find(r => r.name === currentRepo);
                     const memberColorPalette = [
-                        { color: 'from-green-500 to-emerald-600', accentClass: 'border-green-400/50 shadow-[0_0_30px_rgba(34,197,94,0.2)]', headerBg: 'bg-green-500/10 dark:bg-green-900/20', headerBorder: 'border-green-200 dark:border-green-800/40', badgeCls: 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700/50', dotColor: 'bg-green-500', statusColor: 'text-green-500' },
                         { color: 'from-blue-500 to-blue-600', accentClass: 'border-blue-400/50 shadow-[0_0_30px_rgba(59,130,246,0.2)]', headerBg: 'bg-blue-500/10 dark:bg-blue-900/20', headerBorder: 'border-blue-200 dark:border-blue-800/40', badgeCls: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-700/50', dotColor: 'bg-blue-400', statusColor: 'text-blue-400' },
+                        { color: 'from-green-500 to-emerald-600', accentClass: 'border-green-400/50 shadow-[0_0_30px_rgba(34,197,94,0.2)]', headerBg: 'bg-green-500/10 dark:bg-green-900/20', headerBorder: 'border-green-200 dark:border-green-800/40', badgeCls: 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700/50', dotColor: 'bg-green-500', statusColor: 'text-green-500' },
                         { color: 'from-purple-500 to-purple-600', accentClass: 'border-purple-400/50 shadow-[0_0_30px_rgba(168,85,247,0.2)]', headerBg: 'bg-purple-500/10 dark:bg-purple-900/20', headerBorder: 'border-purple-200 dark:border-purple-800/40', badgeCls: 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-700/50', dotColor: 'bg-purple-400', statusColor: 'text-purple-400' },
                         { color: 'from-rose-500 to-pink-600', accentClass: 'border-rose-400/50 shadow-[0_0_30px_rgba(244,63,94,0.2)]', headerBg: 'bg-rose-500/10 dark:bg-rose-900/20', headerBorder: 'border-rose-200 dark:border-rose-800/40', badgeCls: 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-700/50', dotColor: 'bg-rose-400', statusColor: 'text-rose-400' },
                         { color: 'from-amber-500 to-orange-500', accentClass: 'border-amber-400/50 shadow-[0_0_30px_rgba(245,158,11,0.2)]', headerBg: 'bg-amber-500/10 dark:bg-amber-900/20', headerBorder: 'border-amber-200 dark:border-amber-800/40', badgeCls: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-700/50', dotColor: 'bg-amber-400', statusColor: 'text-amber-400' },
@@ -1592,23 +1599,25 @@ export default function UserDashboard() {
                         { color: 'from-emerald-500 to-green-600', accentClass: 'border-emerald-400/50 shadow-[0_0_30px_rgba(16,185,129,0.2)]', headerBg: 'bg-emerald-500/10 dark:bg-emerald-900/20', headerBorder: 'border-emerald-200 dark:border-emerald-800/40', badgeCls: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700/50', dotColor: 'bg-emerald-400', statusColor: 'text-emerald-400' },
                     ];
 
-                    const editors = (activeRepoForCards?.members || []).map((member, idx) => {
-                        const isLocal = member.name === activeUserName;
-                        const palette = memberColorPalette[isLocal ? 0 : (idx % (memberColorPalette.length - 1)) + 1];
+                    const editors = (activeRepoForCards?.members || []).map((rawMember, idx) => {
+                        // Demo Override to ensure these specific peers always show as active/editing
+                        const isDemoPeer = rawMember.name === 'Sofia Reyes' || rawMember.name === 'Prof. Davis';
+                        const member = isDemoPeer ? { ...rawMember, status: 'online' as const, lastActive: 'Now' } : rawMember;
                         
-                        // Determine if this member has edits (simulated)
-                        // Members who are online/idle = editing or have changes. Offline = no changes.
-                        const hasEdits = member.status === 'online' || member.status === 'idle';
+                        const isLocal = member.name === activeUserName;
+                        let palette = memberColorPalette[isLocal ? 0 : (idx % (memberColorPalette.length - 1)) + 1];
+                        if (rawMember.name === 'Prof. Davis') palette = memberColorPalette[4]; // Force amber/orange for demo
+                        
+                        // Only 'online' members have active edits. Idle and offline = No Changes.
+                        const hasEdits = member.status === 'online';
                         
                         // Generate simulated content for members with edits
                         let memberContent = editingCardsFile.content;
                         if (isLocal) {
                             memberContent = editingCardsFile.content;
                         } else if (hasEdits && editingCardsFile.serverContent) {
-                            // Vary content slightly per member to simulate different edits
-                            if (idx === 1) memberContent = editingCardsFile.serverContent;
-                            else if (idx === 2) memberContent = `${editingCardsFile.content}\n\n[${member.name}: Added citations — Smith et al. (2023), Johnson (2022)]`;
-                            else if (idx === 3) memberContent = `${editingCardsFile.content}\n\n[${member.name}: Added formatting corrections and footnotes section.]`;
+                            if (member.name === 'Sofia Reyes') memberContent = editingCardsFile.content + '\n\nFurthermore, our Yjs CRDT implementation facilitates true decentralized real-time collaboration, completely bypassing conventional network bottlenecks.';
+                            else if (member.name === 'Prof. Davis') memberContent = `${editingCardsFile.content}\n\nIn summary, this research proves that peer-to-peer conflict-free replicated data types drastically outperform traditional operational transformation algorithms in high-latency environments.`;
                             else memberContent = `${editingCardsFile.content}\n\n[${member.name}: Minor edits and review comments added.]`;
                         }
 
@@ -1621,13 +1630,13 @@ export default function UserDashboard() {
                             dotColor = palette.dotColor;
                             statusColor = palette.statusColor;
                         } else if (member.status === 'online') {
-                            status = hasEdits ? 'Editing now' : 'Viewing';
+                            status = 'Editing now';
                             dotColor = palette.dotColor;
                             statusColor = palette.statusColor;
                         } else if (member.status === 'idle') {
                             status = `Idle • ${member.lastActive || 'recently'}`;
-                            dotColor = 'bg-amber-400';
-                            statusColor = 'text-amber-400';
+                            dotColor = 'bg-zinc-500';
+                            statusColor = 'text-zinc-400';
                         } else {
                             status = `Offline • ${member.lastActive || 'unknown'}`;
                             dotColor = 'bg-zinc-500';
@@ -1635,7 +1644,7 @@ export default function UserDashboard() {
                         }
 
                         return {
-                            name: isLocal ? 'You (Local)' : member.name,
+                            name: isLocal ? 'You' : member.name,
                             initial: member.name.charAt(0),
                             badge: isLocal ? 'LOCAL' : 'PEER',
                             ...palette,
@@ -1643,8 +1652,8 @@ export default function UserDashboard() {
                             status,
                             statusColor,
                             dotColor,
-                            hasEdits: isLocal || hasEdits,
-                            isOffline: member.status === 'offline',
+                            hasEdits: isLocal || member.status === 'online',
+                            isOffline: member.status === 'offline' || member.status === 'idle',
                         };
                     });
 
@@ -1725,11 +1734,11 @@ export default function UserDashboard() {
                                                         {/* Overlay with Click Prompt */}
                                                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-t from-black/40 via-black/10 to-transparent">
                                                             <motion.div
-                                                                animate={{ scale: [1, 1.06, 1] }}
-                                                                transition={{ duration: 2, repeat: Infinity }}
-                                                                className={`px-4 py-2 rounded-xl bg-gradient-to-r ${editor.color} text-white text-xs font-black shadow-lg flex items-center gap-2`}
+                                                                whileHover={{ scale: 1.05 }}
+                                                                whileTap={{ scale: 0.95 }}
+                                                                className={`px-4 py-2 rounded-xl bg-gradient-to-r ${editor.color} text-white text-xs font-black shadow-lg flex items-center gap-2 cursor-pointer transition-all hover:shadow-xl`}
                                                             >
-                                                                <Activity size={13} /> Review Changes
+                                                                <Activity size={13} className="animate-pulse" /> Review Changes
                                                             </motion.div>
                                                             <span className="text-[10px] text-white/70 font-medium">Click to see full document</span>
                                                         </div>
@@ -1958,7 +1967,13 @@ export default function UserDashboard() {
                                         onClick={() => {
                                             if (!isRepoOwner) return;
                                             if (currentRepo && editingCardsFile) {
-                                                resolveConflict(currentRepo, editingCardsFile.name, 'server', reviewingUser.content);
+                                                // Build merged content: local + all peer edits combined
+                                                const mergedContent = reviewingUser.content;
+                                                // 1. Resolve the conflict in the data store (marks file as Synced)
+                                                resolveConflict(currentRepo, editingCardsFile.name, 'server', mergedContent);
+                                                // 2. Update the editor so it NOW shows the merged result
+                                                setEditorText(mergedContent);
+                                                setEditingFile(prev => prev ? { ...prev, content: mergedContent } : null);
                                             }
                                             setReviewingUser(null);
                                             setIsEditingCardsOpen(false);
@@ -2613,7 +2628,7 @@ export default function UserDashboard() {
                                     <h3 className="text-sm font-bold text-zinc-900 dark:text-white mb-3 flex items-center gap-2"><Users size={16} className="text-zinc-400" /> Friends List</h3>
                                     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden divide-y divide-zinc-100 dark:divide-zinc-800">
                                         {[
-                                            { name: 'User S', initial: 'S', gradient: 'from-amber-500 to-amber-600', status: 'online', label: '🟢 Online' },
+                                            { name: 'Sofia Reyes', initial: 'S', gradient: 'from-amber-500 to-amber-600', status: 'online', label: '🟢 Online' },
                                             { name: 'Prof. Davis', initial: 'P', gradient: 'from-emerald-500 to-teal-500', status: 'idle', label: '🟡 Idle (15 mins)' },
                                             { name: 'John Doe', initial: 'J', gradient: 'from-cyan-600 to-amber-600', status: 'offline', label: '⚪ Last seen 2 hours ago' },
                                             { name: 'Jane Smith', initial: 'J', gradient: 'from-purple-500 to-pink-500', status: 'offline', label: '⚪ Last seen 3 days ago' },

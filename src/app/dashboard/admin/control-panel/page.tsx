@@ -513,9 +513,272 @@ export default function AdminDashboard() {
                     )}
 
 
+                    {/* ─── USER REQUESTS TAB ───────────────────────────────── */}
+                    {activeTab === 'User Requests' && (() => {
+                        const localRequests: any[] = (() => {
+                            try {
+                                const stored = localStorage.getItem('docusync_user_requests');
+                                return stored ? JSON.parse(stored) : [];
+                            } catch { return []; }
+                        })();
+                        const pendingLocal = localRequests.filter((r: any) => r.status === 'pending');
+
+                        const handleApproveLocal = (req: any) => {
+                            const password = generatePassword();
+                            const stored = localStorage.getItem('docusync_user_requests');
+                            const allRequests = stored ? JSON.parse(stored) : [];
+                            const nextId = allRequests.reduce((max: number, u: any) => {
+                                const id = parseInt(u.loginId || '1999');
+                                return id > max ? id : max;
+                            }, 1999) + 1;
+                            const updated = allRequests.map((r: any) =>
+                                r.id === req.id ? { ...r, status: 'approved', password, loginId: String(nextId) } : r
+                            );
+                            localStorage.setItem('docusync_user_requests', JSON.stringify(updated));
+                            loadDirectoryUsers();
+                            setApprovedUser({ name: req.name, email: req.email, role: 'Editor', password });
+                            addAuditEvent(`✅ Account approved for ${req.name} (${req.email}). Login ID: ${nextId}. Credentials generated.`, 'info');
+                            setActiveTab('User Requests');
+                        };
+
+                        const handleDenyLocal = (req: any) => {
+                            if (!window.confirm(`Deny access for ${req.name}?`)) return;
+                            const stored = localStorage.getItem('docusync_user_requests');
+                            const allRequests = stored ? JSON.parse(stored) : [];
+                            const updated = allRequests.map((r: any) =>
+                                r.id === req.id ? { ...r, status: 'denied' } : r
+                            );
+                            localStorage.setItem('docusync_user_requests', JSON.stringify(updated));
+                            loadDirectoryUsers();
+                            addAuditEvent(`❌ Access request denied for ${req.name} (${req.email}).`, 'warn');
+                        };
+
+                        return (
+                            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }} className="w-full max-w-5xl mx-auto flex flex-col space-y-6">
+
+                                {/* Approved User Credential Banner */}
+                                <AnimatePresence>
+                                    {approvedUser && (
+                                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                                            className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50 rounded-2xl p-6">
+                                            <div className="flex items-start justify-between mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+                                                    <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">Access Approved — Share credentials with the user</p>
+                                                </div>
+                                                <button onClick={() => setApprovedUser(null)} className="text-zinc-400 hover:text-zinc-600"><X size={16} /></button>
+                                            </div>
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
+                                                <div><p className="text-[10px] font-bold text-zinc-400 uppercase">Name</p><p className="text-sm font-bold text-zinc-900 dark:text-white">{approvedUser.name}</p></div>
+                                                <div><p className="text-[10px] font-bold text-zinc-400 uppercase">Email</p><p className="text-sm font-bold text-zinc-900 dark:text-white truncate">{approvedUser.email}</p></div>
+                                                <div><p className="text-[10px] font-bold text-zinc-400 uppercase">Role</p><p className="text-sm font-bold text-blue-600">{approvedUser.role}</p></div>
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-zinc-400 uppercase">System Password</p>
+                                                    <div className="flex items-center gap-2">
+                                                        <code className="text-sm font-mono font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 px-2 py-1 rounded-lg border border-rose-200 dark:border-rose-800/40">{approvedUser.password}</code>
+                                                        <button onClick={() => navigator.clipboard.writeText(approvedUser.password)} className="text-zinc-400 hover:text-rose-500 transition-colors"><Copy size={13} /></button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                {/* Pending Requests Table */}
+                                <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl shadow-xl overflow-hidden">
+                                    <div className="px-8 py-6 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-rose-100 dark:bg-rose-900/40 text-rose-600 rounded-xl"><UserPlus size={22} /></div>
+                                            <div>
+                                                <h3 className="text-xl font-bold text-zinc-900 dark:text-white">User Access Requests</h3>
+                                                <p className="text-sm text-zinc-500 dark:text-zinc-400">Review and approve or deny incoming account requests from users.</p>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => { loadDirectoryUsers(); }} className="flex items-center gap-1.5 text-xs font-bold text-zinc-500 hover:text-rose-500 transition-colors px-3 py-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 border border-transparent hover:border-rose-200">
+                                            <RefreshCcw size={14} /> Refresh
+                                        </button>
+                                    </div>
+
+                                    <div className="divide-y divide-zinc-100 dark:divide-zinc-700/50">
+                                        {pendingLocal.length === 0 ? (
+                                            <div className="px-8 py-16 text-center">
+                                                <div className="w-16 h-16 mx-auto rounded-full bg-zinc-100 dark:bg-zinc-700 flex items-center justify-center mb-4"><UserPlus size={28} className="text-zinc-400" /></div>
+                                                <h4 className="text-lg font-bold text-zinc-900 dark:text-white mb-1">No Pending Requests</h4>
+                                                <p className="text-sm text-zinc-500 dark:text-zinc-400">When users submit access requests from the landing page, they will appear here for your review.</p>
+                                            </div>
+                                        ) : pendingLocal.map((req: any) => (
+                                            <div key={req.id} className="flex flex-col sm:flex-row sm:items-center gap-4 px-8 py-5">
+                                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-sm font-bold text-white shadow-sm shrink-0">
+                                                        {req.name?.split(' ').map((n: string) => n[0]).join('').slice(0,2) || '?'}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-semibold text-zinc-900 dark:text-zinc-200 text-sm">{req.name}</p>
+                                                        <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate flex items-center gap-1"><Mail size={11} /> {req.email}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800/50">PENDING</span>
+                                                    <button onClick={() => handleApproveLocal(req)}
+                                                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-500/25 transition-all">
+                                                        <BadgeCheck size={14} /> Approve
+                                                    </button>
+                                                    <button onClick={() => handleDenyLocal(req)}
+                                                        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold text-xs transition-all">
+                                                        <UserX size={14} /> Deny
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Show recently denied/approved for reference */}
+                                {localRequests.filter((r: any) => r.status !== 'pending').length > 0 && (
+                                    <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl shadow-xl overflow-hidden">
+                                        <div className="px-8 py-4 border-b border-zinc-200 dark:border-zinc-700">
+                                            <h4 className="font-bold text-zinc-700 dark:text-zinc-300 text-sm">Processed Requests</h4>
+                                        </div>
+                                        <div className="divide-y divide-zinc-100 dark:divide-zinc-700/50">
+                                            {localRequests.filter((r: any) => r.status !== 'pending').map((req: any) => (
+                                                <div key={req.id} className="flex items-center gap-4 px-8 py-4 opacity-60">
+                                                    <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-600 flex items-center justify-center text-xs font-bold text-zinc-600 dark:text-zinc-300 shrink-0">
+                                                        {req.name?.split(' ').map((n: string) => n[0]).join('').slice(0,2) || '?'}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="font-semibold text-zinc-900 dark:text-zinc-200 text-sm">{req.name}</p>
+                                                        <p className="text-xs text-zinc-500 truncate">{req.email}</p>
+                                                    </div>
+                                                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                                                        req.status === 'approved' ? 'text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20' : 'text-red-600 bg-red-50 border-red-200 dark:bg-red-900/20'
+                                                    }`}>{req.status.toUpperCase()}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </motion.div>
+                        );
+                    })()
+                    }
+
+
                     {/* ─── USER DIRECTORY TAB (merged) ───────────────────── */}
                     {activeTab === 'User Directory' && (
                         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }} className="w-full max-w-5xl mx-auto flex flex-col space-y-6">
+
+                            {/* ── PENDING ACCESS REQUESTS PANEL ── */}
+                            {(() => {
+                                const localRequests: any[] = (() => {
+                                    try {
+                                        const stored = localStorage.getItem('docusync_user_requests');
+                                        return stored ? JSON.parse(stored) : [];
+                                    } catch { return []; }
+                                })();
+                                const pendingLocal = localRequests.filter((r: any) => r.status === 'pending');
+                                if (pendingLocal.length === 0) return null;
+
+                                const handleApproveLocal = (req: any) => {
+                                    const password = generatePassword();
+                                    const stored = localStorage.getItem('docusync_user_requests');
+                                    const allRequests = stored ? JSON.parse(stored) : [];
+                                    const nextId = allRequests.reduce((max: number, u: any) => {
+                                        const id = parseInt(u.loginId || '1999');
+                                        return id > max ? id : max;
+                                    }, 1999) + 1;
+                                    const updated = allRequests.map((r: any) =>
+                                        r.id === req.id ? { ...r, status: 'approved', password, loginId: String(nextId) } : r
+                                    );
+                                    localStorage.setItem('docusync_user_requests', JSON.stringify(updated));
+                                    loadDirectoryUsers();
+                                    setApprovedUser({ name: req.name, email: req.email, role: 'Editor', password });
+                                    addAuditEvent(`✅ Account approved for ${req.name} (${req.email}). Login ID: ${nextId}.`, 'info');
+                                };
+
+                                const handleDenyLocal = (req: any) => {
+                                    if (!window.confirm(`Deny access for ${req.name}?`)) return;
+                                    const stored = localStorage.getItem('docusync_user_requests');
+                                    const allRequests = stored ? JSON.parse(stored) : [];
+                                    const updated = allRequests.map((r: any) =>
+                                        r.id === req.id ? { ...r, status: 'denied' } : r
+                                    );
+                                    localStorage.setItem('docusync_user_requests', JSON.stringify(updated));
+                                    loadDirectoryUsers();
+                                    addAuditEvent(`❌ Access request denied for ${req.name} (${req.email}).`, 'warn');
+                                };
+
+                                return (
+                                    <div className="bg-white dark:bg-zinc-800 border-2 border-amber-300 dark:border-amber-700/60 rounded-2xl shadow-xl overflow-hidden">
+                                        <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-500 to-amber-400" />
+                                        <div className="px-8 py-5 border-b border-amber-100 dark:border-amber-900/30 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 rounded-xl"><UserPlus size={20} /></div>
+                                                <div>
+                                                    <h3 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                                                        Pending Access Requests
+                                                        <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-black">{pendingLocal.length}</span>
+                                                    </h3>
+                                                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Users waiting for your approval to access the system.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="divide-y divide-amber-50 dark:divide-zinc-700/50">
+                                            {pendingLocal.map((req: any) => (
+                                                <div key={req.id} className="flex flex-col sm:flex-row sm:items-center gap-4 px-8 py-4">
+                                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                        <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                                                            {req.name?.split(' ').map((n: string) => n[0]).join('').slice(0,2) || '?'}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="font-semibold text-zinc-900 dark:text-zinc-200 text-sm">{req.name}</p>
+                                                            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate flex items-center gap-1"><Mail size={11} /> {req.email}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800/50">PENDING</span>
+                                                        <button onClick={() => handleApproveLocal(req)}
+                                                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all">
+                                                            <BadgeCheck size={14} /> Approve
+                                                        </button>
+                                                        <button onClick={() => handleDenyLocal(req)}
+                                                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold text-xs transition-all">
+                                                            <UserX size={14} /> Deny
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Approved User Credential Banner */}
+                            <AnimatePresence>
+                                {approvedUser && (
+                                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                                        className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50 rounded-2xl p-6">
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex items-center gap-3">
+                                                <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+                                                <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400">Access Approved — Share these credentials with the user</p>
+                                            </div>
+                                            <button onClick={() => setApprovedUser(null)} className="text-zinc-400 hover:text-zinc-600"><X size={16} /></button>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4">
+                                            <div><p className="text-[10px] font-bold text-zinc-400 uppercase mb-1">Name</p><p className="text-sm font-bold text-zinc-900 dark:text-white">{approvedUser.name}</p></div>
+                                            <div><p className="text-[10px] font-bold text-zinc-400 uppercase mb-1">Email</p><p className="text-sm font-bold text-zinc-900 dark:text-white truncate">{approvedUser.email}</p></div>
+                                            <div><p className="text-[10px] font-bold text-zinc-400 uppercase mb-1">Role</p><p className="text-sm font-bold text-blue-600">{approvedUser.role}</p></div>
+                                            <div>
+                                                <p className="text-[10px] font-bold text-zinc-400 uppercase mb-1">System Password</p>
+                                                <div className="flex items-center gap-2">
+                                                    <code className="text-sm font-mono font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 px-2 py-1 rounded-lg border border-rose-200 dark:border-rose-800/40">{approvedUser.password}</code>
+                                                    <button onClick={() => navigator.clipboard.writeText(approvedUser.password)} className="text-zinc-400 hover:text-rose-500 transition-colors"><Copy size={13} /></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
 
                             {/* Status / action banner */}
                             <AnimatePresence>
