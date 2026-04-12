@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",
+    "@tiptap/extension-collaboration": "^2.11.5",
+    "@tiptap/extension-collaboration-cursor": "^2.11.5",
     "@tiptap/extension-highlight": "^3.20.1",
     "@tiptap/extension-text-align": "^3.20.1",
     "@tiptap/extension-underline": "^3.20.1",
@@ -22,7 +24,10 @@
     "next": "16.1.6",
     "next-themes": "^0.4.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "y-prosemirror": "^1.2.5",
+    "y-webrtc": "^10.3.0",
+    "yjs": "^13.6.30"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
