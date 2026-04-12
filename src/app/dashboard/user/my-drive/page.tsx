@@ -176,6 +176,9 @@ export default function UserDashboard() {
     // File-deleted-kick modal: shown to editors when Owner deletes their file
     const [fileDeletedKick, setFileDeletedKick] = useState<{ fileName: string } | null>(null);
 
+    // Confirm Trash File: generic confirmation before soft-deleting any file
+    const [confirmTrashFile, setConfirmTrashFile] = useState<{ repoName: string; fileName: string } | null>(null);
+
     // Notify context when we start/stop editing
     useEffect(() => {
         if (editingFile && currentRepo) {
@@ -617,7 +620,7 @@ export default function UserDashboard() {
                                                                                             // Show warning to the Owner
                                                                                             setOwnerDeleteWarning({ repoName: activeRepo.name, fileName: file.name, editingUsers: editorsOfFile.map(e => e.userName) });
                                                                                         } else {
-                                                                                            trashFile(activeRepo.name, file.name);
+                                                                                            setConfirmTrashFile({ repoName: activeRepo.name, fileName: file.name });
                                                                                         }
                                                                                     }} className="flex items-center gap-3 hover:bg-rose-500/10 px-4 py-3 cursor-pointer transition-all text-sm text-rose-400 font-semibold hover:text-rose-300"><Trash2 size={16} /><span>Move to Trash</span></div>
                                                                                 )}
@@ -2739,6 +2742,41 @@ export default function UserDashboard() {
                                 }} className="px-8 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white text-sm font-bold uppercase tracking-wider shadow-lg shadow-orange-500/30 transition-all flex items-center gap-2">
                                     <ChevronLeft size={16} /> Return to My Drive
                                 </motion.button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ═══════════ CONFIRM TRASH FILE MODAL ═══════════ */}
+            <AnimatePresence>
+                {confirmTrashFile && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-md px-4">
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white dark:bg-zinc-900 rounded-3xl p-8 max-w-sm w-full border border-zinc-200 dark:border-zinc-800 shadow-2xl relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-amber-600"></div>
+                            
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-16 h-16 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mb-6 border border-amber-500/20">
+                                    <AlertTriangle size={32} />
+                                </div>
+                                
+                                <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">Move to Trash?</h3>
+                                
+                                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-8 leading-relaxed">
+                                    Are you sure you want to move <strong className="text-zinc-800 dark:text-zinc-200">&ldquo;{confirmTrashFile.fileName}&rdquo;</strong> to the Trash? You can easily restore it later from your recycle bin if needed.
+                                </p>
+                                
+                                <div className="flex gap-3 w-full">
+                                    <motion.button whileTap={{ scale: 0.97 }} onClick={() => setConfirmTrashFile(null)} className="flex-1 px-5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all text-sm font-semibold">
+                                        Cancel
+                                    </motion.button>
+                                    <motion.button whileTap={{ scale: 0.97 }} onClick={() => {
+                                        trashFile(confirmTrashFile.repoName, confirmTrashFile.fileName);
+                                        setConfirmTrashFile(null);
+                                    }} className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20 transition-all font-bold text-sm">
+                                        <Trash2 size={14} /> Move to Trash
+                                    </motion.button>
+                                </div>
                             </div>
                         </motion.div>
                     </motion.div>
