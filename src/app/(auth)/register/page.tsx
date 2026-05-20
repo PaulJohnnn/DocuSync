@@ -175,9 +175,11 @@ export default function RegisterPage() {
                 <div className="text-center mb-8">
                     <motion.div
                         whileHover={{ scale: 1.05, rotate: 5 }}
-                        className="w-20 h-20 mx-auto rounded-[2rem] bg-gradient-to-tr from-amber-500 to-purple-600 shadow-2xl shadow-amber-500/30 flex items-center justify-center mb-6 border-4 border-white/50 dark:border-white/10"
+                        className="w-24 h-24 mx-auto flex items-center justify-center mb-6 relative overflow-hidden group"
                     >
-                        <User className="text-white drop-shadow-lg" size={38} />
+                        <div className="w-full h-full rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30 p-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+                        </div>
                     </motion.div>
                     <h1 className="text-4xl font-black text-zinc-900 dark:text-white tracking-tight mb-2">Create Account</h1>
                     <div className="flex items-center justify-center gap-2 text-zinc-400 dark:text-zinc-500 text-[11px] font-bold uppercase tracking-widest">

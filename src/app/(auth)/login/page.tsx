@@ -138,6 +138,13 @@ export default function LoginPage() {
                 return;
             }
 
+            // 2.5. Demo user fallback
+            if (cleanId === 'user' && cleanPassword === 'user123') {
+                localStorage.setItem('docusync_current_user', JSON.stringify({ name: 'Demo User', email: 'user@docusync.edu', loginId: 'user', role: 'Student', department: 'College of Computing Studies' }));
+                router.push('/dashboard/user/my-drive');
+                return;
+            }
+
             // 3. Try Supabase with email lookup from loginId
             try {
                 const stored = localStorage.getItem('docusync_user_requests');
@@ -228,10 +235,11 @@ export default function LoginPage() {
                     <motion.div 
                         whileHover={{ scale: 1.05, rotate: 5 }}
                         whileTap={{ scale: 0.95 }}
-                        className="w-24 h-24 mx-auto rounded-[2.5rem] bg-gradient-to-tr from-amber-500 to-orange-600 shadow-2xl shadow-orange-500/30 flex items-center justify-center mb-8 border-4 border-white/50 dark:border-white/10 relative overflow-hidden group"
+                        className="w-28 h-28 mx-auto flex items-center justify-center mb-8 relative overflow-hidden group"
                     >
-                        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
-                        <Lock className="text-white drop-shadow-lg relative z-10" size={42} />
+                        <div className="w-full h-full rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30 p-5">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+                        </div>
                     </motion.div>
                     <motion.h2 className="text-5xl font-black text-zinc-900 dark:text-white tracking-tight leading-[1.1] mb-4">
                         {isResetMode ? 'Reset Access' : 'DocuSync'}

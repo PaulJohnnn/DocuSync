@@ -324,9 +324,11 @@ export default function LandingPage() {
             <motion.div 
               whileHover={{ rotate: 180 }}
               transition={{ duration: 0.6 }}
-              className="w-10 h-10 rounded-[1.25rem] bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30"
+              className="w-10 h-10 flex items-center justify-center"
             >
-              <RefreshCcw size={20} className="text-white" />
+              <div className="w-full h-full rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30 p-2.5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+              </div>
             </motion.div>
             <span className="text-2xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-zinc-900 to-zinc-600 dark:from-white dark:to-zinc-400 select-none">DocuSync</span>
           </div>
@@ -604,8 +606,8 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-12 mb-20 items-start">
             <div className="md:col-span-4">
               <div className="flex items-center gap-4 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center text-white">
-                  <RefreshCcw size={20} />
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30 p-2.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
                 </div>
                 <span className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">DocuSync</span>
               </div>

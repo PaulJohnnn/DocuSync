@@ -19,6 +19,7 @@ export const metadata: Metadata = {
 
 import { ThemeProvider } from "../components/ThemeProvider";
 import { SyncProvider } from "../context/SyncContext";
+import { Toaster } from "sonner";
 
 export default function RootLayout({
   children,
@@ -32,12 +33,24 @@ export default function RootLayout({
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="dark"
           disableTransitionOnChange
         >
           <SyncProvider>
             {children}
+            <Toaster
+              position="bottom-right"
+              toastOptions={{
+                style: {
+                  background: '#18181b',
+                  border: '1px solid #3f3f46',
+                  color: '#f4f4f5',
+                  fontFamily: 'system-ui, sans-serif',
+                  fontSize: '13px',
+                },
+              }}
+              richColors
+            />
           </SyncProvider>
         </ThemeProvider>
       </body>

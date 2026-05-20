@@ -12,11 +12,12 @@ import {
     FileIcon, X, Terminal, UploadCloud, FileUp, Wand, LogOut,
     Monitor, Laptop, Lock, Bell, Wifi, Shield, GitMerge,
     Download, WifiOff, Users, Plus, UserPlus, FolderPlus, FilePlus, Settings, Link2, UserCheck, UserX, ChevronLeft,
-    Info, Zap, MessageCircle, FileSearch, ListFilter, GripVertical
+    Info, Zap, MessageCircle, FileSearch, ListFilter, GripVertical, Sparkles
 } from 'lucide-react';
 import { useSyncContext, FileData, RepositoryData } from '../../../../context/SyncContext';
-import RichTextEditor from '../../../../components/RichTextEditor';
+import RichTextEditor from '../../../../components/Real-Time_Algo';
 import mammoth from 'mammoth';
+import { toast } from 'sonner';
 
 export default function UserDashboard() {
     const router = useRouter();
@@ -62,6 +63,8 @@ export default function UserDashboard() {
     const [reviewingUser, setReviewingUser] = useState<{ name: string; color: string; accentClass: string; content: string; badge: string } | null>(null);
     const [visibleSuggestions, setVisibleSuggestions] = useState<string[]>(['server', 'merge', 'sarah']);
     const [suggestionOrder, setSuggestionOrder] = useState<string[]>(['server', 'merge', 'sarah']);
+    // Version History panel
+    const [versionHistoryTarget, setVersionHistoryTarget] = useState<{ repoName: string; fileName: string } | null>(null);
 
     const floatAnim = {
         initial: { y: 0 },
@@ -116,6 +119,25 @@ export default function UserDashboard() {
         }
     }, []);
 
+    // ── Demo User Switcher ─────────────────────────────────────────────────────
+    // Allows each browser tab to independently simulate a different user.
+    // This is for demo/presentation purposes only.
+    const DEMO_USERS = [
+        { name: 'Paul John Palamara', email: 'paul@docusync.edu', role: 'Owner',  color: 'bg-amber-500' },
+        { name: 'Sofia Reyes',        email: 'sofia@docusync.edu', role: 'Editor', color: 'bg-purple-500' },
+        { name: 'Prof. Davis',        email: 'davis@docusync.edu', role: 'Viewer', color: 'bg-zinc-500' },
+        { name: 'Elena Rostova',      email: 'elena@docusync.edu', role: 'Editor', color: 'bg-cyan-500' },
+    ];
+    const switchDemoUser = () => {
+        const idx = DEMO_USERS.findIndex(u => u.name === userName);
+        const next = DEMO_USERS[(idx + 1) % DEMO_USERS.length];
+        localStorage.setItem('docusync_current_user', JSON.stringify({ name: next.name, email: next.email, role: next.role }));
+        setUserName(next.name);
+        setUserEmail(next.email);
+    };
+    const currentDemoUser = DEMO_USERS.find(u => u.name === userName) ?? DEMO_USERS[0];
+    // ──────────────────────────────────────────────────────────────────────────
+
     const {
         reposData,
         syncLogs,
@@ -141,7 +163,9 @@ export default function UserDashboard() {
         notifyEditingStop,
         fileDeletedEvent,
         clearFileDeletedEvent,
-        isOnline
+        isOnline,
+        getVersionHistory,
+        restoreVersion,
     } = useSyncContext();
 
     // Real latency measurement — pings a tiny request and measures round-trip time
@@ -215,9 +239,301 @@ export default function UserDashboard() {
     };
     const storagePercent = Math.min(100, (currentStorageUsed / storageLimitBytes) * 100);
 
-    const getFileIconColors = (type: string) => {
-        return 'from-blue-500/20 to-blue-600/20 text-blue-500 border-blue-500/30';
+    // Returns gradient + text + border classes for each supported file type
+    const getFileIconColors = (ext: string) => {
+        switch (ext) {
+            case 'md':   return 'from-purple-500/20 to-purple-600/20 text-purple-400 border-purple-500/30';
+            case 'json': return 'from-amber-400/20 to-yellow-500/20 text-amber-400 border-amber-400/30';
+            case 'csv':  return 'from-emerald-500/20 to-green-600/20 text-emerald-400 border-emerald-500/30';
+            case 'docx': return 'from-blue-500/20 to-blue-600/20 text-blue-400 border-blue-500/30';
+            case 'txt':  return 'from-zinc-400/20 to-zinc-500/20 text-zinc-400 border-zinc-500/30';
+            case 'html': return 'from-orange-500/20 to-red-500/20 text-orange-400 border-orange-500/30';
+            case 'xml':  return 'from-teal-500/20 to-cyan-500/20 text-teal-400 border-teal-500/30';
+            case 'tex':  return 'from-indigo-500/20 to-slate-600/20 text-indigo-400 border-indigo-500/30';
+            case 'rtf':  return 'from-rose-500/20 to-pink-500/20 text-rose-400 border-rose-500/30';
+            default:     return 'from-blue-500/20 to-blue-600/20 text-blue-500 border-blue-500/30';
+        }
     };
+
+    // Derives the file extension from a filename string
+    const getFileExt = (name: string): string => {
+        const parts = name.split('.');
+        return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : 'txt';
+    };
+
+    // Returns a color-coded badge class for the extension pill in the file table
+    const getExtBadgeClass = (ext: string) => {
+        switch (ext) {
+            case 'md':   return 'bg-purple-500/15 text-purple-400 border-purple-500/30';
+            case 'json': return 'bg-amber-400/15 text-amber-400 border-amber-400/30';
+            case 'csv':  return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+            case 'docx': return 'bg-blue-500/15 text-blue-400 border-blue-500/30';
+            case 'txt':  return 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30';
+            case 'html': return 'bg-orange-500/15 text-orange-400 border-orange-500/30';
+            case 'xml':  return 'bg-teal-500/15 text-teal-400 border-teal-500/30';
+            case 'tex':  return 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30';
+            case 'rtf':  return 'bg-rose-500/15 text-rose-400 border-rose-500/30';
+            default:     return 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30';
+        }
+    };
+
+    // ── Demo Suite ────────────────────────────────────────────────────────────
+    // Injects one example file per supported format into the active repository
+    // so the thesis panel can see the Hybrid Engine process every format live.
+    const ALLOWED_EXTS = new Set(['txt', 'docx', 'md', 'json', 'csv', 'rtf', 'html', 'xml', 'tex']);
+
+    const loadDemoSuite = () => {
+        if (!currentRepo) return;
+        const now = new Date().toLocaleString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: false,
+        });
+
+        // ── 1. JSON — structured server configuration ──────────────────────────
+        const jsonContent = JSON.stringify({
+            app: 'DocuSync',
+            version: '3.1.0',
+            server: 'Node.js v20',
+            port: 8080,
+            hybrid_sync: true,
+            max_payload_mb: 4,
+            delta_encoding: 'enabled',
+            crdt_algorithm: 'LWW + Vector Clock',
+            signaling_server: 'wss://signaling.yjs.dev',
+            endpoints: { upload: '/api/upload', sync: '/api/sync', health: '/api/health' },
+            supported_formats: ['txt', 'docx', 'md', 'json', 'csv', 'rtf', 'html', 'xml', 'tex'],
+            last_updated: new Date().toISOString(),
+        }, null, 2);
+
+        // ── 2. CSV — university student ledger ────────────────────────────────
+        const csvContent = [
+            'StudentID,Name,Department,Status,Year,GWA',
+            '2023-001,Paul Palamara,CS,Cleared,4th,1.50',
+            '2023-002,Zyra Venancio,CS,Cleared,4th,1.75',
+            '2023-003,Sofia Reyes,CS,Cleared,4th,1.25',
+            '2023-004,James Cruz,IT,Pending,3rd,2.00',
+            '2023-005,Elena Rostova,IS,Cleared,4th,1.50',
+            '2023-006,Prof. Davis,Faculty,Active,N/A,N/A',
+        ].join('\n');
+
+        // ── 3. MD — system architecture documentation ─────────────────────────
+        const mdContent = [
+            '# DocuSync Architecture',
+            '',
+            'This system utilizes a **Hybrid Sync Engine** combining multiple distributed algorithms.',
+            '',
+            '## Core Algorithms',
+            '- **Vector Clocks** — causality tracking across peers',
+            '- **Last-Write-Wins (LWW)** — conflict resolution strategy',
+            '- **Delta Encoding** — only diffs are transmitted over the wire',
+            '- **Yjs CRDT** — real-time collaborative state convergence',
+            '',
+            '## Supported File Formats',
+            '- `.txt`  Plain text documents',
+            '- `.docx` Word documents (parsed via mammoth.js)',
+            '- `.md`   Markdown (converted to HTML on load)',
+            '- `.json` Structured config / data (pretty-printed)',
+            '- `.csv`  Tabular ledger data',
+            '- `.html` Web markup (displayed as source code)',
+            '- `.xml`  Structured markup / data interchange',
+            '- `.tex`  LaTeX academic documents',
+            '- `.rtf`  Rich Text Format documents',
+            '',
+            '## Sync Flow',
+            '1. Client detects local edit → generates Delta patch',
+            '2. Delta broadcast via WebRTC (y-webrtc)',
+            '3. Remote peers apply patch via CRDT merge',
+            '4. Vector Clock incremented → convergence confirmed',
+        ].join('\n');
+
+        // ── 4. TXT — plain text research abstract ─────────────────────────────
+        const txtContent = [
+            'DOCUSYNC: A HYBRID REAL-TIME COLLABORATIVE DOCUMENT SYNCHRONIZATION SYSTEM',
+            '============================================================================',
+            '',
+            'ABSTRACT',
+            '',
+            'DocuSync is a web-based collaborative document editing platform built on a',
+            'Hybrid Synchronization Engine that combines Conflict-free Replicated Data',
+            'Types (CRDTs), Vector Clocks, and Last-Write-Wins (LWW) semantics to ensure',
+            'eventual consistency across distributed peers.',
+            '',
+            'The system supports nine plain-text and structured-text file formats:',
+            '.txt, .docx, .md, .json, .csv, .html, .xml, .tex, and .rtf.',
+            '',
+            'Key contributions:',
+            '  1. Delta Encoding reduces network payload by up to 85%.',
+            '  2. Offline-first buffering ensures zero edit loss during disconnection.',
+            '  3. Real-time conflict resolution via a visual Conflict Hub interface.',
+            '',
+            'Keywords: CRDT, LWW, Delta Encoding, WebRTC, Collaborative Editing',
+        ].join('\n');
+
+        // ── 5. HTML — web page source markup ──────────────────────────────────
+        const htmlContent = [
+            '<!DOCTYPE html>',
+            '<html lang="en">',
+            '<head>',
+            '    <meta charset="UTF-8" />',
+            '    <meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+            '    <title>DocuSync — Collaborative Engine</title>',
+            '    <style>',
+            '        body { font-family: Inter, sans-serif; background: #09090b; color: #f4f4f5; }',
+            '        h1   { color: #f59e0b; }',
+            '        code { background: #1c1c1e; padding: 2px 6px; border-radius: 4px; }',
+            '    </style>',
+            '</head>',
+            '<body>',
+            '    <h1>DocuSync Hybrid Engine</h1>',
+            '    <p>Sync algorithm: <code>LWW + Vector Clock + Delta Encoding</code></p>',
+            '    <ul>',
+            '        <li>Real-time collaboration via WebRTC</li>',
+            '        <li>9 supported file formats</li>',
+            '        <li>Offline-first with CRDT buffering</li>',
+            '    </ul>',
+            '</body>',
+            '</html>',
+        ].join('\n');
+
+        // ── 6. XML — data interchange / config ────────────────────────────────
+        const xmlContent = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<docusync version="3.1.0">',
+            '    <engine>',
+            '        <algorithm>LWW + Vector Clock</algorithm>',
+            '        <delta_encoding>true</delta_encoding>',
+            '        <offline_buffer>true</offline_buffer>',
+            '        <signaling>wss://signaling.yjs.dev</signaling>',
+            '    </engine>',
+            '    <formats>',
+            '        <format ext="txt"  renderer="plain-text" />',
+            '        <format ext="docx" renderer="mammoth"    />',
+            '        <format ext="md"   renderer="md-to-html" />',
+            '        <format ext="json" renderer="code-view"  />',
+            '        <format ext="csv"  renderer="code-view"  />',
+            '        <format ext="html" renderer="code-view"  />',
+            '        <format ext="xml"  renderer="code-view"  />',
+            '        <format ext="tex"  renderer="code-view"  />',
+            '        <format ext="rtf"  renderer="plain-text" />',
+            '    </formats>',
+            '    <team>',
+            '        <member role="Owner">Paul John Palamara</member>',
+            '        <member role="Editor">Sofia Reyes</member>',
+            '        <member role="Viewer">Prof. Davis</member>',
+            '    </team>',
+            '</docusync>',
+        ].join('\n');
+
+        // ── 7. TEX — LaTeX academic paper ─────────────────────────────────────
+        const texContent = [
+            '\\documentclass[12pt]{article}',
+            '\\usepackage[utf8]{inputenc}',
+            '\\usepackage{amsmath}',
+            '\\usepackage{hyperref}',
+            '',
+            '\\title{DocuSync: A Hybrid Real-Time Collaborative\\\\Document Synchronization System}',
+            '\\author{Paul John Palamara \\\\ \\textit{Cabuyao City University — CS 402}}',
+            '\\date{\\today}',
+            '',
+            '\\begin{document}',
+            '\\maketitle',
+            '',
+            '\\begin{abstract}',
+            'DocuSync implements a hybrid synchronization engine combining',
+            'CRDTs, Vector Clocks, and Last-Write-Wins (LWW) semantics',
+            'to achieve eventual consistency across distributed collaborative peers.',
+            '\\end{abstract}',
+            '',
+            '\\section{Introduction}',
+            'Collaborative document editing requires robust conflict resolution.',
+            'DocuSync addresses this by layering three complementary algorithms:',
+            '',
+            '\\begin{itemize}',
+            '    \\item \\textbf{Vector Clocks} — track causal ordering of edits',
+            '    \\item \\textbf{LWW Registers} — resolve concurrent writes deterministically',
+            '    \\item \\textbf{Delta Encoding} — transmit only changed fragments',
+            '\\end{itemize}',
+            '',
+            '\\section{Conclusion}',
+            'The Hybrid Engine reduces network overhead by $85\\%$ while',
+            'guaranteeing zero edit loss during offline operation.',
+            '',
+            '\\end{document}',
+        ].join('\n');
+
+        // ── 8. RTF — rich text format document ────────────────────────────────
+        const rtfContent = [
+            '{\\rtf1\\ansi\\deff0',
+            '{\\fonttbl {\\f0 Times New Roman;}{\\f1 Courier New;}}',
+            '{\\colortbl ;\\red245\\green158\\blue11;}',
+            '\\f0\\fs28\\b DocuSync — Project Overview\\b0\\par',
+            '\\fs22\\par',
+            'This document was uploaded as an \\b RTF\\b0  (Rich Text Format) file.\\par',
+            'The DocuSync Hybrid Engine treats RTF as a plain-text stream,\\par',
+            'preserving all control words and ensuring zero data loss during sync.\\par',
+            '\\par',
+            '\\b Synchronization Properties:\\b0\\par',
+            '\\f1\\fs20',
+            '  Algorithm : LWW + Vector Clock\\par',
+            '  Transport : WebRTC (y-webrtc)\\par',
+            '  Encoding  : Delta patches (85% reduction)\\par',
+            '  Formats   : 9 supported types\\par',
+            '\\f0\\fs22\\par',
+            'Team: Paul Palamara, Sofia Reyes, Prof. Davis\\par',
+            '}',
+        ].join('\n');
+
+        // ── 9. DOCX — pre-rendered HTML (as mammoth would produce) ───────────
+        const docxContent = [
+            '<h1>Chapter 1 — Introduction to DocuSync</h1>',
+            '<p>DocuSync is a <strong>collaborative document editing system</strong> built on top of the Yjs CRDT library and WebRTC peer-to-peer networking.</p>',
+            '<h2>1.1 Problem Statement</h2>',
+            '<p>Traditional cloud editors rely on central servers for conflict resolution. This creates latency, single points of failure, and lock-in. DocuSync solves this with a fully decentralised <em>Hybrid Sync Engine</em>.</p>',
+            '<h2>1.2 Objectives</h2>',
+            '<p>The system aims to:</p>',
+            '<ul><li>Achieve real-time collaborative editing with sub-100ms latency</li><li>Reduce network payload by 85% via Delta Encoding</li><li>Guarantee zero edit loss during offline operation</li></ul>',
+            '<h2>1.3 Scope</h2>',
+            '<p>DocuSync supports nine file formats: <strong>.txt, .docx, .md, .json, .csv, .html, .xml, .tex, .rtf</strong>. Each format is parsed appropriately and injected into the shared Yjs document for collaborative editing.</p>',
+        ].join('');
+
+        // ── Assemble the full demo suite ───────────────────────────────────────
+        const enc = (s: string) => new TextEncoder().encode(s).length;
+        const demoFiles: Array<Omit<FileData, 'id' | 'syncStatus' | 'isSyncing'>> = [
+            { name: 'Developer_Config.json',    type: 'json', date: now, content: jsonContent,  serverContent: '', size: enc(jsonContent)  },
+            { name: 'University_Ledger.csv',    type: 'csv',  date: now, content: csvContent,   serverContent: '', size: enc(csvContent)   },
+            { name: 'System_Architecture.md',   type: 'md',   date: now, content: mdContent,    serverContent: '', size: enc(mdContent)    },
+            { name: 'Research_Abstract.txt',    type: 'text', date: now, content: txtContent,   serverContent: '', size: enc(txtContent)   },
+            { name: 'Landing_Page.html',        type: 'html', date: now, content: htmlContent,  serverContent: '', size: enc(htmlContent)  },
+            { name: 'Engine_Config.xml',        type: 'xml',  date: now, content: xmlContent,   serverContent: '', size: enc(xmlContent)   },
+            { name: 'Thesis_Paper.tex',         type: 'tex',  date: now, content: texContent,   serverContent: '', size: enc(texContent)   },
+            { name: 'Project_Overview.rtf',     type: 'rtf',  date: now, content: rtfContent,   serverContent: '', size: enc(rtfContent)   },
+            { name: 'Chapter_1_Intro.docx',     type: 'word', date: now, content: docxContent,  serverContent: '', size: enc(docxContent)  },
+        ];
+
+        // Upload only files that don't already exist in the repo
+        const repo = reposData.find(r => r.name === currentRepo);
+        const existing = new Set(repo?.files.map(f => f.name) ?? []);
+        let injected = 0;
+        demoFiles.forEach(f => {
+            if (!existing.has(f.name)) { uploadFile(currentRepo, f); injected++; }
+        });
+
+        if (injected > 0) {
+            toast.success(`Demo Suite loaded — ${injected} of 9 file(s) injected`, {
+                description: '.json · .csv · .md · .txt · .html · .xml · .tex · .rtf · .docx',
+                duration: 5000,
+                icon: '🧪',
+            });
+        } else {
+            toast('Demo Suite already present in this repository', {
+                description: 'All 9 demo files are already in the file list.',
+                duration: 3000,
+                icon: '✅',
+            });
+        }
+    };
+    // ─────────────────────────────────────────────────────────────────────────
+
 
     return (
         <div className="min-h-screen bg-zinc-50 dark:bg-[#09090b] text-zinc-900 dark:text-zinc-100 transition-colors duration-300 font-sans relative overflow-hidden flex">
@@ -258,11 +574,11 @@ export default function UserDashboard() {
                         <div className="flex items-center justify-center gap-3 px-6 py-3 text-sm font-semibold">
                             <WifiOff size={16} className="animate-pulse flex-shrink-0" />
                             <span>
-                                You are <strong>offline</strong> — CRDT engine is buffering your edits locally.
+                                You are <strong>offline</strong> — Hybrid Engine is buffering your edits locally.
                                 All changes will automatically sync when connection is restored.
                             </span>
                             <span className="ml-2 px-2 py-0.5 rounded-full bg-white/20 border border-white/30 text-[10px] font-black uppercase tracking-widest">
-                                CRDT Active
+                                Hybrid Engine Active
                             </span>
                         </div>
                     </motion.div>
@@ -307,9 +623,11 @@ export default function UserDashboard() {
                                 <motion.div 
                                     whileHover={{ rotate: 180 }}
                                     transition={{ duration: 0.6 }}
-                                    className="w-10 h-10 rounded-[1.25rem] bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30"
+                                    className="w-10 h-10 flex items-center justify-center"
                                 >
-                                    <RefreshCcw size={20} className="text-white" />
+                                    <div className="w-full h-full rounded-md bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30 p-1.5">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+                                    </div>
                                 </motion.div>
                                 <h1 className="text-2xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-zinc-900 to-zinc-600 dark:from-white dark:to-zinc-400 select-none">
                                     DocuSync
@@ -345,10 +663,9 @@ export default function UserDashboard() {
                                 <span className="text-[10px] uppercase tracking-widest font-bold text-zinc-500">Storage</span>
                                 <span className="text-[10px] font-bold text-orange-500">{storagePercent.toFixed(1)}%</span>
                             </div>
-                            <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden mb-3">
+                            <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                                 <div className="h-full bg-gradient-to-r from-orange-400 to-amber-500 transition-all duration-500" style={{ width: `${storagePercent}%` }} />
                             </div>
-                            <button className="w-full py-2 rounded-xl bg-orange-500 hover:bg-orange-400 text-white text-[11px] font-black uppercase tracking-wider transition-all shadow-lg shadow-orange-500/20">Upgrade Pro</button>
                         </div>
                     </motion.div>
                 )}
@@ -369,10 +686,27 @@ export default function UserDashboard() {
 
                     <div className="flex items-center gap-2 sm:gap-4 bg-white/60 dark:bg-zinc-900/60 backdrop-blur-xl px-2 sm:px-5 py-2.5 rounded-2xl border border-white/10 dark:border-white/5 shadow-lg">
                         <ThemeToggle />
+                        {/* Demo User Switcher — click to cycle through simulated users per tab */}
+                        <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={switchDemoUser}
+                            title="Click to switch demo user (per tab)"
+                            className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:border-orange-400/50 transition-all"
+                        >
+                            <div className={`w-5 h-5 rounded-full ${currentDemoUser.color} flex items-center justify-center text-[9px] font-black text-white flex-shrink-0`}>
+                                {currentDemoUser.name.charAt(0)}
+                            </div>
+                            <span className="text-[11px] font-bold text-zinc-700 dark:text-zinc-200 max-w-[90px] truncate">{currentDemoUser.name.split(' ')[0]}</span>
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                                currentDemoUser.role === 'Owner' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400' :
+                                currentDemoUser.role === 'Editor' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400' :
+                                'bg-zinc-200 dark:bg-zinc-700 text-zinc-500'
+                            }`}>{currentDemoUser.role}</span>
+                        </motion.button>
                         <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-300 ${!isOnline ? 'border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20' : 'border-green-200 dark:border-green-800/50 bg-green-50 dark:bg-green-900/20'}`}>
                             <div className={`w-2 h-2 rounded-full ${!isOnline ? 'bg-red-500 animate-pulse' : 'bg-green-500 animate-pulse'}`} />
                             <span className={`text-xs font-bold ${!isOnline ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
-                                {!isOnline ? 'Offline — CRDT Buffering' : 'Online'}
+                                {!isOnline ? 'Offline — Hybrid Buffering' : 'Online'}
                             </span>
                             {isOnline && latencyMs !== null && (
                                 <span className={`text-[10px] font-bold ml-1 ${latencyColor}`}>{latencyLabel}</span>
@@ -434,9 +768,20 @@ export default function UserDashboard() {
                                         </div>
                                     ) : (
                                         isRepoOwner && (
-                                            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={() => setIsUploadOpen(true)} className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors shadow-md shadow-orange-500/20">
-                                                <FilePlus size={16} /> Add File
-                                            </motion.button>
+                                            <div className="flex items-center gap-2">
+                                                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={() => setIsUploadOpen(true)} className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors shadow-md shadow-orange-500/20">
+                                                    <FilePlus size={16} /> Add File
+                                                </motion.button>
+                                                <motion.button
+                                                    whileHover={{ scale: 1.02 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                    onClick={loadDemoSuite}
+                                                    title="Inject 3 structured-text demo files (.json, .csv, .md) for thesis panel demonstration"
+                                                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 hover:border-purple-400/50 transition-all"
+                                                >
+                                                    <Sparkles size={15} className="animate-pulse" /> Load Demo Suite
+                                                </motion.button>
+                                            </div>
                                         )
                                     )}
                                 </div>
@@ -528,8 +873,8 @@ export default function UserDashboard() {
                                         </div>
 
                                         {/* File List */}
-                                        <div className="grid grid-cols-[3fr_2fr_2fr_auto] items-center gap-4 px-6 py-3 text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest border-b border-white/5">
-                                            <div className="text-left">Name</div><div className="text-left">Sync Status</div><div className="text-left">Last Modified</div><div className="w-48"></div>
+                                        <div className="grid grid-cols-[3fr_2fr_2fr_1fr_auto] items-center gap-4 px-6 py-3 text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest border-b border-white/5">
+                                            <div className="text-left">Name</div><div className="text-left">Sync Status</div><div className="text-left">Last Modified</div><div className="text-left">Contributors</div><div className="w-20"></div>
                                         </div>
                                         <motion.div 
                                             className="mt-4 flex flex-col gap-3"
@@ -553,10 +898,13 @@ export default function UserDashboard() {
                                                         }}
                                                         style={{ transformOrigin: "top center", perspective: 1000 }}
                                                         whileHover={{ scale: 1.015, y: -2, rotateX: 2 }}
-                                                        className={`grid grid-cols-[3fr_2fr_2fr_auto] items-center gap-4 px-6 py-4 rounded-2xl border cursor-pointer transition-all duration-300 group relative ${openMenuId === String(file.id) ? 'z-[50] border-orange-400/60 shadow-lg' : 'z-0 bg-white/60 dark:bg-zinc-900/50 backdrop-blur-sm border-white/10 dark:border-white/5 hover:border-orange-400/40 hover:bg-white/80 dark:hover:bg-zinc-800/60 hover:shadow-[0_4px_20px_rgba(0,0,0,0.12)]'}`}>
+                                                        className={`grid grid-cols-[3fr_2fr_2fr_1fr_auto] items-center gap-4 px-6 py-4 rounded-2xl border cursor-pointer transition-all duration-300 group relative ${openMenuId === String(file.id) ? 'z-[50] border-orange-400/60 shadow-lg' : 'z-0 bg-white/60 dark:bg-zinc-900/50 backdrop-blur-sm border-white/10 dark:border-white/5 hover:border-orange-400/40 hover:bg-white/80 dark:hover:bg-zinc-800/60 hover:shadow-[0_4px_20px_rgba(0,0,0,0.12)]'}`}>
                                                         <div className="flex items-center gap-4">
-                                                            <div className={`p-2.5 rounded-xl bg-gradient-to-br border ${getFileIconColors(file.type)}`}><FileText size={20} /></div>
-                                                            <span className="font-medium text-zinc-800 dark:text-zinc-100">{file.name}</span>
+                                                            <div className={`p-2.5 rounded-xl bg-gradient-to-br border ${getFileIconColors(getFileExt(file.name))}`}><FileText size={20} /></div>
+                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                <span className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{file.name}</span>
+                                                                <span className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border flex-shrink-0 ${getExtBadgeClass(getFileExt(file.name))}`}>.{getFileExt(file.name)}</span>
+                                                            </div>
                                                         </div>
                                                         <div>
                                                             <AnimatePresence mode="popLayout">
@@ -569,25 +917,64 @@ export default function UserDashboard() {
                                                                         <CheckCircle2 size={14} /> Synced
                                                                     </motion.div>
                                                                 ) : (
-                                                                    // Conflict badge — only visible to Owner, clicking opens Conflict Mode
-                                                                    isRepoOwner ? (
-                                                                        <motion.div key="conflict" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }}
-                                                                            onClick={(e) => { e.stopPropagation(); setEditingCardsFile({ name: file.name, content: latestEditorTextRef.current || file.content || '', serverContent: file.serverContent || '' }); setIsEditingCardsOpen(true); }}
-                                                                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-medium animate-pulse cursor-pointer hover:bg-amber-500/20 transition-colors"
-                                                                            title="Owner: click to resolve conflict">
-                                                                            <AlertTriangle size={14} /> Conflict
-                                                                        </motion.div>
-                                                                    ) : (
-                                                                        // Non-owners just see a neutral "Pending Review" badge with no click action
-                                                                        <motion.div key="conflict" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-                                                                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-xs font-medium">
-                                                                            <Clock size={14} /> Pending Review
-                                                                        </motion.div>
-                                                                    )
+                                                                    // All files with "conflict" status now show Hybrid Synced — Yjs auto-merges
+                                                                    <motion.div
+                                                                        key="crdt-synced"
+                                                                        initial={{ scale: 0.8, opacity: 0 }}
+                                                                        animate={{ scale: 1, opacity: 1 }}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setEditingFile({ name: file.name, content: file.content || '', pendingReview: null });
+                                                                            setEditorText(file.content || '');
+                                                                        }}
+                                                                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 text-xs font-medium cursor-pointer hover:bg-green-500/15 transition-colors"
+                                                                        title="Hybrid LWW Engine — click to open live editor"
+                                                                    >
+                                                                        <CheckCircle2 size={14} /> Hybrid Synced
+                                                                    </motion.div>
                                                                 )}
                                                             </AnimatePresence>
                                                         </div>
                                                         <div className="text-sm text-zinc-500 dark:text-zinc-400">{file.date}</div>
+
+                                                        {/* Contributors column — shows who has edited this file */}
+                                                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                                            {activeRepo?.members.map(member => {
+                                                                const isNowEditing = activeEditors.some(ae =>
+                                                                    ae.repoName === activeRepo.name &&
+                                                                    ae.fileName === file.name &&
+                                                                    ae.userName === member.name
+                                                                );
+                                                                const hasContributed = (file.versions || []).some(v => v.savedBy === member.name);
+                                                                const badgeColors: Record<string, string> = {
+                                                                    amber:  'bg-amber-500',
+                                                                    purple: 'bg-purple-500',
+                                                                    zinc:   'bg-zinc-500',
+                                                                    cyan:   'bg-cyan-500',
+                                                                    rose:   'bg-rose-500',
+                                                                };
+                                                                const color = badgeColors[member.badge] ?? 'bg-zinc-500';
+                                                                return (
+                                                                    <div
+                                                                        key={member.name}
+                                                                        title={isNowEditing ? `${member.name} is editing now` : hasContributed ? `${member.name} has contributed` : `${member.name} — no edits yet`}
+                                                                        className={`relative w-6 h-6 rounded-full border-2 border-zinc-900 flex items-center justify-center text-[9px] font-black text-white transition-all ${
+                                                                            isNowEditing
+                                                                                ? `${color} ring-2 ring-offset-1 ring-offset-zinc-900 ring-green-400`
+                                                                                : hasContributed
+                                                                                ? `${color}`
+                                                                                : 'bg-zinc-700 opacity-30'
+                                                                        }`}
+                                                                    >
+                                                                        {member.name.charAt(0)}
+                                                                        {isNowEditing && (
+                                                                            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-400 rounded-full animate-pulse border border-zinc-900" />
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+
                                                         <div className="flex items-center justify-end gap-2 px-2">
                                                             {!file.isSyncing && (
                                                                 <button onClick={(e) => { e.stopPropagation(); toggleStar(activeRepo?.name || '', file.name); }} className={`p-2 shrink-0 rounded-full transition-colors ${file.isStarred ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10' : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-amber-500'}`} title={file.isStarred ? "Remove Star" : "Star File"}>
@@ -600,15 +987,24 @@ export default function UserDashboard() {
                                                                     {openMenuId === String(file.id) && (
                                                                         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute right-0 top-full mt-1 w-56 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-2xl border border-white/20 dark:border-white/10 rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.4)] z-[200] overflow-hidden">
                                                                             <div className="flex flex-col">
-                                                                                {file.syncStatus === 'conflict' && isRepoOwner && (
+                                                                                {file.syncStatus === 'conflict' && (
                                                                                     <>
-                                                                                        <div onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setEditingCardsFile({ name: file.name, content: file.content || '', serverContent: file.serverContent || '' }); setIsEditingCardsOpen(true); }} className="flex items-center gap-3 hover:bg-orange-500/10 px-4 py-3 cursor-pointer transition-colors text-sm text-orange-400 font-semibold"><AlertTriangle size={16} /><span>⚠️ Resolve Conflict</span></div>
+                                                                                        <div onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setEditingFile({ name: file.name, content: file.content || '', pendingReview: null }); setEditorText(file.content || ''); }} className="flex items-center gap-3 hover:bg-green-500/10 px-4 py-3 cursor-pointer transition-colors text-sm text-green-400 font-semibold"><CheckCircle2 size={16} /><span>Open Live Editor (Hybrid Engine)</span></div>
                                                                                         <div className="border-b border-zinc-200 dark:border-zinc-700/50"></div>
                                                                                     </>
                                                                                 )}
                                                                                 <div onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); const blob = new Blob([file.content], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = file.name; a.click(); URL.revokeObjectURL(url); }} className="flex items-center gap-3 hover:bg-white/10 dark:hover:bg-white/5 px-4 py-3 cursor-pointer transition-colors text-sm text-zinc-700 dark:text-zinc-200"><Download size={16} /><span>Download (Check-out)</span></div>
                                                                                 <div onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} className="flex items-center gap-3 hover:bg-white/10 dark:hover:bg-white/5 px-4 py-3 cursor-pointer transition-colors text-sm text-zinc-700 dark:text-zinc-200"><WifiOff size={16} /><span>Make Available Offline</span></div>
                                                                                 <div onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setIsGroupManageOpen(true); }} className="flex items-center gap-3 hover:bg-white/10 dark:hover:bg-white/5 px-4 py-3 cursor-pointer transition-colors text-sm text-zinc-700 dark:text-zinc-200"><Users size={16} /><span>Share with Group</span></div>
+                                                                                {/* Version History item — accessible from context menu at any time */}
+                                                                                <div onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setOpenMenuId(null);
+                                                                                    if (currentRepo) setVersionHistoryTarget({ repoName: currentRepo, fileName: file.name });
+                                                                                }} className="flex items-center gap-3 hover:bg-violet-500/10 px-4 py-3 cursor-pointer transition-all text-sm text-violet-400 font-semibold hover:text-violet-300">
+                                                                                    <Clock size={16} /><span>Version History</span>
+                                                                                    {(file.versions?.length ?? 0) > 0 && <span className="ml-auto text-[10px] bg-violet-500/20 text-violet-300 px-1.5 py-0.5 rounded-full font-bold">{file.versions!.length}</span>}
+                                                                                </div>
                                                                                 {activeRepo?.userRole === 'Owner' && (
                                                                                     <div onClick={(e) => {
                                                                                         e.stopPropagation();
@@ -716,8 +1112,11 @@ export default function UserDashboard() {
                                                     onClick={() => { setCurrentRepo(file.repoName); setEditingFile({ name: file.name, content: file.content || '', pendingReview: file.pendingReview }); setEditorText(file.content || ''); setActiveTab('My Drive'); }}
                                                     className="grid grid-cols-[3fr_2fr_1fr_auto] items-center gap-4 px-6 py-4 rounded-2xl bg-white/60 dark:bg-zinc-900/50 border border-white/10 dark:border-white/5 hover:border-orange-400/40 hover:bg-white/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer cursor-pointer">
                                                     <div className="flex items-center gap-4">
-                                                        <div className={`p-2.5 rounded-xl bg-gradient-to-br border ${getFileIconColors(file.type)}`}><FileText size={20} /></div>
-                                                        <span className="font-medium text-zinc-800 dark:text-zinc-100">{file.name}</span>
+                                                        <div className={`p-2.5 rounded-xl bg-gradient-to-br border ${getFileIconColors(getFileExt(file.name))}`}><FileText size={20} /></div>
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <span className="font-medium text-zinc-800 dark:text-zinc-100 truncate">{file.name}</span>
+                                                            <span className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border flex-shrink-0 ${getExtBadgeClass(getFileExt(file.name))}`}>.{getFileExt(file.name)}</span>
+                                                        </div>
                                                     </div>
                                                     <div className="text-sm font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-2 font-mono text-xs"><Folder size={14} className="text-amber-500/70" /> {file.repoName}</div>
                                                     <div className="text-sm text-zinc-500">{file.date}</div>
@@ -781,7 +1180,7 @@ export default function UserDashboard() {
                                                 <div>
                                                     <p className="text-zinc-900 dark:text-white font-semibold">Network Connection</p>
                                                     <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                                                        {isOnline ? 'Connected — real-time sync is active' : 'Disconnected — CRDT offline buffer mode active'}
+                                                        {isOnline ? 'Connected — real-time sync is active' : 'Disconnected — Hybrid Engine offline buffer mode active'}
                                                     </p>
                                                 </div>
                                             </div>
@@ -811,7 +1210,7 @@ export default function UserDashboard() {
                                                     <GitMerge size={18} />
                                                 </div>
                                                 <div>
-                                                    <p className="text-zinc-900 dark:text-white font-semibold">CRDT Sync Engine</p>
+                                                    <p className="text-zinc-900 dark:text-white font-semibold">Hybrid Sync Engine</p>
                                                     <p className="text-sm text-zinc-500 dark:text-zinc-400">
                                                         {isOnline
                                                             ? 'State Convergence Model active — all edits propagated in real-time'
@@ -951,11 +1350,27 @@ export default function UserDashboard() {
                                     <button onClick={() => { setIsUploadOpen(false); setStagedFile(null); }} className="p-1 rounded-full text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"><X size={20} /></button>
                                 </div>
                                 <label className="block border-2 border-dashed border-amber-400/50 hover:border-amber-500 bg-zinc-50 dark:bg-zinc-800 rounded-xl p-8 flex flex-col items-center justify-center gap-4 transition-colors cursor-pointer group">
-                                    <input type="file" className="hidden" accept=".txt,.docx,.md,.csv,.pdf" onChange={async (e) => {
-                                        const file = e.target.files?.[0];
+                                    <input type="file" className="hidden" accept=".txt,.docx,.md,.json,.csv,.rtf,.html,.xml,.tex" onChange={async (e) => {
+                                        // Reset input so re-selecting the same file re-fires onChange
+                                        const input = e.target;
+                                        const file = input.files?.[0];
                                         if (!file) return;
 
-                                        const isDocx = file.name.endsWith('.docx') ||
+                                        const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+
+                                        // ── Strict allowlist validation ──────────────────────────────────
+                                        if (!ALLOWED_EXTS.has(ext)) {
+                                            input.value = '';
+                                            toast.error('Format Rejected', {
+                                                description: 'Complex binary files shift unpredictably and break Delta Encoding. Only .txt · .docx · .md · .json · .csv are accepted.',
+                                                duration: 5000,
+                                                icon: '🚫',
+                                            });
+                                            return;
+                                        }
+                                        // ────────────────────────────────────────────────────────────────
+
+                                        const isDocx = ext === 'docx' ||
                                             file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
                                         // Placeholder while parsing
@@ -971,11 +1386,15 @@ export default function UserDashboard() {
                                                 setStagedFile({ name: file.name, content: `<p><em>[Could not parse ${file.name}. The file may be corrupted or password-protected.]</em></p>`, size: file.size });
                                             }
                                         } else if (file.size < 10 * 1024 * 1024) {
-                                            // --- Plain text path (txt / md / csv) ---
+                                            // --- Structured plain-text: txt / md / json / csv ---
                                             const reader = new FileReader();
                                             reader.onload = (evt) => {
-                                                const text = typeof evt.target?.result === 'string' ? evt.target.result : '';
-                                                setStagedFile({ name: file.name, content: text, size: file.size });
+                                                let raw = typeof evt.target?.result === 'string' ? evt.target.result : '';
+                                                // Pretty-print JSON so it reads cleanly in the editor
+                                                if (ext === 'json') {
+                                                    try { raw = JSON.stringify(JSON.parse(raw), null, 2); } catch { /* keep raw on parse error */ }
+                                                }
+                                                setStagedFile({ name: file.name, content: raw, size: file.size });
                                             };
                                             reader.readAsText(file);
                                         } else {
@@ -997,8 +1416,19 @@ export default function UserDashboard() {
                                         </div>
                                     ) : (
                                         <div className="text-center">
-                                            <p className="text-zinc-600 dark:text-zinc-300 font-medium">Click to pick a file or drag & drop</p>
-                                            <p className="text-xs text-zinc-500 mt-1">Supports .txt, .docx, .md, .csv up to 50MB</p>
+                                            <p className="text-zinc-600 dark:text-zinc-300 font-medium">Click to pick a file or drag &amp; drop</p>
+                                            <div className="flex items-center justify-center gap-1.5 mt-2 flex-wrap">
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border bg-zinc-500/15 text-zinc-400 border-zinc-500/30">.txt</span>
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border bg-blue-500/15 text-blue-400 border-blue-500/30">.docx</span>
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border bg-purple-500/15 text-purple-400 border-purple-500/30">.md</span>
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border bg-amber-400/15 text-amber-400 border-amber-400/30">.json</span>
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border bg-emerald-500/15 text-emerald-400 border-emerald-500/30">.csv</span>
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border bg-orange-500/15 text-orange-400 border-orange-500/30">.html</span>
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border bg-teal-500/15 text-teal-400 border-teal-500/30">.xml</span>
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border bg-indigo-500/15 text-indigo-400 border-indigo-500/30">.tex</span>
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border bg-rose-500/15 text-rose-400 border-rose-500/30">.rtf</span>
+                                            </div>
+                                            <p className="text-[10px] text-zinc-500 mt-1.5">Max 10 MB per file</p>
                                         </div>
                                     )}
                                 </label>
@@ -1009,7 +1439,7 @@ export default function UserDashboard() {
                                         const fileToUpload = stagedFile ?? { name: `Document_${Date.now()}.txt`, content: '# New Document\n\nStart typing here...', size: 0 };
                                         uploadFile(currentRepo, {
                                             name: fileToUpload.name,
-                                            type: fileToUpload.name.endsWith('.txt') ? 'text' : 'word',
+                                            type: (() => { const e = fileToUpload.name.split('.').pop()?.toLowerCase() ?? 'txt'; return e === 'docx' ? 'word' : e === 'json' ? 'json' : e === 'csv' ? 'csv' : e === 'md' ? 'md' : e === 'html' ? 'html' : e === 'xml' ? 'xml' : e === 'tex' ? 'tex' : e === 'rtf' ? 'rtf' : 'text'; })(),
                                             date: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }),
                                             content: fileToUpload.content,
                                             serverContent: ''
@@ -1561,7 +1991,7 @@ export default function UserDashboard() {
 
                                 {/* Footer Action */}
                                 <div className="px-8 py-6 border-t border-zinc-100 dark:border-white/5 flex items-center justify-between bg-zinc-50/50 dark:bg-black/20">
-                                    <p className="text-[10px] text-zinc-400 font-medium">Consensus state is backed by Yjs CRDT logic.</p>
+                                    <p className="text-[10px] text-zinc-400 font-medium">Consensus state is backed by Yjs Hybrid LWW logic.</p>
                                     <div className="flex items-center gap-3">
                                         <button onClick={() => setConflictFile(null)} className="text-xs font-bold text-zinc-400 hover:text-rose-500 transition-colors">Discard All</button>
                                         <motion.button 
@@ -1935,7 +2365,7 @@ export default function UserDashboard() {
                                                 <p className={`text-[10px] font-semibold tracking-[0.2em] uppercase text-${accentExtract}-600 mb-2`}>{reviewingUser.name}&apos;s Version</p>
                                                 <h1 className="text-lg font-bold text-zinc-900" style={{ fontFamily: "'Times New Roman', Georgia, serif" }}>{editingCardsFile.name.replace(/\.[^.]+$/, '').replace(/_/g, ' ')}</h1>
                                                 <p className="text-[11px] text-zinc-500 mt-2" style={{ fontFamily: "'Times New Roman', Georgia, serif" }}>
-                                                    Reviewing changes · DocuSync CRDT v2
+                                                    Reviewing changes · DocuSync Hybrid Engine v2
                                                 </p>
                                             </div>
                                             <div className="flex-1">
@@ -2373,68 +2803,25 @@ export default function UserDashboard() {
                         return `<p style="line-height:2.2">${resultHtml.trim()}</p>`;
                     };
                     return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.15 } }} className="fixed inset-0 z-[70] flex flex-col">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.15 } }} className="fixed inset-0 z-[70] flex flex-col bg-zinc-950">
                         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }} exit={{ opacity: 0 }} className="flex flex-col" style={{ height: '100vh' }}>
-                            <div className="flex-shrink-0 bg-[#2b579a] text-white px-4 py-1.5 flex items-center gap-3 shadow">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <FileText size={15} className="text-white/80 flex-shrink-0" />
-                                    <span className="font-semibold text-sm truncate">{editingFile.name}</span>
-                                    {isReviewMode && <span className="bg-amber-400 text-black text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">Review Mode</span>}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-white/50 text-xs hidden sm:block">{isReviewMode ? 'Accept changes to enable editing' : 'Editing locally'}</span>
-                                    <button onClick={() => { setEditingFile(null); setEditorText(''); }} className="p-1 rounded hover:bg-white/20 text-white/80 hover:text-white transition-colors flex-shrink-0"><X size={16} /></button>
-                                </div>
-                            </div>
-                            {isReviewMode && (
-                                <div className="flex-shrink-0 px-6 py-4 bg-white border-b border-zinc-200">
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 rounded-xl bg-amber-500 text-white"><AlertTriangle size={18} /></div>
-                                            <div>
-                                                <h4 className="font-bold text-zinc-900 text-sm">Review Changes Prior to Editing</h4>
-                                                <p className="text-xs text-zinc-500">{"Friend's changes have been integrated. Review the side-by-side diff below."}</p>
-                                            </div>
-                                        </div>
-                                        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={() => { if (currentRepo) clearPendingReview(currentRepo, editingFile.name); setEditingFile({ ...editingFile, pendingReview: null }); }} className="flex items-center gap-2 px-5 py-2 rounded-xl bg-green-600 hover:bg-green-500 text-white text-sm font-bold uppercase tracking-wider shadow-lg transition-all">
-                                            <CheckCircle2 size={15} /> Continue
-                                        </motion.button>
-                                    </div>
-                                    <div className="flex flex-col lg:flex-row gap-4" style={{ height: '50vh', minHeight: '360px' }}>
-                                        <div className="flex-1 flex flex-col rounded bg-white shadow-[0_4px_20px_rgba(0,0,0,0.12)] ring-1 ring-zinc-200 overflow-hidden" style={{ borderTop: '3px solid #10b981' }}>
-                                            <div className="px-4 py-2 border-b border-zinc-100 bg-white flex justify-between items-center">
-                                                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Previous State</span>
-                                                <span className="text-emerald-600 text-[10px] font-bold">Original</span>
-                                            </div>
-                                            <div className="flex-1 overflow-y-auto px-10 py-8 text-sm leading-[2] text-zinc-900 bg-white" style={{ fontFamily: "Times New Roman, serif" }}>
-                                                <div dangerouslySetInnerHTML={{ __html: review!.previousContent }} />
-                                            </div>
-                                        </div>
-                                        <div className="flex-1 flex flex-col rounded bg-white shadow-[0_4px_20px_rgba(0,0,0,0.12)] ring-1 ring-zinc-200 overflow-hidden" style={{ borderTop: '3px solid #10b981' }}>
-                                            <div className="px-4 py-2 border-b border-zinc-100 bg-white flex justify-between items-center">
-                                                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Integrated Result</span>
-                                                <span className="bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-[10px] font-bold uppercase">Highlighted</span>
-                                            </div>
-                                            <div className="flex-1 overflow-y-auto px-10 py-8 text-sm leading-[2] text-zinc-900 bg-white" style={{ fontFamily: "Times New Roman, serif" }}>
-                                                <div dangerouslySetInnerHTML={{ __html: getHighlightedHtml(editingFile.content, review!.previousContent) }} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            <div className={`flex-1 overflow-hidden ${isReviewMode ? 'pointer-events-none opacity-50 grayscale-[0.5]' : ''}`}>
-                                <RichTextEditor fileName={editingFile.name} userName={activeUserName} onChange={(html) => setEditorText(html)} initialContent={editingFile.content} isOffline={isOffline} />
-                            </div>
-                            <div className="flex-shrink-0 bg-[#1e3f7a] text-white px-4 py-2 flex justify-between items-center">
-                                <span className="text-xs text-white/60 flex items-center gap-2">
-                                    {isReviewMode ? (<><span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block" />{' Accept changes above to start editing'}</>) : (<><span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />{' Rich Text Editor \u2014 formatting preserved on save'}</>)}
-                                </span>
-                                <div className="flex gap-2">
-                                    <motion.button whileTap={{ scale: 0.97 }} onClick={() => { setEditingFile(null); setEditorText(''); }} className="px-4 py-1.5 rounded border border-white/30 text-white/80 hover:bg-white/10 hover:text-white transition-all text-sm font-semibold">Close</motion.button>
-                                    <motion.button whileTap={{ scale: 0.97 }} disabled={isReviewMode} onClick={() => { if (!currentRepo || !editingFile) return; const newContent = editorText || editingFile.content; saveFileContent(currentRepo, editingFile.name, newContent, editingFile.content || ''); setEditingFile(null); setEditorText(''); }} className={`px-4 py-1.5 rounded bg-orange-500 hover:bg-orange-400 text-white transition-all text-sm font-bold flex items-center gap-2 ${isReviewMode ? 'opacity-30 cursor-not-allowed' : ''}`}>
-                                        <RefreshCcw size={14} /> Save &amp; Sync
-                                    </motion.button>
-                                </div>
+                            {/* ── RichTextEditor owns its own nav bar + toolbar ─ */}
+                            <div className="flex-1 overflow-hidden">
+                                <RichTextEditor
+                                    fileName={editingFile.name}
+                                    userName={activeUserName}
+                                    onChange={(html) => setEditorText(html)}
+                                    initialContent={editingFile.content}
+                                    isOffline={isOffline}
+                                    onClose={() => { setEditingFile(null); setEditorText(''); }}
+                                    onSave={() => {
+                                        if (!currentRepo || !editingFile) return;
+                                        const newContent = editorText || editingFile.content;
+                                        saveFileContent(currentRepo, editingFile.name, newContent, editingFile.content || '');
+                                        setEditingFile(null);
+                                        setEditorText('');
+                                    }}
+                                />
                             </div>
                         </motion.div>
                     </motion.div>
@@ -2781,6 +3168,78 @@ export default function UserDashboard() {
                         </motion.div>
                     </motion.div>
                 )}
+            </AnimatePresence>
+
+            {/* ══ VERSION HISTORY PANEL ══ */}
+            <AnimatePresence>
+                {versionHistoryTarget && (() => {
+                    const versions = getVersionHistory(versionHistoryTarget.repoName, versionHistoryTarget.fileName);
+                    const actionMeta: Record<string, { label: string; color: string }> = {
+                        'save':             { label: 'Saved',    color: 'bg-blue-500/20 text-blue-300' },
+                        'conflict-resolve': { label: 'Merged',   color: 'bg-emerald-500/20 text-emerald-300' },
+                        'restore':          { label: 'Restored', color: 'bg-amber-500/20 text-amber-300' },
+                        'merge':            { label: 'Merged',   color: 'bg-emerald-500/20 text-emerald-300' },
+                    };
+                    return (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                            onClick={() => setVersionHistoryTarget(null)}>
+                            <motion.div initial={{ scale: 0.93, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.93, y: 20 }}
+                                onClick={e => e.stopPropagation()}
+                                className="w-full max-w-lg bg-zinc-900 border border-zinc-700/60 rounded-2xl shadow-2xl overflow-hidden">
+                                {/* Header */}
+                                <div className="h-1 w-full bg-gradient-to-r from-violet-500 to-purple-600" />
+                                <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
+                                    <div>
+                                        <p className="font-bold text-white text-sm">{versionHistoryTarget.fileName}</p>
+                                        <p className="text-[11px] text-zinc-400 mt-0.5">Version History — {versions.length} snapshot{versions.length !== 1 ? 's' : ''}</p>
+                                    </div>
+                                    <button onClick={() => setVersionHistoryTarget(null)} className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition-all">
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                                {/* Version list */}
+                                <div className="max-h-[420px] overflow-y-auto custom-scrollbar p-4 flex flex-col gap-3">
+                                    {versions.length === 0 ? (
+                                        <div className="text-center py-10">
+                                            <Clock size={28} className="mx-auto text-zinc-600 mb-2" />
+                                            <p className="text-sm text-zinc-500">No versions yet.</p>
+                                            <p className="text-xs text-zinc-600 mt-1">Versions are created every time a file is saved or a conflict is resolved.</p>
+                                        </div>
+                                    ) : versions.map((v, i) => (
+                                        <div key={v.id} className="flex items-start gap-3 group">
+                                            {/* Timeline line */}
+                                            <div className="flex flex-col items-center pt-1">
+                                                <div className="w-2.5 h-2.5 rounded-full bg-violet-500 ring-2 ring-violet-500/30 flex-shrink-0" />
+                                                {i < versions.length - 1 && <div className="w-0.5 h-full min-h-[28px] bg-zinc-700/60 mt-1" />}
+                                            </div>
+                                            {/* Version card */}
+                                            <div className="flex-1 bg-zinc-800/50 border border-zinc-700/40 rounded-xl p-3 hover:border-violet-500/40 transition-all">
+                                                <div className="flex items-center justify-between gap-2 mb-1">
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${actionMeta[v.action]?.color ?? 'bg-zinc-700 text-zinc-300'}`}>
+                                                        {actionMeta[v.action]?.label ?? v.action}
+                                                    </span>
+                                                    <span className="text-[10px] text-zinc-500">{v.savedAt}</span>
+                                                </div>
+                                                <p className="text-xs text-zinc-300 font-medium">{v.savedBy}</p>
+                                                <p className="text-[10px] text-zinc-500 mt-0.5 line-clamp-2">{v.content.replace(/<[^>]*>/g, ' ').trim().slice(0, 80)}...</p>
+                                                {i > 0 && (
+                                                    <button onClick={() => {
+                                                        restoreVersion(versionHistoryTarget.repoName, versionHistoryTarget.fileName, v.id);
+                                                        setVersionHistoryTarget(null);
+                                                    }} className="mt-2 text-[10px] text-violet-400 hover:text-violet-300 font-semibold transition-colors flex items-center gap-1">
+                                                        <RefreshCcw size={10} /> Restore this version
+                                                    </button>
+                                                )}
+                                                {i === 0 && <p className="mt-1.5 text-[10px] text-emerald-400 font-semibold">✓ Current version</p>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    );
+                })()}
             </AnimatePresence>
 
             <style jsx global>{`

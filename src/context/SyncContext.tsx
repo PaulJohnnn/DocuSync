@@ -32,6 +32,15 @@ export interface UserRequest {
     password?: string;
 }
 
+// File Version (for version history)
+export interface FileVersion {
+    id: string;           
+    content: string;      
+    savedAt: string;      
+    savedBy: string;      
+    action: 'save' | 'merge' | 'restore' | 'conflict-resolve'; 
+}
+
 export interface FileData {
     id: number;
     name: string;
@@ -41,10 +50,11 @@ export interface FileData {
     isSyncing: boolean;
     content: string;
     serverContent: string;
-    size?: number; // byte size for storage calculation
+    size?: number;
     isStarred?: boolean;
     isOfflineAvailable?: boolean;
     pendingReview?: { previousContent: string; resolvedWith: 'local' | 'server' | 'merge'; resolvedAt: string } | null;
+    versions?: FileVersion[]; // version history snapshots
 }
 
 export interface RepositoryData {
@@ -92,19 +102,20 @@ type BroadcastMessage =
     | { type: 'FILE_STAR';    repoName: string; fileName: string; isStarred: boolean; senderId: string }
     | { type: 'FILE_EDITING_START'; repoName: string; fileName: string; userName: string; senderId: string }
     | { type: 'FILE_EDITING_STOP';  repoName: string; fileName: string; senderId: string }
-    | { type: 'FILE_DELETED_KICK';  repoName: string; fileName: string; senderId: string };
+    | { type: 'FILE_DELETED_KICK';  repoName: string; fileName: string; senderId: string }
+    | { type: 'FILE_APPROVED';      repoName: string; fileName: string; content: string; senderId: string };
 
-// --- Paul's thesis content ---
+
 const paulContent = `<h2>Introduction</h2><p>Hi I'm Paul... I'm on Cabuyao City... I'm on section CS 402, nice to meet you all groupmates.</p><p>This document is part of our collaborative thesis project, managed through DocuSync. Please feel free to add your sections below.</p>`;
 
-// --- Default content ---
+
 const defaultContent = (name: string) =>
     `<h2>${name}</h2><p>Hi I'm Paul... I'm on Cabuyao City... I'm on section CS 402, nice to meet you all groupmates.</p><p>This document is part of our collaborative thesis project. Begin editing to add your content here.</p>`;
 
-// --- 15 GB limit in bytes ---
+
 const STORAGE_LIMIT_BYTES = 15 * 1024 * 1024 * 1024;
 
-// --- Initial Data ---
+
 const initialReposData: RepositoryData[] = [
     {
         id: 1, name: 'Thesis_Docs', lastSynced: 'Just now', status: 'Up to date', userRole: 'Owner',
@@ -118,9 +129,9 @@ const initialReposData: RepositoryData[] = [
             { id: 102, name: 'Dr. Sarah Chen', email: 'schen@university.edu', date: '2 hrs ago' }
         ],
         files: [
-            { id: 1, name: 'Chapter_1_Introduction.docx', type: 'word', syncStatus: 'conflict' as SyncStatus, date: 'Mar 22, 2026 13:27', isSyncing: false, content: paulContent, serverContent: 'Chapter 1 — Introduction\n\nThis thesis presents a comparative analysis of document synchronization protocols, with emphasis on Conflict-free Replicated Data Types (CRDTs). Prof. Anderson revised the research scope to include additional case studies from Southeast Asian HEIs.\n\n[Prof. Anderson: Suggest expanding Section 1.2 to cover distributed system failure modes.]', isStarred: false, size: new TextEncoder().encode(paulContent).length },
-            { id: 2, name: 'Chapter_2_Review.docx', type: 'word', syncStatus: 'conflict' as SyncStatus, date: 'Mar 22, 2026 12:10', isSyncing: false, content: defaultContent('Chapter 2 — Literature Review'), serverContent: 'Chapter 2 — Literature Review\n\nExisting literature on real-time collaboration traces back to the Operational Transformation model introduced by Ellis & Gibbs (1989). Elena rewrote the OT vs CRDT comparison section with updated 2024 benchmarks.\n\nSmith et al. (2023) demonstrated that CRDT-based systems outperform OT in high-latency environments by up to 34%. Johnson (2022) further confirms this in mobile-first architectures.\n\n[Elena: Added citations — Smith et al. (2023), Johnson (2022), Kleppmann (2020)]', isStarred: false, size: 4200 },
-            { id: 5, name: 'Thesis_Abstract.docx', type: 'word', syncStatus: 'conflict' as SyncStatus, date: 'Mar 21, 2026 09:12', isSyncing: false, content: defaultContent('Thesis Abstract'), serverContent: 'Thesis Abstract\n\nHi I\'m Paul... I\'m on Cabuyao City... I\'m on section CS 402, nice to meet you all groupmates.\n\nThis document is part of our collaborative thesis project. Begin editing to add your content here.\n\n[Citations added by Elena: Smith et al. (2023), Johnson (2022)]', isStarred: true, size: 3800 },
+            { id: 1, name: 'Chapter_1_Introduction.docx', type: 'word', syncStatus: 'synced' as SyncStatus, date: 'Mar 22, 2026 13:27', isSyncing: false, content: paulContent, serverContent: '', isStarred: false, size: new TextEncoder().encode(paulContent).length },
+            { id: 2, name: 'Chapter_2_Review.docx', type: 'word', syncStatus: 'synced' as SyncStatus, date: 'Mar 22, 2026 12:10', isSyncing: false, content: defaultContent('Chapter 2 — Literature Review'), serverContent: '', isStarred: false, size: 4200 },
+            { id: 5, name: 'Thesis_Abstract.docx', type: 'word', syncStatus: 'synced' as SyncStatus, date: 'Mar 21, 2026 09:12', isSyncing: false, content: defaultContent('Thesis Abstract'), serverContent: '', isStarred: true, size: 3800 },
         ]
     },
     {
@@ -134,21 +145,21 @@ const initialReposData: RepositoryData[] = [
             { name: 'James Cruz', role: 'Viewer', badge: 'zinc', status: 'offline', lastActive: '3 hrs ago' },
         ],
         files: [
-            { id: 3, name: 'SDA_Framework.docx', type: 'word', syncStatus: 'conflict' as SyncStatus, date: 'Mar 21, 2026 13:35', isSyncing: false, content: defaultContent('SDA Framework'), serverContent: 'SDA Framework\n\nThe Scalable Document Architecture (SDA) framework defines a layered approach to managing concurrent document edits at enterprise scale. Michael Chang restructured the framework layers to align with ISO 25010 quality standards.\n\nLayer 1 — Data Ingestion\nLayer 2 — Conflict Detection (CRDT Engine)\nLayer 3 — Resolution & Commit\nLayer 4 — Replication & Sync\n\n[Michael: Renamed all layers to match the ISO 25010 taxonomy per Dr. Lim\'s request.]', isStarred: false, size: 5200 },
-            { id: 4, name: 'SDA_Data_Analysis.docx', type: 'word', syncStatus: 'conflict' as SyncStatus, date: 'Mar 20, 2026 15:42', isSyncing: false, content: defaultContent('SDA Data Analysis'), serverContent: 'SDA Data Analysis\n\nQuantitative analysis of sync performance was conducted across 5 test nodes. Sarah Jenkins updated the results table with corrected measurement units (ms → μs) and added a new Figure 4 showing latency distribution.\n\nTest Results Summary:\n- Node A: 12μs avg latency\n- Node B: 18μs avg latency  \n- Node C: 9μs avg latency (optimized)\n\n[Sarah: Corrected units from ms to μs throughout. Added Figure 4 latency histogram.]', isStarred: true, size: 6800 },
-            { id: 8, name: 'System_Architecture.docx', type: 'word', syncStatus: 'conflict' as SyncStatus, date: 'Mar 19, 2026 09:15', isSyncing: false, content: defaultContent('System Architecture'), serverContent: 'System Architecture\n\nThe DocuSync system architecture follows a peer-to-peer WebRTC mesh topology. Prof. Anderson added a new section on failover handling and Byzantine fault tolerance, referencing the Raft consensus algorithm.\n\nComponents:\n1. WebRTC Signaling Server (Node.js)\n2. Yjs CRDT Engine (client-side)\n3. Supabase Persistence Layer\n4. BroadcastChannel API (same-origin peers)\n\n[Prof. Anderson: Added Section 3.4 — Byzantine Fault Tolerance & Raft Consensus]', isStarred: false, size: 4100 },
-            { id: 201, name: 'SDA_Security_Protocol.docx', type: 'word', syncStatus: 'conflict' as SyncStatus, date: 'Mar 18, 2026 11:20', isSyncing: false, content: defaultContent('SDA Security'), serverContent: 'SDA Security Protocol v1.2\n\nSecurity Audit by external team identified 3 moderate vulnerabilities in the peer-discovery phase. Implementing ECDSA signatures for all inbound CRDT updates.\n\n[Admin: Enforce TLS 1.3 across all signaling nodes immediately.]', isStarred: false, size: 3200 },
-            { id: 202, name: 'SDA_User_Testing_Results.docx', type: 'word', syncStatus: 'conflict' as SyncStatus, date: 'Mar 17, 2026 14:45', isSyncing: false, content: defaultContent('SDA User Testing'), serverContent: 'SDA User Testing - Phase 2\n\nParticipants reported 15% improvement in merge clarity with the new "Editor Cards" UI. However, mobile latency remains a concern in low-bandwidth regions.\n\n[Researcher A: Suggest adding a low-bandwidth "text-only" mode for rural testing sites.]', isStarred: false, size: 4500 },
-            { id: 203, name: 'SDA_Database_Schema.docx', type: 'word', syncStatus: 'conflict' as SyncStatus, date: 'Mar 16, 2026 09:30', isSyncing: false, content: defaultContent('SDA Schema'), serverContent: 'SDA Database Schema (Relational)\n\nShifting from Postgres to a hybrid SurrealDB approach for better performance with distributed graph relations. Updated schema migration scripts to v0.9.\n\n[Dev Team: Verify foreign key constraints on the "File_Versions" table.]', isStarred: true, size: 5800 },
-            { id: 204, name: 'SDA_Network_Topology.docx', type: 'word', syncStatus: 'conflict' as SyncStatus, date: 'Mar 15, 2026 16:10', isSyncing: false, content: defaultContent('SDA Topology'), serverContent: 'SDA Network Topology Diagram Metrics\n\nSimulated a 50-node cluster. Average convergence time measured at 240ms. Recommending a DHT-based lookup for repositories with > 100 concurrent editors.\n\n[Ops: Latency spikes detected in Node 7 (Singapore region). Investigate.]', isStarred: false, size: 3900 },
-            { id: 205, name: 'SDA_Deployment_Guide.docx', type: 'word', syncStatus: 'conflict' as SyncStatus, date: 'Mar 14, 2026 10:05', isSyncing: false, content: defaultContent('SDA Deployment'), serverContent: 'SDA Deployment Guide v4.0\n\nUpdated Docker Compose configurations for one-click staging setup. Added health-check endpoints for monitoring the CRDT broadcast health.\n\n[Intern: Please update the README with the new .env variable requirements.]', isStarred: false, size: 2800 },
+            { id: 3, name: 'SDA_Framework.docx', type: 'word', syncStatus: 'synced' as SyncStatus, date: 'Mar 21, 2026 13:35', isSyncing: false, content: defaultContent('SDA Framework'), serverContent: '', isStarred: false, size: 5200 },
+            { id: 4, name: 'SDA_Data_Analysis.docx', type: 'word', syncStatus: 'synced' as SyncStatus, date: 'Mar 20, 2026 15:42', isSyncing: false, content: defaultContent('SDA Data Analysis'), serverContent: '', isStarred: true, size: 6800 },
+            { id: 8, name: 'System_Architecture.docx', type: 'word', syncStatus: 'synced' as SyncStatus, date: 'Mar 19, 2026 09:15', isSyncing: false, content: defaultContent('System Architecture'), serverContent: '', isStarred: false, size: 4100 },
+            { id: 201, name: 'SDA_Security_Protocol.docx', type: 'word', syncStatus: 'synced' as SyncStatus, date: 'Mar 18, 2026 11:20', isSyncing: false, content: defaultContent('SDA Security'), serverContent: '', isStarred: false, size: 3200 },
+            { id: 202, name: 'SDA_User_Testing_Results.docx', type: 'word', syncStatus: 'synced' as SyncStatus, date: 'Mar 17, 2026 14:45', isSyncing: false, content: defaultContent('SDA User Testing'), serverContent: '', isStarred: false, size: 4500 },
+            { id: 203, name: 'SDA_Database_Schema.docx', type: 'word', syncStatus: 'synced' as SyncStatus, date: 'Mar 16, 2026 09:30', isSyncing: false, content: defaultContent('SDA Schema'), serverContent: '', isStarred: true, size: 5800 },
+            { id: 204, name: 'SDA_Network_Topology.docx', type: 'word', syncStatus: 'synced' as SyncStatus, date: 'Mar 15, 2026 16:10', isSyncing: false, content: defaultContent('SDA Topology'), serverContent: '', isStarred: false, size: 3900 },
+            { id: 205, name: 'SDA_Deployment_Guide.docx', type: 'word', syncStatus: 'synced' as SyncStatus, date: 'Mar 14, 2026 10:05', isSyncing: false, content: defaultContent('SDA Deployment'), serverContent: '', isStarred: false, size: 2800 },
         ]
     },
 
 ];
 
 const initialSyncLogs: LogEntry[] = [
-    { id: 1, time: '10:00 AM', message: '🚀 DocuSync initialized. CRDT sync engine active. All files up to date.' }
+    { id: 1, time: '10:00 AM', message: '🚀 DocuSync initialized. Hybrid Sync Engine active. All files converged and up to date.' }
 ];
 
 // --- Context Definition ---
@@ -181,9 +192,12 @@ interface SyncContextType {
     uploadFile: (repoName: string, file: Omit<FileData, 'id' | 'syncStatus' | 'isSyncing'>) => void;
     simulateConflict: (repoName: string) => void;
     saveFileContent: (repoName: string, fileName: string, newContent: string, originalContent: string) => void;
-    resolveConflict: (repoName: string, fileName: string, resolutionType: 'local' | 'server' | 'merge', finalContent: string) => void;
+    resolveConflict: (repoName: string, fileName: string, resolutionType: 'local' | 'server' | 'merge', finalContent: string, resolvedBy?: string) => void;
     clearPendingReview: (repoName: string, fileName: string) => void;
     addLog: (message: string) => void;
+    // Version History
+    getVersionHistory: (repoName: string, fileName: string) => FileVersion[];
+    restoreVersion: (repoName: string, fileName: string, versionId: string) => void;
     // Active editing awareness
     activeEditors: ActiveEditor[];
     notifyEditingStart: (repoName: string, fileName: string, userName: string) => void;
@@ -316,7 +330,7 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         hydrate();
     }, []);
 
-    // ---------- Step 2: Persist on every change ----------
+    //  Step 2: Persist on every change 
     useEffect(() => {
         if (!isHydrated) return;
         try {
@@ -331,7 +345,7 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }, [reposData, syncLogs, trashedFiles, isHydrated, deltaSyncEnabled, autoPurgeEnabled, pendingUserRequests]);
 
-    // ---------- Step 3: BroadcastChannel (cross-tab) ----------
+    //  Step 3: BroadcastChannel (cross-tab) 
     useEffect(() => {
         if (typeof window === 'undefined') return;
 
@@ -405,10 +419,26 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     setActiveEditors(prev => prev.filter(e => !(e.tabId === msg.senderId && e.fileName === msg.fileName)));
                     break;
                 case 'FILE_DELETED_KICK':
-                    // If we are editing this file, signal the UI to kick us out
                     setFileDeletedEvent({ repoName: msg.repoName, fileName: msg.fileName });
-                    // Clean up active editors for this file
                     setActiveEditors(prev => prev.filter(e => !(e.repoName === msg.repoName && e.fileName === msg.fileName)));
+                    break;
+                // Owner accepted conflict resolution — update ALL collaborators immediately
+                case 'FILE_APPROVED':
+                    setReposData(prev => prev.map(r => r.name !== msg.repoName ? r : {
+                        ...r,
+                        files: r.files.map(f => f.name !== msg.fileName ? f : {
+                            ...f,
+                            content: msg.content,
+                            serverContent: '',
+                            syncStatus: 'synced' as SyncStatus,
+                            size: new TextEncoder().encode(msg.content).length,
+                        })
+                    }));
+                    setSyncLogs(prev => [{
+                        id: Date.now(),
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        message: `✅ '${msg.fileName}' — Owner accepted changes. All collaborators updated in real-time.`
+                    }, ...prev]);
                     break;
             }
         };
@@ -416,7 +446,7 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return () => { channel.close(); channelRef.current = null; };
     }, []);
 
-    // ---------- Automatic Online/Offline Detection ----------
+    //  Automatic Online/Offline Detection 
     useEffect(() => {
         const handleOffline = () => {
             setIsOnline(false);
@@ -436,7 +466,7 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // ---------- Supabase Realtime (when credentials are set) ----------
+    //  Supabase Realtime (when credentials are set) 
     useEffect(() => {
         if (!isSupabaseConfigured || !supabase) return;
 
@@ -456,7 +486,7 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // ---------- Auto-purge: delete trash items older than 30 days ----------
+    //  Auto-purge: delete trash items older than 30 days 
     useEffect(() => {
         if (!autoPurgeEnabled || !isHydrated) return;
         const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
@@ -472,7 +502,7 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isHydrated, autoPurgeEnabled]);
 
-    // ---------- Helpers ----------
+    //  Helpers 
     const post = (msg: BroadcastMessage) => channelRef.current?.postMessage(msg);
 
     const addLog = (message: string, repoName?: string) => {
@@ -480,8 +510,7 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setSyncLogs(prev => [{ id: Date.now(), time: now, message, repoName }, ...prev]);
     };
 
-    // ---------- Actions ----------
-
+    //  Actions 
     const createRepository = async (name: string) => {
         if (!name.trim()) return;
         const newRepo: RepositoryData = {
@@ -709,6 +738,16 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const saveFileContent = async (repoName: string, fileName: string, newContent: string, originalContent: string) => {
         const contentSize = new TextEncoder().encode(newContent).length;
+        // Create a version snapshot before applying the save
+        let currentUser = 'Unknown';
+        try { const u = localStorage.getItem('docusync_current_user'); if (u) currentUser = JSON.parse(u).name || 'Unknown'; } catch { /* ignore */ }
+        const newVersion: FileVersion = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            content: newContent,
+            savedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            savedBy: currentUser,
+            action: 'save',
+        };
         setReposData(prev =>
             prev.map(r =>
                 r.name === repoName
@@ -716,7 +755,14 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         ...r,
                         files: r.files.map(f =>
                             f.name === fileName
-                                ? { ...f, content: newContent, serverContent: originalContent, syncStatus: 'synced' as SyncStatus, size: contentSize }
+                                ? {
+                                    ...f,
+                                    content: newContent,
+                                    serverContent: originalContent,
+                                    syncStatus: 'synced' as SyncStatus,
+                                    size: contentSize,
+                                    versions: [newVersion, ...(f.versions || [])].slice(0, 20), // keep last 20
+                                }
                                 : f
                         )
                     }
@@ -759,7 +805,16 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const clearFileDeletedEvent = () => setFileDeletedEvent(null);
 
-    const resolveConflict = (repoName: string, fileName: string, resolutionType: 'local' | 'server' | 'merge', finalContent: string) => {
+    const resolveConflict = (repoName: string, fileName: string, resolutionType: 'local' | 'server' | 'merge', finalContent: string, resolvedBy?: string) => {
+        let currentUser = resolvedBy || 'Owner';
+        try { if (!resolvedBy) { const u = localStorage.getItem('docusync_current_user'); if (u) currentUser = JSON.parse(u).name || 'Owner'; } } catch { /* ignore */ }
+        const newVersion: FileVersion = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            content: finalContent,
+            savedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            savedBy: currentUser,
+            action: 'conflict-resolve',
+        };
         setReposData(prev =>
             prev.map(r =>
                 r.name === repoName
@@ -773,6 +828,7 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                                     serverContent: '',
                                     syncStatus: 'synced' as SyncStatus,
                                     isSyncing: false,
+                                    versions: [newVersion, ...(f.versions || [])].slice(0, 20),
                                     pendingReview: {
                                         previousContent: f.content,
                                         resolvedWith: resolutionType,
@@ -785,8 +841,44 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     : r
             )
         );
-        const actionLabel = resolutionType === 'local' ? 'Kept Local Version' : resolutionType === 'server' ? 'Kept Server Version' : 'Auto-Merged Versions';
-        addLog(`Conflict resolved in '${fileName}' (${actionLabel}). File is now synchronized.`, repoName);
+        // Broadcast accepted content — all collaborators update simultaneously (Sir Janus #8)
+        post({ type: 'FILE_APPROVED', repoName, fileName, content: finalContent, senderId: tabId.current });
+        const actionLabel = resolutionType === 'local' ? 'Kept Local Version' : resolutionType === 'server' ? 'Kept Server Version' : 'Auto-Merged (Hybrid CRDT+OT)';
+        addLog(`✅ '${fileName}' — Conflict resolved (${actionLabel}). All users notified.`, repoName);
+    };
+
+    // --- Version History helpers ---
+    const getVersionHistory = (repoName: string, fileName: string): FileVersion[] => {
+        const repo = reposData.find(r => r.name === repoName);
+        const file = repo?.files.find(f => f.name === fileName);
+        return file?.versions || [];
+    };
+
+    const restoreVersion = (repoName: string, fileName: string, versionId: string) => {
+        const repo = reposData.find(r => r.name === repoName);
+        const file = repo?.files.find(f => f.name === fileName);
+        const version = file?.versions?.find(v => v.id === versionId);
+        if (!version) return;
+        let currentUser = 'Unknown';
+        try { const u = localStorage.getItem('docusync_current_user'); if (u) currentUser = JSON.parse(u).name || 'Unknown'; } catch { /* ignore */ }
+        const restoreEntry: FileVersion = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            content: version.content,
+            savedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            savedBy: currentUser,
+            action: 'restore',
+        };
+        setReposData(prev => prev.map(r => r.name !== repoName ? r : {
+            ...r,
+            files: r.files.map(f => f.name !== fileName ? f : {
+                ...f,
+                content: version.content,
+                syncStatus: 'synced' as SyncStatus,
+                versions: [restoreEntry, ...(f.versions || [])].slice(0, 20),
+            })
+        }));
+        post({ type: 'FILE_APPROVED', repoName, fileName, content: version.content, senderId: tabId.current });
+        addLog(`♻️ '${fileName}' restored to version from ${version.savedAt} by ${currentUser}.`, repoName);
     };
 
     const clearPendingReview = (repoName: string, fileName: string) => {
@@ -880,6 +972,8 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             resolveConflict,
             clearPendingReview,
             addLog,
+            getVersionHistory,
+            restoreVersion,
             activeEditors,
             notifyEditingStart,
             notifyEditingStop,
