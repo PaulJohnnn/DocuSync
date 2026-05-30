@@ -2,6 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { VectorClock } from '../lib/vectorClock';
+import { dequeueAllEdits, clearQueue } from '../lib/offlineQueue';
+import { toast } from 'sonner';
 
 // --- Types ---
 
@@ -73,6 +76,10 @@ export interface LogEntry {
     time: string;
     message: string;
     repoName?: string;
+    nodeId?: string;
+    deltaBytes?: number;
+    vectorClock?: VectorClock;
+    eventType?: 'save' | 'conflict-resolve' | 'merge' | 'restore' | 'offline-replay';
 }
 
 export interface TrashItem {
@@ -191,10 +198,17 @@ interface SyncContextType {
     broadcastFileUpdate: (repoName: string, fileName: string, content: string) => void;
     uploadFile: (repoName: string, file: Omit<FileData, 'id' | 'syncStatus' | 'isSyncing'>) => void;
     simulateConflict: (repoName: string) => void;
-    saveFileContent: (repoName: string, fileName: string, newContent: string, originalContent: string) => void;
-    resolveConflict: (repoName: string, fileName: string, resolutionType: 'local' | 'server' | 'merge', finalContent: string, resolvedBy?: string) => void;
+    saveFileContent: (repoName: string, fileName: string, newContent: string, originalContent: string, vClock?: VectorClock, dBytes?: number) => void;
+    resolveConflict: (repoName: string, fileName: string, resolutionType: 'local' | 'server' | 'merge', finalContent: string, resolvedBy?: string, vClock?: VectorClock, dBytes?: number) => void;
     clearPendingReview: (repoName: string, fileName: string) => void;
-    addLog: (message: string) => void;
+    addLog: (
+        message: string, 
+        repoName?: string, 
+        nodeId?: string, 
+        deltaBytes?: number, 
+        vectorClock?: VectorClock, 
+        eventType?: 'save' | 'conflict-resolve' | 'merge' | 'restore' | 'offline-replay'
+    ) => void;
     // Version History
     getVersionHistory: (repoName: string, fileName: string) => FileVersion[];
     restoreVersion: (repoName: string, fileName: string, versionId: string) => void;
@@ -223,6 +237,12 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [autoPurgeEnabled, setAutoPurgeEnabled] = useState(true);
     const [pendingUserRequests, setPendingUserRequests] = useState<UserRequest[]>([]);
     const [activeEditors, setActiveEditors] = useState<ActiveEditor[]>([]);
+    const nodeId = useRef<string>('');
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            nodeId.current = `node-${Math.random().toString(36).slice(2, 10)}`;
+        }
+    }, []);
     const [fileDeletedEvent, setFileDeletedEvent] = useState<{ repoName: string; fileName: string } | null>(null);
     const [isOnline, setIsOnline] = useState(true);
 
@@ -317,11 +337,11 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     const hasOldNames = parsed.some(r => r.name === 'Main-Sync-Repo' || r.name === 'Project-Beta-Repo' || r.name === 'External-Assets-Repo');
                     if (!hasOldNames) setReposData(parsed);
                 }
-                if (storedLogs)  setSyncLogs(JSON.parse(storedLogs));
-                if (storedTrash) setTrashedFiles(JSON.parse(storedTrash));
-                if (storedDelta !== null) setDeltaSyncEnabled(JSON.parse(storedDelta));
-                if (storedPurge !== null) setAutoPurgeEnabled(JSON.parse(storedPurge));
-                if (storedUserRequests) setPendingUserRequests(JSON.parse(storedUserRequests));
+                if (storedLogs)  setSyncLogs(JSON.parse(storedLogs) as LogEntry[]);
+                if (storedTrash) setTrashedFiles(JSON.parse(storedTrash) as TrashItem[]);
+                if (storedDelta !== null) setDeltaSyncEnabled(JSON.parse(storedDelta) as boolean);
+                if (storedPurge !== null) setAutoPurgeEnabled(JSON.parse(storedPurge) as boolean);
+                if (storedUserRequests) setPendingUserRequests(JSON.parse(storedUserRequests) as UserRequest[]);
             } catch (e) {
                 console.error('Failed to hydrate state from localStorage', e);
             }
@@ -446,6 +466,54 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return () => { channel.close(); channelRef.current = null; };
     }, []);
 
+    //  Offline replay function
+    const replayOfflineEdits = async () => {
+        try {
+            const edits = await dequeueAllEdits();
+            if (edits.length === 0) return;
+
+            addLog(`🔄 Replaying ${edits.length} buffered offline edits...`);
+
+            for (const edit of edits) {
+                setReposData(prev =>
+                    prev.map(r => {
+                        if (r.name === edit.repoName) {
+                            return {
+                                ...r,
+                                files: r.files.map(f => {
+                                    if (f.name === edit.fileName) {
+                                        return {
+                                            ...f,
+                                            syncStatus: 'synced' as SyncStatus,
+                                            isSyncing: false,
+                                        };
+                                    }
+                                    return f;
+                                })
+                            };
+                        }
+                        return r;
+                    })
+                );
+
+                // Add audit entry for replay
+                addLog(
+                    `🔄 Offline replay: Applied update of ${edit.delta.length} bytes for '${edit.fileName}'.`,
+                    edit.repoName,
+                    edit.vectorClock.nodeId,
+                    edit.delta.length,
+                    edit.vectorClock,
+                    'offline-replay'
+                );
+            }
+
+            await clearQueue();
+            toast.success(`Successfully replayed ${edits.length} offline edits!`);
+        } catch (e) {
+            console.error('Failed to replay offline edits:', e);
+        }
+    };
+
     //  Automatic Online/Offline Detection 
     useEffect(() => {
         const handleOffline = () => {
@@ -455,33 +523,16 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const handleOnline = () => {
             setIsOnline(true);
             addLog('🟢 Network reconnected. CRDT state convergence initiated. Syncing buffered edits...');
+            replayOfflineEdits();
         };
-        setIsOnline(navigator.onLine);
+        if (typeof navigator !== 'undefined') {
+            setIsOnline(navigator.onLine);
+        }
         window.addEventListener('offline', handleOffline);
         window.addEventListener('online', handleOnline);
         return () => {
             window.removeEventListener('offline', handleOffline);
             window.removeEventListener('online', handleOnline);
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    //  Supabase Realtime (when credentials are set) 
-    useEffect(() => {
-        if (!isSupabaseConfigured || !supabase) return;
-
-        const subscription = supabase
-            .channel('docusync-db-changes')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'files' }, () => {
-                addLog('🔄 Supabase: File change detected. Refreshing...');
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'repositories' }, () => {
-                addLog('🔄 Supabase: Repository change detected. Refreshing...');
-            })
-            .subscribe();
-
-        return () => {
-            if (supabase) supabase.removeChannel(subscription);
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -505,9 +556,25 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     //  Helpers 
     const post = (msg: BroadcastMessage) => channelRef.current?.postMessage(msg);
 
-    const addLog = (message: string, repoName?: string) => {
+    const addLog = (
+        message: string, 
+        repoName?: string,
+        nodeIdArg?: string,
+        deltaBytes?: number,
+        vectorClock?: VectorClock,
+        eventType?: 'save' | 'conflict-resolve' | 'merge' | 'restore' | 'offline-replay'
+    ) => {
         const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        setSyncLogs(prev => [{ id: Date.now(), time: now, message, repoName }, ...prev]);
+        setSyncLogs(prev => [{
+            id: Date.now(),
+            time: now,
+            message,
+            repoName,
+            nodeId: nodeIdArg,
+            deltaBytes,
+            vectorClock,
+            eventType
+        }, ...prev]);
     };
 
     //  Actions 
@@ -736,11 +803,24 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
     };
 
-    const saveFileContent = async (repoName: string, fileName: string, newContent: string, originalContent: string) => {
+    const saveFileContent = async (
+        repoName: string, 
+        fileName: string, 
+        newContent: string, 
+        originalContent: string,
+        vClock?: VectorClock,
+        dBytes?: number
+    ) => {
         const contentSize = new TextEncoder().encode(newContent).length;
         // Create a version snapshot before applying the save
         let currentUser = 'Unknown';
-        try { const u = localStorage.getItem('docusync_current_user'); if (u) currentUser = JSON.parse(u).name || 'Unknown'; } catch { /* ignore */ }
+        try {
+            const u = localStorage.getItem('docusync_current_user');
+            if (u) {
+                const userData = JSON.parse(u) as { name?: string };
+                currentUser = userData.name || 'Unknown';
+            }
+        } catch { /* ignore */ }
         const newVersion: FileVersion = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             content: newContent,
@@ -769,7 +849,17 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                     : r
             )
         );
-        addLog(`✅ '${fileName}' saved & synced via CRDT. All collaborators updated.`, repoName);
+        
+        const calcDeltaBytes = Math.abs(contentSize - new TextEncoder().encode(originalContent).length);
+        const resolvedVClock = vClock || { nodeId: nodeId.current || 'unknown-node', counter: 1 };
+        addLog(
+            `✅ '${fileName}' saved & synced via CRDT. All collaborators updated.`,
+            repoName,
+            nodeId.current || 'unknown-node',
+            dBytes || calcDeltaBytes,
+            resolvedVClock,
+            'save'
+        );
         post({ type: 'FILE_UPDATE', repoName, fileName, content: newContent, senderId: tabId.current });
 
         if (isSupabaseConfigured && supabase) {
@@ -805,9 +895,25 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const clearFileDeletedEvent = () => setFileDeletedEvent(null);
 
-    const resolveConflict = (repoName: string, fileName: string, resolutionType: 'local' | 'server' | 'merge', finalContent: string, resolvedBy?: string) => {
+    const resolveConflict = (
+        repoName: string, 
+        fileName: string, 
+        resolutionType: 'local' | 'server' | 'merge', 
+        finalContent: string, 
+        resolvedBy?: string,
+        vClock?: VectorClock,
+        dBytes?: number
+    ) => {
         let currentUser = resolvedBy || 'Owner';
-        try { if (!resolvedBy) { const u = localStorage.getItem('docusync_current_user'); if (u) currentUser = JSON.parse(u).name || 'Owner'; } } catch { /* ignore */ }
+        try {
+            if (!resolvedBy) {
+                const u = localStorage.getItem('docusync_current_user');
+                if (u) {
+                    const userData = JSON.parse(u) as { name?: string };
+                    currentUser = userData.name || 'Owner';
+                }
+            }
+        } catch { /* ignore */ }
         const newVersion: FileVersion = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             content: finalContent,
@@ -844,7 +950,18 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Broadcast accepted content — all collaborators update simultaneously (Sir Janus #8)
         post({ type: 'FILE_APPROVED', repoName, fileName, content: finalContent, senderId: tabId.current });
         const actionLabel = resolutionType === 'local' ? 'Kept Local Version' : resolutionType === 'server' ? 'Kept Server Version' : 'Auto-Merged (Hybrid CRDT+OT)';
-        addLog(`✅ '${fileName}' — Conflict resolved (${actionLabel}). All users notified.`, repoName);
+        
+        const contentSize = new TextEncoder().encode(finalContent).length;
+        const calcDeltaBytes = dBytes || contentSize;
+        const resolvedVClock = vClock || { nodeId: nodeId.current || 'unknown-node', counter: 1 };
+        addLog(
+            `✅ '${fileName}' — Conflict resolved (${actionLabel}). All users notified.`, 
+            repoName,
+            nodeId.current || 'unknown-node',
+            calcDeltaBytes,
+            resolvedVClock,
+            'conflict-resolve'
+        );
     };
 
     // --- Version History helpers ---
@@ -860,7 +977,13 @@ export const SyncProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const version = file?.versions?.find(v => v.id === versionId);
         if (!version) return;
         let currentUser = 'Unknown';
-        try { const u = localStorage.getItem('docusync_current_user'); if (u) currentUser = JSON.parse(u).name || 'Unknown'; } catch { /* ignore */ }
+        try {
+            const u = localStorage.getItem('docusync_current_user');
+            if (u) {
+                const userData = JSON.parse(u) as { name?: string };
+                currentUser = userData.name || 'Unknown';
+            }
+        } catch { /* ignore */ }
         const restoreEntry: FileVersion = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             content: version.content,

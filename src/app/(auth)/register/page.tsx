@@ -3,9 +3,21 @@
 import React, { useState } from 'react';
 import { Mail, Loader2, AlertCircle, ArrowRight, ShieldCheck, ArrowLeft, User, Copy, CheckCircle2, BookOpen, Hash, ChevronDown } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { ThemeToggle } from '../../../components/ThemeToggle';
 import { supabase } from '../../../lib/supabase';
+
+interface UserRequest {
+    id: string;
+    loginId?: string;
+    name: string;
+    email: string;
+    department: string;
+    role: string;
+    password?: string;
+    status: 'pending' | 'approved' | 'denied';
+    requestDate: string;
+}
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -27,9 +39,9 @@ export default function RegisterPage() {
     const getNextLoginId = (): string => {
         try {
             const stored = localStorage.getItem('docusync_user_requests');
-            const allUsers = stored ? JSON.parse(stored) : [];
+            const allUsers = stored ? JSON.parse(stored) as UserRequest[] : [];
             // Find highest existing loginId
-            const maxId = allUsers.reduce((max: number, u: any) => {
+            const maxId = allUsers.reduce((max: number, u: UserRequest) => {
                 const id = parseInt(u.loginId || '1999');
                 return id > max ? id : max;
             }, 1999);
@@ -48,7 +60,7 @@ export default function RegisterPage() {
         return pass;
     };
 
-    const orbVariants: any = {
+    const orbVariants: Variants = {
         animate: (i: number) => ({
             x: i % 2 === 0 ? [0, 80, -40, 0] : [0, -60, 50, 0],
             y: i % 2 === 0 ? [0, -40, 70, 0] : [0, 90, -30, 0],
@@ -69,8 +81,8 @@ export default function RegisterPage() {
         try {
             const stored = localStorage.getItem('docusync_user_requests');
             if (stored) {
-                const allRequests = JSON.parse(stored);
-                const existingUser = allRequests.find((u: any) => u.email === email);
+                const allRequests = JSON.parse(stored) as UserRequest[];
+                const existingUser = allRequests.find((u: UserRequest) => u.email === email);
                 if (existingUser) {
                     setError('This email is already registered. Please log in or use a different email.');
                     setIsLoading(false);
@@ -102,7 +114,7 @@ export default function RegisterPage() {
         // 3. Always save locally so login works
         try {
             const stored = localStorage.getItem('docusync_user_requests');
-            const allRequests = stored ? JSON.parse(stored) : [];
+            const allRequests = stored ? JSON.parse(stored) as UserRequest[] : [];
             allRequests.push({
                 id: Date.now().toString(),
                 loginId,

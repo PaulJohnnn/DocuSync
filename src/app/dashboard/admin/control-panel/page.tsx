@@ -51,6 +51,18 @@ function ToggleSwitch({
 
 
 
+interface DirectoryUser {
+    id: string;
+    loginId?: string;
+    name: string;
+    email: string;
+    department: string;
+    role: string;
+    password?: string;
+    status: 'pending' | 'approved' | 'denied';
+    requestDate: string;
+}
+
 export default function AdminDashboard() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<string>('System Overview');
@@ -59,14 +71,14 @@ export default function AdminDashboard() {
     const [selectedRepoToDelete, setSelectedRepoToDelete] = useState<number | null>(null);
 
     // ── User Directory state (merged: User Management + Registered Users)
-    const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
-    const [selectedDirUser, setSelectedDirUser] = useState<any | null>(null);
+    const [directoryUsers, setDirectoryUsers] = useState<DirectoryUser[]>([]);
+    const [selectedDirUser, setSelectedDirUser] = useState<DirectoryUser | null>(null);
     const [suspendedUsers, setSuspendedUsers] = useState<string[]>([]);
     const [userActionMsg, setUserActionMsg] = useState<string | null>(null);
     // Delete confirmation modal
-    const [deleteConfirm, setDeleteConfirm] = useState<any | null>(null);
+    const [deleteConfirm, setDeleteConfirm] = useState<DirectoryUser | null>(null);
     // Password Reset flow
-    const [pwResetModal, setPwResetModal] = useState<any | null>(null); // user to reset
+    const [pwResetModal, setPwResetModal] = useState<DirectoryUser | null>(null); // user to reset
     const [pwResetStep, setPwResetStep] = useState<'verify' | 'success'>('verify');
     const [pwVerifyName, setPwVerifyName] = useState('');
     const [pwVerifyEmail, setPwVerifyEmail] = useState('');
@@ -81,13 +93,13 @@ export default function AdminDashboard() {
         try {
             const stored = localStorage.getItem('docusync_user_requests');
             if (stored) {
-                let parsed = JSON.parse(stored);
+                let parsed = JSON.parse(stored) as DirectoryUser[];
                 let changed = false;
-                let nextId = parsed.reduce((max: number, u: any) => {
+                let nextId = parsed.reduce((max: number, u: DirectoryUser) => {
                     const id = parseInt(u.loginId || '1999');
                     return id > max ? id : max;
                 }, 1999);
-                parsed = parsed.map((u: any) => {
+                parsed = parsed.map((u: DirectoryUser) => {
                     if (!u.loginId) { nextId++; changed = true; return { ...u, loginId: String(nextId) }; }
                     return u;
                 });
@@ -99,7 +111,7 @@ export default function AdminDashboard() {
 
     useEffect(() => { loadDirectoryUsers(); }, []);
 
-    const confirmDeleteUser = (user: any) => setDeleteConfirm(user);
+    const confirmDeleteUser = (user: DirectoryUser) => setDeleteConfirm(user);
 
     const executeDeleteUser = () => {
         if (!deleteConfirm) return;
@@ -111,7 +123,7 @@ export default function AdminDashboard() {
         setDeleteConfirm(null);
     };
 
-    const openPwReset = (user: any) => {
+    const openPwReset = (user: DirectoryUser) => {
         setPwResetModal(user);
         setPwResetStep('verify');
         setPwVerifyName('');
@@ -281,6 +293,7 @@ export default function AdminDashboard() {
     const navItems = [
         { name: 'System Overview', icon: Activity },
         { name: 'User Directory', icon: Users },
+        { name: 'User Requests', icon: UserPlus },
         { name: 'Audit Logs', icon: Terminal },
     ];
 
@@ -377,7 +390,7 @@ export default function AdminDashboard() {
                                         <span className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">Active WebRTC Peers</span>
                                     </div>
                                     <div className="flex items-end gap-2">
-                                        <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{directoryUsers.filter((u: any) => !suspendedUsers.includes(u.id)).length}</span>
+                                        <span className="text-4xl font-extrabold text-zinc-900 dark:text-white">{directoryUsers.filter((u: DirectoryUser) => !suspendedUsers.includes(u.id)).length}</span>
                                         <span className="text-sm font-bold text-green-500 mb-1 flex items-center gap-1"><CheckCircle2 size={14} /> Live CRDT</span>
                                     </div>
                                     <div className="mt-3 w-full h-1.5 bg-zinc-100 dark:bg-zinc-700 rounded-full overflow-hidden"><div className="h-full w-[40%] bg-gradient-to-r from-rose-500 to-orange-500 rounded-full" /></div>
@@ -517,23 +530,23 @@ export default function AdminDashboard() {
 
                     {/* ─── USER REQUESTS TAB ───────────────────────────────── */}
                     {activeTab === 'User Requests' && (() => {
-                        const localRequests: any[] = (() => {
+                        const localRequests: DirectoryUser[] = (() => {
                             try {
                                 const stored = localStorage.getItem('docusync_user_requests');
-                                return stored ? JSON.parse(stored) : [];
+                                return stored ? JSON.parse(stored) as DirectoryUser[] : [];
                             } catch { return []; }
                         })();
-                        const pendingLocal = localRequests.filter((r: any) => r.status === 'pending');
+                        const pendingLocal = localRequests.filter((r: DirectoryUser) => r.status === 'pending');
 
-                        const handleApproveLocal = (req: any) => {
+                        const handleApproveLocal = (req: DirectoryUser) => {
                             const password = generatePassword();
                             const stored = localStorage.getItem('docusync_user_requests');
-                            const allRequests = stored ? JSON.parse(stored) : [];
-                            const nextId = allRequests.reduce((max: number, u: any) => {
+                            const allRequests = stored ? JSON.parse(stored) as DirectoryUser[] : [];
+                            const nextId = allRequests.reduce((max: number, u: DirectoryUser) => {
                                 const id = parseInt(u.loginId || '1999');
                                 return id > max ? id : max;
                             }, 1999) + 1;
-                            const updated = allRequests.map((r: any) =>
+                            const updated = allRequests.map((r: DirectoryUser) =>
                                 r.id === req.id ? { ...r, status: 'approved', password, loginId: String(nextId) } : r
                             );
                             localStorage.setItem('docusync_user_requests', JSON.stringify(updated));
@@ -543,11 +556,11 @@ export default function AdminDashboard() {
                             setActiveTab('User Requests');
                         };
 
-                        const handleDenyLocal = (req: any) => {
+                        const handleDenyLocal = (req: DirectoryUser) => {
                             if (!window.confirm(`Deny access for ${req.name}?`)) return;
                             const stored = localStorage.getItem('docusync_user_requests');
-                            const allRequests = stored ? JSON.parse(stored) : [];
-                            const updated = allRequests.map((r: any) =>
+                            const allRequests = stored ? JSON.parse(stored) as DirectoryUser[] : [];
+                            const updated = allRequests.map((r: DirectoryUser) =>
                                 r.id === req.id ? { ...r, status: 'denied' } : r
                             );
                             localStorage.setItem('docusync_user_requests', JSON.stringify(updated));

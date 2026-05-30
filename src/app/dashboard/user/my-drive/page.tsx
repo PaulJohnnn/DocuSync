@@ -1362,7 +1362,7 @@ export default function UserDashboard() {
                                         if (!ALLOWED_EXTS.has(ext)) {
                                             input.value = '';
                                             toast.error('Format Rejected', {
-                                                description: 'Complex binary files shift unpredictably and break Delta Encoding. Only .txt · .docx · .md · .json · .csv are accepted.',
+                                                description: 'Binary and media files (images, video, executables, .xlsx, .pdf) are not supported. Complex binary files break delta encoding chunking.',
                                                 duration: 5000,
                                                 icon: '🚫',
                                             });
@@ -2813,6 +2813,7 @@ export default function UserDashboard() {
                                     onChange={(html) => setEditorText(html)}
                                     initialContent={editingFile.content}
                                     isOffline={isOffline}
+                                    repoName={currentRepo || undefined}
                                     onClose={() => { setEditingFile(null); setEditorText(''); }}
                                     onSave={() => {
                                         if (!currentRepo || !editingFile) return;

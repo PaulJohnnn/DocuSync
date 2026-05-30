@@ -13,6 +13,8 @@ import { WebrtcProvider } from 'y-webrtc';
 import { AuthorMark } from './AuthorMark';
 import MetricsOverlay from './MetricsOverlay';
 import { toast } from 'sonner';
+import { VectorClock, incrementClock, mergeClock } from '../lib/vectorClock';
+import { enqueueEdit } from '../lib/offlineQueue';
 
 const PAUL_CONTENT = `<h2>Introduction</h2><p>Hi I'm Paul... I'm on Cabuyao City... I'm on section CS 402, nice to meet you all groupmates.</p><p>This document is part of our collaborative thesis project, managed through DocuSync. Please feel free to add your sections below.</p>`;
 const CURSOR_COLORS = ['#f97316', '#8b5cf6', '#06b6d4', '#10b981', '#ef4444', '#f59e0b'];
@@ -52,6 +54,17 @@ interface RichTextEditorProps {
     onSave?: () => void;
     initialContent?: string;
     isOffline?: boolean;
+    repoName?: string;
+}
+
+export interface CollaboratorUser {
+    name: string;
+    color: string;
+}
+
+export interface AwarenessState {
+    user?: CollaboratorUser;
+    clock?: VectorClock;
 }
 
 // ── Root: initialises Yjs + WebRTC provider ───────────────────────────────────
@@ -84,10 +97,10 @@ export default function RichTextEditor(props: RichTextEditorProps) {
 
 // ── Inner: editor + full UI chrome ────────────────────────────────────────────
 function InnerEditor({
-    ydoc, provider, fileName, userName, onChange, onClose, onSave, initialContent, isOffline,
+    ydoc, provider, fileName, userName, onChange, onClose, onSave, initialContent, isOffline, repoName,
 }: { ydoc: Y.Doc; provider: WebrtcProvider } & RichTextEditorProps) {
 
-    const [collaborators, setCollaborators] = useState<any[]>([]);
+    const [collaborators, setCollaborators] = useState<CollaboratorUser[]>([]);
     const [zoom, setZoom] = useState(100);
     const [showAudit, setShowAudit] = useState(false);
     const [auditTrail, setAuditTrail] = useState<{ author: string; color: string; text: string }[]>([]);
@@ -98,6 +111,16 @@ function InnerEditor({
     const isMarkingRef = useRef(false); // prevents recursive AuthorMark onUpdate loop
 
     const userColor = pickColor(userName || 'User');
+
+    // Vector clock initialization using Client ID as nodeId
+    const nodeIdRef = useRef<string>('');
+    if (!nodeIdRef.current && provider) {
+        nodeIdRef.current = `node-${provider.awareness.clientID}`;
+    }
+    const [vectorClock, setVectorClock] = useState<VectorClock>({
+        nodeId: nodeIdRef.current || 'unknown-node',
+        counter: 0
+    });
 
     const editor = useEditor({
         extensions: [
@@ -135,7 +158,6 @@ function InnerEditor({
             }
 
             onChange(editor.getHTML());
-            setDeltaBytes(b => b + new TextEncoder().encode(editor.getText()).length % 64 + 1);
 
             // Auto-apply AuthorMark ONLY within the current block, with loop guard
             if (transaction.docChanged && transaction.steps.length > 0) {
@@ -172,6 +194,55 @@ function InnerEditor({
         immediatelyRender: false,
     });
 
+    // ── Vector Clock and True Delta Encoding Integration ──
+    useEffect(() => {
+        if (!ydoc || !provider) return;
+
+        const handleUpdate = (update: Uint8Array, origin: unknown) => {
+            // Measure actual byte-level size of Yjs update delta
+            setDeltaBytes(prev => prev + update.byteLength);
+
+            // Detect if update was made locally by this client
+            const isLocal = origin !== null && origin !== provider;
+            if (isLocal) {
+                // Increment logical clock on document update
+                setVectorClock(prev => {
+                    const next = incrementClock(prev);
+                    provider.awareness.setLocalStateField('clock', next);
+                    return next;
+                });
+
+                // Buffer offline edits to IndexedDB
+                if (isOffline || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+                    const editId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                    enqueueEdit({
+                        id: editId,
+                        repoName: repoName || 'default-repo',
+                        fileName,
+                        delta: update,
+                        vectorClock,
+                        queuedAt: Date.now()
+                    }).catch(err => console.error('Failed to enqueue offline edit:', err));
+                }
+            }
+        };
+
+        ydoc.on('update', handleUpdate);
+        return () => {
+            ydoc.off('update', handleUpdate);
+        };
+    }, [ydoc, provider, repoName, fileName, isOffline, vectorClock]);
+
+    // Push local clock to awareness state
+    const lastClockRef = useRef<number>(0);
+    useEffect(() => {
+        if (!provider) return;
+        if (vectorClock.counter !== lastClockRef.current) {
+            lastClockRef.current = vectorClock.counter;
+            provider.awareness.setLocalStateField('clock', vectorClock);
+        }
+    }, [provider, vectorClock]);
+
     // Seed initial content into the shared Yjs doc once (only if empty)
     useEffect(() => {
         if (!editor || !provider) return;
@@ -186,7 +257,6 @@ function InnerEditor({
             const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
 
             // ── Code-view formats: escape & wrap in <pre><code> ──────────────
-            // json, csv, html, xml, tex are displayed as formatted source code
             if (['json', 'csv', 'html', 'xml', 'tex'].includes(ext)) {
                 const escaped = initialContent
                     .replace(/&/g, '&amp;')
@@ -204,13 +274,12 @@ function InnerEditor({
                         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
                         .replace(/\*(.+?)\*/g, '<em>$1</em>')
                         .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-                        .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
+                        .replace(new RegExp('(<li>.*<\\/li>)', 's'), '<ul>$1</ul>')
                         .replace(/^(?!<[hul])(.*\S.*)$/gm, '<p>$1</p>');
                 };
                 editor.commands.setContent(mdToHtml(initialContent));
 
             // ── Plain-text / document formats: pass through directly ─────────
-            // .txt, .rtf, .docx (already HTML from mammoth), or anything else
             } else {
                 editor.commands.setContent(initialContent);
             }
@@ -222,8 +291,9 @@ function InnerEditor({
     useEffect(() => {
         if (!provider) return;
         const update = () => {
-            const arr: any[] = [];
-            provider.awareness.getStates().forEach((s: any, clientId: number) => {
+            const arr: CollaboratorUser[] = [];
+            provider.awareness.getStates().forEach((state: unknown, clientId: number) => {
+                const s = state as AwarenessState;
                 if (s.user) {
                     arr.push(s.user);
                     if (!knownPeers.current.has(clientId)) {
@@ -236,6 +306,16 @@ function InnerEditor({
                             });
                         }
                     }
+                }
+                // Handle merging clocks from remote peers
+                if (clientId !== provider.awareness.clientID && s.clock) {
+                    setVectorClock(local => {
+                        const remote = s.clock as VectorClock;
+                        if (remote.counter > local.counter) {
+                            return mergeClock(local, remote);
+                        }
+                        return local;
+                    });
                 }
             });
             // detect leaves
@@ -461,7 +541,7 @@ function InnerEditor({
 
             {/* Metrics Overlay */}
             {showMetrics && (
-                <MetricsOverlay deltaBytes={deltaBytes} peerCount={collaborators.length} />
+                <MetricsOverlay deltaBytes={deltaBytes} peerCount={collaborators.length} vectorClock={vectorClock} />
             )}
 
             {/* ════════════════════════════════════════════════════════════════════

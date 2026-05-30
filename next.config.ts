@@ -5,10 +5,6 @@ const nextConfig: NextConfig = {
     // Allows Vercel to deploy even if there are TypeScript warnings
     ignoreBuildErrors: true,
   },
-  eslint: {
-    // Allows Vercel to deploy even if there are ESLint warnings
-    ignoreDuringBuilds: true,
-  },
 };
 
 export default nextConfig;

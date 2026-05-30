@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from 'react';
+import { VectorClock } from '../lib/vectorClock';
 
 interface MetricsOverlayProps {
     deltaBytes: number;
     peerCount: number;
+    vectorClock?: VectorClock;
 }
 
-export default function MetricsOverlay({ deltaBytes, peerCount }: MetricsOverlayProps) {
+export default function MetricsOverlay({ deltaBytes, peerCount, vectorClock }: MetricsOverlayProps) {
     const [ping, setPing] = useState(24);
     const [flashDelta, setFlashDelta] = useState(false);
     const [uptime, setUptime] = useState(0);
@@ -81,7 +83,11 @@ export default function MetricsOverlay({ deltaBytes, peerCount }: MetricsOverlay
                     extra={flashDelta && <span className="ml-2 text-[8px] text-yellow-400 animate-pulse">TX ▲</span>}
                 />
                 <MetricRow label="ACTIVE PEERS" value={`${peerCount} node${peerCount !== 1 ? 's' : ''}`} valueClass="text-purple-400" />
-                <MetricRow label="VECTOR CLOCK" value="LWW · last-write-wins" valueClass="text-zinc-500" />
+                <MetricRow
+                    label="VECTOR CLOCK"
+                    value={vectorClock ? `${vectorClock.nodeId} · cnt ${vectorClock.counter}` : "LWW · last-write-wins"}
+                    valueClass={vectorClock ? "text-green-400 font-bold" : "text-zinc-500"}
+                />
                 <MetricRow label="COMPLEXITY" value="O(m) · Δ-encoding" valueClass="text-orange-400" />
             </div>
 

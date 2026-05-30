@@ -1,12 +1,24 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mail, Lock, Loader2, AlertCircle, ArrowRight, ShieldCheck, Zap, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { ThemeToggle } from '../../../components/ThemeToggle';
 import { supabase } from '../../../lib/supabase';
 import { useSyncContext } from '../../../context/SyncContext';
+
+interface UserRequest {
+    id: string;
+    loginId?: string;
+    name: string;
+    email: string;
+    department: string;
+    role: string;
+    password?: string;
+    status: 'pending' | 'approved' | 'denied';
+    requestDate: string;
+}
 
 export default function LoginPage() {
     const router = useRouter();
@@ -18,10 +30,30 @@ export default function LoginPage() {
     const [isResetMode, setIsResetMode] = useState(false);
     const [resetSent, setResetSent] = useState(false);
     const [resetEmail, setResetEmail] = useState('');
+    const [isCheckingSession, setIsCheckingSession] = useState(true);
     const { pendingUserRequests } = useSyncContext();
 
+    // Auto-login: redirect if a session already exists in localStorage
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem('docusync_current_user');
+            if (stored) {
+                const user = JSON.parse(stored);
+                if (user?.loginId === 'admin') {
+                    router.replace('/dashboard/admin/control-panel');
+                } else if (user?.loginId) {
+                    router.replace('/dashboard/user/my-drive');
+                } else {
+                    setIsCheckingSession(false);
+                }
+                return;
+            }
+        } catch { /* ignore */ }
+        setIsCheckingSession(false);
+    }, [router]);
+
     // Jitter-style Animation Variants
-    const containerVariants: any = {
+    const containerVariants: Variants = {
         hidden: { opacity: 0 },
         show: {
             opacity: 1,
@@ -32,7 +64,7 @@ export default function LoginPage() {
         }
     };
 
-    const itemVariants: any = {
+    const itemVariants: Variants = {
         hidden: { y: 30, opacity: 0, scale: 0.98 },
         show: { 
             y: 0, 
@@ -45,7 +77,7 @@ export default function LoginPage() {
         }
     };
 
-    const orbVariants: any = {
+    const orbVariants: Variants = {
         animate: (i: number) => ({
             x: i % 2 === 0 ? [0, 80, -40, 0] : [0, -60, 50, 0],
             y: i % 2 === 0 ? [0, -40, 70, 0] : [0, 90, -30, 0],
@@ -94,20 +126,20 @@ export default function LoginPage() {
 
         try {
             // 1. Look up user by loginId in localStorage
-            let matchedUser: any = null;
-            let pendingUser: any = null;
+            let matchedUser: UserRequest | null = null;
+            let pendingUser: UserRequest | null = null;
             try {
                 const stored = localStorage.getItem('docusync_user_requests');
                 if (stored) {
-                    const allRequests = JSON.parse(stored);
+                    const allRequests = JSON.parse(stored) as UserRequest[];
                     matchedUser = allRequests.find(
-                        (u: any) => u.loginId === cleanId && u.password === cleanPassword && u.status === 'approved'
-                    );
+                        (u: UserRequest) => u.loginId === cleanId && u.password === cleanPassword && u.status === 'approved'
+                    ) || null;
                     // Check if user has submitted request but hasn't been approved yet
                     if (!matchedUser) {
                         pendingUser = allRequests.find(
-                            (u: any) => u.email === cleanId && u.status === 'pending'
-                        );
+                            (u: UserRequest) => u.email === cleanId && u.status === 'pending'
+                        ) || null;
                     }
                 }
             } catch { /* ignore */ }
@@ -149,8 +181,8 @@ export default function LoginPage() {
             try {
                 const stored = localStorage.getItem('docusync_user_requests');
                 if (stored && supabase) {
-                    const allRequests = JSON.parse(stored);
-                    const userByIdOnly = allRequests.find((u: any) => u.loginId === cleanId);
+                    const allRequests = JSON.parse(stored) as UserRequest[];
+                    const userByIdOnly = allRequests.find((u: UserRequest) => u.loginId === cleanId);
                     if (userByIdOnly) {
                         const { data, error: authError } = await supabase.auth.signInWithPassword({
                             email: userByIdOnly.email,
@@ -176,6 +208,19 @@ export default function LoginPage() {
             setIsLoading(false);
         }
     };
+
+    if (isCheckingSession) {
+        return (
+            <div className="min-h-screen bg-[#fafafa] dark:bg-[#050505] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30 animate-pulse">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="60%" height="60%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+                    </div>
+                    <p className="text-xs font-black uppercase tracking-widest text-zinc-400">Checking Session…</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#fafafa] dark:bg-[#050505] flex items-center justify-center relative font-sans overflow-hidden transition-colors duration-500">
@@ -376,23 +421,42 @@ export default function LoginPage() {
                             </div>
                         </motion.button>
 
-                        {/* Guest / Demo Access */}
+                        {/* Quick Demo Access Panels */}
                         <div className="relative py-4 flex items-center gap-4">
                             <div className="flex-grow h-px bg-zinc-200 dark:bg-zinc-800" />
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">or</span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Quick Login Panels</span>
                             <div className="flex-grow h-px bg-zinc-200 dark:bg-zinc-800" />
                         </div>
 
-                        <motion.button
-                            type="button"
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => router.push('/dashboard/user/my-drive')}
-                            className="w-full py-4 rounded-2xl border-2 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 font-bold text-xs uppercase tracking-widest hover:bg-zinc-100 dark:hover:bg-white/10 transition-all flex justify-center items-center gap-2"
-                        >
-                            <Zap size={14} className="text-amber-500" />
-                            Enter as Guest (Demo)
-                        </motion.button>
+                        <div className="grid grid-cols-2 gap-4">
+                            <motion.button
+                                type="button"
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => {
+                                    localStorage.setItem('docusync_current_user', JSON.stringify({ name: 'Demo User', email: 'user@docusync.edu', loginId: 'user', role: 'Student', department: 'College of Computing Studies' }));
+                                    router.push('/dashboard/user/my-drive');
+                                }}
+                                className="w-full py-4 rounded-2xl border-2 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 font-bold text-xs uppercase tracking-widest hover:bg-zinc-100 dark:hover:bg-white/10 transition-all flex flex-col justify-center items-center gap-1.5"
+                            >
+                                <Zap size={18} className="text-amber-500" />
+                                User Panel
+                            </motion.button>
+
+                            <motion.button
+                                type="button"
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => {
+                                    localStorage.setItem('docusync_current_user', JSON.stringify({ name: 'System Administrator', email: 'admin@docusync.edu', loginId: 'admin' }));
+                                    router.push('/dashboard/admin/control-panel');
+                                }}
+                                className="w-full py-4 rounded-2xl border-2 border-amber-500/20 dark:border-amber-500/20 text-amber-600 dark:text-amber-500 font-bold text-xs uppercase tracking-widest hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-all flex flex-col justify-center items-center gap-1.5 shadow-lg shadow-amber-500/5"
+                            >
+                                <ShieldCheck size={18} className="text-amber-500" />
+                                Admin Panel
+                            </motion.button>
+                        </div>
                     </form>
 
                     <div className="mt-12 text-center text-[10px] text-zinc-400 dark:text-zinc-600 font-bold uppercase tracking-[0.2em]">
