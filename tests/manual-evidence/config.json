@@ -1,0 +1,23 @@
+{
+  "system": "DocuSync",
+  "version": "1.0.0",
+  "description": "Hybrid File Synchronization Engine",
+  "institution": "Pamantasan ng Cabuyao",
+  "researcher": "Paul John G. Palamara",
+  "config": {
+    "nodeCount": 3,
+    "nodeIndex": 0,
+    "wsPort": 9000,
+    "maxChunkSizeBytes": 4194304,
+    "heartbeatIntervalMs": 30000,
+    "autoSaveDebounceMs": 500,
+    "maxVectorClockCounter": 4294967295
+  },
+  "algorithms": [
+    "Log-Based Sync",
+    "Vector Clocks (Fidge/Mattern)",
+    "Last-Writer-Wins (LWW)",
+    "Delta Encoding (Myers Diff)"
+  ],
+  "evaluationStandard": "ISO/IEC 25010"
+}

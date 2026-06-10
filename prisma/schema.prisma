@@ -1,0 +1,189 @@
+// ────────────────────────────────────────────────────────────────
+// DocuSync — Local Prisma Schema (SQLite)
+//
+// This schema governs the LOCAL per-device database used by the
+// Electron main process for the sync engine. It is SEPARATE from
+// the Supabase cloud schema (supabase/schema.sql).
+//
+// The local DB stores:
+//   • Append-only event log (vector-clock-stamped sync events)
+//   • (Future) offline queue, cached file metadata, etc.
+// ────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./docusync.db"
+}
+
+/// Append-only event log for log-based synchronization.
+///
+/// Each row represents a single sync event (edit, merge, conflict
+/// resolution, etc.). Rows are NEVER updated or deleted — the log
+/// is strictly append-only. Obsolete intermediate entries can be
+/// marked `isCompacted = true` by the compaction pass but their
+/// data is retained for auditability.
+///
+/// Thesis references:
+///   [2]  — Log-structured merge-tree inspiration
+///   [13] — Append-only event sourcing for distributed sync
+model EventLog {
+  /// Auto-incrementing surrogate primary key.
+  id               Int      @id @default(autoincrement())
+
+  /// UUID v4 — globally unique event identifier for deduplication
+  /// across peers during WebSocket sync.
+  eventId          String   @unique
+
+  /// Foreign key to the file this event pertains to.
+  /// Matches `files.id` in the Supabase cloud schema.
+  fileId           Int
+
+  /// Identifier of the node that originated the event (UUID of peer).
+  nodeId           String
+
+  /// The type of sync event that occurred.
+  /// Constrained at the application layer to the EventType union.
+  eventType        String
+
+  /// Monotonically increasing logical timestamp derived from the
+  /// local vector clock at the time of the event.
+  logicalTimestamp  Int
+
+  /// Serialised vector clock snapshot at the time of the event
+  /// (JSON string produced by VectorClock.toJSON()).
+  vectorClockJson  String
+
+  /// The content payload or delta associated with this event.
+  /// For full-state events this is the complete document HTML;
+  /// for delta events this is the encoded diff.
+  payload          String
+
+  /// Physical wall-clock time when the event was appended locally.
+  createdAt        DateTime @default(now())
+
+  /// If true, this event has been superseded by a later event and
+  /// can be skipped during replay. The row is NEVER deleted.
+  isCompacted      Boolean  @default(false)
+
+  // ── Indexes ──────────────────────────────────────────────────
+  // Optimise the two primary query patterns:
+  //   1. getHistory(fileId)             — full ordered scan
+  //   2. getEventsSince(fileId, ts)     — catch-up after offline
+
+  @@index([fileId, logicalTimestamp])
+  @@index([fileId, isCompacted])
+
+  @@map("event_log")
+}
+
+/// Pending conflict record for concurrent edits requiring owner resolution.
+///
+/// When two peers submit edits with concurrent vector clocks (neither
+/// dominates the other), the LWW resolver cannot automatically choose a
+/// winner. Instead, it writes both competing events here and waits for
+/// the repository owner to pick a resolution.
+///
+/// Once resolved, the row's `status` is updated to 'resolved' and a
+/// `conflict-resolve` event is appended to the EventLog.
+///
+/// Thesis references:
+///   [45] — Last-Writer-Wins register conflict semantics
+///   [47] — Owner-arbitrated conflict escalation protocol
+model Conflict {
+  /// Auto-incrementing surrogate primary key.
+  id               Int      @id @default(autoincrement())
+
+  /// UUID v4 — globally unique conflict identifier.
+  conflictId       String   @unique
+
+  /// The file where the conflict occurred.
+  fileId           Int
+
+  /// Event ID of the first competing edit (side A).
+  eventIdA         String
+
+  /// Node ID that produced side A.
+  nodeIdA          String
+
+  /// Serialised vector clock for side A (JSON string).
+  vectorClockJsonA String
+
+  /// Content payload for side A.
+  payloadA         String
+
+  /// Event ID of the second competing edit (side B).
+  eventIdB         String
+
+  /// Node ID that produced side B.
+  nodeIdB          String
+
+  /// Serialised vector clock for side B (JSON string).
+  vectorClockJsonB String
+
+  /// Content payload for side B.
+  payloadB         String
+
+  /// Current resolution status.
+  ///   'pending'  — awaiting owner decision
+  ///   'resolved' — owner has chosen a winner
+  status           String   @default("pending")
+
+  /// Which side won: 'A', 'B', or null if still pending.
+  winner           String?
+
+  /// Node ID of the owner who resolved the conflict (null if pending).
+  resolvedBy       String?
+
+  /// Wall-clock time the conflict was detected.
+  detectedAt       DateTime @default(now())
+
+  /// Wall-clock time the conflict was resolved (null if pending).
+  resolvedAt       DateTime?
+
+  @@index([fileId, status])
+
+  @@map("conflict")
+}
+
+/// Registry of known peers in the masterless P2P mesh.
+///
+/// Each row tracks a peer node that has connected (or was discovered)
+/// by this device. The `isOnline` flag is toggled by PEER_HELLO and
+/// PEER_BYE WebSocket messages.
+///
+/// Thesis references:
+///   [45] — Peer discovery in LWW-based replication
+///   [47] — Optimistic replication peer registry
+model PeerRegistry {
+  /// Auto-incrementing surrogate primary key.
+  id               Int      @id @default(autoincrement())
+
+  /// UUID v4 — globally unique node identifier for this peer.
+  nodeId           String   @unique
+
+  /// Display name or hostname of the peer (informational).
+  displayName      String   @default("")
+
+  /// WebSocket address (IP or hostname).
+  address          String
+
+  /// WebSocket port number.
+  port             Int
+
+  /// Whether the peer is currently connected.
+  isOnline         Boolean  @default(false)
+
+  /// Wall-clock time the peer first registered.
+  firstSeen        DateTime @default(now())
+
+  /// Wall-clock time of the most recent PEER_HELLO or message.
+  lastSeen         DateTime @default(now())
+
+  @@index([isOnline])
+
+  @@map("peer_registry")
+}

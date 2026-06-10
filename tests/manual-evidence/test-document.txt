@@ -1,0 +1,6 @@
+DocuSync Manual Test Document
+This file is used for manual testing of the DocuSync hybrid file synchronization engine.
+Test content: The quick brown fox jumps over the lazy dog.
+Algorithm verification: Log-Based Sync + Vector Clocks + LWW + Delta Encoding.
+Institution: Pamantasan ng Cabuyao, College of Computing Studies.
+Researcher: Paul John G. Palamara

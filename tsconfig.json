@@ -13,22 +13,25 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "paths": {
       "@/*": ["./src/*"]
     }
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
+    "electron/**/*.ts",
+    "electron/**/*.tsx",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "prisma/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-electron",
+    "src/app",
+    "src/components",
+    "src/lib",
+    "src/context/SyncContext.tsx"
+  ]
 }

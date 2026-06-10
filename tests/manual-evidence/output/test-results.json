@@ -1,0 +1,347 @@
+{
+  "project": "DocuSync",
+  "institution": "Pamantasan ng Cabuyao",
+  "researcher": "Paul John G. Palamara",
+  "timestamp": "2026-06-10T15:01:58.210Z",
+  "totalTests": 20,
+  "passed": 20,
+  "failed": 0,
+  "passRate": "100.0%",
+  "results": [
+    {
+      "testId": "1A",
+      "description": "Open .txt file",
+      "status": "PASS",
+      "actualOutput": {
+        "filePath": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\tests\\manual-evidence\\test-document.txt",
+        "extension": ".txt",
+        "extensionAllowed": true,
+        "contentLength": 357,
+        "contentPreview": "DocuSync Manual Test Document\nThis file is used for manual testing of the DocuSync hybrid file synch"
+      },
+      "notes": "Extension \".txt\" is allowed. Content: 357 chars.",
+      "durationMs": 0
+    },
+    {
+      "testId": "1B",
+      "description": "File card metadata",
+      "status": "PASS",
+      "actualOutput": {
+        "fileName": "test-document.txt",
+        "extension": ".txt",
+        "sizeBytes": 357,
+        "fileId": 1
+      },
+      "notes": "Metadata: test-document.txt, .txt, 357B, ID#1",
+      "durationMs": 0
+    },
+    {
+      "testId": "2A",
+      "description": "Delta encoding",
+      "status": "PASS",
+      "actualOutput": {
+        "deltaBase64Length": 580,
+        "deltaSizeBytes": 580,
+        "originalSizeBytes": 357,
+        "compressionRatio": 1.6246498599439776,
+        "isChunked": false,
+        "encodingLatencyMs": 1
+      },
+      "notes": "Delta: 580B, ratio: 162.5%, latency: 1ms",
+      "durationMs": 1
+    },
+    {
+      "testId": "2B",
+      "description": "Vector clock increment",
+      "status": "PASS",
+      "actualOutput": {
+        "counters": [
+          3,
+          0,
+          0
+        ],
+        "nodeCount": 3,
+        "nodeIndex": 0,
+        "clockJSON": {
+          "nodeCount": 3,
+          "nodeIndex": 0,
+          "root": {
+            "counter": 0,
+            "children": [
+              {
+                "counter": 3,
+                "children": []
+              },
+              {
+                "counter": 0,
+                "children": []
+              },
+              {
+                "counter": 0,
+                "children": []
+              }
+            ]
+          }
+        }
+      },
+      "notes": "Clock after 3 increments: [3, 0, 0]",
+      "durationMs": 0
+    },
+    {
+      "testId": "2C",
+      "description": "Save pipeline",
+      "status": "PASS",
+      "actualOutput": {
+        "deltaProduced": true,
+        "clockAdvanced": true,
+        "counters": [
+          1,
+          0,
+          0
+        ]
+      },
+      "notes": "Save pipeline: delta encoded + vector clock incremented.",
+      "durationMs": 0
+    },
+    {
+      "testId": "3A",
+      "description": "Version history",
+      "status": "PASS",
+      "actualOutput": {
+        "totalEvents": 3,
+        "timestamps": [
+          1,
+          2,
+          3
+        ],
+        "isAscending": true,
+        "eventTypes": [
+          "edit",
+          "edit",
+          "edit"
+        ]
+      },
+      "notes": "3 events in ascending order: [1, 2, 3]",
+      "durationMs": 23
+    },
+    {
+      "testId": "3B",
+      "description": "Event ordering",
+      "status": "PASS",
+      "actualOutput": {
+        "firstTimestamp": 1,
+        "lastTimestamp": 3,
+        "totalEvents": 3
+      },
+      "notes": "Newest (ts=3) > Oldest (ts=1)",
+      "durationMs": 0
+    },
+    {
+      "testId": "3C",
+      "description": "Restore simulation",
+      "status": "PASS",
+      "actualOutput": {
+        "restoreEventFound": true,
+        "restoreEventId": "801444e6-c244-49b2-b0c4-bc1eefe4e578",
+        "eventType": "restore",
+        "totalEventsAfterRestore": 4
+      },
+      "notes": "Restore event found in history with eventType='restore'.",
+      "durationMs": 7
+    },
+    {
+      "testId": "4A",
+      "description": "Conflict creation",
+      "status": "PASS",
+      "actualOutput": {
+        "clockA": [
+          2,
+          0,
+          0
+        ],
+        "clockB": [
+          0,
+          2,
+          0
+        ],
+        "relation": "concurrent",
+        "isConcurrent": true
+      },
+      "notes": "Clock A [2,0,0] vs Clock B [0,2,0] → concurrent",
+      "durationMs": 0
+    },
+    {
+      "testId": "4B",
+      "description": "Conflict detection rate",
+      "status": "PASS",
+      "actualOutput": {
+        "totalPairs": 30,
+        "detectedConcurrent": 30,
+        "detectionRate": "100%"
+      },
+      "notes": "30/30 pairs detected as concurrent (100%).",
+      "durationMs": 1
+    },
+    {
+      "testId": "4C",
+      "description": "Conflict in database",
+      "status": "PASS",
+      "actualOutput": {
+        "outcome": "escalated",
+        "conflictId": "91a26fee-e42c-445c-a275-b15d6e2a144d",
+        "status": "pending",
+        "relation": "concurrent"
+      },
+      "notes": "Conflict 91a26fee... escalated and stored as pending.",
+      "durationMs": 26
+    },
+    {
+      "testId": "4D",
+      "description": "Keep Original",
+      "status": "PASS",
+      "actualOutput": {
+        "conflictId": "91a26fee-e42c-445c-a275-b15d6e2a144d",
+        "winner": "A",
+        "status": "resolved",
+        "resolvedBy": "ae8c9748-6220-4a0d-91fc-3c18c20ab4a9",
+        "mergeAcceptType": "MERGE_ACCEPT"
+      },
+      "notes": "Conflict resolved: winner=A, resolvedBy=ae8c9748...",
+      "durationMs": 16
+    },
+    {
+      "testId": "4E",
+      "description": "LWW Auto-Merge",
+      "status": "PASS",
+      "actualOutput": {
+        "conflictId": "78c85736-4d04-4297-b6c6-c2feba1e8e75",
+        "escalated": true,
+        "winningSide": "B",
+        "timestampA": 1,
+        "timestampB": 2,
+        "higherTimestampWins": true,
+        "winner": "B"
+      },
+      "notes": "LWW: B wins (ts=2 > ts=1). Higher logical timestamp wins.",
+      "durationMs": 51
+    },
+    {
+      "testId": "4F",
+      "description": "Accept Change",
+      "status": "PASS",
+      "actualOutput": {
+        "conflictId": "5596e0ff-8518-4a1f-b0c3-48620d3657d5",
+        "winner": "B",
+        "status": "resolved"
+      },
+      "notes": "Accept Change: winner=B, conflict resolved.",
+      "durationMs": 44
+    },
+    {
+      "testId": "5A",
+      "description": "Peer manager creation",
+      "status": "PASS",
+      "actualOutput": {
+        "instanceCreated": true,
+        "localNodeId": "293752a4-15e0-43e7-92df-bfc7b14a6d6a",
+        "connectionCount": 0
+      },
+      "notes": "PeerManager created with nodeId=293752a4...",
+      "durationMs": 0
+    },
+    {
+      "testId": "5B",
+      "description": "Two node connection",
+      "status": "PASS",
+      "actualOutput": {
+        "nodeAConnections": 1,
+        "nodeBConnections": 1,
+        "nodeAPeerIds": [
+          "e847b49d-c364-40f6-b18d-ecba35548afb"
+        ],
+        "nodeBPeerIds": [
+          "f7f70ce3-6120-4eaa-8a99-20e089f4ee28"
+        ],
+        "connectionEstablished": true
+      },
+      "notes": "Node A connections: 1, Node B connections: 1",
+      "durationMs": 1935
+    },
+    {
+      "testId": "5C",
+      "description": "Delta sync between peers",
+      "status": "PASS",
+      "actualOutput": {
+        "peersSentTo": 1,
+        "deltaReceived": true,
+        "connectionCountC": 1,
+        "connectionCountD": 1
+      },
+      "notes": "Broadcast sent to 1 peer(s). Delta received: true.",
+      "durationMs": 2844
+    },
+    {
+      "testId": "5D",
+      "description": "Connection failure",
+      "status": "PASS",
+      "actualOutput": {
+        "errorCaught": true,
+        "errorMessage": "connect ECONNREFUSED 127.0.0.1:19999",
+        "expectedBehavior": "Connection should fail with error"
+      },
+      "notes": "Connection to unreachable port correctly threw: \"connect ECONNREFUSED 127.0.0.1:19999\"",
+      "durationMs": 12
+    },
+    {
+      "testId": "6A",
+      "description": "Valid file types",
+      "status": "PASS",
+      "actualOutput": {
+        "tested": 9,
+        "accepted": [
+          "txt",
+          "md",
+          "json",
+          "docx",
+          "rtf",
+          "csv",
+          "xml",
+          "html",
+          "tex"
+        ],
+        "rejected": [],
+        "acceptRate": "9/9"
+      },
+      "notes": "9/9 text formats accepted: [txt, md, json, docx, rtf, csv, xml, html, tex]",
+      "durationMs": 0
+    },
+    {
+      "testId": "6B",
+      "description": "Binary rejection",
+      "status": "PASS",
+      "actualOutput": {
+        "tested": 6,
+        "correctlyRejected": [
+          "png",
+          "jpg",
+          "mp4",
+          "mp3",
+          "exe",
+          "zip"
+        ],
+        "incorrectlyAccepted": [],
+        "rejectionRate": "6/6",
+        "errorMessages": {
+          "png": "Delta encoding rejected: \".png\" is a binary file format. Only text-based files are supported.",
+          "jpg": "Delta encoding rejected: \".jpg\" is a binary file format. Only text-based files are supported.",
+          "mp4": "Delta encoding rejected: \".mp4\" is a binary file format. Only text-based files are supported.",
+          "mp3": "Delta encoding rejected: \".mp3\" is a binary file format. Only text-based files are supported.",
+          "exe": "Delta encoding rejected: \".exe\" is a binary file format. Only text-based files are supported.",
+          "zip": "Delta encoding rejected: \".zip\" is a binary file format. Only text-based files are supported."
+        }
+      },
+      "notes": "6/6 binary formats rejected: [png, jpg, mp4, mp3, exe, zip]",
+      "durationMs": 2
+    }
+  ]
+}

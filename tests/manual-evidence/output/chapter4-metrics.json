@@ -1,0 +1,37 @@
+{
+  "evaluationStandard": "ISO/IEC 25010",
+  "systemName": "DocuSync",
+  "thesisTitle": "A Comparative Evaluation of Operational Transformation and Replicated Data Types to Hybrid Conflict Resolution Algorithm",
+  "evaluationTimestamp": "2026-06-10T15:01:58.214Z",
+  "metrics": {
+    "functionalSuitability": {
+      "fileOpenSuccess": "9/9",
+      "binaryRejectionRate": "6/6",
+      "conflictDetectionRate": "100%",
+      "totalFunctionalTests": 20,
+      "functionalPassRate": "100.0%"
+    },
+    "performanceEfficiency": {
+      "avgLatencyMs": 1,
+      "p95LatencyMs": 1,
+      "throughputEventsPerSec": 1000,
+      "deltaCompressionRatio": "162.5%",
+      "deltaSizeBytes": 580,
+      "originalSizeBytes": 357
+    },
+    "reliability": {
+      "dataLossRate": "0%",
+      "consistencySuccessRate": "100%",
+      "autoResolveSuccessRate": "100%",
+      "eventLogIntegrity": "append-only verified",
+      "vectorClockOverflowProtection": "enabled (max 4,294,967,295)"
+    },
+    "compatibility": {
+      "p2pConnectionSuccess": true,
+      "crossNodeSyncSuccess": true,
+      "maxConcurrentNodes": 15,
+      "transportProtocol": "WebSocket (ws://)",
+      "storageBackend": "SQLite via Prisma ORM"
+    }
+  }
+}
