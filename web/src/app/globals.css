@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0d1117;
+  --bg2: #131929;
+  --bg3: #1a2235;
+  --s1: #1c2538;
+  --s2: #222e48;
+  --b1: #253050;
+  --b2: #2e3d65;
+  --b3: #3a4f80;
+  --t1: #dde4f5;
+  --t2: #8a9bc0;
+  --t3: #4d5f85;
+  --acc: #4f7df8;
+  --acc2: #3d6ef0;
+  --acb: rgba(79,125,248,.12);
+  --acbr: rgba(79,125,248,.28);
+  --grn: #1ec76a;
+  --grb: rgba(30,199,106,.09);
+  --grbr: rgba(30,199,106,.22);
+  --amb: #f5a020;
+  --abb: rgba(245,160,32,.09);
+  --abbr: rgba(245,160,32,.22);
+  --red: #e84848;
+  --rdb: rgba(232,72,72,.09);
+  --rdbr: rgba(232,72,72,.22);
+  --pur: #9b6ff5;
+  --tel: #18c7b4;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--t1);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--b1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--b2); }
+
+/* TipTap editor styling */
+.tiptap {
+  outline: none;
+  min-height: 400px;
+  padding: 16px;
+  color: var(--t1);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.tiptap h1 { font-size: 28px; font-weight: 700; margin-bottom: 12px; }
+.tiptap h2 { font-size: 22px; font-weight: 600; margin-bottom: 10px; }
+.tiptap h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.tiptap p { margin-bottom: 8px; }
+.tiptap ul, .tiptap ol { padding-left: 24px; margin-bottom: 8px; }
+.tiptap blockquote {
+  border-left: 3px solid var(--acc);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--t2);
+}
+.tiptap code {
+  background: var(--s2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.tiptap pre {
+  background: var(--bg2);
+  padding: 12px;
+  border-radius: 8px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+.tiptap mark { background: rgba(79,125,248,.3); color: var(--t1); }
+
+.tiptap .is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--t3);
+  pointer-events: none;
+  height: 0;
+}
+
+/* Utility classes */
+.ds-card {
+  background: var(--s1);
+  border: 1px solid var(--b1);
+  border-radius: 10px;
+  padding: 16px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.ds-card:hover {
+  border-color: var(--b2);
+  background: var(--s2);
+}
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--b1);
+  background: var(--s1);
+  color: var(--t1);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ds-btn:hover {
+  background: var(--s2);
+  border-color: var(--b2);
+}
+.ds-btn-primary {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #fff;
+}
+.ds-btn-primary:hover {
+  background: var(--acc2);
+  border-color: var(--acc2);
+}
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
