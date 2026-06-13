@@ -14,5 +14,10 @@
     "dev:mobile": "cd \"mobile\" ; npx expo start",
     "test:all": "cd \"desktop\" ; npm test",
     "build:web": "cd \"web\" ; npm run build"
+  },
+  "devDependencies": {
+    "vite": "^8.0.16",
+    "vite-plugin-electron": "^1.0.4",
+    "vite-plugin-electron-renderer": "^1.0.0"
   }
 }
