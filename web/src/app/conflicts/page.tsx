@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import PageShell from '@/components/PageShell';
-import { AlertTriangle, CheckCircle, XCircle, Scale, Shield } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Scale, Shield } from 'lucide-react';
 
 interface ConflictRecord {
   id: string;

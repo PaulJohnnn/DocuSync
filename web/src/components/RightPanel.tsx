@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Activity, Clock, Zap, Shield, GitBranch, Hash } from 'lucide-react';
+import { Activity, Clock, Zap, Shield, Hash } from 'lucide-react';
 
 type Tab = 'engine' | 'clocks' | 'delta';
 

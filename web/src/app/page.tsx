@@ -59,7 +59,7 @@ export default function FilesPage() {
   const openFile = async () => {
     try {
       if ('showOpenFilePicker' in window) {
-        const [handle] = await (window as any).showOpenFilePicker({
+        const [handle] = await (window as unknown as { showOpenFilePicker: (options?: unknown) => Promise<{ getFile: () => Promise<File> }[]> }).showOpenFilePicker({
           types: [
             { description: 'Text Files', accept: { 'text/*': ['.txt', '.md', '.json', '.ts', '.tsx', '.js', '.jsx', '.css', '.html'] } },
           ],

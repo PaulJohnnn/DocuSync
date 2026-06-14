@@ -17,7 +17,7 @@ interface EventRecord {
   createdAt: string;
 }
 
-const EVENT_ICONS: Record<string, { icon: any; color: string }> = {
+const EVENT_ICONS: Record<string, { icon: React.ElementType; color: string }> = {
   'edit': { icon: FileEdit, color: 'var(--acc)' },
   'merge': { icon: GitMerge, color: 'var(--grn)' },
   'conflict-resolve': { icon: AlertTriangle, color: 'var(--amb)' },
@@ -43,7 +43,7 @@ export default function HistoryPage() {
         const evStr = localStorage.getItem(`docusync_events_${f.id}`);
         if (evStr) {
           const evts = JSON.parse(evStr);
-          allEvents.push(...evts.map((e: any) => ({ ...e, fileName: f.name })));
+          allEvents.push(...evts.map((e: Record<string, unknown>) => ({ ...e, fileName: f.name })));
         }
       }
       allEvents.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -59,7 +59,7 @@ export default function HistoryPage() {
       const filesStr = localStorage.getItem('docusync_files');
       if (filesStr) {
         const files = JSON.parse(filesStr);
-        const f = files.find((f: any) => f.id === fileId);
+        const f = files.find((f: Record<string, unknown>) => f.id === fileId);
         if (f) setFileName(f.name);
       }
     }
@@ -70,7 +70,7 @@ export default function HistoryPage() {
     const stored = localStorage.getItem('docusync_files');
     if (!stored) return;
     const files = JSON.parse(stored);
-    const idx = files.findIndex((f: any) => f.id === fileId);
+    const idx = files.findIndex((f: Record<string, unknown>) => f.id === fileId);
     if (idx >= 0) {
       files[idx].content = event.payload;
       files[idx].updatedAt = new Date().toISOString();
