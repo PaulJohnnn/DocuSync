@@ -1,136 +1,74 @@
 import React from 'react';
-import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
+import { Colors } from './constants/Colors';
 
-import FilesScreen from './screens/FilesScreen';
+import FilesScreen     from './screens/FilesScreen';
 import ConflictsScreen from './screens/ConflictsScreen';
-import PeersScreen from './screens/PeersScreen';
-import MetricsScreen from './screens/MetricsScreen';
+import PeersScreen     from './screens/PeersScreen';
+import MetricsScreen   from './screens/MetricsScreen';
 
 const Tab = createBottomTabNavigator();
 
-const COLORS = {
-  bg:  '#0d1117',
-  bg2: '#131929',
-  b1:  '#253050',
-  acc: '#4f7df8',
-  t1:  '#dde4f5',
-  t2:  '#8a9bc0',
-  t3:  '#4d5f85',
-  grn: '#1ec76a',
-  amb: '#f5a020',
-  pur: '#9b6ff5',
+// ── Tab icons (emoji — no extra lib needed) ───────────────────────────────
+
+const TAB_ICONS: Record<string, string> = {
+  Files:     '📄',
+  Conflicts: '⚡',
+  Peers:     '🔗',
+  Metrics:   '📊',
 };
 
-/** Emoji tab bar icon — avoids icon library dependency. */
-function TabIcon({ label, color }: { label: string; color: string }) {
-  const icons: Record<string, string> = {
-    Files:     '📄',
-    Conflicts: '⚡',
-    Peers:     '🔗',
-    Metrics:   '📊',
-  };
+function TabIcon({ name, color, focused }: { name: string; color: string; focused: boolean }) {
   return (
-    <Text style={{ fontSize: 18, color }}>
-      {icons[label] ?? '●'}
-    </Text>
-  );
-}
-
-/**
- * DocuSync logo badge for React Native.
- * SVG is not natively supported without additional libraries,
- * so this renders a styled "DS" badge that matches the brand colours.
- */
-function DSLogo() {
-  return (
-    <View style={styles.logoWrap}>
-      <Text style={[styles.logoLetter, { color: COLORS.acc }]}>D</Text>
-      <Text style={[styles.logoLetter, { color: COLORS.grn }]}>S</Text>
+    <View style={tabIconStyles.wrap}>
+      <Text style={{ fontSize: 22, color }}>{TAB_ICONS[name] ?? '●'}</Text>
+      {focused && <View style={tabIconStyles.dot} />}
     </View>
   );
 }
 
+const tabIconStyles = StyleSheet.create({
+  wrap: { alignItems: 'center', gap: 3 },
+  dot:  { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.accent },
+});
+
+// ── App ───────────────────────────────────────────────────────────────────
+
 export default function App() {
   return (
     <NavigationContainer>
-      <StatusBar style="light" />
       <Tab.Navigator
         screenOptions={({ route }) => ({
-          tabBarIcon: ({ color }) => (
-            <TabIcon label={route.name} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name={route.name} color={color} focused={focused} />
           ),
-          tabBarActiveTintColor:   COLORS.acc,
-          tabBarInactiveTintColor: COLORS.t3,
-          tabBarStyle: {
-            backgroundColor: COLORS.bg2,
-            borderTopColor:  COLORS.b1,
-            borderTopWidth:  1,
-            paddingBottom:   4,
-            height:          60,
-          },
+          tabBarActiveTintColor:   Colors.accent,
+          tabBarInactiveTintColor: Colors.textMuted,
+          tabBarShowLabel: true,
           tabBarLabelStyle: {
-            fontSize:   11,
-            fontWeight: '600',
+            fontSize:     10,
+            fontWeight:   '500',
+            marginBottom: 4,
           },
-          headerStyle: {
-            backgroundColor: COLORS.bg2,
-            borderBottomColor: COLORS.b1,
-            borderBottomWidth: 1,
+          tabBarStyle: {
+            backgroundColor: Colors.bgCard,
+            borderTopColor:  Colors.border,
+            borderTopWidth:  1,
+            height:          60,
+            paddingTop:      6,
+            paddingBottom:   8,
           },
-          headerTintColor: COLORS.t1,
-          headerTitleStyle: {
-            fontWeight: '700',
-            fontSize:   16,
-          },
-          // DS logo badge in every header's left slot
-          headerLeft: () => <DSLogo />,
+          // Custom header replaced by per-screen headers
+          headerShown: false,
         })}
       >
-        <Tab.Screen
-          name="Files"
-          component={FilesScreen}
-          options={{ title: 'Files', headerTitle: 'DocuSync — Files' }}
-        />
-        <Tab.Screen
-          name="Conflicts"
-          component={ConflictsScreen}
-          options={{ title: 'Conflicts', headerTitle: 'Conflict Resolution' }}
-        />
-        <Tab.Screen
-          name="Peers"
-          component={PeersScreen}
-          options={{ title: 'Peers', headerTitle: 'P2P Network' }}
-        />
-        <Tab.Screen
-          name="Metrics"
-          component={MetricsScreen}
-          options={{ title: 'Metrics', headerTitle: 'ISO 25010 Metrics' }}
-        />
+        <Tab.Screen name="Files"     component={FilesScreen}     />
+        <Tab.Screen name="Conflicts" component={ConflictsScreen} />
+        <Tab.Screen name="Peers"     component={PeersScreen}     />
+        <Tab.Screen name="Metrics"   component={MetricsScreen}   />
       </Tab.Navigator>
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  logoWrap: {
-    width:           30,
-    height:          30,
-    borderRadius:    7,
-    backgroundColor: COLORS.bg,
-    borderWidth:     1.5,
-    borderColor:     COLORS.acc,
-    alignItems:      'center',
-    justifyContent:  'center',
-    flexDirection:   'row',
-    marginLeft:      12,
-    gap:             0,
-  },
-  logoLetter: {
-    fontSize:   10,
-    fontWeight: '800',
-    lineHeight: 14,
-  },
-});
