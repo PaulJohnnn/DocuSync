@@ -57,13 +57,14 @@ const ToolbarBtn: React.FC<{
     onClick={onClick}
     title={title}
     style={{
-      background: active ? 'var(--ds-accent-bg)' : 'transparent',
-      color: active ? 'var(--ds-accent)' : 'var(--ds-text2)',
-      border: active ? '1px solid var(--ds-accent-border)' : '1px solid transparent',
-      borderRadius: 'var(--ds-radius-sm)',
-      padding: '4px 7px',
+      background: active ? 'rgba(79,125,248,0.15)' : 'transparent',
+      color: active ? 'var(--accent)' : 'var(--text-secondary)',
+      border: active ? '1px solid rgba(79,125,248,0.25)' : '1px solid transparent',
+      borderRadius: 6,
+      height: 28,
+      padding: '0 7px',
       cursor: 'pointer',
-      transition: 'all var(--ds-transition)',
+      transition: 'all 0.15s ease',
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -190,26 +191,34 @@ const EditorPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      {/* Topbar */}
-      <div className="ds-topbar">
-        <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/')} style={{ gap: '0.3rem' }}>
-          <IconArrowLeft size={14} /> Files
+      {/* Topbar — sub navigation bar for editor */}
+      <div style={{
+        height: 46, background: 'var(--bg-sidebar)',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center',
+        padding: '0 16px', gap: 10, flexShrink: 0,
+      }}>
+        <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/')} style={{ height: 30, padding: '0 10px', fontSize: 12 }}>
+          <IconArrowLeft size={13} /> Files
         </button>
+        <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span className="ds-topbar-title">
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {filePath ? basename(filePath) : `File #${fileId}`}
-          </span>
-          {saving && <span style={{ color: 'var(--ds-amber)', fontSize: '0.72rem', marginLeft: '0.5rem' }}>saving…</span>}
+            {saving && <span style={{ color: 'var(--amber)', fontSize: 11, fontWeight: 400, marginLeft: 8 }}>saving…</span>}
+          </div>
           {filePath && (
-            <div style={{ fontSize: '0.65rem', color: 'var(--ds-text3)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {filePath}
             </div>
           )}
         </div>
-        <div className="ds-topbar-actions">
-          <button className="ds-btn ds-btn-ghost" onClick={() => navigate(`/history/${fileId}`)}><IconHistory size={14} /> History</button>
-          <button className="ds-btn ds-btn-primary" onClick={handleSyncNow} disabled={syncing}>
-            <span className={syncing ? 'ds-spin' : ''} style={{ display: 'inline-flex' }}><IconRefresh size={14} /></span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button className="ds-btn ds-btn-ghost" onClick={() => navigate(`/history/${fileId}`)} style={{ height: 30, padding: '0 10px', fontSize: 12 }}>
+            <IconHistory size={13} /> History
+          </button>
+          <button className="ds-btn ds-btn-primary" onClick={handleSyncNow} disabled={syncing} style={{ height: 30, padding: '0 12px', fontSize: 12 }}>
+            <span className={syncing ? 'ds-spin' : ''} style={{ display: 'inline-flex' }}><IconRefresh size={13} /></span>
             {syncing ? 'Syncing…' : 'Sync Now'}
           </button>
         </div>
@@ -250,52 +259,71 @@ const EditorPage: React.FC = () => {
         <>
           {/* Formatting toolbar */}
           <div style={{
-            display: 'flex', alignItems: 'center', gap: '2px',
-            padding: '0.4rem 0.75rem', borderBottom: '1px solid var(--ds-border)',
-            background: 'var(--ds-bg2)', flexShrink: 0, flexWrap: 'wrap',
+            display: 'flex', alignItems: 'center', gap: 2,
+            padding: '6px 16px',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--bg-sidebar)',
+            flexShrink: 0, flexWrap: 'wrap',
           }}>
             <ToolbarBtn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold"><IconBold size={14} /></ToolbarBtn>
             <ToolbarBtn active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italic"><IconItalic size={14} /></ToolbarBtn>
             <ToolbarBtn active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()} title="Strike"><IconStrikethrough size={14} /></ToolbarBtn>
-            <div style={{ width: 1, height: 16, background: 'var(--ds-border)', margin: '0 4px' }} />
+            <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 6px' }} />
             <ToolbarBtn active={editor.isActive('heading', { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} title="H1"><IconH1 size={14} /></ToolbarBtn>
             <ToolbarBtn active={editor.isActive('heading', { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} title="H2"><IconH2 size={14} /></ToolbarBtn>
-            <div style={{ width: 1, height: 16, background: 'var(--ds-border)', margin: '0 4px' }} />
+            <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 6px' }} />
             <ToolbarBtn active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullets"><IconList size={14} /></ToolbarBtn>
             <ToolbarBtn active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Quote"><IconQuote size={14} /></ToolbarBtn>
             <ToolbarBtn active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="Code"><IconCode size={14} /></ToolbarBtn>
             <div style={{ marginLeft: 'auto' }}>
-              <button className="ds-btn ds-btn-primary" onClick={handleExplicitSave} disabled={saving} style={{ fontSize: '0.72rem', padding: '0.25rem 0.65rem' }}>
+              <button
+                className="ds-btn ds-btn-primary"
+                onClick={handleExplicitSave}
+                disabled={saving}
+                style={{ height: 30, fontSize: 12, padding: '0 14px' }}
+              >
                 {saving ? '↻ Saving…' : '💾 Save'}
               </button>
             </div>
           </div>
 
-          {/* Editor content — white area */}
-          <div style={{ flex: 1, overflow: 'auto', background: '#fff' }}>
-            <EditorContent editor={editor} style={{ minHeight: '100%' }} />
+          {/* Editor sheet — white with shadow */}
+          <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg-base)', padding: '24px' }}>
+            <div style={{
+              background: '#fff',
+              maxWidth: 760,
+              margin: '0 auto',
+              borderRadius: 12,
+              boxShadow: '0 2px 20px rgba(0,0,0,0.4)',
+              overflow: 'hidden',
+            }}>
+              <EditorContent editor={editor} style={{ minHeight: 480 }} />
+            </div>
           </div>
         </>
       )}
 
-      {/* Footer metrics bar (28px) */}
+      {/* Footer metrics bar */}
       {!loading && !loadError && (
         <div style={{
-          height: 28, borderTop: '1px solid var(--ds-border)',
-          background: 'var(--ds-bg2)', display: 'flex', alignItems: 'center',
-          padding: '0 1rem', gap: '1.25rem', flexShrink: 0, overflow: 'hidden',
+          height: 28,
+          borderTop: '1px solid var(--border)',
+          background: 'var(--bg-sidebar)',
+          display: 'flex', alignItems: 'center',
+          padding: '0 20px', gap: 20,
+          flexShrink: 0, overflow: 'hidden',
         }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--ds-text3)', fontFamily: 'monospace' }} title="Vector clock">
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }} title="Vector clock">
             vc {clockDisplay}
           </span>
           {lastDeltaSize !== null && (
-            <span style={{ fontSize: '0.65rem', color: 'var(--ds-text3)' }}>Δ {formatBytes(lastDeltaSize)}</span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Δ {formatBytes(lastDeltaSize)}</span>
           )}
-          <span style={{ fontSize: '0.65rem', color: peersNotified > 0 ? 'var(--ds-green)' : 'var(--ds-text3)' }}>
+          <span style={{ fontSize: 10, color: peersNotified > 0 ? 'var(--green)' : 'var(--text-muted)' }}>
             {peersNotified > 0 ? `✓ ${peersNotified} notified` : `${connectedPeers.length} peers`}
           </span>
           <span style={{
-            marginLeft: 'auto', fontSize: '0.6rem', color: 'var(--ds-text3)',
+            marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)',
             fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {filePath || `file #${fileId}`}

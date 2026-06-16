@@ -127,62 +127,83 @@ const ConflictCard: React.FC<{
   const insCount = diffLines.filter(l => l.type === 'insert').length;
 
   return (
-    <article className="ds-card" style={{
-      padding: '1.25rem', opacity: conflict.resolving ? 0.6 : 1,
-      border: '1px solid var(--ds-red-border)',
-    }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ color: 'var(--ds-red)' }}><IconAlertTriangle size={16} /></span>
-            <h3 style={{ fontSize: '0.9rem', fontWeight: 700 }}>File #{conflict.fileId}</h3>
-            <span className="ds-badge ds-badge-red">Pending</span>
-          </div>
-          <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.7rem' }}>
-            <span style={{ color: 'var(--ds-text3)' }}>Detected: {conflict.detectedAt.toLocaleString()}</span>
-            <span style={{ color: 'var(--ds-red)' }}>−{delCount}</span>
-            <span style={{ color: 'var(--ds-green)' }}>+{insCount}</span>
-          </div>
+    <article
+      className="ds-card"
+      style={{ overflow: 'hidden', opacity: conflict.resolving ? 0.6 : 1 }}
+    >
+      {/* Card header */}
+      <div style={{
+        background: 'var(--bg-sidebar)',
+        borderBottom: '1px solid var(--border)',
+        padding: '12px 16px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 9 }}>CONFLICT</span>
+          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>File #{conflict.fileId}</span>
+          <IconAlertTriangle size={14} style={{ color: 'var(--red)' }} />
         </div>
-        <code style={{ fontSize: '0.62rem', color: 'var(--ds-text3)', background: 'var(--ds-bg3)', padding: '2px 8px', borderRadius: 'var(--ds-radius-sm)' }}>
-          {conflict.conflictId.slice(0, 12)}…
-        </code>
-      </div>
-
-      {/* Node attribution */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
-        <div style={{ background: 'var(--ds-red-bg)', border: '1px solid var(--ds-red-border)', borderRadius: 'var(--ds-radius-sm)', padding: '0.4rem 0.65rem' }}>
-          <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--ds-red)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Side A — Original</div>
-          <div style={{ fontSize: '0.68rem', color: 'var(--ds-text2)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conflict.nodeIdA}</div>
-          <div style={{ fontSize: '0.62rem', color: 'var(--ds-text3)' }}>ts={conflict.logicalTimestampA}</div>
-        </div>
-        <div style={{ background: 'var(--ds-green-bg)', border: '1px solid var(--ds-green-border)', borderRadius: 'var(--ds-radius-sm)', padding: '0.4rem 0.65rem' }}>
-          <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--ds-green)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Side B — Incoming</div>
-          <div style={{ fontSize: '0.68rem', color: 'var(--ds-text2)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conflict.nodeIdB}</div>
-          <div style={{ fontSize: '0.62rem', color: 'var(--ds-text3)' }}>ts={conflict.logicalTimestampB}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+            {conflict.detectedAt.toLocaleString()}
+          </span>
+          <code style={{ fontSize: 10, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '2px 7px', borderRadius: 4 }}>
+            {conflict.conflictId.slice(0, 10)}…
+          </code>
         </div>
       </div>
 
-      {/* Diff */}
-      <div style={{ marginBottom: '1rem' }}>
+      {/* Content */}
+      <div style={{ padding: '14px 16px' }}>
+        {/* Diff counts */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <span className="ds-badge ds-badge-red">−{delCount} deleted</span>
+          <span className="ds-badge ds-badge-green">+{insCount} added</span>
+        </div>
+
+        {/* Node labels */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: 8, padding: '6px 10px' }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Original · Node A</div>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conflict.nodeIdA}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>ts={conflict.logicalTimestampA}</div>
+          </div>
+          <div style={{ background: 'var(--green-light)', border: '1px solid var(--green-border)', borderRadius: 8, padding: '6px 10px' }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Incoming · Node B</div>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conflict.nodeIdB}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>ts={conflict.logicalTimestampB}</div>
+          </div>
+        </div>
+
+        {/* Diff */}
         <DiffView lines={diffLines} />
       </div>
 
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', borderTop: '1px solid var(--ds-border)', paddingTop: '0.75rem' }}>
-        <button className="ds-btn ds-btn-ghost" disabled={conflict.resolving} onClick={() => onResolve(conflict.conflictId, 'A')} title="Keep Side A">
-          <IconShield size={14} /> Keep Original
+      {/* Action bar */}
+      <div style={{
+        background: 'var(--bg-sidebar)',
+        borderTop: '1px solid var(--border)',
+        padding: '10px 16px',
+        display: 'flex', gap: 8, flexWrap: 'wrap',
+        alignItems: 'center',
+      }}>
+        <button className="ds-btn ds-btn-ghost" disabled={conflict.resolving} onClick={() => onResolve(conflict.conflictId, 'A')} style={{ fontSize: 12, height: 32 }}>
+          <IconShield size={13} /> Keep Original
         </button>
-        <button className="ds-btn ds-btn-primary" disabled={conflict.resolving} onClick={() => onResolve(conflict.conflictId, lwwWinner)}
-          title={`LWW: Side ${lwwWinner} wins (ts=${lwwWinner === 'A' ? conflict.logicalTimestampA : conflict.logicalTimestampB})`}>
-          <IconZap size={14} /> LWW Auto-Merge
-          <span style={{ fontSize: '0.62rem', background: 'rgba(255,255,255,.18)', borderRadius: 3, padding: '0 4px', marginLeft: 2 }}>→ {lwwWinner}</span>
+        <button
+          className="ds-btn"
+          disabled={conflict.resolving}
+          onClick={() => onResolve(conflict.conflictId, lwwWinner)}
+          title={`LWW: Side ${lwwWinner} wins`}
+          style={{ fontSize: 12, height: 32, background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--border-accent)' }}
+        >
+          <IconZap size={13} /> ⚡ LWW Auto
+          <span style={{ fontSize: 9, background: 'rgba(79,125,248,0.25)', borderRadius: 3, padding: '0 4px', marginLeft: 2 }}>→ {lwwWinner}</span>
         </button>
-        <button className="ds-btn ds-btn-success" disabled={conflict.resolving} onClick={() => onResolve(conflict.conflictId, 'B')} title="Accept Side B">
-          <IconCheck size={14} /> Accept Change
+        <button className="ds-btn ds-btn-success" disabled={conflict.resolving} onClick={() => onResolve(conflict.conflictId, 'B')} style={{ fontSize: 12, height: 32 }}>
+          <IconCheck size={13} /> Accept Change
         </button>
-        {conflict.resolving && <span style={{ fontSize: '0.72rem', color: 'var(--ds-text3)', marginLeft: 'auto' }}>Resolving…</span>}
+        {conflict.resolving && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>Resolving…</span>}
       </div>
     </article>
   );
@@ -295,24 +316,22 @@ const ConflictsPage: React.FC = () => {
       <div className="ds-main-scroll ds-page-enter" style={{ maxWidth: 900, margin: '0 auto', width: '100%' }}>
         {/* Amber banner */}
         {pendingConflicts > 0 && (
-          <div className="ds-banner ds-banner-amber">
+          <div className="ds-banner ds-banner-amber" style={{ borderRadius: '0 var(--r-md) var(--r-md) 0' }}>
             <span style={{ fontSize: '1.1rem' }}>⚠️</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600 }}>{pendingConflicts} conflict{pendingConflicts !== 1 ? 's' : ''} requiring review</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--ds-text2)', marginTop: '2px' }}>
-                As repository owner, choose a winner for each concurrent edit.
-              </div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{pendingConflicts} conflict{pendingConflicts !== 1 ? 's' : ''} require your review</div>
+              <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 2, opacity: 0.8 }}>Resolve before changes propagate to peers.</div>
             </div>
           </div>
         )}
 
         {/* Empty state */}
         {sorted.length === 0 && (
-          <div className="ds-empty" style={{ background: 'var(--ds-surface)', borderRadius: 'var(--ds-radius-lg)', border: '1px solid var(--ds-border)' }}>
-            <div className="ds-empty-icon">✅</div>
-            <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>No conflicts detected</h2>
-            <p style={{ color: 'var(--ds-text2)', fontSize: '0.82rem', maxWidth: 360, margin: '0 auto 1.5rem' }}>
-              All files converged. The LWW resolver will notify you if concurrent edits create a conflict.
+          <div className="ds-empty" style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 52, marginBottom: 16 }}>✅</div>
+            <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>All conflicts resolved</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 360, margin: '0 auto 24px', lineHeight: 1.7 }}>
+              No pending conflicts. The LWW resolver will notify you if concurrent edits create a conflict.
             </p>
             <button className="ds-btn ds-btn-primary" onClick={() => navigate('/')}>Back to Files</button>
           </div>
