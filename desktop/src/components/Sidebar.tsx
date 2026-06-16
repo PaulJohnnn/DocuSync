@@ -43,7 +43,13 @@ const Sidebar: React.FC = () => {
       {/* Logo */}
       <div className="ds-sidebar-logo">
         <div className="ds-sidebar-logo-icon">
-          <IconDatabase size={18} />
+          <img
+            src="/docusync-logo.svg"
+            width="28"
+            height="28"
+            alt="DocuSync logo"
+            style={{ display: 'block' }}
+          />
         </div>
         <div>
           <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--ds-text)' }}>

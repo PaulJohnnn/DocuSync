@@ -42,12 +42,13 @@ export default function Sidebar() {
       {/* Logo */}
       <div style={{ padding: '0 16px', marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: 'linear-gradient(135deg, var(--acc), var(--pur))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, fontWeight: 700, color: '#fff',
-          }}>D</div>
+          <img
+            src="/docusync-logo.svg"
+            width={28}
+            height={28}
+            alt="DocuSync logo"
+            style={{ display: 'block', flexShrink: 0 }}
+          />
           <div>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)' }}>DocuSync</div>
             <div style={{ fontSize: 10, color: 'var(--t3)', letterSpacing: 1, textTransform: 'uppercase' }}>Web Edition</div>

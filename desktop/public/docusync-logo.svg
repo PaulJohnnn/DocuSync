@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="DocuSync logo">
+  <!-- Left document (background, slightly transparent) -->
+  <rect x="2" y="5" width="13" height="17" rx="2.5" fill="#4f7df8" fill-opacity="0.65"/>
+  <!-- Left doc: page-fold corner (top-right) -->
+  <path d="M12 5 L15 8 L12 8 Z" fill="#0d1117" fill-opacity="0.3"/>
+  <!-- Left doc: text lines -->
+  <rect x="4.5" y="10" width="6" height="1.5" rx="0.75" fill="white" fill-opacity="0.55"/>
+  <rect x="4.5" y="13" width="8" height="1.5" rx="0.75" fill="white" fill-opacity="0.55"/>
+  <rect x="4.5" y="16" width="5" height="1.5" rx="0.75" fill="white" fill-opacity="0.55"/>
+
+  <!-- Right document (foreground, full opacity) -->
+  <rect x="13" y="9" width="13" height="17" rx="2.5" fill="#4f7df8"/>
+  <!-- Right doc: page-fold corner (top-right) -->
+  <path d="M23 9 L26 12 L23 12 Z" fill="#0d1117" fill-opacity="0.25"/>
+  <!-- Right doc: text lines -->
+  <rect x="15.5" y="14" width="6" height="1.5" rx="0.75" fill="white" fill-opacity="0.6"/>
+  <rect x="15.5" y="17" width="8" height="1.5" rx="0.75" fill="white" fill-opacity="0.6"/>
+  <rect x="15.5" y="20" width="5" height="1.5" rx="0.75" fill="white" fill-opacity="0.6"/>
+
+  <!--
+    Sync arrows: two curved arcs with arrowheads bridging the two documents.
+    Top arrow: flows from left-doc to right-doc (left-to-right, above center).
+    Bottom arrow: flows from right-doc to left-doc (right-to-left, below center).
+  -->
+
+  <!-- Top arc: left → right (above) -->
+  <path
+    d="M 9 9 C 9 4, 22 4, 22 9"
+    stroke="#1ec76a"
+    stroke-width="2"
+    stroke-linecap="round"
+    fill="none"
+  />
+  <!-- Top arrowhead pointing down-right at end of arc -->
+  <path
+    d="M 20.5 7.5 L 22 9.5 L 24 8"
+    stroke="#1ec76a"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- Bottom arc: right → left (below) -->
+  <path
+    d="M 22 22 C 22 28, 9 28, 9 22"
+    stroke="#1ec76a"
+    stroke-width="2"
+    stroke-linecap="round"
+    fill="none"
+  />
+  <!-- Bottom arrowhead pointing up-left at end of arc -->
+  <path
+    d="M 10.5 23.5 L 9 21.5 L 7 23"
+    stroke="#1ec76a"
+    stroke-width="1.8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+</svg>
