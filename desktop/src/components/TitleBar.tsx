@@ -1,6 +1,7 @@
 /**
  * @module TitleBar
- * macOS-style titlebar with traffic light dots, centered title, and sync status badge.
+ * Premium macOS-style titlebar — 42px height, traffic lights, centered title,
+ * sync status badge with animated glow dot.
  */
 import React from 'react';
 import { useElectronSync } from '@/context/ElectronSyncContext';
@@ -9,37 +10,48 @@ const TitleBar: React.FC = () => {
   const { syncStatus } = useElectronSync();
 
   const statusColor =
-    syncStatus === 'idle'     ? 'var(--ds-green)' :
-    syncStatus === 'syncing'  ? 'var(--ds-amber)' :
-    syncStatus === 'conflict' ? 'var(--ds-red)' :
-    syncStatus === 'error'    ? 'var(--ds-red)' :
-    'var(--ds-text3)';
+    syncStatus === 'idle'     ? 'var(--green)' :
+    syncStatus === 'syncing'  ? 'var(--amber)' :
+    syncStatus === 'conflict' ? 'var(--red)' :
+    syncStatus === 'error'    ? 'var(--red)' :
+    'var(--text-muted)';
+
+  const statusLabel =
+    syncStatus === 'idle'     ? 'Ready' :
+    syncStatus === 'syncing'  ? 'Syncing' :
+    syncStatus === 'conflict' ? 'Conflict' :
+    syncStatus === 'error'    ? 'Error' :
+    'Offline';
 
   return (
     <div className="ds-titlebar">
-      {/* Traffic light dots */}
+      {/* macOS traffic light dots */}
       <div className="ds-titlebar-dots">
         <div className="ds-titlebar-dot" style={{ background: '#ff5f57' }} />
         <div className="ds-titlebar-dot" style={{ background: '#febc2e' }} />
         <div className="ds-titlebar-dot" style={{ background: '#28c840' }} />
       </div>
 
-      {/* Centered title */}
-      <div className="ds-titlebar-title">DocuSync — Hybrid P2P Sync Engine</div>
+      {/* Centered app name */}
+      <div className="ds-titlebar-title">DocuSync</div>
 
-      {/* Right: sync status badge */}
+      {/* Right: status badge */}
       <div className="ds-titlebar-right">
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '5px',
-          background: 'var(--ds-bg3)', borderRadius: '99px',
-          padding: '2px 10px 2px 7px', fontSize: '0.68rem',
-          fontWeight: 600, color: statusColor,
-        }}>
-          <span style={{
-            width: 6, height: 6, borderRadius: '50%',
-            background: statusColor, flexShrink: 0,
-          }} />
-          <span style={{ textTransform: 'capitalize' }}>{syncStatus}</span>
+        <div className="ds-titlebar-status" style={{ color: statusColor }}>
+          <span
+            className="ds-titlebar-status-dot"
+            style={{
+              background: statusColor,
+              boxShadow: syncStatus === 'syncing'
+                ? `0 0 6px ${statusColor}`
+                : syncStatus === 'idle'
+                ? `0 0 4px ${statusColor}`
+                : 'none',
+            }}
+          />
+          <span style={{ textTransform: 'capitalize', letterSpacing: '0.02em' }}>
+            {statusLabel}
+          </span>
         </div>
       </div>
     </div>

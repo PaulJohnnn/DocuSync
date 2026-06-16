@@ -1,13 +1,13 @@
 /**
  * @module FilesPage
- * Main file manager page — route `/`.
- * Metric cards + file cards with colored extension icons.
+ * Main file manager — route `/`.
+ * 4 metric cards with gradient top accents + file cards with extension icons.
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import { toast } from 'sonner';
-import { IconFolderOpen, IconRefresh } from '@/components/Icons';
+import { FolderOpen, RefreshCw, ChevronRight } from 'lucide-react';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -20,22 +20,22 @@ interface OpenedFile {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function extMeta(ext: string): { icon: string; color: string; bg: string } {
+function extMeta(ext: string): { icon: string; color: string; bg: string; borderColor: string } {
   switch (ext.toLowerCase()) {
     case 'md': case 'markdown':
-      return { icon: 'M', color: 'var(--ds-accent)', bg: 'var(--ds-accent-bg)' };
+      return { icon: 'MD', color: 'var(--accent)',  bg: 'var(--accent-glow)',  borderColor: 'var(--border-accent)' };
     case 'txt': case 'text':
-      return { icon: 'T', color: 'var(--ds-text2)', bg: 'var(--ds-bg3)' };
+      return { icon: 'TXT', color: 'var(--text-secondary)', bg: 'var(--bg-surface)', borderColor: 'var(--border-default)' };
     case 'json':
-      return { icon: 'J', color: 'var(--ds-amber)', bg: 'var(--ds-amber-bg)' };
+      return { icon: 'JS',  color: 'var(--amber)',  bg: 'var(--amber-bg)',     borderColor: 'var(--amber-border)' };
     case 'docx': case 'doc':
-      return { icon: 'D', color: 'var(--ds-accent)', bg: 'var(--ds-accent-bg)' };
+      return { icon: 'DOC', color: 'var(--accent)',  bg: 'var(--accent-glow)',  borderColor: 'var(--border-accent)' };
     case 'csv': case 'tsv':
-      return { icon: 'C', color: 'var(--ds-green)', bg: 'var(--ds-green-bg)' };
+      return { icon: 'CSV', color: 'var(--green)',   bg: 'var(--green-bg)',     borderColor: 'var(--green-border)' };
     case 'xml': case 'html': case 'htm':
-      return { icon: 'X', color: 'var(--ds-purple)', bg: 'var(--ds-purple-bg)' };
+      return { icon: 'XML', color: 'var(--purple)',  bg: 'var(--purple-bg)',    borderColor: 'var(--purple-border)' };
     default:
-      return { icon: 'F', color: 'var(--ds-text3)', bg: 'var(--ds-bg3)' };
+      return { icon: 'FILE', color: 'var(--text-muted)', bg: 'var(--bg-surface)', borderColor: 'var(--border-subtle)' };
   }
 }
 
@@ -45,11 +45,90 @@ function basename(p: string): string {
 
 function formatSize(chars: number): string {
   if (chars >= 1024 * 1024) return `${(chars / (1024 * 1024)).toFixed(1)} MB`;
-  if (chars >= 1024) return `${(chars / 1024).toFixed(1)} KB`;
+  if (chars >= 1024)         return `${(chars / 1024).toFixed(1)} KB`;
   return `${chars} B`;
 }
 
-// ── Component ───────────────────────────────────────────────────────────────
+// ── FileCard ─────────────────────────────────────────────────────────────────
+
+const FileCard: React.FC<{
+  file: OpenedFile;
+  hasConflict: boolean;
+  onClick: () => void;
+}> = ({ file, hasConflict, onClick }) => {
+  const [fileStatus, setFileStatus] = useState<'syncing' | 'synced'>('syncing');
+  const { icon, color, bg, borderColor } = extMeta(file.extension);
+  const name = basename(file.filePath);
+
+  useEffect(() => {
+    const t = setTimeout(() => setFileStatus('synced'), 2000);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <article
+      className="ds-card ds-card-clickable"
+      onClick={onClick}
+      style={{
+        padding: '14px 18px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        borderColor: hasConflict ? 'var(--red-border)' : undefined,
+      }}
+    >
+      {/* Extension icon */}
+      <div style={{
+        width: 40, height: 40,
+        borderRadius: 10,
+        background: bg,
+        border: `1px solid ${borderColor}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '0.6rem', fontWeight: 800, color,
+        flexShrink: 0,
+        letterSpacing: '-0.02em',
+        fontFamily: 'monospace',
+      }}>
+        {icon}
+      </div>
+
+      {/* Details */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontWeight: 600, fontSize: '0.87rem', color: 'var(--text-primary)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          marginBottom: 2,
+        }}>
+          {name}
+        </div>
+        <div style={{
+          fontSize: '0.65rem', color: 'var(--text-muted)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          fontFamily: 'monospace',
+        }}>
+          {file.filePath}
+        </div>
+        {/* Tags row */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+          {hasConflict ? (
+            <span className="ds-badge ds-badge-red ds-conflict-pulse">⚠ Conflict</span>
+          ) : fileStatus === 'syncing' ? (
+            <span className="ds-badge ds-badge-amber"><span className="ds-pulse">●</span> Syncing</span>
+          ) : (
+            <span className="ds-badge ds-badge-green">✓ Synced</span>
+          )}
+          <span className="ds-badge ds-badge-muted">.{file.extension}</span>
+          <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{formatSize(file.contentLength)}</span>
+        </div>
+      </div>
+
+      {/* Chevron */}
+      <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+    </article>
+  );
+};
+
+// ── FilesPage ────────────────────────────────────────────────────────────────
 
 const FilesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -106,124 +185,83 @@ const FilesPage: React.FC = () => {
 
   return (
     <>
-      {/* Topbar */}
+      {/* ── Topbar ── */}
       <div className="ds-topbar">
-        <div>
-          <span className="ds-topbar-title">Files</span>
-          <span className="ds-topbar-subtitle">Open documents for P2P editing</span>
-        </div>
+        <span className="ds-topbar-title">Files</span>
+        <span className="ds-topbar-sep" />
+        <span className="ds-topbar-subtitle">Open documents for P2P sync</span>
         <div className="ds-topbar-actions">
-          <button className="ds-btn ds-btn-ghost" onClick={handleSync} disabled={syncing}>
-            <span className={syncing ? 'ds-spin' : ''} style={{ display: 'inline-flex' }}>
-              <IconRefresh size={14} />
-            </span>
+          <button id="btn-sync" className="ds-btn ds-btn-ghost" onClick={handleSync} disabled={syncing}>
+            <RefreshCw size={13} className={syncing ? 'ds-spin' : ''} />
             Sync Now
           </button>
-          <button className="ds-btn ds-btn-primary" onClick={handleOpenFile} disabled={opening}>
-            <IconFolderOpen size={14} />
+          <button id="btn-open-file" className="ds-btn ds-btn-primary" onClick={handleOpenFile} disabled={opening}>
+            <FolderOpen size={13} />
             {opening ? 'Opening…' : 'Open File'}
           </button>
         </div>
       </div>
 
-      {/* Content */}
+      {/* ── Content ── */}
       <div className="ds-main-scroll ds-page-enter">
-        {/* Metrics */}
+
+        {/* ── Metric Cards ── */}
         <div className="ds-metrics-grid">
-          <div className="ds-metric-card">
+          <div className="ds-metric-card" data-type="files">
             <span className="ds-metric-label">Open Files</span>
             <span className="ds-metric-value">{openedFiles.length}</span>
           </div>
-          <div className="ds-metric-card">
+          <div className="ds-metric-card" data-type="peers">
             <span className="ds-metric-label">Peers</span>
-            <span className="ds-metric-value" style={{ color: 'var(--ds-green)' }}>{connectedPeers.length}</span>
+            <span className="ds-metric-value" style={{ color: connectedPeers.length > 0 ? 'var(--green)' : undefined }}>
+              {connectedPeers.length}
+            </span>
           </div>
-          <div className="ds-metric-card">
-            <span className="ds-metric-label">Log Events</span>
-            <span className="ds-metric-value" style={{ color: 'var(--ds-accent)' }}>—</span>
+          <div className="ds-metric-card" data-type="events">
+            <span className="ds-metric-label">Sync Status</span>
+            <span className="ds-metric-value" style={{ fontSize: '1rem', paddingTop: 4, textTransform: 'capitalize', color: 'var(--accent)' }}>
+              {syncStatus ?? '—'}
+            </span>
           </div>
-          <div className="ds-metric-card">
+          <div className="ds-metric-card" data-type="conflicts">
             <span className="ds-metric-label">Conflicts</span>
-            <span className="ds-metric-value" style={{ color: pendingConflicts > 0 ? 'var(--ds-red)' : 'var(--ds-text2)' }}>
+            <span className="ds-metric-value" style={{ color: pendingConflicts > 0 ? 'var(--red)' : undefined }}>
               {pendingConflicts}
             </span>
           </div>
         </div>
 
-        {/* File Cards */}
+        {/* ── File List ── */}
         {openedFiles.length === 0 ? (
-          <div className="ds-empty" style={{ background: 'var(--ds-surface)', borderRadius: 'var(--ds-radius-lg)', border: '1px solid var(--ds-border)' }}>
+          <div className="ds-empty ds-card" style={{ minHeight: 320 }}>
             <div className="ds-empty-icon">📂</div>
-            <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>No files opened yet</h2>
-            <p style={{ color: 'var(--ds-text2)', fontSize: '0.82rem', maxWidth: 360, lineHeight: 1.7, margin: '0 auto 1.5rem' }}>
-              Click <strong style={{ color: 'var(--ds-text)' }}>Open File</strong> to begin.
-              DocuSync will track changes and sync them via delta encoding and vector clocks.
+            <h2 style={{ fontSize: '1.05rem', marginBottom: 8, color: 'var(--text-primary)' }}>
+              No files opened yet
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', maxWidth: 360, lineHeight: 1.7, margin: '0 auto 24px' }}>
+              Click <strong style={{ color: 'var(--text-primary)' }}>Open File</strong> to begin.
+              DocuSync tracks every keystroke using delta encoding and syncs
+              across peers via vector clocks.
             </p>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="ds-btn ds-btn-primary" onClick={handleOpenFile}><IconFolderOpen size={14} /> Open File</button>
-              <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/peers')}>Manage Peers</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="ds-btn ds-btn-primary" onClick={handleOpenFile}>
+                <FolderOpen size={13} /> Open File
+              </button>
+              <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/peers')}>
+                Manage Peers
+              </button>
             </div>
           </div>
         ) : (
           <div className="ds-files-grid">
-            {openedFiles.map((file) => {
-              const { icon, color, bg } = extMeta(file.extension);
-              const name = basename(file.filePath);
-              const hasConflict = conflictQueue.some((c) => c.fileId === file.fileId);
-              const [fileStatus, setFileStatus] = useState<'syncing' | 'synced'>('syncing');
-
-              // Simulate status change from syncing → synced
-              useEffect(() => {
-                const t = setTimeout(() => setFileStatus('synced'), 2000);
-                return () => clearTimeout(t);
-              }, []);
-
-              return (
-                <article
-                  key={file.fileId}
-                  className="ds-card ds-card-clickable"
-                  onClick={() => handleCardClick(file)}
-                  style={{ padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}
-                >
-                  {/* Extension icon */}
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 'var(--ds-radius)',
-                    background: bg, border: `1px solid ${color}33`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.9rem', fontWeight: 800, color,
-                    flexShrink: 0,
-                  }}>
-                    {icon}
-                  </div>
-
-                  {/* Details */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontWeight: 600, fontSize: '0.85rem', color: 'var(--ds-text)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>{name}</div>
-                    <div style={{
-                      fontSize: '0.68rem', color: 'var(--ds-text3)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      fontFamily: 'monospace', marginTop: '1px',
-                    }}>{file.filePath}</div>
-                  </div>
-
-                  {/* Tags */}
-                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexShrink: 0 }}>
-                    {hasConflict ? (
-                      <span className="ds-badge ds-badge-red ds-conflict-pulse">⚠ Conflict</span>
-                    ) : fileStatus === 'syncing' ? (
-                      <span className="ds-badge ds-badge-amber">● Syncing</span>
-                    ) : (
-                      <span className="ds-badge ds-badge-green">● Synced</span>
-                    )}
-                    <span className="ds-badge ds-badge-muted">.{file.extension}</span>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--ds-text3)' }}>{formatSize(file.contentLength)}</span>
-                  </div>
-                </article>
-              );
-            })}
+            {openedFiles.map((file) => (
+              <FileCard
+                key={file.fileId}
+                file={file}
+                hasConflict={conflictQueue.some((c) => c.fileId === file.fileId)}
+                onClick={() => handleCardClick(file)}
+              />
+            ))}
           </div>
         )}
       </div>
