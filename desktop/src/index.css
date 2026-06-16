@@ -12,7 +12,7 @@
   /* Backgrounds - WPS Light */
   --bg-base:        #f3f4f6;
   --bg-sidebar:     #f8f9fa;
-  --bg-content:     #ffffff;
+  --bg-content:     #f4f5f8;
   --bg-card:        #ffffff;
   --bg-card-hover:  #f8f9fa;
   --bg-selected:    #e8f0fe;
@@ -601,7 +601,7 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); }
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
   transition: border-color var(--t), transform var(--t), box-shadow var(--t);
 }
 

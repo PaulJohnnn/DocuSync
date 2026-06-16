@@ -4,8 +4,14 @@
  */
 import React from 'react';
 import { useElectronSync } from '@/context/ElectronSyncContext';
+import { Cpu } from 'lucide-react';
 
-const TitleBar: React.FC = () => {
+interface TitleBarProps {
+  isRightPanelOpen?: boolean;
+  onToggleRightPanel?: () => void;
+}
+
+const TitleBar: React.FC<TitleBarProps> = ({ isRightPanelOpen, onToggleRightPanel }) => {
   const { syncStatus } = useElectronSync();
 
   const dotColor =
@@ -47,6 +53,29 @@ const TitleBar: React.FC = () => {
           />
           <span>{label}</span>
         </div>
+
+        {onToggleRightPanel && (
+          <button 
+            className="ds-btn ds-btn-ghost" 
+            style={{ 
+              width: 26, 
+              height: 26, 
+              padding: 0, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              marginLeft: 6, 
+              borderRadius: 'var(--r-sm)',
+              border: 'none',
+              background: isRightPanelOpen ? 'var(--accent-light)' : 'transparent',
+              color: isRightPanelOpen ? 'var(--accent)' : 'var(--text-secondary)'
+            }}
+            onClick={onToggleRightPanel}
+            title="Toggle Engine Metrics Panel"
+          >
+            <Cpu size={14} />
+          </button>
+        )}
       </div>
     </div>
   );

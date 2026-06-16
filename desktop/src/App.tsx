@@ -3,7 +3,7 @@
  * Root React component for DocuSync Electron renderer.
  * Layout: TitleBar → Sidebar | Main Content | RightPanel
  */
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { ElectronSyncProvider } from '@/context/ElectronSyncContext';
@@ -32,20 +32,27 @@ const PageLoader: React.FC = () => (
 );
 
 /** The persistent application shell. */
-const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="ds-layout">
-    <TitleBar />
-    <div className="ds-body">
-      <Sidebar />
-      <div className="ds-main">
-        <Suspense fallback={<PageLoader />}>
-          {children}
-        </Suspense>
+const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+  
+  return (
+    <div className="ds-layout">
+      <TitleBar 
+        isRightPanelOpen={isRightPanelOpen} 
+        onToggleRightPanel={() => setIsRightPanelOpen(!isRightPanelOpen)} 
+      />
+      <div className="ds-body">
+        <Sidebar />
+        <div className="ds-main">
+          <Suspense fallback={<PageLoader />}>
+            {children}
+          </Suspense>
+        </div>
+        {isRightPanelOpen && <RightPanel />}
       </div>
-      <RightPanel />
     </div>
-  </div>
-);
+  );
+};
 
 /** Root component. */
 const App: React.FC = () => (

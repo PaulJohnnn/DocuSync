@@ -48,7 +48,7 @@ const THESIS_INFO: ThesisInfo[] = [
   { key: 'Institution',       value: 'Pamantasan ng Cabuyao' },
   { key: 'College',           value: 'College of Computing Studies' },
   { key: 'Degree',            value: 'BS Computer Science' },
-  { key: 'Researchers',       value: 'Paul John G. Palamara (Solo Developer)\nBajado, John Benedict B.\nPalma, John Lloyd P.\nVenancio, Zyra P.' },
+  { key: 'Researchers',       value: 'Palamara, Paul John G. (Developer)\nBajado, John Benedict B.\nPalma, John Lloyd P.\nVenancio, Zyra P.' },
   { key: 'Year',              value: '2026' },
   { key: 'Standard',         value: 'ISO/IEC 25010' },
 ];
