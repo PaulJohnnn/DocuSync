@@ -18,6 +18,8 @@ const EditorPage    = lazy(() => import('@/pages/EditorPage'));
 const ConflictsPage = lazy(() => import('@/pages/ConflictsPage'));
 const HistoryPage   = lazy(() => import('@/pages/HistoryPage'));
 const PeersPage     = lazy(() => import('@/pages/PeersPage'));
+const MetricsPage   = lazy(() => import('@/pages/MetricsPage'));
+const SettingsPage  = lazy(() => import('@/pages/SettingsPage'));
 
 /** Loading skeleton shown during lazy chunk loading. */
 const PageLoader: React.FC = () => (
@@ -57,6 +59,8 @@ const App: React.FC = () => (
             <Route path="/conflicts"    element={<ConflictsPage />} />
             <Route path="/history/:id"  element={<HistoryPage />} />
             <Route path="/peers"        element={<PeersPage />} />
+            <Route path="/metrics"      element={<MetricsPage />} />
+            <Route path="/settings"     element={<SettingsPage />} />
           </Routes>
         </AppShell>
       </HashRouter>

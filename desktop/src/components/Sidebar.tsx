@@ -8,6 +8,7 @@ import { useElectronSync } from '@/context/ElectronSyncContext';
 import {
   IconFiles, IconEdit, IconAlertTriangle,
   IconHistory, IconNetwork, IconDatabase,
+  IconBarChart, IconSettings,
 } from './Icons';
 
 interface NavItem {
@@ -30,6 +31,8 @@ const Sidebar: React.FC = () => {
     { to: '/conflicts', icon: <IconAlertTriangle size={16} />,   label: 'Conflicts', id: 'nav-conflicts' },
     { to: '/history/0', icon: <IconHistory size={16} />,         label: 'History',   id: 'nav-history' },
     { to: '/peers',     icon: <IconNetwork size={16} />,         label: 'Peers',     id: 'nav-peers' },
+    { to: '/metrics',   icon: <IconBarChart size={16} />,        label: 'Metrics',   id: 'nav-metrics' },
+    { to: '/settings',  icon: <IconSettings size={16} />,        label: 'Settings',  id: 'nav-settings' },
   ];
 
   const shortId = localNodeId ? localNodeId.slice(0, 8) + '...' : 'Loading...';
