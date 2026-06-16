@@ -70,62 +70,67 @@ const FileCard: React.FC<{
 
   return (
     <article
-      className="ds-card ds-card-clickable"
+      className="ds-card-clickable"
       onClick={onClick}
       style={{
-        padding: '14px 18px',
+        padding: '12px 16px',
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
-        borderColor: hasConflict ? 'rgba(239,68,68,0.25)' : undefined,
-        borderLeft: hasConflict ? '3px solid var(--red)' : undefined,
+        borderBottom: '1px solid var(--border)',
+        background: 'transparent',
+        transition: 'background var(--t)',
+        borderLeft: hasConflict ? '3px solid var(--red)' : '3px solid transparent',
       }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-card-hover)')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
     >
       {/* File type icon */}
       <div style={{
-        width: 36, height: 36, borderRadius: 10,
+        width: 28, height: 28, borderRadius: 6,
         background: bg,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 9, fontWeight: 800, color,
+        fontSize: 9, fontWeight: 700, color,
         flexShrink: 0,
-        fontFamily: 'monospace',
-        letterSpacing: '0.01em',
+        marginRight: 16,
       }}>
         {label}
       </div>
 
-      {/* File info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* Name */}
+      <div style={{ flex: 2, minWidth: 0, paddingRight: 16 }}>
         <div style={{
           fontWeight: 500, fontSize: 13, color: 'var(--text-primary)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          marginBottom: 3,
         }}>
           {name}
         </div>
+      </div>
+
+      {/* Location (Path) */}
+      <div style={{ flex: 2, minWidth: 0, paddingRight: 16 }}>
         <div style={{
-          fontSize: 11, color: 'var(--text-muted)',
+          fontSize: 12, color: 'var(--text-secondary)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          fontFamily: 'monospace', marginBottom: 5,
         }}>
           {file.filePath}
         </div>
-        {/* Tags */}
-        <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-          {hasConflict ? (
-            <span className="ds-badge ds-badge-red ds-conflict-pulse">⚠ Conflict</span>
-          ) : fileStatus === 'syncing' ? (
-            <span className="ds-badge ds-badge-amber"><span className="ds-pulse">↻</span> Syncing</span>
-          ) : (
-            <span className="ds-badge ds-badge-green">● Synced</span>
-          )}
-          <span className="ds-badge ds-badge-muted">.{file.extension}</span>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{formatSize(file.contentLength)}</span>
-        </div>
       </div>
 
-      {/* Chevron */}
-      <ChevronRight size={15} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+      {/* Status */}
+      <div style={{ flex: 1.5, minWidth: 0, display: 'flex', alignItems: 'center', paddingRight: 16 }}>
+        {hasConflict ? (
+          <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 500 }}>⚠ Conflict</span>
+        ) : fileStatus === 'syncing' ? (
+          <span style={{ fontSize: 12, color: 'var(--amber)', fontWeight: 500 }}>↻ Syncing</span>
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Synced</span>
+        )}
+      </div>
+
+      {/* Size */}
+      <div style={{ width: 80, flexShrink: 0, textAlign: 'right', fontSize: 12, color: 'var(--text-secondary)' }}>
+        {formatSize(file.contentLength)}
+      </div>
     </article>
   );
 };
@@ -261,13 +266,28 @@ const FilesPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="ds-section-label">
+            <div className="ds-section-label" style={{ marginTop: 24, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
               Open Documents
-              <button className="ds-btn ds-btn-ghost" style={{ height: 26, fontSize: 11, padding: '0 10px' }}>
-                Filter
-              </button>
             </div>
-            <div className="ds-files-grid">
+            
+            {/* Table Header */}
+            <div style={{
+              display: 'flex',
+              padding: '8px 16px',
+              fontSize: 11,
+              fontWeight: 600,
+              color: 'var(--text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}>
+              <div style={{ width: 28, marginRight: 16 }} /> {/* Icon spacer */}
+              <div style={{ flex: 2, paddingRight: 16 }}>Name</div>
+              <div style={{ flex: 2, paddingRight: 16 }}>Location</div>
+              <div style={{ flex: 1.5, paddingRight: 16 }}>Status</div>
+              <div style={{ width: 80, textAlign: 'right' }}>Size</div>
+            </div>
+
+            <div className="ds-files-grid" style={{ gap: 0 }}>
               {openedFiles.map((file) => (
                 <FileCard
                   key={file.fileId}

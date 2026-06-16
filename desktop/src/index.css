@@ -9,43 +9,43 @@
 /* ── Design Tokens ───────────────────────────────────────────────────────── */
 
 :root {
-  /* Backgrounds */
-  --bg-base:        #0f1117;
-  --bg-sidebar:     #13161f;
-  --bg-content:     #0f1117;
-  --bg-card:        #1a1d27;
-  --bg-card-hover:  #1e2230;
-  --bg-selected:    #1e2a3d;
+  /* Backgrounds - WPS Light */
+  --bg-base:        #f3f4f6;
+  --bg-sidebar:     #f8f9fa;
+  --bg-content:     #ffffff;
+  --bg-card:        #ffffff;
+  --bg-card-hover:  #f8f9fa;
+  --bg-selected:    #e8f0fe;
 
   /* Borders */
-  --border:         rgba(255,255,255,0.07);
-  --border-hover:   rgba(255,255,255,0.12);
-  --border-accent:  rgba(79,125,248,0.35);
+  --border:         #e5e7eb;
+  --border-hover:   #d1d5db;
+  --border-accent:  rgba(37,99,235,0.3);
 
   /* Text */
-  --text-primary:   #eef0f8;
-  --text-secondary: #7e8ba8;
-  --text-muted:     #3d4a65;
+  --text-primary:   #1f2937;
+  --text-secondary: #4b5563;
+  --text-muted:     #9ca3af;
 
   /* Brand */
-  --accent:         #4f7df8;
-  --accent-hover:   #3d6ef0;
-  --accent-light:   rgba(79,125,248,0.12);
+  --accent:         #2563eb;
+  --accent-hover:   #1d4ed8;
+  --accent-light:   rgba(37,99,235,0.08);
 
   /* Status */
-  --green:          #22c55e;
-  --green-light:    rgba(34,197,94,0.10);
-  --green-border:   rgba(34,197,94,0.20);
-  --amber:          #f59e0b;
-  --amber-light:    rgba(245,158,11,0.10);
-  --amber-border:   rgba(245,158,11,0.20);
-  --red:            #ef4444;
-  --red-light:      rgba(239,68,68,0.10);
-  --red-border:     rgba(239,68,68,0.20);
-  --purple:         #8b5cf6;
-  --purple-light:   rgba(139,92,246,0.10);
-  --purple-border:  rgba(139,92,246,0.20);
-  --teal:           #14b8a6;
+  --green:          #16a34a;
+  --green-light:    rgba(22,163,74,0.1);
+  --green-border:   rgba(22,163,74,0.2);
+  --amber:          #d97706;
+  --amber-light:    rgba(217,119,6,0.1);
+  --amber-border:   rgba(217,119,6,0.2);
+  --red:            #dc2626;
+  --red-light:      rgba(220,38,38,0.1);
+  --red-border:     rgba(220,38,38,0.2);
+  --purple:         #7c3aed;
+  --purple-light:   rgba(124,58,237,0.1);
+  --purple-border:  rgba(124,58,237,0.2);
+  --teal:           #0d9488;
 
   /* Radius */
   --r-xs:  4px;
@@ -54,15 +54,15 @@
   --r-lg:  12px;
   --r-xl:  16px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 4px rgba(0,0,0,0.25);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.35);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.45);
+  /* Shadows - Light Theme */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
 
   /* Transition */
   --t: 0.15s ease;
 
-  /* ── Legacy aliases — existing pages still compile without changes ── */
+  /* Legacy aliases */
   --ds-bg:            var(--bg-base);
   --ds-bg2:           var(--bg-sidebar);
   --ds-bg3:           var(--bg-card);
@@ -92,7 +92,7 @@
   --ds-purple:        var(--purple);
   --ds-purple-bg:     var(--purple-light);
   --ds-teal:          var(--teal);
-  --ds-teal-bg:       rgba(20,184,166,0.10);
+  --ds-teal-bg:       rgba(13,148,136,0.10);
   --ds-radius:        var(--r-md);
   --ds-radius-sm:     var(--r-sm);
   --ds-radius-lg:     var(--r-lg);
@@ -100,6 +100,36 @@
   --ds-shadow:        var(--shadow-sm);
   --ds-shadow-lg:     var(--shadow-lg);
   --ds-transition:    var(--t);
+}
+
+:root.dark {
+  /* Backgrounds */
+  --bg-base:        #0f1117;
+  --bg-sidebar:     #13161f;
+  --bg-content:     #0f1117;
+  --bg-card:        #1a1d27;
+  --bg-card-hover:  #1e2230;
+  --bg-selected:    #1e2a3d;
+
+  /* Borders */
+  --border:         rgba(255,255,255,0.07);
+  --border-hover:   rgba(255,255,255,0.12);
+  --border-accent:  rgba(79,125,248,0.35);
+
+  /* Text */
+  --text-primary:   #eef0f8;
+  --text-secondary: #7e8ba8;
+  --text-muted:     #3d4a65;
+
+  /* Brand */
+  --accent:         #4f7df8;
+  --accent-hover:   #3d6ef0;
+  --accent-light:   rgba(79,125,248,0.12);
+
+  /* Shadows - Dark Theme */
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.35);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.45);
 }
 
 /* ── Base Reset ──────────────────────────────────────────────────────────── */
@@ -599,7 +629,8 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); }
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  transition: border-color var(--t), transform var(--t);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--t), transform var(--t), box-shadow var(--t);
 }
 
 .ds-card:hover { border-color: var(--border-hover); }

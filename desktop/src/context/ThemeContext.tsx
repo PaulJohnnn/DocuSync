@@ -59,8 +59,8 @@ export interface ThemeContextValue {
 // Context
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'docusync_theme';
-const DEFAULT_THEME: Theme = 'dark';
+const STORAGE_KEY = 'docusync_theme_v4';
+const DEFAULT_THEME: Theme = 'light';
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
