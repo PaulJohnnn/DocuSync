@@ -102,35 +102,7 @@
   --ds-transition:    var(--t);
 }
 
-:root.dark {
-  /* Backgrounds */
-  --bg-base:        #0f1117;
-  --bg-sidebar:     #13161f;
-  --bg-content:     #0f1117;
-  --bg-card:        #1a1d27;
-  --bg-card-hover:  #1e2230;
-  --bg-selected:    #1e2a3d;
 
-  /* Borders */
-  --border:         rgba(255,255,255,0.07);
-  --border-hover:   rgba(255,255,255,0.12);
-  --border-accent:  rgba(79,125,248,0.35);
-
-  /* Text */
-  --text-primary:   #eef0f8;
-  --text-secondary: #7e8ba8;
-  --text-muted:     #3d4a65;
-
-  /* Brand */
-  --accent:         #4f7df8;
-  --accent-hover:   #3d6ef0;
-  --accent-light:   rgba(79,125,248,0.12);
-
-  /* Shadows - Dark Theme */
-  --shadow-sm: 0 1px 4px rgba(0,0,0,0.25);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.35);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.45);
-}
 
 /* ── Base Reset ──────────────────────────────────────────────────────────── */
 
