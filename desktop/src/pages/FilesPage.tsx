@@ -8,7 +8,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import { toast } from 'sonner';
-import { FolderOpen, RefreshCw, ChevronRight } from 'lucide-react';
+import { FolderOpen, RefreshCw, ChevronRight, Eye, EyeOff } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -143,6 +143,7 @@ const FilesPage: React.FC = () => {
   const [openedFiles, setOpenedFiles] = useState<OpenedFile[]>([]);
   const [opening, setOpening] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [showMetrics, setShowMetrics] = useState(false);
   const SESSION_KEY = 'docusync_opened_files';
   const mountedRef = useRef(false);
 
@@ -206,6 +207,10 @@ const FilesPage: React.FC = () => {
         <span className="ds-topbar-sep" />
         <span className="ds-topbar-subtitle">Open documents for P2P sync</span>
         <div className="ds-topbar-actions">
+          <button className="ds-btn ds-btn-ghost" onClick={() => setShowMetrics(!showMetrics)}>
+            {showMetrics ? <EyeOff size={13} /> : <Eye size={13} />}
+            {showMetrics ? 'Hide Stats' : 'Show Stats'}
+          </button>
           <button id="btn-sync" className="ds-btn ds-btn-ghost" onClick={handleSync} disabled={syncing}>
             <RefreshCw size={13} className={syncing ? 'ds-spin' : ''} />
             Sync Now
@@ -221,28 +226,30 @@ const FilesPage: React.FC = () => {
       <div className="ds-main-scroll ds-page-enter">
 
         {/* Metric cards */}
-        <div className="ds-metrics-grid">
-          {metrics.map((m) => (
-            <div key={m.label} className="ds-metric-card">
-              <div className="ds-metric-label">
-                <span className="ds-metric-dot" style={{ background: m.dotColor }} />
-                {m.label}
+        {showMetrics && (
+          <div className="ds-metrics-grid">
+            {metrics.map((m) => (
+              <div key={m.label} className="ds-metric-card">
+                <div className="ds-metric-label">
+                  <span className="ds-metric-dot" style={{ background: m.dotColor }} />
+                  {m.label}
+                </div>
+                <div
+                  className="ds-metric-value"
+                  style={{
+                    color: (m as any).valueColor ?? 'var(--text-primary)',
+                    fontSize: (m as any).isText ? 14 : undefined,
+                    textTransform: (m as any).isText ? 'capitalize' : undefined,
+                    paddingTop: (m as any).isText ? 6 : undefined,
+                  }}
+                >
+                  {m.value}
+                </div>
+                <div className="ds-metric-desc">{m.desc}</div>
               </div>
-              <div
-                className="ds-metric-value"
-                style={{
-                  color: (m as any).valueColor ?? 'var(--text-primary)',
-                  fontSize: (m as any).isText ? 14 : undefined,
-                  textTransform: (m as any).isText ? 'capitalize' : undefined,
-                  paddingTop: (m as any).isText ? 6 : undefined,
-                }}
-              >
-                {m.value}
-              </div>
-              <div className="ds-metric-desc">{m.desc}</div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* File list */}
         {openedFiles.length === 0 ? (

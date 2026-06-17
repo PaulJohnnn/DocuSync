@@ -421,7 +421,7 @@ export function registerIPCHandlers(services: EngineServices): void {
           fileName: path.basename(filePath),
           content,
           extension: ext.replace('.', ''),
-          sizeBytes: Buffer.byteLength(content, 'utf-8'),
+          contentLength: Buffer.byteLength(content, 'utf-8'),
         };
       }
 
@@ -472,7 +472,7 @@ export function registerIPCHandlers(services: EngineServices): void {
         fileName: path.basename(filePath),
         content,
         extension: ext,
-        sizeBytes: Buffer.byteLength(content, 'utf-8'),
+        contentLength: Buffer.byteLength(content, 'utf-8'),
       };
     })
   );
