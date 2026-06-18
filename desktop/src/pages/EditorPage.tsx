@@ -119,6 +119,48 @@ const EditorPage: React.FC = () => {
 
   const loadFile = useCallback(async () => {
     if (fileId === null) { setLoadError('Invalid file ID.'); setLoading(false); return; }
+    
+      const mockMap: Record<number, { path: string; content: string }> = {
+        101: { 
+          path: 'C:/Users/Paul John Palamara/Documents/ProjectProposal.docx', 
+          content: '<h2>📄 Word Document (.docx)</h2><p><strong>Use Case:</strong> Formal reports, essays, proposals, and structured business documents.</p><p><strong>DocuSync Behavior:</strong> This file represents a rich-text document. DocuSync extracts the raw text and formatting (like <strong>bold</strong>, <em>italics</em>, and headers) and allows real-time collaborative editing using Delta Encoding.</p><blockquote>"A successful thesis proposal requires clear architecture and robust synchronization logic."</blockquote>' 
+        },
+        102: { 
+          path: 'C:/Users/Paul John Palamara/Documents/Notes.md', 
+          content: '<h2>📝 Markdown File (.md)</h2><p><strong>Use Case:</strong> Developer documentation, README files, quick meeting notes, and knowledge base articles.</p><p><strong>DocuSync Behavior:</strong> Markdown is natively supported. It remains lightweight and is perfectly suited for DocuSync\'s CRDT (Conflict-Free Replicated Data Type) engine for high-speed P2P syncing.</p><ul><li>Supports lists</li><li>Supports code blocks</li><li>Extremely fast delta resolution</li></ul>' 
+        },
+        103: { 
+          path: 'C:/Users/Paul John Palamara/Downloads/Data_Export.csv', 
+          content: '<h2>📊 Comma-Separated Values (.csv)</h2><p><strong>Use Case:</strong> Tabular data exports, database backups, and spreadsheet data (Excel/Google Sheets).</p><p><strong>DocuSync Behavior:</strong> Since CSV is pure UTF-8 text, DocuSync can safely synchronize row changes. Each line represents a data record.</p><pre><code>id,first_name,last_name,role,sync_status\n1,Paul John,Palamara,Admin,Synced\n2,John,Doe,User,Pending\n3,Jane,Smith,Editor,Conflict</code></pre>' 
+        },
+        104: { 
+          path: 'C:/Users/Paul John Palamara/Projects/DocuSync/package.json', 
+          content: '<h2>⚙️ JSON Configuration (.json)</h2><p><strong>Use Case:</strong> Application configuration, API payloads, and dependency management (like NPM).</p><p><strong>DocuSync Behavior:</strong> DocuSync handles structured data effortlessly. You can safely co-edit JSON files without breaking the syntax thanks to precise line-level delta tracking.</p><pre><code>{\n  "name": "docusync-core",\n  "version": "1.0.0",\n  "description": "Hybrid P2P Synchronization Engine",\n  "author": "Palamara, Paul John G.",\n  "license": "MIT"\n}</code></pre>' 
+        },
+        105: { 
+          path: 'C:/Users/Paul John Palamara/Projects/DocuSync/index.tsx', 
+          content: '<h2>💻 React Source Code (.tsx)</h2><p><strong>Use Case:</strong> Frontend application logic, UI components, and TypeScript codebases.</p><p><strong>DocuSync Behavior:</strong> Perfect for pair-programming! DocuSync syncs code changes instantly across peers. It treats source code as a continuous stream of text, preventing merge conflicts during active development.</p><pre><code>import React from "react";\nimport { useElectronSync } from "@/context/ElectronSyncContext";\n\nexport default function App() {\n  const { syncStatus } = useElectronSync();\n  return (\n    &lt;div className="app"&gt;\n      &lt;h1&gt;DocuSync is running&lt;/h1&gt;\n      &lt;p&gt;Status: {syncStatus}&lt;/p&gt;\n    &lt;/div&gt;\n  );\n}</code></pre>' 
+        },
+        106: { 
+          path: 'C:/Users/Paul John Palamara/Pictures/Architecture.png', 
+          content: '<h2>🖼️ Image File (.png) — Rejected Format</h2><p><strong>Use Case:</strong> Graphics, architecture diagrams, photographs, and UI mockups.</p><p><strong>DocuSync Behavior:</strong> ❌ <em>Delta Encoding Not Applicable</em>. Because this is a compiled binary file rather than plain text, mathematical delta algorithms cannot accurately splice changes. Opening binary files will result in read-only mode or rejection by the engine.</p>' 
+        },
+        107: { 
+          path: 'C:/Users/Paul John Palamara/Downloads/Archive.zip', 
+          content: '<h2>📦 Compressed Archive (.zip) — Rejected Format</h2><p><strong>Use Case:</strong> Zipped folders, compressed backups, and packaged executables.</p><p><strong>DocuSync Behavior:</strong> ❌ <em>Delta Encoding Not Applicable</em>. This is a highly compressed binary blob. Attempting to sync byte-level changes in a ZIP file would corrupt the archive. DocuSync actively blocks binary formats to protect data integrity.</p>' 
+        },
+      };
+      
+      const mock = mockMap[fileId];
+      if (mock) {
+        setFilePath(mock.path);
+        if (editor) editor.commands.setContent(mock.content);
+        setLoading(false);
+        return;
+      }
+    }
+    // ------------------------------
+
     if (!window.docuSync) { setLoadError('IPC bridge not available.'); setLoading(false); return; }
     setLoading(true); setLoadError(null);
     try {

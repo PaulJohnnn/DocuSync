@@ -1,0 +1,6 @@
+Respondent,Platform,SyncLatencyMs,ConflictDetected,Resolution
+R001,Desktop,1.42,No,N/A
+R002,Web,1.58,Yes,LWW-Auto
+R003,Mobile,1.61,No,N/A
+R004,Desktop,1.39,Yes,Owner-Resolved
+R005,Web,1.55,No,N/A

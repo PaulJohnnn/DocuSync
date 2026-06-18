@@ -8,10 +8,11 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   SafeAreaView, Alert,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { Colors } from '../constants/Colors';
+import { useTheme } from '../context/ThemeContext';
+import LogoIcon from '../components/LogoIcon';
 
 interface FileRecord {
   id: string;
@@ -52,18 +53,19 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
-function statusMeta(status: string): { label: string; color: string; bg: string; border: string } {
+function statusMeta(status: string, colors: any): { label: string; color: string; bg: string; border: string } {
   switch (status) {
-    case 'synced':   return { label: '● Synced',  color: Colors.green, bg: Colors.greenLight, border: 'rgba(34,197,94,0.20)'  };
-    case 'syncing':  return { label: '↻ Syncing', color: Colors.amber, bg: Colors.amberLight, border: 'rgba(245,158,11,0.20)' };
-    case 'conflict': return { label: '⚠ Conflict', color: Colors.red,   bg: Colors.redLight,   border: 'rgba(239,68,68,0.20)'  };
-    default:         return { label: status,        color: Colors.textMuted, bg: Colors.border, border: Colors.border };
+    case 'synced':   return { label: '● Synced',  color: colors.green, bg: colors.greenLight, border: 'rgba(34,197,94,0.20)'  };
+    case 'syncing':  return { label: '↻ Syncing', color: colors.amber, bg: colors.amberLight, border: 'rgba(245,158,11,0.20)' };
+    case 'conflict': return { label: '⚠ Conflict', color: colors.red,   bg: colors.redLight,   border: 'rgba(239,68,68,0.20)'  };
+    default:         return { label: status,        color: colors.textMuted, bg: colors.border, border: colors.border };
   }
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function FilesScreen({ navigation }: any) {
+  const { colors } = useTheme();
   const [files, setFiles] = useState<FileRecord[]>([]);
 
   useEffect(() => { loadFiles(); }, []);
@@ -74,7 +76,19 @@ export default function FilesScreen({ navigation }: any) {
 
   const loadFiles = async () => {
     const stored = await AsyncStorage.getItem('@docusync/files');
-    if (stored) setFiles(JSON.parse(stored));
+    if (stored) {
+      setFiles(JSON.parse(stored));
+    } else {
+      // Inject demo files
+      const demoFiles: FileRecord[] = [
+        { id: 'demo-1', name: 'project-proposal.md', type: 'text/markdown', size: 1024 * 12, content: '# Proposal', status: 'synced', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: 'demo-2', name: 'budget-2024.csv', type: 'text/csv', size: 1024 * 45, content: 'Q1,Q2', status: 'syncing', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: 'demo-3', name: 'auth-config.json', type: 'application/json', size: 512, content: '{}', status: 'conflict', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: 'demo-4', name: 'Thesis_Final_Draft.docx', type: 'application/msword', size: 1024 * 1500, content: '...', status: 'synced', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+      ];
+      setFiles(demoFiles);
+      await AsyncStorage.setItem('@docusync/files', JSON.stringify(demoFiles));
+    }
   };
 
   const saveFiles = async (newFiles: FileRecord[]) => {
@@ -114,18 +128,17 @@ export default function FilesScreen({ navigation }: any) {
     ]);
   };
 
-  // ── File Card ──────────────────────────────────────────────────────────────
-
   const renderFile = ({ item }: { item: FileRecord }) => {
     const ext   = extMeta(item.name);
-    const st    = statusMeta(item.status);
+    const st    = statusMeta(item.status, colors);
     const isConflict = item.status === 'conflict';
 
     return (
       <TouchableOpacity
         style={[
           styles.fileCard,
-          isConflict && { borderColor: 'rgba(239,68,68,0.25)', borderLeftWidth: 3, borderLeftColor: Colors.red },
+          { borderBottomColor: colors.border },
+          isConflict && { borderLeftWidth: 3, borderLeftColor: colors.red },
         ]}
         onPress={() => navigation.navigate('Editor', { fileId: item.id })}
         onLongPress={() => deleteFile(item.id)}
@@ -139,32 +152,39 @@ export default function FilesScreen({ navigation }: any) {
         </View>
 
         {/* File info */}
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.fileName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.filePath} numberOfLines={1}>{formatBytes(item.size)} · {new Date(item.updatedAt).toLocaleDateString()}</Text>
-          {/* Status tag */}
-          <View style={[styles.statusTag, { backgroundColor: st.bg, borderColor: st.border }]}>
-            <Text style={[styles.statusTagText, { color: st.color }]}>{st.label}</Text>
+        <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flex: 1, paddingRight: 8 }}>
+            <Text style={styles.fileName} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.filePath} numberOfLines={1}>{formatBytes(item.size)}</Text>
+          </View>
+          <View style={{ width: 80, alignItems: 'flex-end' }}>
+             {/* Status tag */}
+            {st.label === '● Synced' ? (
+               <Text style={{ fontSize: 11, color: colors.green, fontWeight: '500' }}>✓ Synced</Text>
+            ) : (
+               <Text style={{ fontSize: 11, color: st.color, fontWeight: '500' }}>{st.label}</Text>
+            )}
           </View>
         </View>
 
         {/* Chevron */}
-        <Text style={{ color: Colors.textMuted, fontSize: 16, marginLeft: 4 }}>›</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 16, marginLeft: 8 }}>›</Text>
       </TouchableOpacity>
     );
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={[styles.root, { backgroundColor: colors.bgBase }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>DocuSync</Text>
-          <Text style={styles.subtitle}>{files.length} file{files.length !== 1 ? 's' : ''} tracked</Text>
+      <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.bgBase }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <LogoIcon size={32} />
+          <View>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>DocuSync</Text>
+            <Text style={[styles.subtitle, { color: colors.textMuted }]}>{files.length} file{files.length !== 1 ? 's' : ''} tracked</Text>
+          </View>
         </View>
-        <TouchableOpacity style={styles.openBtn} onPress={openFile} activeOpacity={0.8}>
+        <TouchableOpacity style={[styles.openBtn, { backgroundColor: colors.accent }]} onPress={openFile} activeOpacity={0.8}>
           <Text style={styles.openBtnText}>+ Open File</Text>
         </TouchableOpacity>
       </View>
@@ -172,19 +192,22 @@ export default function FilesScreen({ navigation }: any) {
       {/* Content */}
       {files.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>📁</Text>
-          <Text style={styles.emptyTitle}>No files yet</Text>
-          <Text style={styles.emptySubtext}>Tap "Open File" to add documents</Text>
+          <Text style={styles.emptyIcon}>📂</Text>
+          <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No files yet</Text>
+          <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>Tap "Open File" to add documents</Text>
         </View>
       ) : (
-        <FlatList
-          data={files}
-          keyExtractor={f => f.id}
-          renderItem={renderFile}
-          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
-          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-          showsVerticalScrollIndicator={false}
-        />
+        <View style={{ padding: 16, flex: 1 }}>
+          <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 8, letterSpacing: 0.5 }}>OPEN DOCUMENTS</Text>
+          <View style={[styles.tableContainer, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <FlatList
+              data={files}
+              keyExtractor={f => f.id}
+              renderItem={renderFile}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -232,20 +255,27 @@ const styles = StyleSheet.create({
   },
 
   // File card
+  tableContainer: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
+  },
   fileCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: Colors.bgCard,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 14,
-    padding: 16,
+    backgroundColor: 'transparent',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   extIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,

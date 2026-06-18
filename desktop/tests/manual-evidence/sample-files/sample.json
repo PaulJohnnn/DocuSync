@@ -1,0 +1,12 @@
+{
+  "nodeId": "test-node-001",
+  "wsPort": 9000,
+  "maxPeers": 15,
+  "chunkSizeBytes": 4194304,
+  "syncIntervalMs": 400,
+  "conflictPolicy": "lww-owner-escalation",
+  "supportedExtensions": [
+    "txt", "md", "docx", "rtf", "csv", 
+    "json", "xml", "html", "tex"
+  ]
+}

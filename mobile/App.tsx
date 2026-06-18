@@ -8,6 +8,8 @@ import FilesScreen     from './screens/FilesScreen';
 import ConflictsScreen from './screens/ConflictsScreen';
 import PeersScreen     from './screens/PeersScreen';
 import MetricsScreen   from './screens/MetricsScreen';
+import SettingsScreen  from './screens/SettingsScreen';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 const Tab = createBottomTabNavigator();
 
@@ -18,25 +20,23 @@ const TAB_ICONS: Record<string, string> = {
   Conflicts: '⚡',
   Peers:     '🔗',
   Metrics:   '📊',
+  Settings:  '⚙️',
 };
 
 function TabIcon({ name, color, focused }: { name: string; color: string; focused: boolean }) {
+  const { colors } = useTheme();
   return (
-    <View style={tabIconStyles.wrap}>
+    <View style={{ alignItems: 'center', gap: 3 }}>
       <Text style={{ fontSize: 22, color }}>{TAB_ICONS[name] ?? '●'}</Text>
-      {focused && <View style={tabIconStyles.dot} />}
+      {focused && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accent }} />}
     </View>
   );
 }
 
-const tabIconStyles = StyleSheet.create({
-  wrap: { alignItems: 'center', gap: 3 },
-  dot:  { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.accent },
-});
-
 // ── App ───────────────────────────────────────────────────────────────────
 
-export default function App() {
+function MainApp() {
+  const { colors } = useTheme();
   return (
     <NavigationContainer>
       <Tab.Navigator
@@ -44,8 +44,8 @@ export default function App() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon name={route.name} color={color} focused={focused} />
           ),
-          tabBarActiveTintColor:   Colors.accent,
-          tabBarInactiveTintColor: Colors.textMuted,
+          tabBarActiveTintColor:   colors.accent,
+          tabBarInactiveTintColor: colors.textMuted,
           tabBarShowLabel: true,
           tabBarLabelStyle: {
             fontSize:     10,
@@ -53,14 +53,13 @@ export default function App() {
             marginBottom: 4,
           },
           tabBarStyle: {
-            backgroundColor: Colors.bgCard,
-            borderTopColor:  Colors.border,
+            backgroundColor: colors.bgCard,
+            borderTopColor:  colors.border,
             borderTopWidth:  1,
             height:          60,
             paddingTop:      6,
             paddingBottom:   8,
           },
-          // Custom header replaced by per-screen headers
           headerShown: false,
         })}
       >
@@ -68,7 +67,16 @@ export default function App() {
         <Tab.Screen name="Conflicts" component={ConflictsScreen} />
         <Tab.Screen name="Peers"     component={PeersScreen}     />
         <Tab.Screen name="Metrics"   component={MetricsScreen}   />
+        <Tab.Screen name="Settings"  component={SettingsScreen}  />
       </Tab.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <MainApp />
+    </ThemeProvider>
   );
 }

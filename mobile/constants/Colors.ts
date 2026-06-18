@@ -1,24 +1,15 @@
-export const Colors = {
-  // Backgrounds
+export const darkColors = {
   bgBase:        '#0a0e18',
   bgCard:        '#111827',
   bgCardHover:   '#1a2235',
   bgSelected:    '#1e2a3d',
-
-  // Borders
   border:        'rgba(255,255,255,0.08)',
   borderAccent:  'rgba(79,125,248,0.35)',
-
-  // Text
   textPrimary:   '#eef0f8',
   textSecondary: '#7e8ba8',
   textMuted:     '#3d4a65',
-
-  // Brand
   accent:        '#4f7df8',
   accentLight:   'rgba(79,125,248,0.12)',
-
-  // Status
   green:         '#22c55e',
   greenLight:    'rgba(34,197,94,0.10)',
   amber:         '#f59e0b',
@@ -28,24 +19,30 @@ export const Colors = {
   purple:        '#8b5cf6',
   teal:          '#14b8a6',
   white:         '#ffffff',
-
-  // ── Legacy aliases — screens that still reference old keys compile fine ──
-  bg:   '#0a0e18',
-  bg2:  '#111827',
-  bg3:  '#1a2235',
-  s1:   '#111827',
-  s2:   '#1a2235',
-  b1:   'rgba(255,255,255,0.08)',
-  b2:   'rgba(255,255,255,0.12)',
-  b3:   'rgba(79,125,248,0.35)',
-  t1:   '#eef0f8',
-  t2:   '#7e8ba8',
-  t3:   '#3d4a65',
-  acc:  '#4f7df8',
-  acc2: '#3d6ef0',
-  grn:  '#22c55e',
-  amb:  '#f59e0b',
-  red:  '#ef4444',
-  pur:  '#8b5cf6',
-  tel:  '#14b8a6',
 };
+
+export const lightColors = {
+  bgBase:        '#f3f4f6',
+  bgCard:        '#ffffff',
+  bgCardHover:   '#f8f9fa',
+  bgSelected:    '#e8f0fe',
+  border:        '#e5e7eb',
+  borderAccent:  'rgba(37,99,235,0.3)',
+  textPrimary:   '#1f2937',
+  textSecondary: '#4b5563',
+  textMuted:     '#9ca3af',
+  accent:        '#2563eb',
+  accentLight:   'rgba(37,99,235,0.08)',
+  green:         '#16a34a',
+  greenLight:    'rgba(22,163,74,0.1)',
+  amber:         '#d97706',
+  amberLight:    'rgba(217,119,6,0.1)',
+  red:           '#dc2626',
+  redLight:      'rgba(220,38,38,0.1)',
+  purple:        '#7c3aed',
+  teal:          '#0d9488',
+  white:         '#ffffff',
+};
+
+// Default fallback to prevent instant crashes on old imports
+export const Colors = darkColors;

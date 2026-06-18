@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+:root, .dark {
   --bg: #0d1117;
   --bg2: #131929;
   --bg3: #1a2235;
@@ -29,6 +29,35 @@
   --rdbr: rgba(232,72,72,.22);
   --pur: #9b6ff5;
   --tel: #18c7b4;
+}
+
+.light {
+  --bg: #f3f4f6;
+  --bg2: #f8f9fa;
+  --bg3: #ffffff;
+  --s1: #ffffff;
+  --s2: #f4f5f8;
+  --b1: #e5e7eb;
+  --b2: #d1d5db;
+  --b3: #9ca3af;
+  --t1: #1f2937;
+  --t2: #4b5563;
+  --t3: #9ca3af;
+  --acc: #2563eb;
+  --acc2: #1d4ed8;
+  --acb: rgba(37,99,235,.08);
+  --acbr: rgba(37,99,235,.30);
+  --grn: #16a34a;
+  --grb: rgba(22,163,74,.10);
+  --grbr: rgba(22,163,74,.25);
+  --amb: #d97706;
+  --abb: rgba(217,119,6,.10);
+  --abbr: rgba(217,119,6,.25);
+  --red: #dc2626;
+  --rdb: rgba(220,38,38,.10);
+  --rdbr: rgba(220,38,38,.25);
+  --pur: #7c3aed;
+  --tel: #0d9488;
 }
 
 * {

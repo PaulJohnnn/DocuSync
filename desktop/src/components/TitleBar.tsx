@@ -4,7 +4,8 @@
  */
 import React from 'react';
 import { useElectronSync } from '@/context/ElectronSyncContext';
-import { Cpu } from 'lucide-react';
+import { useTheme } from '@/context/ThemeContext';
+import { Cpu, Moon, Sun } from 'lucide-react';
 
 interface TitleBarProps {
   isRightPanelOpen?: boolean;
@@ -13,6 +14,7 @@ interface TitleBarProps {
 
 const TitleBar: React.FC<TitleBarProps> = ({ isRightPanelOpen, onToggleRightPanel }) => {
   const { syncStatus } = useElectronSync();
+  const { theme, toggleTheme } = useTheme();
 
   const dotColor =
     syncStatus === 'idle'     ? 'var(--green)' :
@@ -30,19 +32,33 @@ const TitleBar: React.FC<TitleBarProps> = ({ isRightPanelOpen, onToggleRightPane
 
   return (
     <div className="ds-titlebar">
-      {/* Traffic lights */}
-      <div className="ds-titlebar-dots">
-        <div className="ds-titlebar-dot" style={{ background: '#ff5f56' }} />
-        <div className="ds-titlebar-dot" style={{ background: '#febc2e' }} />
-        <div className="ds-titlebar-dot" style={{ background: '#28c840' }} />
-      </div>
+      {/* Traffic lights removed as per request */}
 
       {/* Centered app name */}
       <div className="ds-titlebar-title">DocuSync</div>
 
       {/* Sync status pill */}
       <div className="ds-titlebar-right">
-        <div className="ds-titlebar-status" style={{ color: dotColor }}>
+        <button
+          className="ds-btn ds-btn-ghost"
+          style={{
+            width: 26,
+            height: 26,
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 'var(--r-sm)',
+            border: 'none',
+            color: 'var(--text-secondary)'
+          }}
+          onClick={toggleTheme}
+          title="Toggle Dark Mode"
+        >
+          {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+        </button>
+
+        <div className="ds-titlebar-status" style={{ color: dotColor, marginLeft: 6 }}>
           <span
             className="ds-titlebar-status-dot"
             style={{

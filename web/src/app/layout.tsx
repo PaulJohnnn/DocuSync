@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import ThemeProvider from '@/components/ThemeProvider';
 
 export const metadata: Metadata = {
   title: "DocuSync — Web Edition",
@@ -12,15 +13,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body>
-        <div style={{
-          display: 'flex',
-          height: '100vh',
-          overflow: 'hidden',
-        }}>
-          {children}
-        </div>
+        <ThemeProvider>
+          <div style={{
+            display: 'flex',
+            height: '100vh',
+            overflow: 'hidden',
+          }}>
+            {children}
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );

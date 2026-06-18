@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  FolderOpen, FileEdit, AlertTriangle, Clock, Users, BarChart3, Wifi
+  FolderOpen, FileEdit, AlertTriangle, Clock, Users, BarChart3, Wifi, Settings
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: '/history/all', label: 'History', icon: Clock },
   { href: '/peers', label: 'Peers', icon: Users },
   { href: '/metrics', label: 'Metrics', icon: BarChart3 },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function Sidebar() {
@@ -41,17 +42,25 @@ export default function Sidebar() {
     }}>
       {/* Logo */}
       <div style={{ padding: '0 16px', marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <img
-            src="/docusync-logo.svg"
-            width={28}
-            height={28}
-            alt="DocuSync logo"
-            style={{ display: 'block', flexShrink: 0 }}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--b1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <img
+              src="/docusync-logo.svg"
+              width={20}
+              height={20}
+              alt="DocuSync logo"
+              style={{ display: 'block', flexShrink: 0 }}
+            />
+          </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)' }}>DocuSync</div>
-            <div style={{ fontSize: 10, color: 'var(--t3)', letterSpacing: 1, textTransform: 'uppercase' }}>Web Edition</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)', lineHeight: 1.2 }}>DocuSync</div>
+            <div style={{
+              display: 'inline-block', marginTop: 3,
+              background: 'var(--acb)', borderRadius: 20,
+              padding: '2px 8px', fontSize: 10, color: 'var(--t2)',
+            }}>
+              Hybrid P2P Engine
+            </div>
           </div>
         </div>
       </div>

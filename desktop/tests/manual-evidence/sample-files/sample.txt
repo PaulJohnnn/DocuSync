@@ -1,0 +1,10 @@
+DocuSync Plain Text Test File
+==============================
+
+This file tests the basic text synchronization
+pathway using Log-Based Synchronization and 
+Vector Clocks for causal ordering.
+
+Researcher: Paul John G. Palamara
+Institution: Pamantasan ng Cabuyao
+Date: 2026

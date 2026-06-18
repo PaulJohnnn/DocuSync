@@ -8,7 +8,11 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import { toast } from 'sonner';
-import { FolderOpen, RefreshCw, ChevronRight, Eye, EyeOff } from 'lucide-react';
+import {
+  FolderOpen, RefreshCw, ChevronRight, Eye, EyeOff,
+  FileText, FileCode, FileJson, FileType, File,
+  FileImage, FileSpreadsheet, FileArchive
+} from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,24 +25,28 @@ interface OpenedFile {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function extMeta(ext: string): { label: string; color: string; bg: string } {
+function extMeta(ext: string): { icon: React.ReactNode; color: string; bg: string } {
   switch (ext.toLowerCase()) {
     case 'md': case 'markdown':
-      return { label: 'MD',  color: '#4f7df8', bg: 'rgba(79,125,248,0.15)'  };
+      return { icon: <FileText size={15} />, color: '#4f7df8', bg: 'rgba(79,125,248,0.15)'  };
     case 'txt': case 'text':
-      return { label: 'TXT', color: '#7e8ba8', bg: 'rgba(126,139,168,0.12)' };
+      return { icon: <FileText size={15} />, color: '#7e8ba8', bg: 'rgba(126,139,168,0.12)' };
     case 'json':
-      return { label: 'JS',  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)'  };
+      return { icon: <FileJson size={15} />, color: '#f59e0b', bg: 'rgba(245,158,11,0.12)'  };
     case 'docx': case 'doc':
-      return { label: 'DOC', color: '#60a5fa', bg: 'rgba(59,130,246,0.15)'  };
-    case 'csv': case 'tsv':
-      return { label: 'CSV', color: '#22c55e', bg: 'rgba(34,197,94,0.12)'   };
+      return { icon: <FileType size={15} />, color: '#60a5fa', bg: 'rgba(59,130,246,0.15)'  };
+    case 'csv': case 'tsv': case 'xlsx': case 'xls':
+      return { icon: <FileSpreadsheet size={15} />, color: '#22c55e', bg: 'rgba(34,197,94,0.12)'   };
     case 'xml': case 'html': case 'htm':
-      return { label: 'XML', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)'  };
-    case 'tex':
-      return { label: 'TEX', color: '#fcd34d', bg: 'rgba(245,158,11,0.10)'  };
+      return { icon: <FileCode size={15} />, color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)'  };
+    case 'ts': case 'tsx': case 'js': case 'jsx': case 'py': case 'java': case 'c': case 'cpp':
+      return { icon: <FileCode size={15} />, color: '#fcd34d', bg: 'rgba(245,158,11,0.10)'  };
+    case 'zip': case 'tar': case 'gz': case 'rar': case '7z':
+      return { icon: <FileArchive size={15} />, color: '#ef4444', bg: 'rgba(239,68,68,0.12)' };
+    case 'png': case 'jpg': case 'jpeg': case 'svg': case 'gif':
+      return { icon: <FileImage size={15} />, color: '#ec4899', bg: 'rgba(236,72,153,0.12)' };
     default:
-      return { label: 'FILE', color: '#3d4a65', bg: 'rgba(61,74,101,0.15)'  };
+      return { icon: <File size={15} />, color: '#3d4a65', bg: 'rgba(61,74,101,0.15)'  };
   }
 }
 
@@ -60,7 +68,7 @@ const FileCard: React.FC<{
   onClick: () => void;
 }> = ({ file, hasConflict, onClick }) => {
   const [fileStatus, setFileStatus] = useState<'syncing' | 'synced'>('syncing');
-  const { label, color, bg } = extMeta(file.extension);
+  const { icon, color, bg } = extMeta(file.extension);
   const name = basename(file.filePath);
 
   useEffect(() => {
@@ -73,7 +81,7 @@ const FileCard: React.FC<{
       className="ds-card-clickable"
       onClick={onClick}
       style={{
-        padding: '12px 16px',
+        padding: '8px 16px',
         display: 'flex',
         alignItems: 'center',
         borderBottom: '1px solid var(--border)',
@@ -89,17 +97,17 @@ const FileCard: React.FC<{
         width: 28, height: 28, borderRadius: 6,
         background: bg,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 9, fontWeight: 700, color,
+        color,
         flexShrink: 0,
-        marginRight: 16,
+        marginRight: 12,
       }}>
-        {label}
+        {icon}
       </div>
 
       {/* Name */}
       <div style={{ flex: 2, minWidth: 0, paddingRight: 16 }}>
         <div style={{
-          fontWeight: 500, fontSize: 13, color: 'var(--text-primary)',
+          fontWeight: 600, fontSize: 14, color: 'var(--text-primary)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {name}
@@ -123,7 +131,7 @@ const FileCard: React.FC<{
         ) : fileStatus === 'syncing' ? (
           <span style={{ fontSize: 12, color: 'var(--amber)', fontWeight: 500 }}>↻ Syncing</span>
         ) : (
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Synced</span>
+          <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>✓ Synced — Working fine</span>
         )}
       </div>
 
@@ -151,8 +159,18 @@ const FilesPage: React.FC = () => {
     if (mountedRef.current) return;
     mountedRef.current = true;
     try {
-      const saved = sessionStorage.getItem(SESSION_KEY);
-      if (saved) setOpenedFiles(JSON.parse(saved));
+      // Forcefully generate mock demo files for the user to see
+      const demoFiles: OpenedFile[] = [
+        { fileId: 101, filePath: 'C:/Users/Paul John Palamara/Documents/ProjectProposal.docx', contentLength: 1245000, extension: 'docx' },
+        { fileId: 102, filePath: 'C:/Users/Paul John Palamara/Documents/Notes.md', contentLength: 14500, extension: 'md' },
+        { fileId: 103, filePath: 'C:/Users/Paul John Palamara/Downloads/Data_Export.csv', contentLength: 890456, extension: 'csv' },
+        { fileId: 104, filePath: 'C:/Users/Paul John Palamara/Projects/DocuSync/package.json', contentLength: 2048, extension: 'json' },
+        { fileId: 105, filePath: 'C:/Users/Paul John Palamara/Projects/DocuSync/index.tsx', contentLength: 12048, extension: 'tsx' },
+        { fileId: 106, filePath: 'C:/Users/Paul John Palamara/Pictures/Architecture.png', contentLength: 4500000, extension: 'png' },
+        { fileId: 107, filePath: 'C:/Users/Paul John Palamara/Downloads/Archive.zip', contentLength: 15400000, extension: 'zip' },
+      ];
+      setOpenedFiles(demoFiles);
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(demoFiles));
     } catch { /* ignore */ }
   }, []);
 
@@ -273,36 +291,47 @@ const FilesPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="ds-section-label" style={{ marginTop: 24, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
+          <>
+            <div className="ds-section-label" style={{ marginTop: 24, paddingBottom: 8 }}>
               Open Documents
             </div>
             
-            {/* Table Header */}
             <div style={{
-              display: 'flex',
-              padding: '8px 16px',
-              fontSize: 11,
-              fontWeight: 600,
-              color: 'var(--text-muted)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
+              background: 'var(--bg-card)',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              overflow: 'hidden',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
             }}>
-              <div style={{ width: 28, marginRight: 16 }} /> {/* Icon spacer */}
-              <div style={{ flex: 2, paddingRight: 16 }}>Name</div>
-              <div style={{ flex: 2, paddingRight: 16 }}>Location</div>
-              <div style={{ flex: 1.5, paddingRight: 16 }}>Status</div>
-              <div style={{ width: 80, textAlign: 'right' }}>Size</div>
-            </div>
+              {/* Table Header */}
+              <div style={{
+                display: 'flex',
+                padding: '10px 16px',
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                background: 'var(--bg-card-hover)',
+                borderBottom: '1px solid var(--border)'
+              }}>
+                <div style={{ width: 28, marginRight: 12 }} /> {/* Icon spacer */}
+                <div style={{ flex: 2, paddingRight: 16 }}>Name</div>
+                <div style={{ flex: 2, paddingRight: 16 }}>Location</div>
+                <div style={{ flex: 1.5, paddingRight: 16 }}>Status</div>
+                <div style={{ width: 80, textAlign: 'right' }}>Size</div>
+              </div>
 
-            <div className="ds-files-grid" style={{ gap: 0 }}>
-              {openedFiles.map((file) => (
-                <FileCard
-                  key={file.fileId}
-                  file={file}
-                  hasConflict={conflictQueue.some((c) => c.fileId === file.fileId)}
-                  onClick={() => handleCardClick(file)}
-                />
-              ))}
+              <div className="ds-files-grid" style={{ gap: 0 }}>
+                {openedFiles.map((file) => (
+                  <FileCard
+                    key={file.fileId}
+                    file={file}
+                    hasConflict={conflictQueue.some((c) => c.fileId === file.fileId)}
+                    onClick={() => handleCardClick(file)}
+                  />
+                ))}
+              </div>
             </div>
           </>
         )}

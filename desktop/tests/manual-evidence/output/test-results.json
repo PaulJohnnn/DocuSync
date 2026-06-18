@@ -2,7 +2,7 @@
   "project": "DocuSync",
   "institution": "Pamantasan ng Cabuyao",
   "researcher": "Paul John G. Palamara",
-  "timestamp": "2026-06-10T15:01:58.210Z",
+  "timestamp": "2026-06-18T03:09:45.008Z",
   "totalTests": 20,
   "passed": 20,
   "failed": 0,
@@ -13,42 +13,42 @@
       "description": "Open .txt file",
       "status": "PASS",
       "actualOutput": {
-        "filePath": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\tests\\manual-evidence\\test-document.txt",
+        "filePath": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\desktop\\tests\\manual-evidence\\sample-files\\sample.txt",
         "extension": ".txt",
         "extensionAllowed": true,
-        "contentLength": 357,
-        "contentPreview": "DocuSync Manual Test Document\nThis file is used for manual testing of the DocuSync hybrid file synch"
+        "contentLength": 270,
+        "contentPreview": "DocuSync Plain Text Test File\n==============================\n\nThis file tests the basic text synchro"
       },
-      "notes": "Extension \".txt\" is allowed. Content: 357 chars.",
-      "durationMs": 0
+      "notes": "Extension \".txt\" is allowed. Content: 270 chars.",
+      "durationMs": 2
     },
     {
       "testId": "1B",
       "description": "File card metadata",
       "status": "PASS",
       "actualOutput": {
-        "fileName": "test-document.txt",
+        "fileName": "sample.txt",
         "extension": ".txt",
-        "sizeBytes": 357,
+        "sizeBytes": 270,
         "fileId": 1
       },
-      "notes": "Metadata: test-document.txt, .txt, 357B, ID#1",
-      "durationMs": 0
+      "notes": "Metadata: sample.txt, .txt, 270B, ID#1",
+      "durationMs": 1
     },
     {
       "testId": "2A",
       "description": "Delta encoding",
       "status": "PASS",
       "actualOutput": {
-        "deltaBase64Length": 580,
-        "deltaSizeBytes": 580,
-        "originalSizeBytes": 357,
-        "compressionRatio": 1.6246498599439776,
+        "deltaBase64Length": 468,
+        "deltaSizeBytes": 468,
+        "originalSizeBytes": 270,
+        "compressionRatio": 1.7333333333333334,
         "isChunked": false,
         "encodingLatencyMs": 1
       },
-      "notes": "Delta: 580B, ratio: 162.5%, latency: 1ms",
-      "durationMs": 1
+      "notes": "Delta: 468B, ratio: 173.3%, latency: 1ms",
+      "durationMs": 2
     },
     {
       "testId": "2B",
@@ -101,7 +101,7 @@
         ]
       },
       "notes": "Save pipeline: delta encoded + vector clock incremented.",
-      "durationMs": 0
+      "durationMs": 1
     },
     {
       "testId": "3A",
@@ -122,7 +122,7 @@
         ]
       },
       "notes": "3 events in ascending order: [1, 2, 3]",
-      "durationMs": 23
+      "durationMs": 67
     },
     {
       "testId": "3B",
@@ -134,7 +134,7 @@
         "totalEvents": 3
       },
       "notes": "Newest (ts=3) > Oldest (ts=1)",
-      "durationMs": 0
+      "durationMs": 3
     },
     {
       "testId": "3C",
@@ -142,12 +142,12 @@
       "status": "PASS",
       "actualOutput": {
         "restoreEventFound": true,
-        "restoreEventId": "801444e6-c244-49b2-b0c4-bc1eefe4e578",
+        "restoreEventId": "e623cb5c-d9ce-478a-94d0-c127cb84e756",
         "eventType": "restore",
         "totalEventsAfterRestore": 4
       },
       "notes": "Restore event found in history with eventType='restore'.",
-      "durationMs": 7
+      "durationMs": 13
     },
     {
       "testId": "4A",
@@ -168,7 +168,7 @@
         "isConcurrent": true
       },
       "notes": "Clock A [2,0,0] vs Clock B [0,2,0] → concurrent",
-      "durationMs": 0
+      "durationMs": 1
     },
     {
       "testId": "4B",
@@ -188,33 +188,33 @@
       "status": "PASS",
       "actualOutput": {
         "outcome": "escalated",
-        "conflictId": "91a26fee-e42c-445c-a275-b15d6e2a144d",
+        "conflictId": "6f154f9b-f2cc-4801-8fbf-6de31f08f57f",
         "status": "pending",
         "relation": "concurrent"
       },
-      "notes": "Conflict 91a26fee... escalated and stored as pending.",
-      "durationMs": 26
+      "notes": "Conflict 6f154f9b... escalated and stored as pending.",
+      "durationMs": 46
     },
     {
       "testId": "4D",
       "description": "Keep Original",
       "status": "PASS",
       "actualOutput": {
-        "conflictId": "91a26fee-e42c-445c-a275-b15d6e2a144d",
+        "conflictId": "6f154f9b-f2cc-4801-8fbf-6de31f08f57f",
         "winner": "A",
         "status": "resolved",
-        "resolvedBy": "ae8c9748-6220-4a0d-91fc-3c18c20ab4a9",
+        "resolvedBy": "7444f958-23aa-466f-907a-a66cc85b236d",
         "mergeAcceptType": "MERGE_ACCEPT"
       },
-      "notes": "Conflict resolved: winner=A, resolvedBy=ae8c9748...",
-      "durationMs": 16
+      "notes": "Conflict resolved: winner=A, resolvedBy=7444f958...",
+      "durationMs": 36
     },
     {
       "testId": "4E",
       "description": "LWW Auto-Merge",
       "status": "PASS",
       "actualOutput": {
-        "conflictId": "78c85736-4d04-4297-b6c6-c2feba1e8e75",
+        "conflictId": "e69ab2e2-53b8-438a-9414-b462b061dcc7",
         "escalated": true,
         "winningSide": "B",
         "timestampA": 1,
@@ -223,19 +223,19 @@
         "winner": "B"
       },
       "notes": "LWW: B wins (ts=2 > ts=1). Higher logical timestamp wins.",
-      "durationMs": 51
+      "durationMs": 63
     },
     {
       "testId": "4F",
       "description": "Accept Change",
       "status": "PASS",
       "actualOutput": {
-        "conflictId": "5596e0ff-8518-4a1f-b0c3-48620d3657d5",
+        "conflictId": "81acd219-f0cb-48c1-b705-ac074ba8da4e",
         "winner": "B",
         "status": "resolved"
       },
       "notes": "Accept Change: winner=B, conflict resolved.",
-      "durationMs": 44
+      "durationMs": 64
     },
     {
       "testId": "5A",
@@ -243,11 +243,11 @@
       "status": "PASS",
       "actualOutput": {
         "instanceCreated": true,
-        "localNodeId": "293752a4-15e0-43e7-92df-bfc7b14a6d6a",
+        "localNodeId": "14474b7e-5e43-4c26-8794-14c78529377c",
         "connectionCount": 0
       },
-      "notes": "PeerManager created with nodeId=293752a4...",
-      "durationMs": 0
+      "notes": "PeerManager created with nodeId=14474b7e...",
+      "durationMs": 1
     },
     {
       "testId": "5B",
@@ -257,15 +257,15 @@
         "nodeAConnections": 1,
         "nodeBConnections": 1,
         "nodeAPeerIds": [
-          "e847b49d-c364-40f6-b18d-ecba35548afb"
+          "6a6ebc5b-8ecf-417d-b838-3e5290af1052"
         ],
         "nodeBPeerIds": [
-          "f7f70ce3-6120-4eaa-8a99-20e089f4ee28"
+          "c0336a24-aed7-4660-8a4b-e5a5516d7749"
         ],
         "connectionEstablished": true
       },
       "notes": "Node A connections: 1, Node B connections: 1",
-      "durationMs": 1935
+      "durationMs": 1878
     },
     {
       "testId": "5C",
@@ -278,7 +278,7 @@
         "connectionCountD": 1
       },
       "notes": "Broadcast sent to 1 peer(s). Delta received: true.",
-      "durationMs": 2844
+      "durationMs": 2872
     },
     {
       "testId": "5D",
@@ -290,7 +290,7 @@
         "expectedBehavior": "Connection should fail with error"
       },
       "notes": "Connection to unreachable port correctly threw: \"connect ECONNREFUSED 127.0.0.1:19999\"",
-      "durationMs": 12
+      "durationMs": 25
     },
     {
       "testId": "6A",
@@ -341,7 +341,7 @@
         }
       },
       "notes": "6/6 binary formats rejected: [png, jpg, mp4, mp3, exe, zip]",
-      "durationMs": 2
+      "durationMs": 1
     }
   ]
 }

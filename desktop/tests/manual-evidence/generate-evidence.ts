@@ -42,7 +42,7 @@ import type { VectorClockJSON } from '../../src/engine/vector-clock/vector-clock
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 
 /** Directory containing test input files. */
-const INPUT_DIR = path.resolve(__dirname);
+const INPUT_DIR = path.resolve(__dirname, 'sample-files');
 
 /** Directory for output evidence files. */
 const OUTPUT_DIR = path.resolve(__dirname, 'output');
@@ -170,7 +170,7 @@ async function main(): Promise<void> {
   // TEST 1A — File opening simulation
   // ════════════════════════════════════════════════════════════════════════
   results.push(await runTest('1A', 'Open .txt file', async () => {
-    const filePath = path.join(INPUT_DIR, 'test-document.txt');
+    const filePath = path.join(INPUT_DIR, 'sample.txt');
     const content = fs.readFileSync(filePath, 'utf-8');
     const ext = path.extname(filePath).toLowerCase();
     const isAllowed = ALLOWED_EXTENSIONS.has(ext);
@@ -192,7 +192,7 @@ async function main(): Promise<void> {
   // TEST 1B — File card metadata
   // ════════════════════════════════════════════════════════════════════════
   results.push(await runTest('1B', 'File card metadata', async () => {
-    const filePath = path.join(INPUT_DIR, 'test-document.txt');
+    const filePath = path.join(INPUT_DIR, 'sample.txt');
     const stat = fs.statSync(filePath);
     const fileName = path.basename(filePath);
     const ext = path.extname(filePath);
@@ -212,10 +212,10 @@ async function main(): Promise<void> {
   // TEST 2A — Delta encoding (auto-save simulation)
   // ════════════════════════════════════════════════════════════════════════
   results.push(await runTest('2A', 'Delta encoding', async () => {
-    const content = fs.readFileSync(path.join(INPUT_DIR, 'test-document.txt'), 'utf-8');
+    const content = fs.readFileSync(path.join(INPUT_DIR, 'sample.txt'), 'utf-8');
     const previousContent = '';
     const start = Date.now();
-    const result = encode(previousContent, content, 'test-document.txt');
+    const result = encode(previousContent, content, 'sample.txt');
     const latency = Date.now() - start;
     latencies.push(latency);
 
@@ -261,11 +261,11 @@ async function main(): Promise<void> {
   // TEST 2C — Save pipeline (delta + clock combined)
   // ════════════════════════════════════════════════════════════════════════
   results.push(await runTest('2C', 'Save pipeline', async () => {
-    const content = fs.readFileSync(path.join(INPUT_DIR, 'test-document.txt'), 'utf-8');
+    const content = fs.readFileSync(path.join(INPUT_DIR, 'sample.txt'), 'utf-8');
     const clock = createVectorClock(3, 0);
 
     // Simulate save: encode + increment
-    const encodeResult = encode('', content, 'test-document.txt');
+    const encodeResult = encode('', content, 'sample.txt');
     clock.increment();
 
     const pass = encodeResult.deltaBase64 !== null && clock.counters[0] === 1;
@@ -826,7 +826,7 @@ async function main(): Promise<void> {
 
     for (const ext of validExts) {
       try {
-        validateTextFile(`test.${ext}`);
+        validateTextFile(path.join(INPUT_DIR, `sample.${ext}`));
         accepted.push(ext);
       } catch {
         rejected.push(ext);
@@ -856,7 +856,7 @@ async function main(): Promise<void> {
 
     for (const ext of binaryExts) {
       try {
-        validateTextFile(`test.${ext}`);
+        validateTextFile(path.join(INPUT_DIR, `rejected-${ext === 'png' ? 'image' : ext === 'mp4' ? 'video' : 'program'}.${ext}`));
         incorrectlyAccepted.push(ext);
       } catch (err) {
         if (err instanceof BinaryContentError) {

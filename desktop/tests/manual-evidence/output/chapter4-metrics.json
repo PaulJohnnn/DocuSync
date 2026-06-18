@@ -2,7 +2,7 @@
   "evaluationStandard": "ISO/IEC 25010",
   "systemName": "DocuSync",
   "thesisTitle": "A Comparative Evaluation of Operational Transformation and Replicated Data Types to Hybrid Conflict Resolution Algorithm",
-  "evaluationTimestamp": "2026-06-10T15:01:58.214Z",
+  "evaluationTimestamp": "2026-06-18T03:09:45.014Z",
   "metrics": {
     "functionalSuitability": {
       "fileOpenSuccess": "9/9",
@@ -15,9 +15,9 @@
       "avgLatencyMs": 1,
       "p95LatencyMs": 1,
       "throughputEventsPerSec": 1000,
-      "deltaCompressionRatio": "162.5%",
-      "deltaSizeBytes": 580,
-      "originalSizeBytes": 357
+      "deltaCompressionRatio": "173.3%",
+      "deltaSizeBytes": 468,
+      "originalSizeBytes": 270
     },
     "reliability": {
       "dataLossRate": "0%",
