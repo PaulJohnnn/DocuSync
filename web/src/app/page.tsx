@@ -4,8 +4,7 @@ import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import {
   FolderOpen, Plus, FileText, FileCode, FileImage, File,
-  CheckCircle, RefreshCw, AlertTriangle, Trash2, Search,
-  FileJson, FileType, FileSpreadsheet, FileArchive
+  Trash2, Search, FileJson, FileType, FileSpreadsheet, FileArchive
 } from 'lucide-react';
 
 interface FileRecord {

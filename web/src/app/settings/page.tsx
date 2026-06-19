@@ -2,25 +2,7 @@
 import { useEffect, useState } from 'react';
 import PageShell from '@/components/PageShell';
 import { useTheme } from '@/components/ThemeProvider';
-import { Moon, Sun, Palette, Info, FileText, FileCode, FileJson, FileType as FileTypeIcon, File, FileImage, FileSpreadsheet, FileArchive, Settings as SettingsIcon } from 'lucide-react';
-
-const SUPPORTED_TYPES = ['.txt', '.md', '.docx', '.rtf', '.csv', '.json', '.xml', '.html', '.tex'];
-const REJECTED_TYPES = ['.png', '.jpg', '.jpeg', '.mp4', '.mp3', '.exe', '.zip'];
-
-function getExtIcon(ext: string) {
-  const norm = ext.replace('.', '').toLowerCase();
-  switch (norm) {
-    case 'md': case 'txt': case 'rtf': return <FileText size={16} />;
-    case 'json': return <FileJson size={16} />;
-    case 'docx': case 'doc': return <FileTypeIcon size={16} />;
-    case 'csv': case 'tsv': case 'xlsx': case 'xls': return <FileSpreadsheet size={16} />;
-    case 'xml': case 'html': case 'tex': case 'js': case 'ts': return <FileCode size={16} />;
-    case 'png': case 'jpg': case 'jpeg': return <FileImage size={16} />;
-    case 'mp4': case 'mp3': return <FileArchive size={16} />;
-    case 'zip': case 'exe': return <FileArchive size={16} />;
-    default: return <File size={16} />;
-  }
-}
+import { Moon, Sun, Palette, Info, Settings as SettingsIcon } from 'lucide-react';
 
 export default function SettingsPage() {
   const [nodeId, setNodeId] = useState<string>('Loading…');
@@ -104,6 +86,7 @@ export default function SettingsPage() {
             </div>
             <div style={{ padding: '32px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
               <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--b1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/docusync-logo.svg" width={48} height={48} alt="Logo" style={{ display: 'block' }} />
               </div>
               <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--t1)', marginBottom: 4 }}>DocuSync Web Edition</h2>

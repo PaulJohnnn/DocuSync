@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   description: "Hybrid P2P File Synchronization Engine — Web Client",
 };
 
+import ClientLayoutWrapper from '@/components/ClientLayoutWrapper';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -16,13 +18,9 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body>
         <ThemeProvider>
-          <div style={{
-            display: 'flex',
-            height: '100vh',
-            overflow: 'hidden',
-          }}>
+          <ClientLayoutWrapper>
             {children}
-          </div>
+          </ClientLayoutWrapper>
         </ThemeProvider>
       </body>
     </html>

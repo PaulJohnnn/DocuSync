@@ -44,6 +44,7 @@ export default function Sidebar() {
       <div style={{ padding: '0 16px', marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--b1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/docusync-logo.svg"
               width={20}
