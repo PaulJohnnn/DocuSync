@@ -125,7 +125,7 @@ export default function EditorScreen({ route, navigation }: any) {
             value={content}
             onChangeText={t => { setContent(t); setSaved(false); }}
             placeholder="Start typing…"
-            placeholderTextColor="#a1a1aa"
+            placeholderTextColor={colors.textMuted}
             textAlignVertical="top"
             autoCorrect={false}
             autoCapitalize="none"
@@ -201,7 +201,7 @@ const makeStyles = (themeColors: typeof Colors) => StyleSheet.create({
     paddingBottom: 32,
   },
   editorSheet: {
-    backgroundColor: '#ffffff',
+    backgroundColor: themeColors.bgCard,
     borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -213,7 +213,7 @@ const makeStyles = (themeColors: typeof Colors) => StyleSheet.create({
   editor: {
     fontSize: 15,
     lineHeight: 27,
-    color: '#1a1a2e',
+    color: themeColors.textPrimary,
     minHeight: 420,
     padding: 24,
     fontFamily: undefined, // use system serif via lineHeight/fontSize

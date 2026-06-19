@@ -37,11 +37,12 @@ function TabIcon({
   focused: boolean;
   conflictCount?: number;
 }) {
+  const { colors } = useTheme();
   const cfg = TAB_CONFIG[name];
   if (!cfg) return null;
 
   const iconName = focused ? cfg.active : cfg.inactive;
-  const iconColor = focused ? cfg.color : '#3d4a65';
+  const iconColor = focused ? cfg.color : colors.textMuted;
 
   return (
     <View style={{ alignItems: 'center' }}>
@@ -92,7 +93,7 @@ function MainApp() {
             <TabIcon name={route.name} focused={focused} />
           ),
           tabBarActiveTintColor:   TAB_CONFIG[route.name]?.color ?? colors.accent,
-          tabBarInactiveTintColor: '#3d4a65',
+          tabBarInactiveTintColor: colors.textSecondary,
           tabBarShowLabel: true,
           tabBarLabelStyle: {
             fontSize:     10,
@@ -100,8 +101,8 @@ function MainApp() {
             marginBottom: 4,
           },
           tabBarStyle: {
-            backgroundColor: '#111827',
-            borderTopColor:  'rgba(255,255,255,0.08)',
+            backgroundColor: colors.bgCard,
+            borderTopColor:  colors.border,
             borderTopWidth:  1,
             height:          64,
             paddingTop:      6,

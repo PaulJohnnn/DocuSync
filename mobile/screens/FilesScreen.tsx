@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { Colors } from '../constants/Colors';
@@ -29,7 +30,7 @@ interface FileRecord {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function extMeta(name: string): { label: string; color: string; bg: string } {
+function extMeta(name: string, colors: any): { label: string; color: string; bg: string } {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
   switch (ext) {
     case 'md': case 'markdown':
@@ -45,7 +46,7 @@ function extMeta(name: string): { label: string; color: string; bg: string } {
     case 'xml': case 'html':
       return { label: 'XML', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)'  };
     default:
-      return { label: ext.toUpperCase().slice(0, 3) || 'FILE', color: '#3d4a65', bg: 'rgba(61,74,101,0.15)' };
+      return { label: ext.toUpperCase().slice(0, 3) || 'FILE', color: colors.textSecondary, bg: colors.bgSelected };
   }
 }
 
@@ -132,7 +133,7 @@ export default function FilesScreen({ navigation }: any) {
   };
 
   const renderFile = ({ item }: { item: FileRecord }) => {
-    const ext   = extMeta(item.name);
+    const ext   = extMeta(item.name, colors);
     const isConflict = item.status === 'conflict';
     const isSyncing  = item.status === 'syncing';
 
@@ -204,7 +205,7 @@ export default function FilesScreen({ navigation }: any) {
       {/* Content */}
       {files.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="documents-outline" size={64} color="#3d4a65" style={{ marginBottom: 16 }} />
+          <Ionicons name="documents-outline" size={64} color={colors.textMuted} style={{ marginBottom: 16 }} />
           <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No files yet</Text>
           <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>Tap "Open File" to add documents</Text>
         </View>

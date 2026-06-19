@@ -218,7 +218,7 @@ const FilesPage: React.FC = () => {
   ];
 
   return (
-    <>
+    <React.Fragment>
       {/* ── Topbar ── */}
       <div className="ds-topbar">
         <span className="ds-topbar-title">Files</span>
@@ -290,7 +290,7 @@ const FilesPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          <>
+          <React.Fragment>
             <div className="ds-section-label" style={{ marginTop: 24, paddingBottom: 8 }}>
               Open Documents
             </div>
@@ -332,10 +332,10 @@ const FilesPage: React.FC = () => {
                 ))}
               </div>
             </div>
-          </>
+          </React.Fragment>
         )}
       </div>
-    </>
+    </React.Fragment>
   );
 };
 

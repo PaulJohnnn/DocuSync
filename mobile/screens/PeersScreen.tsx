@@ -155,7 +155,7 @@ export default function PeersScreen() {
 
       {peers.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="wifi-outline" size={64} color="#3d4a65" style={{ marginBottom: 16 }} />
+          <Ionicons name="wifi-outline" size={64} color={colors.textMuted} style={{ marginBottom: 16 }} />
           <Text style={styles.emptyTitle}>No peers yet</Text>
           <Text style={styles.emptySubtext}>Enter an IP and port to connect to a node</Text>
         </View>
@@ -208,7 +208,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   connectLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
   inputRow: { flexDirection: 'row', gap: 8 },
   input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: colors.bgBase,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 8,
