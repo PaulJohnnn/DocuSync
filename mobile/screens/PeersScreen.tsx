@@ -9,7 +9,9 @@ import {
   StyleSheet, SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import AnimatedButton from '../components/AnimatedButton';
 
 interface PeerInfo {
   id: string; address: string; port: number;
@@ -143,14 +145,17 @@ export default function PeersScreen() {
             keyboardType="numeric"
           />
         </View>
-        <TouchableOpacity style={styles.connectBtn} onPress={connect} activeOpacity={0.8}>
-          <Text style={styles.connectBtnText}>Connect +</Text>
-        </TouchableOpacity>
+        <AnimatedButton onPress={connect} style={styles.connectBtn}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="link" size={16} color="#fff" />
+            <Text style={styles.connectBtnText}>Connect</Text>
+          </View>
+        </AnimatedButton>
       </View>
 
       {peers.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>👥</Text>
+          <Ionicons name="wifi-outline" size={64} color="#3d4a65" style={{ marginBottom: 16 }} />
           <Text style={styles.emptyTitle}>No peers yet</Text>
           <Text style={styles.emptySubtext}>Enter an IP and port to connect to a node</Text>
         </View>

@@ -9,6 +9,7 @@ import {
   TouchableOpacity, SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { Colors } from '../constants/Colors';
 
@@ -95,13 +96,18 @@ export default function EditorScreen({ route, navigation }: any) {
           style={styles.backBtn}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={styles.backBtnText}>← Files</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Ionicons name="arrow-back" size={16} color={colors.accent} />
+            <Text style={styles.backBtnText}>Files</Text>
+          </View>
         </TouchableOpacity>
         <Text style={styles.fileName} numberOfLines={1}>{file.name}</Text>
         <View style={[styles.saveStatus, saved ? styles.saveStatusSaved : styles.saveStatusUnsaved]}>
-          <Text style={[styles.saveStatusText, { color: saved ? colors.green : colors.amber }]}>
-            {saved ? '✓' : '●'}
-          </Text>
+          <Ionicons
+            name={saved ? 'save' : 'ellipse'}
+            size={14}
+            color={saved ? colors.green : colors.amber}
+          />
         </View>
       </View>
 

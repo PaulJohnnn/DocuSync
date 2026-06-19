@@ -7,7 +7,9 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import AnimatedButton from '../components/AnimatedButton';
 
 interface ConflictRecord {
   id: string; fileId: string; fileName: string;
@@ -79,12 +81,24 @@ export default function ConflictsScreen() {
 
         {isPending && (
           <View style={styles.actionRow}>
-            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnGhost]} onPress={() => resolve(item.id, 'A')}>
-              <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Keep Original</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, styles.actionBtnPrimary]} onPress={() => resolve(item.id, 'B')}>
-              <Text style={[styles.actionBtnText, { color: colors.white }]}>Accept Change</Text>
-            </TouchableOpacity>
+            <AnimatedButton
+              onPress={() => resolve(item.id, 'A')}
+              style={[styles.actionBtn, styles.actionBtnGhost]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="checkmark-circle-outline" size={16} color={colors.textSecondary} />
+                <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Keep Original</Text>
+              </View>
+            </AnimatedButton>
+            <AnimatedButton
+              onPress={() => resolve(item.id, 'B')}
+              style={[styles.actionBtn, styles.actionBtnPrimary]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                <Text style={[styles.actionBtnText, { color: colors.white }]}>Accept Change</Text>
+              </View>
+            </AnimatedButton>
           </View>
         )}
       </View>
@@ -110,7 +124,7 @@ export default function ConflictsScreen() {
 
       {conflicts.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>🛡️</Text>
+          <Ionicons name="shield-checkmark" size={64} color="#22c55e" style={{ marginBottom: 16 }} />
           <Text style={styles.emptyTitle}>No conflicts</Text>
           <Text style={styles.emptySubtext}>All files are in sync</Text>
         </View>

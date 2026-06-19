@@ -10,9 +10,11 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { Colors } from '../constants/Colors';
 import LogoIcon from '../components/LogoIcon';
+import AnimatedButton from '../components/AnimatedButton';
 
 interface FileRecord {
   id: string;
@@ -131,8 +133,8 @@ export default function FilesScreen({ navigation }: any) {
 
   const renderFile = ({ item }: { item: FileRecord }) => {
     const ext   = extMeta(item.name);
-    const st    = statusMeta(item.status, colors);
     const isConflict = item.status === 'conflict';
+    const isSyncing  = item.status === 'syncing';
 
     return (
       <TouchableOpacity
@@ -158,18 +160,21 @@ export default function FilesScreen({ navigation }: any) {
             <Text style={styles.fileName} numberOfLines={1}>{item.name}</Text>
             <Text style={styles.filePath} numberOfLines={1}>{formatBytes(item.size)}</Text>
           </View>
-          <View style={{ width: 80, alignItems: 'flex-end' }}>
-             {/* Status tag */}
-            {st.label === '● Synced' ? (
-               <Text style={{ fontSize: 11, color: colors.green, fontWeight: '500' }}>✓ Synced</Text>
-            ) : (
-               <Text style={{ fontSize: 11, color: st.color, fontWeight: '500' }}>{st.label}</Text>
+          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            {item.status === 'synced' && (
+              <Ionicons name="checkmark-circle" size={18} color={colors.green} />
+            )}
+            {item.status === 'syncing' && (
+              <Ionicons name="sync" size={18} color={colors.amber} />
+            )}
+            {item.status === 'conflict' && (
+              <Ionicons name="alert-circle" size={18} color={colors.red} />
             )}
           </View>
         </View>
 
         {/* Chevron */}
-        <Text style={{ color: colors.textMuted, fontSize: 16, marginLeft: 8 }}>›</Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ marginLeft: 8 }} />
       </TouchableOpacity>
     );
   };
@@ -185,15 +190,21 @@ export default function FilesScreen({ navigation }: any) {
             <Text style={[styles.subtitle, { color: colors.textMuted }]}>{files.length} file{files.length !== 1 ? 's' : ''} tracked</Text>
           </View>
         </View>
-        <TouchableOpacity style={[styles.openBtn, { backgroundColor: colors.accent }]} onPress={openFile} activeOpacity={0.8}>
-          <Text style={styles.openBtnText}>+ Open File</Text>
-        </TouchableOpacity>
+        <AnimatedButton
+          onPress={openFile}
+          style={[styles.openBtn, { backgroundColor: colors.accent }]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Ionicons name="add-circle" size={16} color="#fff" />
+            <Text style={styles.openBtnText}>Open File</Text>
+          </View>
+        </AnimatedButton>
       </View>
 
       {/* Content */}
       {files.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>📂</Text>
+          <Ionicons name="documents-outline" size={64} color="#3d4a65" style={{ marginBottom: 16 }} />
           <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No files yet</Text>
           <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>Tap "Open File" to add documents</Text>
         </View>
