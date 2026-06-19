@@ -3,8 +3,9 @@
  * ISO/IEC 25010 evaluation dashboard — tab "Metrics".
  * Static display only — no logic changes needed.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 import { Colors } from '../constants/Colors';
 
 // ── Data (unchanged from original) ───────────────────────────────────────────
@@ -32,6 +33,9 @@ const HERO_CHIPS = [
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function MetricsScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   return (
     <SafeAreaView style={styles.root}>
       {/* Header */}
@@ -102,47 +106,54 @@ export default function MetricsScreen() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bgBase },
-
+const makeStyles = (themeColors: typeof Colors) => StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: themeColors.bgBase,
+  },
   header: {
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.bgBase,
+    borderBottomColor: themeColors.border,
+    backgroundColor: themeColors.bgBase,
   },
-  title:    { fontSize: 20, fontWeight: '700', color: Colors.textPrimary },
-  subtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: themeColors.textPrimary,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: themeColors.textMuted,
+    marginTop: 2,
+  },
 
-  // Hero card
+  // Hero Card
   heroCard: {
     margin: 16,
-    backgroundColor: Colors.bgCard,
-    borderWidth: 1,
-    borderColor: Colors.borderAccent,
+    padding: 24,
     borderRadius: 16,
-    padding: 20,
+    borderWidth: 1,
+    borderColor: themeColors.borderAccent,
+    backgroundColor: themeColors.bgCardHover,
     alignItems: 'center',
   },
   heroNumber: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: Colors.accent,
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -0.5,
+    fontSize: 48,
+    fontWeight: '800',
+    color: themeColors.accent,
+    letterSpacing: -1,
   },
   heroLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 4,
+    fontSize: 14,
+    color: themeColors.textSecondary,
+    marginBottom: 4,
   },
   heroSub: {
     fontSize: 11,
-    color: Colors.textMuted,
-    marginTop: 2,
-    marginBottom: 14,
-    textAlign: 'center',
+    color: themeColors.textMuted,
+    marginBottom: 20,
   },
   chipRow: {
     flexDirection: 'row',
@@ -151,88 +162,81 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chip: {
-    backgroundColor: Colors.accentLight,
     borderWidth: 1,
-    borderColor: Colors.borderAccent,
-    borderRadius: 8,
-    paddingHorizontal: 10,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.bgBase,
     paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
     alignItems: 'center',
-    minWidth: 60,
   },
   chipValue: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: Colors.accent,
-    fontVariant: ['tabular-nums'],
+    color: themeColors.accent,
   },
   chipDesc: {
     fontSize: 9,
-    color: Colors.textMuted,
-    marginTop: 2,
+    color: themeColors.textMuted,
   },
 
-  // Section label
+  // Sections
   sectionLabel: {
-    marginHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 8,
     fontSize: 11,
     fontWeight: '600',
+    color: themeColors.textMuted,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    color: Colors.textMuted,
+    marginLeft: 20,
+    marginBottom: 8,
+    marginTop: 8,
   },
 
-  // Metric card (row layout)
+  // Metric Card
   metricCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: Colors.bgCard,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    padding: 16,
     borderRadius: 12,
-    padding: 14,
-    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: themeColors.border,
+    backgroundColor: themeColors.bgCard,
   },
   metricName: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: themeColors.textSecondary,
+    marginBottom: 2,
   },
   metricTarget: {
-    fontSize: 10,
-    color: Colors.textMuted,
-    marginTop: 2,
+    fontSize: 11,
+    color: themeColors.textMuted,
   },
   metricActual: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.green,
-    fontVariant: ['tabular-nums'],
+    fontSize: 14,
+    fontWeight: '700',
+    color: themeColors.green,
     fontFamily: 'monospace',
   },
   checkmark: {
     fontSize: 14,
-    color: Colors.green,
-    marginLeft: 4,
+    color: themeColors.green,
+    marginLeft: 8,
   },
 
-  // Thesis info
+  // Thesis Metadata
   thesisLabel: {
-    fontSize: 11,
+    width: 80,
+    fontSize: 12,
     fontWeight: '600',
-    color: Colors.textMuted,
-    width: 90,
-    flexShrink: 0,
+    color: themeColors.textMuted,
   },
   thesisValue: {
     flex: 1,
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 18,
   },
 });

@@ -3,15 +3,15 @@
  * Main file list — tab "Files".
  * All AsyncStorage logic unchanged. Only visual layer updated.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   SafeAreaView, Alert,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { Colors } from '../constants/Colors';
 import { useTheme } from '../context/ThemeContext';
+import { Colors } from '../constants/Colors';
 import LogoIcon from '../components/LogoIcon';
 
 interface FileRecord {
@@ -66,6 +66,7 @@ function statusMeta(status: string, colors: any): { label: string; color: string
 
 export default function FilesScreen({ navigation }: any) {
   const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [files, setFiles] = useState<FileRecord[]>([]);
 
   useEffect(() => { loadFiles(); }, []);
@@ -215,10 +216,10 @@ export default function FilesScreen({ navigation }: any) {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: typeof Colors) => StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.bgBase,
+    backgroundColor: themeColors.bgBase,
   },
   header: {
     flexDirection: 'row',
@@ -227,21 +228,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.bgBase,
+    borderBottomColor: themeColors.border,
+    backgroundColor: themeColors.bgBase,
   },
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: themeColors.textPrimary,
   },
   subtitle: {
     fontSize: 12,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     marginTop: 2,
   },
   openBtn: {
-    backgroundColor: Colors.accent,
+    backgroundColor: themeColors.accent,
     paddingHorizontal: 16,
     height: 36,
     borderRadius: 10,
@@ -249,17 +250,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   openBtnText: {
-    color: Colors.white,
+    color: themeColors.white,
     fontSize: 13,
     fontWeight: '600',
   },
 
   // File card
   tableContainer: {
-    backgroundColor: Colors.bgCard,
+    backgroundColor: themeColors.bgCard,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.border,
     overflow: 'hidden',
   },
   fileCard: {
@@ -268,7 +269,7 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: 'transparent',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    borderBottomColor: themeColors.border,
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
@@ -283,12 +284,12 @@ const styles = StyleSheet.create({
   fileName: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: themeColors.textPrimary,
     marginBottom: 2,
   },
   filePath: {
     fontSize: 11,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     fontFamily: 'monospace',
     marginBottom: 6,
   },
@@ -318,12 +319,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '500',
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 13,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
   },

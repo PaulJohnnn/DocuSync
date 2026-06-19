@@ -3,13 +3,13 @@
  * P2P connection manager — tab "Peers".
  * All WebSocket/AsyncStorage/connect/remove logic unchanged. Only visual layer updated.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
   StyleSheet, SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Colors } from '../constants/Colors';
+import { useTheme } from '../context/ThemeContext';
 
 interface PeerInfo {
   id: string; address: string; port: number;
@@ -28,6 +28,8 @@ function initials(address: string): string {
 }
 
 export default function PeersScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const [ip,   setIp]     = useState('');
   const [port, setPort]   = useState('8080');
@@ -77,34 +79,25 @@ export default function PeersScreen() {
   const connected = peers.filter(p => p.status === 'connected').length;
   const isOnline  = connected > 0;
 
-  // ── Peer Card ─────────────────────────────────────────────────────────────
-
   const renderPeer = ({ item, index }: { item: PeerInfo; index: number }) => {
     const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
     const isConn      = item.status === 'connected';
 
     return (
       <View style={styles.peerCard}>
-        {/* Avatar */}
         <View style={[styles.avatar, { backgroundColor: avatarColor + '25', borderColor: avatarColor + '50' }]}>
           <Text style={[styles.avatarText, { color: avatarColor }]}>{initials(item.address)}</Text>
         </View>
 
-        {/* Info */}
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.peerName} numberOfLines={1}>
-            {item.address}
-          </Text>
+          <Text style={styles.peerName}>{item.address}</Text>
           <Text style={styles.peerRole}>P2P Node</Text>
-          <Text style={styles.peerAddr} numberOfLines={1}>
-            {item.address}:{item.port}
-          </Text>
+          <Text style={styles.peerAddr}>{item.address}:{item.port}</Text>
         </View>
 
-        {/* Status badge + remove */}
         <View style={{ alignItems: 'flex-end', gap: 6 }}>
           <View style={[styles.statusBadge, isConn ? styles.statusBadgeOnline : styles.statusBadgeOffline]}>
-            <Text style={[styles.statusBadgeText, { color: isConn ? Colors.green : Colors.textMuted }]}>
+            <Text style={[styles.statusBadgeText, { color: isConn ? colors.green : colors.textMuted }]}>
               {isConn ? `● ${item.latency}ms` : '● Offline'}
             </Text>
           </View>
@@ -116,56 +109,45 @@ export default function PeersScreen() {
     );
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
   return (
     <SafeAreaView style={styles.root}>
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Peers</Text>
           <Text style={styles.subtitle}>{connected} connected · {peers.length} total</Text>
         </View>
         <View style={[styles.statusChip, isOnline ? styles.statusChipOnline : styles.statusChipOffline]}>
-          <Text style={[styles.statusChipText, { color: isOnline ? Colors.green : Colors.red }]}>
+          <Text style={[styles.statusChipText, { color: isOnline ? colors.green : colors.red }]}>
             {isOnline ? '● Online' : '● Offline'}
           </Text>
         </View>
       </View>
 
-      {/* Connect form card */}
       <View style={styles.connectCard}>
         <Text style={styles.connectLabel}>🌐 P2P Connection</Text>
-
-        {/* IP + Port row */}
         <View style={styles.inputRow}>
           <TextInput
-            style={[styles.input, { flex: 1 }]}
+            style={[styles.input, { flex: 1, color: colors.textPrimary }]}
             placeholder="IP address"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={colors.textMuted}
             value={ip}
             onChangeText={setIp}
-            keyboardType="default"
             autoCapitalize="none"
-            autoCorrect={false}
           />
           <TextInput
-            style={[styles.input, { width: 80 }]}
+            style={[styles.input, { width: 80, color: colors.textPrimary }]}
             placeholder="Port"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={colors.textMuted}
             value={port}
             onChangeText={setPort}
             keyboardType="numeric"
           />
         </View>
-
-        {/* Connect button — full width */}
         <TouchableOpacity style={styles.connectBtn} onPress={connect} activeOpacity={0.8}>
           <Text style={styles.connectBtnText}>Connect +</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Peers list or empty */}
       {peers.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyIcon}>👥</Text>
@@ -186,11 +168,8 @@ export default function PeersScreen() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bgBase },
-
+const makeStyles = (colors: any) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bgBase },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -198,72 +177,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.bgBase,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.bgBase,
   },
-  title:    { fontSize: 20, fontWeight: '700', color: Colors.textPrimary },
-  subtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-
+  title:    { fontSize: 20, fontWeight: '700', color: colors.textPrimary },
+  subtitle: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   statusChip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 99,
     borderWidth: 1,
   },
-  statusChipOnline:  { backgroundColor: Colors.greenLight, borderColor: 'rgba(34,197,94,0.25)' },
-  statusChipOffline: { backgroundColor: Colors.redLight,   borderColor: 'rgba(239,68,68,0.25)' },
+  statusChipOnline:  { backgroundColor: colors.greenLight, borderColor: 'rgba(34,197,94,0.25)' },
+  statusChipOffline: { backgroundColor: colors.redLight,   borderColor: 'rgba(239,68,68,0.25)' },
   statusChipText: { fontSize: 12, fontWeight: '600' },
-
-  // Connect form card
   connectCard: {
     margin: 16,
-    backgroundColor: Colors.bgCard,
+    backgroundColor: colors.bgCard,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: 14,
     padding: 16,
     gap: 10,
   },
-  connectLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
+  connectLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
   inputRow: { flexDirection: 'row', gap: 8 },
   input: {
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: 8,
     height: 42,
     paddingHorizontal: 12,
-    color: Colors.textPrimary,
     fontSize: 13,
   },
   connectBtn: {
-    backgroundColor: Colors.accent,
+    backgroundColor: colors.accent,
     height: 44,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  connectBtnText: {
-    color: Colors.white,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  // Peer card
+  connectBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   peerCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: Colors.bgCard,
+    backgroundColor: colors.bgCard,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 14,
-    paddingHorizontal: 16,
   },
   avatar: {
     width: 40,
@@ -272,29 +236,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
   },
   avatarText: { fontSize: 13, fontWeight: '700' },
-  peerName:   { fontSize: 14, fontWeight: '500', color: Colors.textPrimary },
-  peerRole:   { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
-  peerAddr:   { fontSize: 10, color: Colors.textMuted, fontFamily: 'monospace', marginTop: 2 },
-
+  peerName:   { fontSize: 14, fontWeight: '500', color: colors.textPrimary },
+  peerRole:   { fontSize: 11, color: colors.textMuted, marginTop: 1 },
+  peerAddr:   { fontSize: 10, color: colors.textMuted, fontFamily: 'monospace', marginTop: 2 },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 99,
     borderWidth: 1,
   },
-  statusBadgeOnline:  { backgroundColor: Colors.greenLight, borderColor: 'rgba(34,197,94,0.25)' },
-  statusBadgeOffline: { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: Colors.border },
+  statusBadgeOnline:  { backgroundColor: colors.greenLight, borderColor: 'rgba(34,197,94,0.25)' },
+  statusBadgeOffline: { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: colors.border },
   statusBadgeText: { fontSize: 10, fontWeight: '600' },
-
   removeBtn:     { padding: 2 },
-  removeBtnText: { color: Colors.textMuted, fontSize: 14 },
-
-  // Empty
+  removeBtnText: { color: colors.textMuted, fontSize: 14 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   emptyIcon:    { fontSize: 56, marginBottom: 16 },
-  emptyTitle:   { fontSize: 18, fontWeight: '500', color: Colors.textSecondary, marginBottom: 8 },
-  emptySubtext: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
+  emptyTitle:   { fontSize: 18, fontWeight: '500', color: colors.textSecondary, marginBottom: 8 },
+  emptySubtext: { fontSize: 13, color: colors.textMuted, textAlign: 'center', lineHeight: 20 },
 });

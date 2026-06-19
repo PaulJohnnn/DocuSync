@@ -158,7 +158,6 @@ const EditorPage: React.FC = () => {
         setLoading(false);
         return;
       }
-    }
     // ------------------------------
 
     if (!window.docuSync) { setLoadError('IPC bridge not available.'); setLoading(false); return; }

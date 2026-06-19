@@ -291,7 +291,6 @@ const FilesPage: React.FC = () => {
           </div>
         ) : (
           <>
-          <>
             <div className="ds-section-label" style={{ marginTop: 24, paddingBottom: 8 }}>
               Open Documents
             </div>

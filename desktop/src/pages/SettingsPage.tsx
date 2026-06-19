@@ -333,12 +333,11 @@ const SettingsPage: React.FC = () => {
                 fontWeight: 500,
                 transition: 'all 0.2s ease',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--ds-accent)'}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--ds-accent)'; e.currentTarget.style.color = '#fff'; }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'var(--ds-accent-bg)';
                 e.currentTarget.style.color = 'var(--ds-accent)';
               }}
-              onMouseEnterCapture={(e) => e.currentTarget.style.color = '#fff'}
             >
               <Cpu size={16} /> github.com/PaulJohnnn/DocuSync
             </a>

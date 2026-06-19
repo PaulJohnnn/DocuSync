@@ -3,12 +3,13 @@
  * Text editor — route "Editor".
  * All AsyncStorage/auto-save/delta logic unchanged. Only visual layer updated.
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, TextInput, ScrollView, StyleSheet,
   TouchableOpacity, SafeAreaView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../context/ThemeContext';
 import { Colors } from '../constants/Colors';
 
 interface FileRecord {
@@ -18,6 +19,8 @@ interface FileRecord {
 
 export default function EditorScreen({ route, navigation }: any) {
   const { fileId } = route.params;
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [file, setFile]           = useState<FileRecord | null>(null);
   const [content, setContent]     = useState('');
   const [saved, setSaved]         = useState(true);
@@ -96,7 +99,7 @@ export default function EditorScreen({ route, navigation }: any) {
         </TouchableOpacity>
         <Text style={styles.fileName} numberOfLines={1}>{file.name}</Text>
         <View style={[styles.saveStatus, saved ? styles.saveStatusSaved : styles.saveStatusUnsaved]}>
-          <Text style={[styles.saveStatusText, { color: saved ? Colors.green : Colors.amber }]}>
+          <Text style={[styles.saveStatusText, { color: saved ? colors.green : colors.amber }]}>
             {saved ? '✓' : '●'}
           </Text>
         </View>
@@ -134,10 +137,10 @@ export default function EditorScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: typeof Colors) => StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.bgBase,
+    backgroundColor: themeColors.bgBase,
   },
 
   // Header
@@ -148,8 +151,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 52,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderBottomColor: themeColors.border,
+    backgroundColor: themeColors.bgCard,
   },
   backBtn: {
     height: 32,
@@ -159,13 +162,13 @@ const styles = StyleSheet.create({
   backBtnText: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.accent,
+    color: themeColors.accent,
   },
   fileName: {
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: themeColors.textPrimary,
     textAlign: 'center',
   },
   saveStatus: {
@@ -175,8 +178,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  saveStatusSaved:   { backgroundColor: Colors.greenLight },
-  saveStatusUnsaved: { backgroundColor: Colors.amberLight },
+  saveStatusSaved:   { backgroundColor: themeColors.greenLight },
+  saveStatusUnsaved: { backgroundColor: themeColors.amberLight },
   saveStatusText: {
     fontSize: 12,
     fontWeight: '700',
@@ -185,7 +188,7 @@ const styles = StyleSheet.create({
   // Editor
   editorWrap: {
     flex: 1,
-    backgroundColor: Colors.bgBase,
+    backgroundColor: themeColors.bgBase,
   },
   editorContent: {
     padding: 12,
@@ -219,12 +222,12 @@ const styles = StyleSheet.create({
     height: 44,
     paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderTopColor: themeColors.border,
+    backgroundColor: themeColors.bgCard,
   },
   footerText: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
     fontFamily: 'monospace',
   },
 
@@ -235,6 +238,6 @@ const styles = StyleSheet.create({
   },
   notFoundText: {
     fontSize: 14,
-    color: Colors.textMuted,
+    color: themeColors.textMuted,
   },
 });
