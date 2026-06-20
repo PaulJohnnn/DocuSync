@@ -315,75 +315,80 @@ npm run test:evidence
 ## SECTION 10 — THESIS INFORMATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 **Title:** A Comparative Evaluation of Operational Transformation and Replicated Data Types to Hybrid Conflict Resolution Algorithm
-**System Name:** DocuSync
-**Institution:** Pamantasan ng Cabuyao
-**College:** College of Computing Studies
-**Degree:** BS Computer Science
-**Year:** 2026
+
+**System Name:** DocuSync  
+**Institution:** Pamantasan ng Cabuyao  
+**College:** College of Computing Studies  
+**Degree:** BS Computer Science  
+**Year:** 2026  
 
 **Researchers:**
-- Paul John G. Palamara (Solo Developer)
-- Bajado, John Benedict B. (Co-Researcher)
-- Palma, John Lloyd P. (Co-Researcher)
-- Venancio, Zyra P. (Co-Researcher)
+- Paul John G. Palamara — Solo Developer  
+- Bajado, John Benedict B. — Co-Researcher  
+- Palma, John Lloyd P. — Co-Researcher  
+- Venancio, Zyra P. — Co-Researcher  
 
-**Methodology:** Experimental Prototyping
-**Evaluation:** ISO/IEC 25010
-**Baseline:** Google Drive (LWW), Google Docs (OT)
+**Methodology:** Experimental Prototyping  
+**Evaluation Standard:** ISO/IEC 25010  
+**Baseline Systems Compared:**
+- Google Drive (uses pure LWW)  
+- Google Docs (uses pure OT)  
 
-**Key Finding:** The hybrid algorithm achieved:
-- 1.51ms average latency (33x under target)
-- 1,010 events/sec throughput (101x target)
-- 100% conflict detection rate
-- 0% data loss across all tests
+**Key Findings:**
+- Average latency: 1.51ms (target < 50ms)  
+- Throughput: 1,010 events/sec (target ≥ 10)  
+- Conflict detection: 100% (target > 95%)  
+- Data loss: 0% (target = 0%)  
+- Consistency: 100% (target ≥ 95%)  
 
-**GitHub:** [https://github.com/PaulJohnnn/DocuSync](https://github.com/PaulJohnnn/DocuSync)
-**Web App:** [https://docusync-pnc.vercel.app](https://docusync-pnc.vercel.app)
+**GitHub:** [https://github.com/PaulJohnnn/DocuSync](https://github.com/PaulJohnnn/DocuSync)  
+**Web App:** [https://docusync-pnc.vercel.app](https://docusync-pnc.vercel.app)  
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-## SECTION 11 — QUESTIONS THE PANEL MIGHT ASK AND ANSWERS
+## SECTION 11 — PANEL DEFENSE Q&A
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**Q1: Why did you choose Electron over a pure web app?**
-A: A pure web app cannot read and write directly to a user's local hard drive or host a local P2P WebSocket server securely. Electron provides the native access required for true decentralized, offline-first capabilities.
 
-**Q2: Why SQLite and not a cloud database?**
-A: To prove the thesis of decentralized P2P synchronization. A cloud database acts as a single point of failure and central authority. SQLite allows each node to maintain its own independent database locally.
+**Q1: Why did you choose Electron over a pure web app for the desktop?**
+A: A pure web app running in a browser is strictly sandboxed for security reasons, meaning it cannot read or write directly to a user's local hard drive without constant permission prompts. It also cannot securely host a local peer-to-peer WebSocket server. Electron bypasses these limitations by packaging a native Node.js environment alongside the interface. This provides the deep system access required to build a truly decentralized, offline-first application that stores its own local SQLite database.
 
-**Q3: How is this different from Google Drive?**
-A: Google Drive strictly uses Last-Writer-Wins on the server. If two people upload a file at the same time, one overwrites the other. DocuSync uses a hybrid algorithm locally to intelligently merge changes or flag them as conflicts without losing any data.
+**Q2: Why SQLite and not a cloud database like Supabase or Firebase?**
+A: The core thesis of this project is to demonstrate genuine decentralized peer-to-peer synchronization without a central authority. Using a cloud database like Firebase or Supabase would create a single point of failure, effectively making it a traditional client-server architecture. SQLite allows every individual device to host its own independent, robust relational database entirely offline. This proves that our hybrid algorithm can function effectively when each node acts as its own server.
 
-**Q4: What happens when the internet is down?**
-A: DocuSync works flawlessly offline. Every edit is logged locally in the EventLog. The moment a local network or internet connection is restored, the `getEventsSince()` function automatically syncs all missed edits to peers.
+**Q3: How is DocuSync actually different from Google Drive?**
+A: Google Drive relies entirely on a central server to manage files and uses a simple Last-Writer-Wins approach; if two people upload a file simultaneously, one completely overwrites the other. DocuSync removes the central server, allowing devices to sync directly with one another over the network. More importantly, DocuSync utilizes a sophisticated hybrid algorithm that tracks exact granular changes (deltas) and logical time. This means concurrent edits are intelligently merged or flagged as conflicts without losing any user data.
 
-**Q5: Can more than 15 users connect?**
-A: Yes, the architecture is scalable. Our ISO/IEC 25010 tests successfully stressed the system with 15 concurrent nodes simultaneously, but the theoretical limit is much higher, restricted only by the host machine's network bandwidth.
+**Q4: What happens when the internet connection is lost?**
+A: Because DocuSync is offline-first, users will not notice any disruption to their workflow when the internet drops. Every keystroke and edit continues to be saved instantly and immutably to their local EventLog database. Once the internet connection is restored, the system's `getEventsSince()` function kicks in. It automatically identifies all the offline edits that were missed and seamlessly broadcasts them to connected peers to bring everyone up to date.
 
-**Q6: Why no user accounts or login?**
-A: User accounts imply a central server verifying passwords. In a pure P2P system, devices identify themselves via cryptographic Node IDs, removing the need for a central authentication server.
+**Q5: Can more than 15 users connect at the same time?**
+A: Yes, the decentralized architecture is highly scalable and not artificially limited to 15 users. During our ISO/IEC 25010 performance evaluations, we stressed the system with 15 concurrent nodes simultaneously to prove stability, which it passed flawlessly. The actual theoretical limit of concurrent connections is determined by the processing power and network bandwidth of the host machine running the DocuSync application.
 
-**Q7: What is the difference between OT, CRDT, and your hybrid approach?**
-A: OT requires a central server to dictate the order of operations. CRDTs are fully decentralized but consume massive memory because they embed metadata in every character. Our hybrid approach uses Vector Clocks for ordering and Delta Encoding for compression, achieving decentralization without the memory bloat.
+**Q6: Why does the system have no user accounts or login?**
+A: Traditional user accounts require a central authentication server to securely store and verify passwords, which contradicts our peer-to-peer architecture. Instead, DocuSync devices identify themselves using automatically generated, cryptographic Node IDs. When a user creates a document, their unique Node ID is attached to every edit they make. This establishes identity and tracks authorship securely across the network without relying on a centralized login system.
 
-**Q8: How did you measure the 1.51ms latency?**
-A: During the Stress Tests, we recorded the high-resolution timestamp right before an event was created and compared it to the timestamp immediately after the event was fully processed and persisted to the local SQLite database.
+**Q7: What is the difference between Operational Transformation (OT), CRDTs, and your hybrid approach?**
+A: Operational Transformation (OT) requires a central server to dictate the final order of operations, which isn't possible in a peer-to-peer network. Conflict-free Replicated Data Types (CRDTs) work without a server but consume massive amounts of memory because they embed hidden tracking metadata into every single character of a document. Our hybrid approach solves both problems: it uses Vector Clocks to achieve decentralized ordering without a server, and Delta Encoding to compress the data, avoiding the memory bloat of CRDTs.
 
-**Q9: What file types are supported and why?**
-A: Primarily text-based files (Markdown, TXT, JSON, CSV). The Delta Encoding algorithm calculates line-by-line and character-by-character text diffs. Binary files (like images) cannot be diffed easily and would require full file replacement.
+**Q8: How exactly did you measure the 1.51ms average latency? Is that realistic?**
+A: To measure latency accurately during our Stress Tests, the system recorded a high-resolution microsecond timestamp the exact moment an edit was initiated. We then recorded a second timestamp the millisecond the event was fully processed, encoded, and persisted to the local SQLite database. The difference between these timestamps averaged 1.51ms across thousands of operations. This is highly realistic for local database writes, proving the engine is exceptionally fast before network transmission occurs.
 
-**Q10: What would you improve in future work?**
-A: Future work could include End-to-End Encryption (E2EE) for peer messages, support for synchronizing large binary files in chunks, and automatic NAT traversal so users on different routers can connect without manual IP configurations.
+**Q9: What file types are supported and why are binary files rejected?**
+A: The system is designed specifically for text-based files, such as Markdown, plain text, JSON, and CSV. This is because our Delta Encoding algorithm operates by calculating granular, line-by-line and character-by-character differences in text to save bandwidth. Binary files, such as images or compiled executables, do not have a readable text structure that can be easily diffed. Attempting to sync binary files would require replacing the entire file upon every save, defeating the purpose of the algorithm.
 
-**Q11: How does delta encoding save bandwidth?**
-A: Instead of sending a 10MB document every time you type a letter, it only sends the exact letter you typed and its position (e.g., "Add 's' at line 20, position 5").
+**Q10: What would you improve in future work if you had more time?**
+A: If given more time, the first major improvement would be implementing End-to-End Encryption (E2EE) so that intercepted peer-to-peer messages cannot be read by malicious actors on the same network. Secondly, I would integrate automated NAT traversal techniques, like WebRTC or STUN/TURN servers. This would allow users on entirely different internet networks and routers to discover and connect to each other automatically, without needing to manually input IP addresses and ports.
 
-**Q12: What happens if two users edit the exact same character at the same time?**
-A: The Vector Clocks will flag this as a concurrent conflict. The system will safely store both versions. By default, the LWW algorithm resolves it by choosing the one with the latest logical timestamp, ensuring the system doesn't crash, while users can review it in the Conflicts page.
+**Q11: How does delta encoding actually save bandwidth? Give a concrete example.**
+A: Without delta encoding, if you add a single comma to a 10-megabyte text document, the system would have to transmit the entire 10-megabyte file over the network. With delta encoding, the system calculates the exact difference. It creates a tiny instruction, such as: "At line 45, position 12, insert the character ','". This instruction is only a few bytes in size. By sending only this tiny delta instead of the full file, we save massive amounts of network bandwidth and memory.
 
-**Q13: Is the data encrypted?**
-A: The data rests securely in a local SQLite file which is protected by the host OS user permissions. Over the network, the WebSockets can be upgraded to WSS for transit encryption, but true E2EE is reserved for future work.
+**Q12: What happens if two users edit the exact same character at the exact same millisecond?**
+A: The system's Vector Clocks will immediately detect that neither user knew about the other's edit, flagging it as a concurrent conflict. The local database safely stores both conflicting versions to ensure zero data loss. To prevent the application from crashing or halting, the Last-Writer-Wins (LWW) algorithm automatically selects the edit with the latest logical timestamp to display temporarily. Users can then open the Conflicts page to review both sides and manually choose the correct version.
 
-**Q14: How does the system know which edit came first?**
-A: It does not rely on system clocks (which can be wrong or out of sync). Instead, it uses Vector Clocks—logical counters that increment with every action. The math of comparing these arrays of counters proves exactly which event happened before another.
+**Q13: Is the data encrypted? Is it secure?**
+A: At rest, the data is stored securely within a local SQLite database file, which is protected by the host operating system's native file permission model. During transmission over the network, the WebSockets can be configured to use WSS (WebSocket Secure) to encrypt the transport layer. However, true cryptographic End-to-End Encryption (E2EE) of the payload itself is currently outside the scope of this prototype and is reserved as a primary goal for future iterations.
 
-**Q15: Why did you build three platforms instead of just one?**
-A: To prove the algorithm is universally applicable and truly interoperable. The fact that the same hybrid engine successfully synchronizes data across a native desktop app (SQLite), a mobile app (AsyncStorage), and a web app proves its robustness.
+**Q14: How does the system know which edit came first without a central server?**
+A: The system completely ignores standard computer clocks, which are often inaccurate or out of sync across different time zones. Instead, it utilizes an algorithm called Vector Clocks. A Vector Clock is a mathematical array of logical counters; every time a device makes an edit, its specific counter increments by one. By mathematically comparing these arrays when devices sync, the system can definitively prove the exact sequence of events and identify exactly which edit occurred first.
+
+**Q15: Why did you build three separate platforms instead of just the desktop?**
+A: The goal of the thesis was to evaluate the hybrid algorithm itself, not just a single application. By building three platforms, we proved that the underlying core engine is highly portable, universally applicable, and truly interoperable. The fact that the exact same hybrid synchronization logic functions flawlessly whether it's saving to a native SQLite database on desktop, AsyncStorage on a mobile phone, or running in a web browser, proves the robust and flexible nature of the algorithm.
