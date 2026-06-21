@@ -229,34 +229,7 @@ export async function initEngine(
   if (!dbUrl) {
     const { app } = require('electron');
     const path = require('path');
-    const fs = require('fs');
     const dbPath = path.join(app.getPath('userData'), 'docusync.db');
-    
-    // Copy the initialized database from the installer if it doesn't exist or is empty
-    let shouldCopy = false;
-    if (!fs.existsSync(dbPath)) {
-      shouldCopy = true;
-    } else {
-      const stats = fs.statSync(dbPath);
-      // If the file is extremely small (less than 10KB), it's likely a corrupted/empty creation from Prisma
-      if (stats.size < 10000) {
-        shouldCopy = true;
-      }
-    }
-
-    if (shouldCopy) {
-      const isPackaged = app.isPackaged;
-      const resourcePath = isPackaged ? process.resourcesPath : app.getAppPath();
-      const templatePath = path.join(resourcePath, 'prisma', 'docusync.db.template');
-      
-      if (fs.existsSync(templatePath)) {
-        fs.copyFileSync(templatePath, dbPath);
-        console.log('[Engine] Copied initialized docusync.db.template to userData directory.');
-      } else {
-        console.warn('[Engine] Warning: No docusync.db.template found in resources.');
-      }
-    }
-    
     dbUrl = `file:${dbPath}`;
   }
 
@@ -268,7 +241,82 @@ export async function initEngine(
     },
   });
   await prisma.$connect();
-  console.log('[Engine] Prisma connected to SQLite.');
+
+  // ── Ensure tables exist (safe for first launch on any machine) ──
+  // This is equivalent to `prisma db push` but runs at app startup.
+  // We use CREATE TABLE IF NOT EXISTS so it is a no-op on subsequent launches.
+  // Column definitions must match schema.prisma exactly.
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "LocalVault" (
+      "id"        TEXT     NOT NULL PRIMARY KEY,
+      "nodeId"    TEXT     NOT NULL UNIQUE,
+      "pinHash"   TEXT     NOT NULL,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "event_log" (
+      "id"               INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "eventId"          TEXT     NOT NULL UNIQUE,
+      "fileId"           INTEGER  NOT NULL,
+      "nodeId"           TEXT     NOT NULL,
+      "eventType"        TEXT     NOT NULL,
+      "logicalTimestamp" INTEGER  NOT NULL,
+      "vectorClockJson"  TEXT     NOT NULL,
+      "payload"          TEXT     NOT NULL,
+      "createdAt"        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "isCompacted"      BOOLEAN  NOT NULL DEFAULT FALSE
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "event_log_fileId_logicalTimestamp_idx"
+    ON "event_log" ("fileId", "logicalTimestamp")
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "event_log_fileId_isCompacted_idx"
+    ON "event_log" ("fileId", "isCompacted")
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "conflict" (
+      "id"               INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "conflictId"       TEXT     NOT NULL UNIQUE,
+      "fileId"           INTEGER  NOT NULL,
+      "eventIdA"         TEXT     NOT NULL,
+      "nodeIdA"          TEXT     NOT NULL,
+      "vectorClockJsonA" TEXT     NOT NULL,
+      "payloadA"         TEXT     NOT NULL,
+      "eventIdB"         TEXT     NOT NULL,
+      "nodeIdB"          TEXT     NOT NULL,
+      "vectorClockJsonB" TEXT     NOT NULL,
+      "payloadB"         TEXT     NOT NULL,
+      "status"           TEXT     NOT NULL DEFAULT 'pending',
+      "winner"           TEXT,
+      "resolvedBy"       TEXT,
+      "detectedAt"       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "resolvedAt"       DATETIME
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "conflict_fileId_status_idx"
+    ON "conflict" ("fileId", "status")
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "peer_registry" (
+      "id"          INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+      "nodeId"      TEXT     NOT NULL UNIQUE,
+      "displayName" TEXT     NOT NULL DEFAULT '',
+      "address"     TEXT     NOT NULL,
+      "port"        INTEGER  NOT NULL,
+      "isOnline"    BOOLEAN  NOT NULL DEFAULT FALSE,
+      "firstSeen"   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "lastSeen"    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "peer_registry_isOnline_idx"
+    ON "peer_registry" ("isOnline")
+  `);
+  console.log('[Engine] Prisma connected and tables verified.');
 
   // ── Event Log ──────────────────────────────────────────────────
   const eventLog = createEventLog(prisma);
@@ -1142,10 +1190,11 @@ export function registerIPCHandlers(services: EngineServices): void {
       const nodeId = `Docu-${randomHex1}-${randomHex2}`;
       
       const pinHash = crypto.createHash('sha256').update(pin).digest('hex');
+      const vaultId = generateUUID();
       
       // @ts-ignore
       await prisma.localVault.create({
-        data: { nodeId, pinHash }
+        data: { id: vaultId, nodeId, pinHash }
       });
       
       isUnlocked = true;

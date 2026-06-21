@@ -33,6 +33,13 @@ const ALL_IPC_CHANNELS = [
   'peer:list', 'peer:connect',
 ] as const;
 
+// Vault channels need special fallback handling because the UI hangs
+// forever if vault:get-status never responds.
+const VAULT_IPC_CHANNELS = [
+  'vault:unlock', 'vault:lock', 'vault:genesis-init', 'vault:factory-reset',
+  'network:get-lan-ip',
+] as const;
+
 /**
  * Registers fallback IPC handlers that return a structured error response.
  *
@@ -40,17 +47,42 @@ const ALL_IPC_CHANNELS = [
  * registered for 'sync:status'" errors that crash the renderer.
  */
 function registerFallbackIPCHandlers(): void {
+  // Register generic fallbacks for engine channels
   for (const channel of ALL_IPC_CHANNELS) {
-    // Only register if no handler already exists (avoid double-registration).
     try {
       ipcMain.handle(channel, async () => ({
         success: false,
-        error: 'Engine not initialised. The sync engine failed to start — please restart the application.',
+        error: 'Engine not initialised. Please restart the application.',
       }));
     } catch {
       // Handler already registered — skip.
     }
   }
+
+  // Register vault:get-status specially — it must return a valid shape
+  // or the renderer will hang on "Loading Secure Vault..." forever.
+  try {
+    ipcMain.handle('vault:get-status', async () => ({
+      success: true,
+      data: { isRegistered: false, isUnlocked: false, nodeId: null },
+      error: 'Engine startup failed — running in limited mode.',
+    }));
+  } catch {
+    // Already registered (shouldn't happen if engine never started).
+  }
+
+  // Register remaining vault channels with error stubs
+  for (const channel of VAULT_IPC_CHANNELS) {
+    try {
+      ipcMain.handle(channel, async () => ({
+        success: false,
+        error: 'Engine not initialised. Please restart the application.',
+      }));
+    } catch {
+      // Handler already registered — skip.
+    }
+  }
+
   console.warn('[IPC] Fallback handlers registered (engine unavailable).');
 }
 
