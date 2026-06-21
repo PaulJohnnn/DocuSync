@@ -1,6 +1,6 @@
 {
   "name": "docusync",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "DocuSync — Hybrid File Synchronization Engine using Log-Based Sync, Vector Clocks, LWW, and Delta Encoding over masterless P2P",
   "repository": "https://github.com/PaulJohnnn/DocuSync",
@@ -38,6 +38,7 @@
       "dist-electron/**/*",
       "prisma/**/*",
       "node_modules/**/*",
+      "node_modules/.prisma/**/*",
       "package.json"
     ],
     "extraResources": [
