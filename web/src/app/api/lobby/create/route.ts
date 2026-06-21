@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     activeLobbies.set(otp, newLobby);
 
     return NextResponse.json({ otp }, { status: 201 });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

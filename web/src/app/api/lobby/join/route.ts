@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       nodeId: lobby.nodeId
     }, { status: 200 });
 
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

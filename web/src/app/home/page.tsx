@@ -314,11 +314,11 @@ export default function HomePage() {
           <div className="scroll-hidden" style={{ textAlign: 'center', marginBottom: 56 }}>
             <SectionLabel color="#ef4444">THE PROBLEM</SectionLabel>
             <h2 style={{ fontSize: 'clamp(26px,4vw,40px)', fontWeight: 700, color: 'var(--t1)', marginBottom: 16 }}>
-              Collaboration Shouldn't Mean Compromise
+              Collaboration Shouldn&apos;t Mean Compromise
             </h2>
             <p style={{ fontSize: 16, color: 'var(--t2)', maxWidth: 580, margin: '0 auto', lineHeight: 1.7 }}>
-              Are you tired of constantly creating "File_Final_v2_Copy" just to avoid losing your work? 
-              Traditional cloud storage wasn't built for true real-time, offline-friendly teamwork.
+              Are you tired of constantly creating &quot;File_Final_v2_Copy&quot; just to avoid losing your work? 
+              Traditional cloud storage wasn&apos;t built for true real-time, offline-friendly teamwork.
             </p>
           </div>
 
@@ -363,7 +363,7 @@ export default function HomePage() {
               Four Smart Tools. One Seamless Experience.
             </h2>
             <p style={{ fontSize: 16, color: 'var(--t2)', maxWidth: 520, margin: '0 auto' }}>
-              We've hidden complex thesis-level technology behind a beautifully simple interface. Here's how DocuSync protects your work effortlessly.
+              We&apos;ve hidden complex thesis-level technology behind a beautifully simple interface. Here&apos;s how DocuSync protects your work effortlessly.
             </p>
           </div>
 

@@ -7,12 +7,15 @@ export interface Lobby {
 }
 
 // Use global to persist Map across Next.js HMR
-const globalAny = global as any;
-if (!globalAny.activeLobbies) {
-  globalAny.activeLobbies = new Map<string, Lobby>();
+const globalWithMap = global as typeof globalThis & {
+  activeLobbies?: Map<string, Lobby>;
+};
+
+if (!globalWithMap.activeLobbies) {
+  globalWithMap.activeLobbies = new Map<string, Lobby>();
 }
 
-export const activeLobbies = globalAny.activeLobbies as Map<string, Lobby>;
+export const activeLobbies = globalWithMap.activeLobbies;
 
 // TTL: 60 minutes
 const TTL = 60 * 60 * 1000;
