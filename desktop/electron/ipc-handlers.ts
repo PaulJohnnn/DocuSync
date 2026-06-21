@@ -229,7 +229,34 @@ export async function initEngine(
   if (!dbUrl) {
     const { app } = require('electron');
     const path = require('path');
+    const fs = require('fs');
     const dbPath = path.join(app.getPath('userData'), 'docusync.db');
+    
+    // Copy the initialized database from the installer if it doesn't exist or is empty
+    let shouldCopy = false;
+    if (!fs.existsSync(dbPath)) {
+      shouldCopy = true;
+    } else {
+      const stats = fs.statSync(dbPath);
+      // If the file is extremely small (less than 10KB), it's likely a corrupted/empty creation from Prisma
+      if (stats.size < 10000) {
+        shouldCopy = true;
+      }
+    }
+
+    if (shouldCopy) {
+      const isPackaged = app.isPackaged;
+      const resourcePath = isPackaged ? process.resourcesPath : app.getAppPath();
+      const templatePath = path.join(resourcePath, 'prisma', 'docusync.db.template');
+      
+      if (fs.existsSync(templatePath)) {
+        fs.copyFileSync(templatePath, dbPath);
+        console.log('[Engine] Copied initialized docusync.db.template to userData directory.');
+      } else {
+        console.warn('[Engine] Warning: No docusync.db.template found in resources.');
+      }
+    }
+    
     dbUrl = `file:${dbPath}`;
   }
 

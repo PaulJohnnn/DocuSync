@@ -1,8 +1,9 @@
 {
   "name": "docusync",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "DocuSync — Hybrid File Synchronization Engine using Log-Based Sync, Vector Clocks, LWW, and Delta Encoding over masterless P2P",
+  "repository": "https://github.com/PaulJohnnn/DocuSync",
   "author": "Paul John G. Palamara <paul@docusync.edu>",
   "license": "MIT",
   "main": "dist-electron/main.js",
@@ -43,7 +44,7 @@
       {
         "from": "prisma",
         "to": "prisma",
-        "filter": ["schema.prisma"]
+        "filter": ["schema.prisma", "docusync.db.template"]
       }
     ],
     "asarUnpack": [
