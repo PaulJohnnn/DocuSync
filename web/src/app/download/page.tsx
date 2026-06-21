@@ -57,7 +57,7 @@ export default function DownloadPage() {
             </div>
             
             <div style={{ marginTop: 'auto' }}>
-              <Link href="https://github.com/PaulJohnnn/DocuSync/releases/download/v1.0.2/DocuSync-Setup-1.0.2.exe" target="_blank" rel="noopener noreferrer" className="btn-accent" style={{
+              <Link href="https://github.com/PaulJohnnn/DocuSync/releases/download/v1.0.3/DocuSync-Setup-1.0.3.exe" target="_blank" rel="noopener noreferrer" className="btn-accent" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 background: '#4f7df8', color: '#fff', borderRadius: 10, height: 48,
                 fontSize: 15, fontWeight: 600, textDecoration: 'none', transition: 'background 0.15s',
