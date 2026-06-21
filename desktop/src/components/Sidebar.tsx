@@ -4,11 +4,11 @@
  * Logo · search bar · WORKSPACE nav · TOOLS nav · node card.
  */
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import {
   Files, FileEdit, AlertTriangle, Clock,
-  Network, BarChart2, Settings, Search,
+  Network, BarChart2, Settings, Search, Lock
 } from 'lucide-react';
 
 interface NavItem {
@@ -33,7 +33,19 @@ const TOOLS_NAV: NavItem[] = [
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { localNodeId, pendingConflicts, connectedPeers, syncStatus } = useElectronSync();
+
+  const handleLockVault = async () => {
+    try {
+      const res = await window.docuSync.lockVault();
+      if (res.success) {
+        navigate('/vault-login');
+      }
+    } catch (err) {
+      console.error('Failed to lock vault', err);
+    }
+  };
 
   const isActive = (to: string) =>
     to === '/' ? location.pathname === '/' : location.pathname.startsWith(to.split('/')[1] ? '/' + to.split('/')[1] : to);
@@ -135,6 +147,31 @@ const Sidebar: React.FC = () => {
             Port 9000
           </div>
         </div>
+      </div>
+
+      {/* ── Lock Repository Button ── */}
+      <div style={{ padding: '0 12px 12px 12px' }}>
+        <button
+          onClick={handleLockVault}
+          className="ds-sidebar-item"
+          style={{
+            width: '100%',
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--ds-red)',
+            cursor: 'pointer',
+            justifyContent: 'flex-start',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+          }}
+        >
+          <span className="ds-sidebar-item-icon"><Lock size={16} /></span>
+          <span>Lock Repository</span>
+        </button>
       </div>
     </nav>
   );

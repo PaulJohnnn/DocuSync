@@ -10,6 +10,9 @@
     "dev": "vite",
     "dev:electron": "vite",
     "build": "tsc && vite build && electron-builder",
+    "build:win": "tsc && vite build && electron-builder --win",
+    "build:all": "tsc && vite build && electron-builder",
+    "release": "npm run build:win",
     "build:renderer": "tsc && vite build",
     "lint": "eslint . --ext .ts,.tsx",
     "test": "jest --config jest.config.ts",
@@ -21,6 +24,59 @@
     "db:push": "prisma db push",
     "test:evidence": "ts-node --project tsconfig.test.json tests/manual-evidence/generate-evidence.ts",
     "postinstall": "prisma generate"
+  },
+  "build": {
+    "appId": "com.pnc.docusync",
+    "productName": "DocuSync",
+    "copyright": "Copyright 2026 Pamantasan ng Cabuyao",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "prisma/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "prisma",
+        "to": "prisma",
+        "filter": ["schema.prisma"]
+      }
+    ],
+    "asarUnpack": [
+      "node_modules/.prisma",
+      "node_modules/@prisma/client"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "public/docusync-logo.png",
+      "artifactName": "DocuSync-Setup-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DocuSync"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/docusync-logo.png",
+      "artifactName": "DocuSync-${version}.dmg"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "public/docusync-logo.png",
+      "artifactName": "DocuSync-${version}.AppImage"
+    }
   },
   "dependencies": {
     "@docusync/shared": "*",
@@ -42,10 +98,6 @@
     "sonner": "^2.0.7",
     "uuid": "^11.1.0",
     "ws": "^8.18.2"
-  },
-  "optionalDependencies": {
-    "bufferutil": "^4.0.8",
-    "utf-8-validate": "^6.0.4"
   },
   "devDependencies": {
     "@jest/globals": "^30.4.1",

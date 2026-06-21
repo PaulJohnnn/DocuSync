@@ -1,13 +1,15 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useTheme } from './ThemeProvider';
+import { Sun, Moon } from 'lucide-react';
 
 function LogoMark() {
   return (
     <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-      <rect width="28" height="28" rx="7" fill="#4f7df8"/>
-      <path d="M7 10h14M7 14h10M7 18h12" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
-      <circle cx="21" cy="18" r="3.5" fill="#22c55e"/>
+      <rect width="28" height="28" rx="8" fill="#4f7df8"/>
+      <path d="M7.5 10h13M7.5 14h9M7.5 18h9" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
+      <circle cx="19.5" cy="18.5" r="4.5" fill="#22c55e"/>
     </svg>
   );
 }
@@ -21,6 +23,7 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <>
@@ -32,16 +35,16 @@ export default function Navbar() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 clamp(20px, 5vw, 64px)',
-        background: 'rgba(10,14,24,0.90)',
+        padding: '0 clamp(32px, 6vw, 96px)',
+        background: 'var(--bg)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        borderBottom: '1px solid var(--b1)',
       }}>
         {/* LEFT — Logo */}
         <Link href="/home" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
           <LogoMark />
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#eef0f8', letterSpacing: '-0.01em' }}>DocuSync</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.01em' }}>DocuSync</span>
         </Link>
 
         {/* CENTER — Nav links (desktop) */}
@@ -53,7 +56,7 @@ export default function Navbar() {
               target={l.external ? '_blank' : undefined}
               rel={l.external ? 'noopener noreferrer' : undefined}
               className="nav-link"
-              style={{ fontSize: 13, fontWeight: 500, color: '#7e8ba8', textDecoration: 'none', transition: 'color 0.15s' }}
+              style={{ fontSize: 13, fontWeight: 500, color: 'var(--t2)', textDecoration: 'none', transition: 'color 0.15s' }}
             >
               {l.label}
             </Link>
@@ -62,22 +65,30 @@ export default function Navbar() {
 
         {/* RIGHT — CTAs (desktop) */}
         <div className="nav-ctas-desktop" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button onClick={toggleTheme} style={{
+            background: 'none', border: '1px solid var(--b2)', cursor: 'pointer',
+            width: 36, height: 36, color: 'var(--t1)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 8, transition: 'background 0.2s',
+          }}>
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
           <Link href="/download" className="btn-ghost-nav" style={{
             display: 'inline-flex', alignItems: 'center',
-            border: '1px solid rgba(255,255,255,0.20)',
-            background: 'transparent', color: '#eef0f8',
+            border: '1px solid var(--b2)',
+            background: 'transparent', color: 'var(--t1)',
             borderRadius: 8, height: 36, padding: '0 16px',
             fontSize: 13, fontWeight: 500, textDecoration: 'none',
             transition: 'background 0.15s',
           }}>
             Download
           </Link>
-          <Link href="/" className="btn-accent-nav" style={{
+          <Link href="/files" className="btn-accent-nav" style={{
             display: 'inline-flex', alignItems: 'center',
-            background: '#4f7df8', color: '#fff',
+            background: 'linear-gradient(135deg, #4f7df8, #7c3aed)', color: '#fff',
             borderRadius: 8, height: 36, padding: '0 16px',
             fontSize: 13, fontWeight: 600, textDecoration: 'none',
-            transition: 'background 0.15s',
+            transition: 'opacity 0.15s, transform 0.15s',
+            animation: 'pulse-glow 3s ease-in-out infinite',
           }}>
             Open App →
           </Link>
@@ -90,7 +101,7 @@ export default function Navbar() {
           style={{
             display: 'none',
             background: 'none', border: 'none', cursor: 'pointer',
-            padding: 6, color: '#eef0f8',
+            padding: 6, color: 'var(--t1)',
           }}
           aria-label="Open menu"
         >
@@ -112,9 +123,9 @@ export default function Navbar() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 40 }}>
             <Link href="/home" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
               <LogoMark />
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#eef0f8' }}>DocuSync</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)' }}>DocuSync</span>
             </Link>
-            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7e8ba8', padding: 6 }}>
+            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t2)', padding: 6 }}>
               <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
                 <path d="M5 5l12 12M17 5L5 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
               </svg>
@@ -130,7 +141,7 @@ export default function Navbar() {
                 rel={l.external ? 'noopener noreferrer' : undefined}
                 onClick={() => setOpen(false)}
                 style={{
-                  fontSize: 20, fontWeight: 600, color: '#eef0f8',
+                  fontSize: 20, fontWeight: 600, color: 'var(--t1)',
                   textDecoration: 'none', padding: '14px 0',
                   borderBottom: '1px solid rgba(255,255,255,0.06)',
                 }}
@@ -141,13 +152,13 @@ export default function Navbar() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 32 }}>
               <Link href="/download" onClick={() => setOpen(false)} style={{
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
-                border: '1px solid rgba(255,255,255,0.20)', background: 'transparent',
-                color: '#eef0f8', borderRadius: 10, height: 48,
+                border: '1px solid var(--b2)', background: 'transparent',
+                color: 'var(--t1)', borderRadius: 10, height: 48,
                 fontSize: 15, fontWeight: 500, textDecoration: 'none',
               }}>Download</Link>
-              <Link href="/" onClick={() => setOpen(false)} style={{
+              <Link href="/files" onClick={() => setOpen(false)} style={{
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
-                background: '#4f7df8', color: '#fff', borderRadius: 10, height: 48,
+                background: 'linear-gradient(135deg, #4f7df8, #7c3aed)', color: '#fff', borderRadius: 10, height: 48,
                 fontSize: 15, fontWeight: 600, textDecoration: 'none',
               }}>Open App →</Link>
             </div>
@@ -161,9 +172,9 @@ export default function Navbar() {
           .nav-ctas-desktop  { display: none !important; }
           .hamburger-btn     { display: flex !important; }
         }
-        .nav-link:hover     { color: #eef0f8 !important; }
-        .btn-ghost-nav:hover { background: rgba(255,255,255,0.08) !important; }
-        .btn-accent-nav:hover { background: #3d6ef0 !important; }
+        .nav-link:hover      { color: var(--t1) !important; }
+        .btn-ghost-nav:hover  { background: var(--b1) !important; }
+        .btn-accent-nav:hover { opacity: 0.9 !important; transform: scale(1.02); }
       `}</style>
     </>
   );

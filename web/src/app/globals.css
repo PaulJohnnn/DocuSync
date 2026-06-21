@@ -71,9 +71,90 @@ body {
   color: var(--t1);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
   min-height: 100vh;
-  overflow: hidden;
+  overflow: auto;
 }
 
+.btn-hero-ghost, .cta-ghost {
+  display: inline-flex;
+  align-items: center;
+  background: var(--s1);
+  border: 1px solid var(--b2);
+  color: var(--t1);
+  border-radius: 12px;
+  height: 52px;
+  padding: 0 32px;
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-hero-ghost:hover, .cta-ghost:hover {
+  background: var(--s2);
+  border-color: var(--b3);
+}
+
+/* App layout (non-public routes) locks overflow on the wrapper div */
+.app-layout {
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* ── Landing page animations ────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-12px); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(79,125,248,0.3); }
+  50%      { box-shadow: 0 0 40px rgba(79,125,248,0.6); }
+}
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes count-up {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(8px); }
+}
+
+/* Scroll-reveal helper */
+.scroll-hidden {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.scroll-hidden.animate-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Scrollbar styling ───────────────────────────────────────── */
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

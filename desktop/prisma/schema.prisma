@@ -19,6 +19,13 @@ datasource db {
   url      = "file:./docusync.db"
 }
 
+model LocalVault {
+  id        String   @id @default(uuid())
+  nodeId    String   @unique // Format: Docu-[4-HEX]-[4-HEX]
+  pinHash   String   // SHA-256 hash of the user's 8-digit Security PIN
+  createdAt DateTime @default(now())
+}
+
 /// Append-only event log for log-based synchronization.
 ///
 /// Each row represents a single sync event (edit, merge, conflict

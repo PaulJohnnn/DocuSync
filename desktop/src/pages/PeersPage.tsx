@@ -2,12 +2,13 @@
  * @module PeersPage
  * P2P peer management page — route `/peers`.
  * Metric cards, peer cards with avatar circles, connect form.
- * All IPC logic preserved.
+ * Refactored to use OTP Matchmaking via Next.js API.
  */
-import React, { useEffect, useState, useRef, useCallback, type FormEvent } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { IconNetwork, IconRefresh, IconWifi, IconActivity } from '@/components/Icons';
+import { IconNetwork, IconRefresh } from '@/components/Icons';
+import { Link2, Users } from 'lucide-react';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -68,57 +69,10 @@ function avatarColor(nodeId: string): string {
   return `hsl(${h % 360}, 55%, 35%)`;
 }
 
-// ── ConnectForm ─────────────────────────────────────────────────────────────
-
-const ConnectForm: React.FC<{ onConnected: () => void }> = ({ onConnected }) => {
-  const [address, setAddress] = useState('');
-  const [portStr, setPortStr] = useState('9000');
-  const [connecting, setConnecting] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault(); setFormError(null);
-    const addr = address.trim();
-    if (!addr) { setFormError('Address required.'); return; }
-    const port = parseInt(portStr, 10);
-    if (!Number.isFinite(port) || port < 1 || port > 65535) { setFormError('Invalid port.'); return; }
-    if (!window.docuSync) { toast.error('IPC not available.'); return; }
-    setConnecting(true);
-    try {
-      const res = await window.docuSync.connectToPeer(addr, port);
-      if (!res.success) throw new Error(res.error ?? 'Connection error.');
-      const data = res.data as ConnectResponse;
-      toast.success(`Connected to ${data.address}:${data.port}`);
-      setAddress(''); onConnected();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setFormError(msg); toast.error(`Failed: ${msg}`);
-    } finally { setConnecting(false); }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} noValidate>
-      <div className="ds-connect-form">
-        <input
-          type="text" value={address} onChange={(e) => setAddress(e.target.value)}
-          placeholder="192.168.1.5" disabled={connecting}
-        />
-        <input
-          type="number" value={portStr} onChange={(e) => setPortStr(e.target.value)}
-          min={1} max={65535} disabled={connecting} style={{ width: 80 }}
-        />
-        <button className="ds-btn ds-btn-primary" type="submit" disabled={connecting}>
-          {connecting ? '⏳ Connecting…' : '+ Connect'}
-        </button>
-      </div>
-      {formError && <p style={{ margin: '0.4rem 0 0', fontSize: '0.72rem', color: 'var(--ds-red)' }}>{formError}</p>}
-    </form>
-  );
-};
-
 // ── PeersPage ───────────────────────────────────────────────────────────────
 
 const REFRESH_INTERVAL = 5_000;
+const API_URL = 'http://localhost:3000/api/lobby';
 
 const PeersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -127,6 +81,13 @@ const PeersPage: React.FC = () => {
   const [syncStatus, setSyncStatus] = useState<SyncStatusResponse | null>(null);
   const [loadingPeers, setLoadingPeers] = useState(true);
   const [peerError, setPeerError] = useState<string | null>(null);
+  
+  const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  
+  const [joinOtp, setJoinOtp] = useState('');
+  const [joining, setJoining] = useState(false);
+
   const fetchAllRef = useRef<(initial?: boolean) => Promise<void>>();
 
   const fetchAll = useCallback(async (initial = false) => {
@@ -150,13 +111,74 @@ const PeersPage: React.FC = () => {
 
   fetchAllRef.current = fetchAll;
 
-  useEffect(() => { fetchAll(true); const iv = setInterval(() => fetchAllRef.current?.(), REFRESH_INTERVAL); return () => clearInterval(iv); }, [fetchAll]);
+  useEffect(() => { 
+    fetchAll(true); 
+    const iv = setInterval(() => fetchAllRef.current?.(), REFRESH_INTERVAL); 
+    return () => clearInterval(iv); 
+  }, [fetchAll]);
 
-  const wsPort = syncStatus ? 9000 : '—';
+  const wsPort = syncStatus ? 9000 : '—'; // Hardcoded fallback if needed, but peerManager uses 9000+
+
+  const handleGenerateOtp = async () => {
+    setGenerating(true);
+    try {
+      const ipRes = await window.docuSync.getLanIp();
+      const statusRes = await window.docuSync.getSyncStatus();
+      
+      const ip = ipRes.success ? ipRes.data : '127.0.0.1';
+      const nodeId = statusRes.success && statusRes.data ? (statusRes.data as SyncStatusResponse).localNodeId : 'Unknown';
+      
+      const res = await fetch(`${API_URL}/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeId, ip, port: 9000 })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create lobby');
+      
+      setGeneratedOtp(data.otp);
+      toast.success('Lobby created successfully!');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate OTP');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleJoinOtp = async () => {
+    if (joinOtp.length !== 5) {
+      toast.error('OTP must be exactly 5 digits.');
+      return;
+    }
+    setJoining(true);
+    try {
+      const res = await fetch(`${API_URL}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: joinOtp })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Invalid session');
+      
+      toast.success('Found peer! Connecting via WebSockets...');
+      
+      const connectRes = await window.docuSync.connectToPeer(data.ip, data.port);
+      if (!connectRes.success) throw new Error(connectRes.error ?? 'Connection error.');
+      
+      toast.success(`Connected to ${data.nodeId}`);
+      setJoinOtp('');
+      fetchAll();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to join lobby');
+    } finally {
+      setJoining(false);
+    }
+  };
 
   return (
     <>
-      {/* Topbar */}
       <div className="ds-topbar">
         <span style={{ color: 'var(--ds-accent)' }}><IconNetwork size={16} /></span>
         <span className="ds-topbar-title">Peers</span>
@@ -169,7 +191,6 @@ const PeersPage: React.FC = () => {
       </div>
 
       <div className="ds-main-scroll ds-page-enter">
-        {/* Metric cards */}
         <div className="ds-metrics-grid">
           <div className="ds-metric-card">
             <span className="ds-metric-label">Online Peers</span>
@@ -189,15 +210,85 @@ const PeersPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Connect form */}
-        <div className="ds-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--ds-text)', marginBottom: '0.5rem' }}>
-            Connect to Peer
+        {/* ── Bento Grid: OTP Matchmaker ── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+          
+          {/* Card 1: Host a Live Session */}
+          <div className="ds-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <Users size={20} color="var(--accent)" />
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>Host a Live Session</h3>
+            </div>
+            
+            {!generatedOtp ? (
+              <div style={{ display: 'flex', flex: 1, flexDirection: 'column', justifyContent: 'center' }}>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
+                  Start a secure P2P collaboration room. This will generate a temporary 5-digit code that your peers can use to connect directly to this node.
+                </p>
+                <button 
+                  className="ds-btn ds-btn-primary" 
+                  onClick={handleGenerateOtp} 
+                  disabled={generating}
+                  style={{ width: '100%', justifyContent: 'center', padding: '10px 0' }}
+                >
+                  {generating ? 'Generating...' : 'Generate 5-Digit Collaboration OTP'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(34, 197, 94, 0.05)', borderRadius: 8, border: '1px solid rgba(34, 197, 94, 0.2)', padding: 16 }}>
+                <div style={{ fontSize: 42, fontWeight: 'bold', fontFamily: 'monospace', color: 'var(--green)', letterSpacing: '0.1em' }}>
+                  {generatedOtp}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+                  Valid for 60 minutes. Hand this OTP to your peer.
+                </div>
+              </div>
+            )}
           </div>
-          <ConnectForm onConnected={() => fetchAll()} />
+
+          {/* Card 2: Join Peer via OTP */}
+          <div className="ds-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <Link2 size={20} color="var(--green)" />
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--text-primary)' }}>Join Peer via OTP</h3>
+            </div>
+            <div style={{ display: 'flex', flex: 1, flexDirection: 'column', justifyContent: 'center' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
+                Enter the 5-digit OTP provided by the host to join their live session. The connection is established directly peer-to-peer.
+              </p>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <input 
+                  type="text" 
+                  placeholder="e.g. 88412"
+                  value={joinOtp}
+                  onChange={(e) => setJoinOtp(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                  disabled={joining}
+                  style={{ 
+                    flex: 1, 
+                    padding: '10px 16px', 
+                    borderRadius: 6, 
+                    border: '1px solid var(--border)', 
+                    background: 'var(--bg-base)', 
+                    color: 'var(--text-primary)',
+                    fontFamily: 'monospace',
+                    fontSize: 16,
+                    letterSpacing: '0.2em'
+                  }} 
+                />
+                <button 
+                  className="ds-btn ds-btn-primary" 
+                  onClick={handleJoinOtp} 
+                  disabled={joining || joinOtp.length !== 5}
+                  style={{ padding: '0 24px' }}
+                >
+                  {joining ? 'Connecting...' : 'Connect'}
+                </button>
+              </div>
+            </div>
+          </div>
+
         </div>
 
-        {/* Error */}
         {peerError && (
           <div className="ds-banner ds-banner-red" style={{ marginBottom: '1rem' }}>
             <span>⛔</span>
@@ -205,37 +296,31 @@ const PeersPage: React.FC = () => {
           </div>
         )}
 
-        {/* Loading */}
         {loadingPeers && (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--ds-text3)' }}>
             <span className="ds-pulse">⏳</span> Loading peers…
           </div>
         )}
 
-        {/* Empty */}
         {!loadingPeers && peers.length === 0 && (
           <div className="ds-empty" style={{ background: 'var(--ds-surface)', borderRadius: 'var(--ds-radius-lg)', border: '1px solid var(--ds-border)' }}>
             <div className="ds-empty-icon">🌐</div>
             <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>No peers discovered</h2>
             <p style={{ color: 'var(--ds-text2)', fontSize: '0.82rem', maxWidth: 340, margin: '0 auto' }}>
-              Use the connect form above to add a peer by IP address and port.
+              Host a live session or join an existing one using an OTP to get started.
             </p>
           </div>
         )}
 
-        {/* Peer cards */}
         {!loadingPeers && peers.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {peers.map(peer => {
               const liveOnline = syncStatus?.connectedPeers.includes(peer.nodeId) ?? peer.isOnline;
               return (
                 <article key={peer.nodeId} className="ds-card" style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  {/* Avatar */}
                   <div className="ds-avatar" style={{ background: avatarColor(peer.nodeId) }}>
                     {initials(peer.displayName || peer.nodeId)}
                   </div>
-
-                  {/* Details */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: '0.82rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {peer.displayName || peer.nodeId.slice(0, 12) + '…'}
@@ -247,8 +332,6 @@ const PeersPage: React.FC = () => {
                       Last seen: {relativeTime(peer.lastSeen)}
                     </div>
                   </div>
-
-                  {/* Status badge */}
                   {liveOnline ? (
                     <span className="ds-badge ds-badge-green">● Online</span>
                   ) : (
@@ -260,7 +343,6 @@ const PeersPage: React.FC = () => {
           </div>
         )}
 
-        {/* Local Node Info */}
         {syncStatus && (
           <div className="ds-card" style={{ padding: '0.75rem 1rem', marginTop: '1rem' }}>
             <div style={{ fontSize: '0.68rem', color: 'var(--ds-text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem' }}>

@@ -52,6 +52,12 @@ const CH_CONFLICT_DETAIL  = 'conflict:detail'  as const;
 const CH_CONFLICT_RESOLVE = 'conflict:resolve' as const;
 const CH_PEER_LIST       = 'peer:list'       as const;
 const CH_PEER_CONNECT    = 'peer:connect'    as const;
+const CH_VAULT_STATUS    = 'vault:get-status' as const;
+const CH_VAULT_GENESIS   = 'vault:genesis-init' as const;
+const CH_VAULT_UNLOCK    = 'vault:unlock'     as const;
+const CH_VAULT_LOCK      = 'vault:lock'       as const;
+const CH_VAULT_FACTORY_RESET = 'vault:factory-reset' as const;
+const CH_NET_LAN_IP      = 'network:get-lan-ip' as const;
 
 /** Main-to-renderer push channels (one-way, main → renderer). */
 const CH_EVT_CONFLICT    = 'conflict:detected'  as const;
@@ -205,6 +211,15 @@ export interface DocuSyncBridge {
    */
   connectToPeer(address: string, port: number): Promise<IPCResponse>;
 
+  // ── Vault & Network ──────────────────────────────────────────────────
+
+  getVaultStatus(): Promise<IPCResponse<{ isRegistered: boolean, isUnlocked: boolean, nodeId: string | null }>>;
+  genesisInit(pin: string): Promise<IPCResponse<{ nodeId: string }>>;
+  unlockVault(pin: string): Promise<IPCResponse<{ success: boolean, nodeId?: string }>>;
+  lockVault(): Promise<IPCResponse<{ success: boolean }>>;
+  factoryReset(): Promise<IPCResponse<{ success: boolean }>>;
+  getLanIp(): Promise<IPCResponse<string>>;
+
   // ── Push Event Listeners ──────────────────────────────────────────────
 
   /**
@@ -318,6 +333,32 @@ const docuSyncBridge: DocuSyncBridge = {
 
   connectToPeer(address: string, port: number): Promise<IPCResponse> {
     return ipcRenderer.invoke(CH_PEER_CONNECT, address, port);
+  },
+
+  // ── Vault & Network ──────────────────────────────────────────────────
+
+  getVaultStatus(): Promise<IPCResponse<{ isRegistered: boolean, isUnlocked: boolean, nodeId: string | null }>> {
+    return ipcRenderer.invoke(CH_VAULT_STATUS) as any;
+  },
+
+  genesisInit(pin: string): Promise<IPCResponse<{ nodeId: string }>> {
+    return ipcRenderer.invoke(CH_VAULT_GENESIS, pin) as any;
+  },
+
+  unlockVault(pin: string): Promise<IPCResponse<{ success: boolean, nodeId?: string }>> {
+    return ipcRenderer.invoke(CH_VAULT_UNLOCK, pin) as any;
+  },
+
+  lockVault(): Promise<IPCResponse<{ success: boolean }>> {
+    return ipcRenderer.invoke(CH_VAULT_LOCK) as any;
+  },
+
+  factoryReset(): Promise<IPCResponse<{ success: boolean }>> {
+    return ipcRenderer.invoke(CH_VAULT_FACTORY_RESET) as any;
+  },
+
+  getLanIp(): Promise<IPCResponse<string>> {
+    return ipcRenderer.invoke(CH_NET_LAN_IP) as any;
   },
 
   // ── Push Event Listeners ─────────────────────────────────────────────

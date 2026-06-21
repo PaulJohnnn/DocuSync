@@ -9,7 +9,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
 
   if (isPublic) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#0a0e18' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
         <Navbar />
         <div style={{ flex: 1 }}>{children}</div>
         <Footer />
@@ -18,7 +18,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="app-layout" style={{ display: 'flex' }}>
       {children}
     </div>
   );

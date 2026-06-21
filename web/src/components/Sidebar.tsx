@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Files', icon: FolderOpen },
+  { href: '/files', label: 'Files', icon: FolderOpen },
   { href: '/editor/new', label: 'Editor', icon: FileEdit },
   { href: '/conflicts', label: 'Conflicts', icon: AlertTriangle },
   { href: '/history/all', label: 'History', icon: Clock },
@@ -70,7 +70,8 @@ export default function Sidebar() {
       <nav style={{ flex: 1, padding: '0 8px' }}>
         {NAV_ITEMS.map(item => {
           const active = pathname === item.href ||
-            (item.href !== '/' && pathname.startsWith(item.href.split('/')[1] ? '/' + item.href.split('/')[1] : item.href));
+            (item.href !== '/files' && item.href !== '/' && pathname.startsWith('/' + item.href.split('/')[1])) ||
+            (item.href === '/files' && (pathname === '/files' || pathname === '/'));
           const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href} style={{

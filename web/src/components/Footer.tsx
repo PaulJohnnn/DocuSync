@@ -3,16 +3,16 @@ import Link from 'next/link';
 function LogoMark() {
   return (
     <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
-      <rect width="28" height="28" rx="7" fill="#4f7df8"/>
-      <path d="M7 10h14M7 14h10M7 18h12" stroke="#fff" strokeWidth="2" strokeLinecap="round"/>
-      <circle cx="21" cy="18" r="3.5" fill="#22c55e"/>
+      <rect width="28" height="28" rx="8" fill="#4f7df8"/>
+      <path d="M7.5 10h13M7.5 14h9M7.5 18h9" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
+      <circle cx="19.5" cy="18.5" r="4.5" fill="#22c55e"/>
     </svg>
   );
 }
 
 const FOOTER_LINKS = {
   App: [
-    { label: 'Files',     href: '/' },
+    { label: 'Files',     href: '/files' },
     { label: 'Editor',    href: '/editor/demo' },
     { label: 'Conflicts', href: '/conflicts' },
     { label: 'Metrics',   href: '/metrics' },
@@ -41,9 +41,9 @@ export default function Footer() {
         <div>
           <Link href="/home" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', marginBottom: 10 }}>
             <LogoMark />
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#eef0f8' }}>DocuSync</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--t1)' }}>DocuSync</span>
           </Link>
-          <p style={{ fontSize: 12, color: '#4d5f85', maxWidth: 240, lineHeight: 1.6 }}>
+          <p style={{ fontSize: 12, color: 'var(--t3)', maxWidth: 240, lineHeight: 1.6 }}>
             Hybrid P2P File Synchronization Engine.<br />
             BS CS Thesis · Pamantasan ng Cabuyao · 2026
           </p>
@@ -53,7 +53,7 @@ export default function Footer() {
         <div style={{ display: 'flex', gap: 56, flexWrap: 'wrap' }}>
           {Object.entries(FOOTER_LINKS).map(([col, links]) => (
             <div key={col}>
-              <p style={{ fontSize: 11, fontWeight: 600, color: '#4d5f85', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>
                 {col}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -63,7 +63,7 @@ export default function Footer() {
                     href={l.href}
                     target={'external' in l && l.external ? '_blank' : undefined}
                     rel={'external' in l && l.external ? 'noopener noreferrer' : undefined}
-                    style={{ fontSize: 13, color: '#7e8ba8', textDecoration: 'none', transition: 'color 0.15s' }}
+                    style={{ fontSize: 13, color: 'var(--t2)', textDecoration: 'none', transition: 'color 0.15s' }}
                     className="footer-link"
                   >
                     {l.label}
@@ -82,15 +82,15 @@ export default function Footer() {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         flexWrap: 'wrap', gap: 12,
       }}>
-        <p style={{ fontSize: 12, color: '#3d4a65' }}>
+        <p style={{ fontSize: 12, color: 'var(--t3)' }}>
           © 2026 Pamantasan ng Cabuyao · BS Computer Science · Paul John G. Palamara
         </p>
-        <p style={{ fontSize: 12, color: '#3d4a65' }}>
+        <p style={{ fontSize: 12, color: 'var(--t3)' }}>
           ISO/IEC 25010:2023 Compliant · 72/72 Tests Passed
         </p>
       </div>
 
-      <style>{`.footer-link:hover { color: #eef0f8 !important; }`}</style>
+      <style>{`.footer-link:hover { color: var(--t1) !important; }`}</style>
     </footer>
   );
 }

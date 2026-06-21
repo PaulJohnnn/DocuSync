@@ -8,11 +8,12 @@
     "shared"
   ],
   "scripts": {
-    "dev:desktop": "cd desktop && npm run dev:electron",
-    "dev:web": "cd web && npm run dev",
-    "dev:mobile": "cd mobile && npx expo start",
-    "test:all": "cd desktop && npm test",
-    "build:web": "cd web && npm run build"
+    "dev": "npm run dev --prefix web",
+    "dev:desktop": "npm run dev:electron --prefix desktop",
+    "dev:web": "npm run dev --prefix web",
+    "dev:mobile": "npm start --prefix mobile",
+    "test:all": "npm test --prefix desktop",
+    "build:web": "npm run build --prefix web"
   },
   "devDependencies": {
     "vite": "^8.0.16",

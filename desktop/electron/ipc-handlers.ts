@@ -35,6 +35,8 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
+import * as os from 'os';
 import { PrismaClient } from '@prisma/client';
 import { EventLogService, createEventLog } from '../src/engine/log-sync/event-log';
 import { encode, validateTextFile } from '../src/engine/delta/delta-encoder';
@@ -223,7 +225,21 @@ export async function initEngine(
   const localNodeId = generateUUID();
 
   // ── Prisma ──────────────────────────────────────────────────────
-  const prisma = new PrismaClient();
+  let dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    const { app } = require('electron');
+    const path = require('path');
+    const dbPath = path.join(app.getPath('userData'), 'docusync.db');
+    dbUrl = `file:${dbPath}`;
+  }
+
+  const prisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: dbUrl,
+      },
+    },
+  });
   await prisma.$connect();
   console.log('[Engine] Prisma connected to SQLite.');
 
@@ -1064,6 +1080,108 @@ export function registerIPCHandlers(services: EngineServices): void {
         port,
         connectedPeers: peerManager.getConnectedPeerIds(),
       };
+    })
+  );
+
+  // ── Vault & Identity ────────────────────────────────────────────────
+  let isUnlocked = false;
+
+  ipcMain.handle(
+    'vault:get-status',
+    safeHandler(async () => {
+      // @ts-ignore - LocalVault might not be in the types yet due to EPERM error on generate
+      const vault = await prisma.localVault.findFirst();
+      if (!vault) {
+        return { isRegistered: false, isUnlocked: false, nodeId: null };
+      }
+      return { isRegistered: true, isUnlocked, nodeId: vault.nodeId };
+    })
+  );
+
+  ipcMain.handle(
+    'vault:genesis-init',
+    safeHandler(async (...args: unknown[]) => {
+      const pin = args[0] as string;
+      if (typeof pin !== 'string' || pin.length !== 8) {
+        throw new Error('Genesis requires an 8-digit PIN.');
+      }
+      // @ts-ignore
+      const existing = await prisma.localVault.findFirst();
+      if (existing) {
+        throw new Error('Vault is already initialized.');
+      }
+      const randomHex1 = crypto.randomBytes(2).toString('hex').toUpperCase();
+      const randomHex2 = crypto.randomBytes(2).toString('hex').toUpperCase();
+      const nodeId = `Docu-${randomHex1}-${randomHex2}`;
+      
+      const pinHash = crypto.createHash('sha256').update(pin).digest('hex');
+      
+      // @ts-ignore
+      await prisma.localVault.create({
+        data: { nodeId, pinHash }
+      });
+      
+      isUnlocked = true;
+      return { nodeId };
+    })
+  );
+
+  ipcMain.handle(
+    'vault:unlock',
+    safeHandler(async (...args: unknown[]) => {
+      const pin = args[0] as string;
+      if (typeof pin !== 'string') {
+        throw new Error('Unlock requires a PIN string.');
+      }
+      // @ts-ignore
+      const vault = await prisma.localVault.findFirst();
+      if (!vault) {
+        throw new Error('Vault not initialized.');
+      }
+      
+      const pinHash = crypto.createHash('sha256').update(pin).digest('hex');
+      if (vault.pinHash === pinHash) {
+        isUnlocked = true;
+        return { success: true, nodeId: vault.nodeId };
+      } else {
+        return { success: false };
+      }
+    })
+  );
+
+  ipcMain.handle(
+    'network:get-lan-ip',
+    safeHandler(async () => {
+      const nets = os.networkInterfaces();
+      for (const name of Object.keys(nets)) {
+        for (const net of nets[name] || []) {
+          if (net.family === 'IPv4' && !net.internal) {
+            // Return the first non-internal IPv4 address
+            return net.address;
+          }
+        }
+      }
+      return '127.0.0.1';
+    })
+  );
+
+  ipcMain.handle(
+    'vault:lock',
+    safeHandler(async () => {
+      isUnlocked = false;
+      return { success: true };
+    })
+  );
+
+  ipcMain.handle(
+    'vault:factory-reset',
+    safeHandler(async () => {
+      // @ts-ignore
+      await prisma.localVault.deleteMany({});
+      await prisma.eventLog.deleteMany({});
+      await prisma.conflict.deleteMany({});
+      isUnlocked = false;
+      return { success: true };
     })
   );
 
