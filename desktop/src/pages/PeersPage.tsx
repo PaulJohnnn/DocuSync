@@ -72,7 +72,7 @@ function avatarColor(nodeId: string): string {
 // ── PeersPage ───────────────────────────────────────────────────────────────
 
 const REFRESH_INTERVAL = 5_000;
-const API_URL = 'http://localhost:3000/api/lobby';
+const API_URL = 'https://docusync-pnc.vercel.app/api/lobby';
 
 const PeersPage: React.FC = () => {
   const navigate = useNavigate();

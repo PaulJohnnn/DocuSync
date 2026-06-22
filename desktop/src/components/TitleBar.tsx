@@ -28,7 +28,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ isRightPanelOpen, onToggleRightPane
     syncStatus === 'syncing'  ? 'Syncing'  :
     syncStatus === 'conflict' ? 'Conflict' :
     syncStatus === 'error'    ? 'Error'    :
-    'Offline';
+    'Disconnected';
 
   return (
     <div className="ds-titlebar">

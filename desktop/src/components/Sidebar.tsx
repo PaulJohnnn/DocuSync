@@ -129,7 +129,7 @@ const Sidebar: React.FC = () => {
               flexShrink: 0,
             }} />
             <span style={{ fontSize: 11, fontWeight: 600, color: isOnline ? 'var(--green)' : 'var(--text-muted)' }}>
-              {isOnline ? 'Online' : 'Offline'}
+              {isOnline ? 'Online' : 'Disconnected'}
             </span>
             <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>
               {connectedPeers.length} peer{connectedPeers.length !== 1 ? 's' : ''}
