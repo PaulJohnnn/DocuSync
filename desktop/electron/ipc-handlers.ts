@@ -222,12 +222,18 @@ export async function initEngine(
   nodeIndex: number = 0,
   wsPort: number = 9000
 ): Promise<EngineServices> {
+  const isPackaged = app.isPackaged;
+  
+  if (isPackaged) {
+    // Tell Prisma where to find the native Windows query engine we packaged in extraResources
+    process.env.PRISMA_QUERY_ENGINE_LIBRARY = path.join(process.resourcesPath, 'prisma-engine', 'query_engine-windows.dll.node');
+  }
+
   const localNodeId = generateUUID();
 
   // ── Prisma ──────────────────────────────────────────────────────
   let dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
-    const { app } = require('electron');
     const path = require('path');
     const dbPath = path.join(app.getPath('userData'), 'docusync.db');
     dbUrl = `file:${dbPath}`;

@@ -1,6 +1,6 @@
 {
   "name": "docusync",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "description": "DocuSync — Hybrid File Synchronization Engine using Log-Based Sync, Vector Clocks, LWW, and Delta Encoding over masterless P2P",
   "repository": "https://github.com/PaulJohnnn/DocuSync",
@@ -46,11 +46,17 @@
         "from": "prisma",
         "to": "prisma",
         "filter": ["schema.prisma"]
+      },
+      {
+        "from": "node_modules/.prisma/client",
+        "to": "prisma-engine",
+        "filter": ["query_engine-windows.dll.node"]
       }
     ],
     "asarUnpack": [
-      "node_modules/.prisma",
-      "node_modules/@prisma/client"
+      "node_modules/.prisma/**/*",
+      "node_modules/@prisma/client/**/*",
+      "**/*.node"
     ],
     "win": {
       "target": [
