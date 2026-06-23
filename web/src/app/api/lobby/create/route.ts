@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { activeLobbies, cleanupLobbies, Lobby } from '../store';
+import { activeLobbies, cleanupLobbies, Lobby, ipRateLimits } from '../store';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,6 +21,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing nodeId, ip, or port' }, { status: 400, headers: corsHeaders });
     }
 
+    // IP Rate Limit (max 3 rooms per IP/hour)
+    const clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || ip;
+    const now = Date.now();
+    const timestamps = ipRateLimits.get(clientIp) || [];
+    const validTimestamps = timestamps.filter(t => now - t < 60 * 60 * 1000);
+    if (validTimestamps.length >= 3) {
+      return NextResponse.json({ error: 'Rate limit exceeded: Maximum 3 rooms per IP per hour.' }, { status: 429, headers: corsHeaders });
+    }
+    validTimestamps.push(now);
+    ipRateLimits.set(clientIp, validTimestamps);
+
     // Generate random 5-digit OTP
     const otp = Math.floor(10000 + Math.random() * 90000).toString();
 
@@ -30,7 +41,8 @@ export async function POST(request: Request) {
       port: Number(port),
       nodeId,
       roomName,
-      createdAt: Date.now(),
+      createdAt: now,
+      peersJoined: 0,
     };
 
     activeLobbies.set(otp, newLobby);

@@ -45,7 +45,9 @@ export type MessageType =
   | 'SYNC_REQUEST'
   | 'CONFLICT_NOTIFY'
   | 'MERGE_ACCEPT'
-  | 'MERGE_REJECT';
+  | 'MERGE_REJECT'
+  | 'USER_VERIFY'
+  | 'USER_VERIFY_RESPONSE';
 
 /**
  * Set of all recognised message types for O(1) validation.
@@ -60,6 +62,8 @@ const VALID_MESSAGE_TYPES: ReadonlySet<string> = new Set<MessageType>([
   'CONFLICT_NOTIFY',
   'MERGE_ACCEPT',
   'MERGE_REJECT',
+  'USER_VERIFY',
+  'USER_VERIFY_RESPONSE',
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -237,6 +241,35 @@ export interface MergeRejectMessage {
   timestamp: string;
 }
 
+/**
+ * Sent by a node holding an active connection to verify if a new
+ * connection from the same Node ID is legitimate.
+ */
+export interface UserVerifyMessage {
+  /** Message type discriminant. */
+  type: 'USER_VERIFY';
+  /** Node ID attempting to connect. */
+  nodeId: string;
+  /** ISO 8601 timestamp of the verification request. */
+  timestamp: string;
+}
+
+/**
+ * Sent by the existing session to respond to a USER_VERIFY.
+ * If allow is true, the new connection replaces the old one.
+ * If allow is false, the new connection is blocked.
+ */
+export interface UserVerifyResponseMessage {
+  /** Message type discriminant. */
+  type: 'USER_VERIFY_RESPONSE';
+  /** Node ID attempting to connect. */
+  nodeId: string;
+  /** Whether the login attempt is allowed. */
+  allow: boolean;
+  /** ISO 8601 timestamp of the response. */
+  timestamp: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tagged Union
 // ─────────────────────────────────────────────────────────────────────────────
@@ -263,7 +296,9 @@ export type PeerMessage =
   | SyncRequestMessage
   | ConflictNotifyMessage
   | MergeAcceptMessage
-  | MergeRejectMessage;
+  | MergeRejectMessage
+  | UserVerifyMessage
+  | UserVerifyResponseMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Validation
@@ -343,6 +378,15 @@ const MESSAGE_FIELD_SPECS: Record<MessageType, Record<string, string>> = {
     fileId: 'number',
     reason: 'string',
     rejectedBy: 'string',
+    timestamp: 'string',
+  },
+  USER_VERIFY: {
+    nodeId: 'string',
+    timestamp: 'string',
+  },
+  USER_VERIFY_RESPONSE: {
+    nodeId: 'string',
+    allow: 'boolean',
     timestamp: 'string',
   },
 };

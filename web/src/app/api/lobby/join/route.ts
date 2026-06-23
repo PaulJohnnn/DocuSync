@@ -26,8 +26,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid or expired OTP' }, { status: 404, headers: corsHeaders });
     }
 
-    // Instantly delete the OTP so it cannot be reused
-    activeLobbies.delete(otp);
+    if (lobby.peersJoined >= 15) {
+      return NextResponse.json({ error: 'Room is full (max 15 peers)' }, { status: 403, headers: corsHeaders });
+    }
+
+    // Increment joined count, do NOT delete the OTP so others can still join.
+    // The OTP will naturally expire after 30 minutes via cleanupLobbies.
+    lobby.peersJoined += 1;
+    activeLobbies.set(otp, lobby);
 
     return NextResponse.json({
       ip: lobby.ip,

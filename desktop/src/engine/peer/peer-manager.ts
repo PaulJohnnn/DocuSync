@@ -167,6 +167,8 @@ export interface PeerManagerConfig {
   onMergeAccepted?: OnMergeAccepted;
   /** Callback for sync requests. */
   onSyncRequested?: OnSyncRequested;
+  /** Callback when a new connection attempts to use an already active Node ID. */
+  onUserVerifyRequest?: (nodeId: string) => Promise<boolean>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -613,6 +615,14 @@ export class PeerManager {
         this.handlePeerHello(socket, msg);
         break;
 
+      case 'USER_VERIFY':
+        this.handleUserVerify(socket, msg);
+        break;
+
+      case 'USER_VERIFY_RESPONSE':
+        this.handleUserVerifyResponse(socket, msg);
+        break;
+
       case 'PEER_BYE':
         this.handlePeerBye(socket, msg);
         break;
@@ -675,6 +685,41 @@ export class PeerManager {
     const peer = this.peers.get(socket);
     if (!peer) return;
 
+    // Check if node is already connected
+    let existingSocket: WebSocket | null = null;
+    for (const [s, p] of this.peers) {
+      if (s !== socket && p.nodeId === msg.nodeId && s.readyState === WebSocket.OPEN) {
+        existingSocket = s;
+        break;
+      }
+    }
+
+    if (existingSocket && this.config.onUserVerifyRequest) {
+      console.log(`[PeerManager] Duplicate PEER_HELLO for ${msg.nodeId}. Requesting verification.`);
+      // Send USER_VERIFY to the existing socket
+      const verifyMsg: UserVerifyMessage = {
+        type: 'USER_VERIFY',
+        nodeId: msg.nodeId,
+        timestamp: new Date().toISOString(),
+      };
+      existingSocket.send(serialiseMessage(verifyMsg));
+      
+      // We will wait for the IPC response via a callback
+      const allowed = await this.config.onUserVerifyRequest(msg.nodeId);
+      
+      if (!allowed) {
+        console.log(`[PeerManager] Connection from ${msg.nodeId} blocked by user.`);
+        socket.close(4001, 'Connection blocked by user');
+        this.peers.delete(socket);
+        this.rateLimiters.delete(socket);
+        return;
+      } else {
+        console.log(`[PeerManager] Connection from ${msg.nodeId} allowed. Terminating old socket.`);
+        existingSocket.close(4002, 'Replaced by new connection');
+        this.handleDisconnect(existingSocket);
+      }
+    }
+
     // Update peer info.
     peer.nodeId = msg.nodeId;
     peer.displayName = msg.displayName;
@@ -711,6 +756,58 @@ export class PeerManager {
     // If inbound, send our own PEER_HELLO back.
     if (peer.direction === 'inbound') {
       this.sendHello(socket);
+    }
+  }
+
+  // ── Internal: USER_VERIFY Handlers ──────────────────────────────────
+
+  /**
+   * Handles a USER_VERIFY message: this device is the existing connection
+   * and the remote server is asking us if the new login attempt is legitimate.
+   * This is typically handled by emitting an event to the UI and waiting for the user.
+   */
+  private async handleUserVerify(socket: WebSocket, msg: UserVerifyMessage): Promise<void> {
+    console.log(`[PeerManager] USER_VERIFY received for node ${msg.nodeId}.`);
+    if (this.config.onUserVerifyRequest) {
+      const allowed = await this.config.onUserVerifyRequest(msg.nodeId);
+      const response: UserVerifyResponseMessage = {
+        type: 'USER_VERIFY_RESPONSE',
+        nodeId: msg.nodeId,
+        allow: allowed,
+        timestamp: new Date().toISOString(),
+      };
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(serialiseMessage(response));
+      }
+    }
+  }
+
+  /**
+   * Handles a USER_VERIFY_RESPONSE message: the existing connection has responded
+   * to our USER_VERIFY request. Wait, this logic is already handled asynchronously
+   * in handlePeerHello via the `onUserVerifyRequest` callback. The callback resolves
+   * when the UI responds. Wait, if the callback is used, it means the main process
+   * handled it via IPC. If a remote node sends USER_VERIFY_RESPONSE, how does the 
+   * promise resolve?
+   * For the architecture: The server (Room Host) receives PEER_HELLO, checks existing
+   * connections, sends USER_VERIFY to the existing remote client.
+   * The existing remote client receives USER_VERIFY, prompts its user, and sends
+   * back USER_VERIFY_RESPONSE to the server.
+   * The server receives USER_VERIFY_RESPONSE and resolves the pending verification.
+   */
+  private handleUserVerifyResponse(socket: WebSocket, msg: UserVerifyResponseMessage): void {
+    console.log(`[PeerManager] USER_VERIFY_RESPONSE received for ${msg.nodeId}: allow=${msg.allow}`);
+    // We emit this via an internal event emitter so handlePeerHello can await it.
+    this.emitVerifyResponse(msg.nodeId, msg.allow);
+  }
+
+  private pendingVerifications: Map<string, (allow: boolean) => void> = new Map();
+
+  private emitVerifyResponse(nodeId: string, allow: boolean) {
+    const resolver = this.pendingVerifications.get(nodeId);
+    if (resolver) {
+      resolver(allow);
+      this.pendingVerifications.delete(nodeId);
     }
   }
 

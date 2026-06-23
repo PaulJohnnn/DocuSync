@@ -62,6 +62,8 @@ const CH_NET_LAN_IP      = 'network:get-lan-ip' as const;
 /** Main-to-renderer push channels (one-way, main → renderer). */
 const CH_EVT_CONFLICT    = 'conflict:detected'  as const;
 const CH_EVT_SYNC_STATUS = 'evt:sync-status-changed' as const;
+const CH_EVT_AUTH_VERIFY_REQ = 'auth:verify-request' as const;
+const CH_AUTH_VERIFY_RESP = 'auth:verify-respond' as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DocuSyncBridge Interface
@@ -219,6 +221,7 @@ export interface DocuSyncBridge {
   lockVault(): Promise<IPCResponse<{ success: boolean }>>;
   factoryReset(): Promise<IPCResponse<{ success: boolean }>>;
   getLanIp(): Promise<IPCResponse<string>>;
+  respondToVerifyRequest(reqId: string, allow: boolean): Promise<IPCResponse>;
 
   // ── Push Event Listeners ──────────────────────────────────────────────
 
@@ -262,8 +265,19 @@ export interface DocuSyncBridge {
    * unsub();
    * ```
    */
+   */
   onSyncStatusChanged(
     listener: (payload: SyncStatusChangedPayload) => void
+  ): () => void;
+
+  /**
+   * Registers a listener for new login attempt verification requests.
+   * 
+   * @param listener - Callback receiving the reqId and nodeId.
+   * @returns An unsubscribe function.
+   */
+  onVerifyRequest(
+    listener: (reqId: string, nodeId: string) => void
   ): () => void;
 }
 
@@ -361,6 +375,10 @@ const docuSyncBridge: DocuSyncBridge = {
     return ipcRenderer.invoke(CH_NET_LAN_IP) as any;
   },
 
+  respondToVerifyRequest(reqId: string, allow: boolean): Promise<IPCResponse> {
+    return ipcRenderer.invoke(CH_AUTH_VERIFY_RESP, reqId, allow);
+  },
+
   // ── Push Event Listeners ─────────────────────────────────────────────
 
   onConflictDetected(
@@ -392,6 +410,19 @@ const docuSyncBridge: DocuSyncBridge = {
 
     return () => {
       ipcRenderer.off(CH_EVT_SYNC_STATUS, wrapped);
+    };
+  },
+
+  onVerifyRequest(
+    listener: (reqId: string, nodeId: string) => void
+  ): () => void {
+    const wrapped = (_event: Electron.IpcRendererEvent, reqId: string, nodeId: string) => {
+      listener(reqId, nodeId);
+    };
+    ipcRenderer.on(CH_EVT_AUTH_VERIFY_REQ, wrapped);
+
+    return () => {
+      ipcRenderer.off(CH_EVT_AUTH_VERIFY_REQ, wrapped);
     };
   },
 };

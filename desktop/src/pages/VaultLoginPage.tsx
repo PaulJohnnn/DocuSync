@@ -153,6 +153,8 @@ export const VaultLoginPage: React.FC = () => {
   const [generatedPin, setGeneratedPin] = useState('');
   const [shake, setShake] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [forgotPin, setForgotPin] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
@@ -218,6 +220,20 @@ export const VaultLoginPage: React.FC = () => {
         setTimeout(() => inputRef.current?.focus(), 100);
       }
     } catch { toast.error('Unlock failed.'); }
+  };
+
+  const handleFactoryReset = async () => {
+    try {
+      await window.docuSync.factoryReset();
+      toast.success('All data permanently deleted.');
+      setForgotPin(false);
+      setResetConfirmText('');
+      setPinInput('');
+      setStatus('genesis');
+      setGeneratedPin(Math.floor(10000000 + Math.random() * 90000000).toString());
+    } catch {
+      toast.error('Factory reset failed.');
+    }
   };
 
   if (status === 'loading') return <LoadingScreen />;
@@ -357,10 +373,68 @@ export const VaultLoginPage: React.FC = () => {
               </div>
             </div>
 
-            {/* PIN dots */}
-            <div style={{ marginBottom: 16 }}>
-              <PinDots value={pinInput} shake={shake} />
-            </div>
+            {forgotPin ? (
+              <div style={{ animation: 'card-in 0.3s ease both' }}>
+                <div style={{
+                  background: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)',
+                  borderRadius: 12, padding: '16px', marginBottom: 20
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#f87171', fontWeight: 600, marginBottom: 8 }}>
+                    ⚠️ Zero-Knowledge Security
+                  </div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
+                    Because DocuSync is peer-to-peer and zero-knowledge, your PIN cannot be recovered.
+                    If you lost it, your local data is permanently inaccessible.
+                    You must factory reset this device to start over.
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 8 }}>
+                  Type <strong>RESET</strong> to confirm:
+                </div>
+                <input
+                  type="text"
+                  value={resetConfirmText}
+                  onChange={e => setResetConfirmText(e.target.value)}
+                  placeholder="RESET"
+                  style={{
+                    width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 8, padding: '12px 16px', color: '#fff', fontSize: 14, marginBottom: 16,
+                    fontFamily: 'monospace', textTransform: 'uppercase', outline: 'none'
+                  }}
+                  autoFocus
+                />
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button
+                    onClick={() => { setForgotPin(false); setResetConfirmText(''); }}
+                    style={{
+                      flex: 1, height: 44, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: 8, color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 14
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleFactoryReset}
+                    disabled={resetConfirmText !== 'RESET'}
+                    style={{
+                      flex: 1, height: 44, background: resetConfirmText === 'RESET' ? '#dc2626' : 'rgba(220,38,38,0.3)',
+                      border: 'none', borderRadius: 8, color: resetConfirmText === 'RESET' ? '#fff' : 'rgba(255,255,255,0.4)',
+                      cursor: resetConfirmText === 'RESET' ? 'pointer' : 'not-allowed', fontSize: 14, fontWeight: 600,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Permanently Delete My Data
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* PIN dots */}
+                <div style={{ marginBottom: 16 }}>
+                  <PinDots value={pinInput} shake={shake} />
+                </div>
 
             {/* Hidden real input */}
             <input
@@ -435,6 +509,27 @@ export const VaultLoginPage: React.FC = () => {
                 Create one
               </button>
             </div>
+            
+            {!forgotPin && (
+              <div style={{ textAlign: 'center', marginTop: 12 }}>
+                <button
+                  onClick={() => setForgotPin(true)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 11, color: 'rgba(255,255,255,0.2)',
+                    fontFamily: 'inherit', padding: 0, textDecoration: 'underline',
+                    transition: 'color 0.2s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.2)')}
+                >
+                  Forgot PIN?
+                </button>
+              </div>
+            )}
+            
+              </>
+            )}
           </div>
         )}
       </div>

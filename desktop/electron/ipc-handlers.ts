@@ -125,6 +125,8 @@ export interface EngineServices {
   fileContents: Map<number, string>;
   /** Auto-incrementing file ID counter. */
   nextFileId: number;
+  /** Pending verification requests. */
+  verifyResolvers: Map<string, (allow: boolean) => void>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -336,6 +338,9 @@ export async function initEngine(
   // ── In-memory file tracking ────────────────────────────────────
   const openFiles = new Map<number, string>();
   const fileContents = new Map<number, string>();
+  
+  // Pending verification requests
+  const verifyResolvers = new Map<string, (allow: boolean) => void>();
 
   // ── Peer Manager ───────────────────────────────────────────────
   const peerManager = createPeerManager({
@@ -384,6 +389,23 @@ export async function initEngine(
         await fs.promises.writeFile(filePath, winnerPayload, 'utf-8');
         console.log(`[IPC] Applied merge resolution to ${filePath}`);
       }
+    },
+    onUserVerifyRequest: (nodeId: string): Promise<boolean> => {
+      return new Promise((resolve) => {
+        const reqId = generateUUID();
+        // Store the resolver so the IPC handler can call it
+        verifyResolvers.set(reqId, resolve);
+        
+        console.log(`[IPC] Emitting auth:verify-request for node ${nodeId}`);
+        const win = BrowserWindow.getAllWindows()[0];
+        if (win) {
+          win.webContents.send('auth:verify-request', reqId, nodeId);
+        } else {
+          // If no window is open, block the connection
+          resolve(false);
+          verifyResolvers.delete(reqId);
+        }
+      });
     },
   });
 
@@ -435,6 +457,7 @@ export async function initEngine(
     openFiles,
     fileContents,
     nextFileId: 1,
+    verifyResolvers,
   };
 }
 
@@ -480,7 +503,23 @@ export function registerIPCHandlers(services: EngineServices): void {
     localNodeId,
     openFiles,
     fileContents,
+    verifyResolvers,
   } = services;
+
+  // ── auth:verify-respond ────────────────────────────────────────────
+  ipcMain.handle(
+    'auth:verify-respond',
+    safeHandler(async (...args: unknown[]) => {
+      const reqId = args[0] as string;
+      const allow = args[1] as boolean;
+      const resolver = verifyResolvers.get(reqId);
+      if (resolver) {
+        resolver(allow);
+        verifyResolvers.delete(reqId);
+      }
+      return true;
+    })
+  );
 
   // ── file:open ──────────────────────────────────────────────────────
   /**
