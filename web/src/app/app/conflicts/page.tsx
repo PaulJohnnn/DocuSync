@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import PageShell from '@/components/PageShell';
-import { AlertTriangle, CheckCircle, Scale, Shield } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Scale } from 'lucide-react';
 
 interface ConflictRecord {
   id: string;
@@ -72,10 +72,22 @@ export default function ConflictsPage() {
 
       {/* Conflict list */}
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 60, color: 'var(--t3)' }}>
-          <Shield size={48} style={{ marginBottom: 12, opacity: 0.3 }} />
-          <p style={{ fontSize: 14 }}>No conflicts</p>
-          <p style={{ fontSize: 12, marginTop: 4 }}>All files are in sync</p>
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: '50%',
+            background: 'rgba(34,197,94,0.12)',
+            border: '2px solid rgba(34,197,94,0.30)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <CheckCircle size={36} style={{ color: '#22c55e' }} />
+          </div>
+          <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--t1)', marginBottom: 6 }}>
+            All conflicts resolved
+          </p>
+          <p style={{ fontSize: 13, color: 'var(--t3)', maxWidth: 280, margin: '0 auto' }}>
+            No conflicts detected. Your files are in sync across all nodes.
+          </p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

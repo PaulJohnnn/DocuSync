@@ -53,6 +53,7 @@ export default function FilesPage() {
   const router = useRouter();
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'files' | 'rooms'>('files');
 
   useEffect(() => {
     const stored = localStorage.getItem('docusync_files');
@@ -143,6 +144,25 @@ export default function FilesPage() {
         <button className="ds-btn ds-btn-primary" onClick={openFile}>
           <Plus size={14} /> Open File
         </button>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--s1)', borderRadius: 10, padding: 4, border: '1px solid var(--b1)', width: 'fit-content' }}>
+        {(['files', 'rooms'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: '7px 18px', fontSize: 13, fontWeight: 600,
+              borderRadius: 7, border: 'none', cursor: 'pointer',
+              background: activeTab === tab ? 'var(--acc)' : 'transparent',
+              color: activeTab === tab ? '#fff' : 'var(--t2)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {tab === 'files' ? 'My Files' : 'Peer Rooms'}
+          </button>
+        ))}
       </div>
 
       {/* Search */}

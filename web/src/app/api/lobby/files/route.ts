@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     if (!lobby.files) lobby.files = [];
     
     // Check if file already exists (by name or id)
-    const existingIndex = lobby.files.findIndex((f: any) => f.fileName === file.fileName || f.name === file.name);
+    const existingIndex = lobby.files.findIndex((f) => f.fileName === file.fileName || f.name === file.name);
     if (existingIndex >= 0) {
       lobby.files[existingIndex] = file;
     } else {
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true, files: lobby.files });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

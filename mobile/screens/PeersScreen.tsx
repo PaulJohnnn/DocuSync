@@ -1,12 +1,12 @@
 /**
  * @module PeersScreen
  * P2P connection manager — tab "Peers".
- * All WebSocket/AsyncStorage/connect/remove logic unchanged. Only visual layer updated.
+ * Fixes: Join button 48px height, removed empty state, added Connected Room indicator.
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, FlatList, TextInput, TouchableOpacity,
-  StyleSheet, SafeAreaView, ScrollView, Alert, Platform
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, SafeAreaView, ScrollView, Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,10 +14,16 @@ import { useTheme } from '../context/ThemeContext';
 import AnimatedButton from '../components/AnimatedButton';
 import ConfirmModal from '../components/ConfirmModal';
 
+// ── Types ──────────────────────────────────────────────────────────────────────
 interface PeerInfo {
   id: string; address: string; port: number;
   status: 'connected' | 'disconnected';
   latency: number; connectedAt: string;
+}
+
+interface RoomInfo {
+  id: string;
+  name: string;
 }
 
 // Gradient-like avatar colors per peer index
@@ -38,10 +44,12 @@ export default function PeersScreen({ navigation }: any) {
   const [port, setPort]   = useState('8080');
   const [joinOtp, setJoinOtp] = useState('');
   const [joining, setJoining] = useState(false);
+  const [currentRoom, setCurrentRoom] = useState<RoomInfo | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ visible: boolean, id: string | null }>({ visible: false, id: null });
 
   useEffect(() => {
     loadPeers();
+    loadCurrentRoom();
     const timer = setInterval(() => {
       setPeers(prev => prev.map(p => {
         if (p.status === 'connected') {
@@ -59,6 +67,11 @@ export default function PeersScreen({ navigation }: any) {
   const loadPeers = async () => {
     const stored = await AsyncStorage.getItem('@docusync/peers');
     if (stored) setPeers(JSON.parse(stored));
+  };
+
+  const loadCurrentRoom = async () => {
+    const stored = await AsyncStorage.getItem('@docusync/current_room');
+    if (stored) setCurrentRoom(JSON.parse(stored));
   };
 
   const savePeers = async (newPeers: PeerInfo[]) => {
@@ -80,8 +93,6 @@ export default function PeersScreen({ navigation }: any) {
       ws.onopen  = () => {
         newPeer.status = 'connected';
         savePeers([...peers, newPeer]);
-        
-        // Send handshake to authenticate with Desktop Host
         ws.send(JSON.stringify({
           type: 'PEER_HELLO',
           nodeId: newPeer.id,
@@ -112,13 +123,15 @@ export default function PeersScreen({ navigation }: any) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to join session');
-      
+
       const { ip: lobbyIp, port: lobbyPort, roomName } = data;
       setIp(lobbyIp);
       setPort(lobbyPort.toString());
-      
+
       await connectWithArgs(lobbyIp, lobbyPort.toString());
-      await AsyncStorage.setItem('@docusync/current_room', JSON.stringify({ id: joinOtp, name: roomName || 'OTP Session' }));
+      const room: RoomInfo = { id: joinOtp, name: roomName || 'OTP Session' };
+      await AsyncStorage.setItem('@docusync/current_room', JSON.stringify(room));
+      setCurrentRoom(room);
       Alert.alert('Success', `Connected to Host at ${lobbyIp}:${lobbyPort}.`);
       navigation.navigate('Files');
     } catch (err) {
@@ -130,7 +143,9 @@ export default function PeersScreen({ navigation }: any) {
 
   const connect = async () => {
     await connectWithArgs(ip, port);
-    await AsyncStorage.setItem('@docusync/current_room', JSON.stringify({ id: `direct-${ip}`, name: `Direct Session - ${ip}` }));
+    const room: RoomInfo = { id: `direct-${ip}`, name: `Direct Session - ${ip}` };
+    await AsyncStorage.setItem('@docusync/current_room', JSON.stringify(room));
+    setCurrentRoom(room);
     setIp('');
     navigation.navigate('Files');
   };
@@ -138,6 +153,7 @@ export default function PeersScreen({ navigation }: any) {
   const removePeer = async (id: string) => {
     await savePeers(peers.filter(p => p.id !== id));
     await AsyncStorage.removeItem('@docusync/current_room');
+    setCurrentRoom(null);
   };
 
   const connected = peers.filter(p => p.status === 'connected').length;
@@ -148,7 +164,7 @@ export default function PeersScreen({ navigation }: any) {
     const isConn      = item.status === 'connected';
 
     return (
-      <View style={styles.peerCard}>
+      <View style={styles.peerCard} key={item.id}>
         <View style={[styles.avatar, { backgroundColor: avatarColor + '25', borderColor: avatarColor + '50' }]}>
           <Text style={[styles.avatarText, { color: avatarColor }]}>{initials(item.address)}</Text>
         </View>
@@ -161,15 +177,18 @@ export default function PeersScreen({ navigation }: any) {
 
         <View style={{ alignItems: 'flex-end', gap: 6 }}>
           <View style={[styles.statusBadge, isConn ? styles.statusBadgeOnline : styles.statusBadgeOffline]}>
-            <Text style={[styles.statusBadgeText, { color: !isConn ? colors.textMuted : item.latency < 20 ? colors.green : item.latency < 100 ? colors.amber : colors.red }]}>
+            <Text style={[styles.statusBadgeText, {
+              color: !isConn ? colors.textMuted
+                : item.latency < 20 ? colors.green
+                : item.latency < 100 ? colors.amber
+                : colors.red
+            }]}>
               {isConn ? `● ${item.latency}ms` : '● Offline'}
             </Text>
           </View>
-          <TouchableOpacity 
-            onPress={() => {
-              setConfirmModal({ visible: true, id: item.id });
-            }}
-            style={styles.removeBtn} 
+          <TouchableOpacity
+            onPress={() => setConfirmModal({ visible: true, id: item.id })}
+            style={styles.removeBtn}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Text style={styles.removeBtnText}>✕</Text>
@@ -194,7 +213,21 @@ export default function PeersScreen({ navigation }: any) {
       </View>
 
       <ScrollView style={{ flex: 1 }}>
-        {/* Card 1: Host a Live Session */}
+
+        {/* ── Connected Room Indicator ────────────────────────────── */}
+        {currentRoom && (
+          <View style={styles.roomCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.greenDot} />
+              <Text style={styles.roomTitle}>Room: {currentRoom.id}</Text>
+            </View>
+            <Text style={styles.roomSubtitle}>
+              {connected} {connected === 1 ? 'person' : 'people'} connected
+            </Text>
+          </View>
+        )}
+
+        {/* ── Card 1: Host a Live Session ─────────────────────────── */}
         <View style={styles.connectCard}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <Ionicons name="people" size={20} color={colors.accent} />
@@ -212,7 +245,7 @@ export default function PeersScreen({ navigation }: any) {
           </AnimatedButton>
         </View>
 
-        {/* Card 2: Join Peer via OTP */}
+        {/* ── Card 2: Join Peer via OTP ───────────────────────────── */}
         <View style={styles.connectCard}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <Ionicons name="link" size={20} color={colors.green} />
@@ -221,10 +254,16 @@ export default function PeersScreen({ navigation }: any) {
           <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 16, lineHeight: 20 }}>
             Enter the 5-digit OTP provided by the host to join their live session.
           </Text>
-          
-          <View style={styles.inputRow}>
+
+          {/* OTP row — 48px height Join button */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <TextInput
-              style={[styles.input, { flex: 1, color: colors.textPrimary, fontFamily: 'monospace', letterSpacing: 4, fontSize: 16 }]}
+              style={[styles.input, {
+                flex: 1, height: 48,
+                color: colors.textPrimary,
+                fontFamily: 'monospace',
+                letterSpacing: 4, fontSize: 16,
+              }]}
               placeholder="e.g. 88412"
               placeholderTextColor={colors.textMuted}
               value={joinOtp}
@@ -232,16 +271,17 @@ export default function PeersScreen({ navigation }: any) {
               keyboardType="number-pad"
               editable={!joining}
             />
-            <AnimatedButton
+            <TouchableOpacity
               onPress={handleJoinOtp}
-              style={[styles.connectBtn, { opacity: (joining || joinOtp.length !== 5) ? 0.5 : 1 }]}
               disabled={joining || joinOtp.length !== 5}
+              style={[styles.joinBtn, { opacity: (joining || joinOtp.length !== 5) ? 0.5 : 1 }]}
             >
-              <Text style={styles.connectBtnText}>{joining ? 'Joining...' : 'Join'}</Text>
-            </AnimatedButton>
+              <Text style={styles.joinBtnText}>{joining ? '...' : 'Join'}</Text>
+            </TouchableOpacity>
           </View>
 
-          <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+          {/* Direct IP fallback */}
+          <View style={{ paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
             <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 8 }}>Or connect via Direct IP:</Text>
             <View style={styles.inputRow}>
               <TextInput
@@ -269,18 +309,13 @@ export default function PeersScreen({ navigation }: any) {
           </View>
         </View>
 
-        {/* Peer list */}
-        {peers.length === 0 ? (
-          <View style={{ padding: 40, alignItems: 'center' }}>
-            <Ionicons name="people-outline" size={48} color={colors.textMuted} style={{ opacity: 0.5, marginBottom: 16 }} />
-            <Text style={{ fontSize: 18, fontWeight: '600', color: colors.textPrimary, marginBottom: 8 }}>No peers yet</Text>
-            <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center' }}>Join via OTP or enter an IP and port to connect manually</Text>
-          </View>
-        ) : (
+        {/* ── Peer list (only when peers exist — no empty state) ──── */}
+        {peers.length > 0 && (
           <View style={{ paddingHorizontal: 16, paddingBottom: 24, gap: 8 }}>
             {peers.map((item, index) => renderPeer({ item, index }))}
           </View>
         )}
+
       </ScrollView>
 
       <ConfirmModal
@@ -299,6 +334,7 @@ export default function PeersScreen({ navigation }: any) {
   );
 }
 
+// ── Styles ─────────────────────────────────────────────────────────────────────
 const makeStyles = (colors: any) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bgBase },
   header: {
@@ -314,77 +350,72 @@ const makeStyles = (colors: any) => StyleSheet.create({
   title:    { fontSize: 20, fontWeight: '700', color: colors.textPrimary },
   subtitle: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   statusChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 99,
-    borderWidth: 1,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 99, borderWidth: 1,
   },
   statusChipOnline:  { backgroundColor: colors.greenLight, borderColor: 'rgba(34,197,94,0.25)' },
   statusChipOffline: { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: colors.border },
   statusChipText: { fontSize: 12, fontWeight: '600' },
+
+  // Connected room indicator
+  roomCard: {
+    margin: 16, marginBottom: 0,
+    backgroundColor: 'rgba(79,125,248,0.10)',
+    borderWidth: 1, borderColor: 'rgba(79,125,248,0.28)',
+    borderRadius: 12, padding: 14, gap: 6,
+  },
+  greenDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#22c55e' },
+  roomTitle:    { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
+  roomSubtitle: { fontSize: 12, color: colors.textMuted, marginLeft: 18 },
+
   connectCard: {
     margin: 16,
     backgroundColor: colors.bgCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    padding: 16,
-    gap: 10,
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: 14, padding: 16, gap: 10,
   },
   connectLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
   inputRow: { flexDirection: 'row', gap: 8 },
   input: {
     backgroundColor: colors.bgBase,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    height: 42,
-    paddingHorizontal: 12,
-    fontSize: 13,
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: 8, height: 42,
+    paddingHorizontal: 12, fontSize: 13,
   },
-  connectBtn: {
+
+  // ── Join button: 48px × 80px ─────────────────────────────────────────────
+  joinBtn: {
+    width: 80, height: 48,
     backgroundColor: colors.accent,
-    height: 44,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  joinBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+
+  connectBtn: {
+    backgroundColor: colors.accent, height: 44,
+    borderRadius: 10, alignItems: 'center', justifyContent: 'center',
   },
   connectBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+
   peerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: colors.bgCard,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 14,
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: 12, padding: 14, marginBottom: 8,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 40, height: 40, borderRadius: 20,
+    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
   },
   avatarText: { fontSize: 13, fontWeight: '700' },
   peerName:   { fontSize: 14, fontWeight: '500', color: colors.textPrimary },
   peerRole:   { fontSize: 11, color: colors.textMuted, marginTop: 1 },
   peerAddr:   { fontSize: 10, color: colors.textMuted, fontFamily: 'monospace', marginTop: 2 },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 99,
-    borderWidth: 1,
-  },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99, borderWidth: 1 },
   statusBadgeOnline:  { backgroundColor: colors.greenLight, borderColor: 'rgba(34,197,94,0.25)' },
   statusBadgeOffline: { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: colors.border },
   statusBadgeText: { fontSize: 10, fontWeight: '600' },
   removeBtn:     { padding: 2 },
   removeBtnText: { color: colors.textMuted, fontSize: 14 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
-  emptyIcon:    { fontSize: 56, marginBottom: 16 },
-  emptyTitle:   { fontSize: 18, fontWeight: '500', color: colors.textSecondary, marginBottom: 8 },
-  emptySubtext: { fontSize: 13, color: colors.textMuted, textAlign: 'center', lineHeight: 20 },
 });

@@ -36,7 +36,7 @@ export default function WelcomePage() {
         <div style={{ flex: 1 }}>
           <Shield size={24} color="#7c3aed" style={{ marginBottom: '1rem' }} />
           <h3 style={{ fontSize: '1rem', color: 'var(--t1)', marginBottom: '0.5rem' }}>Local Storage</h3>
-          <p style={{ fontSize: '0.9rem', color: 'var(--t2)', lineHeight: 1.5 }}>Your files are persisted in your browser's local storage and never leave your trusted devices.</p>
+          <p style={{ fontSize: '0.9rem', color: 'var(--t2)', lineHeight: 1.5 }}>Your files are persisted in your browser&apos;s local storage and never leave your trusted devices.</p>
         </div>
         <div style={{ flex: 1 }}>
           <Network size={24} color="#22c55e" style={{ marginBottom: '1rem' }} />

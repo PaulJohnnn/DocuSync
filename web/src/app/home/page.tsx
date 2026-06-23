@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Tilt from 'react-parallax-tilt';
+import { Monitor, Globe, Smartphone } from 'lucide-react';
 
 // ── Scroll animation hook ─────────────────────────────────────
 function useScrollReveal() {
@@ -114,6 +116,7 @@ const PLATFORMS = [
     features: ['Local SQLite database', 'Native OS file picker', 'P2P WebSocket server (port 9000)', 'All 4 algorithms active', 'Offline-first'],
     cta: 'Download for Windows →', ctaHref: '/download', ctaBg: '#4f7df8',
     accent: 'linear-gradient(90deg, #4f7df8, #8b5cf6)', featured: false,
+    iconColor: '#4f7df8', glowColor: 'rgba(79,125,248,0.30)', floatDelay: '0s',
   },
   {
     title: 'Web App', subtitle: 'Any Browser · No Install',
@@ -121,6 +124,7 @@ const PLATFORMS = [
     features: ['No installation needed', 'Works on any device', 'Real-time sync demo', 'Shareable public URL', 'Always up to date'],
     cta: 'Open Web App →', ctaHref: '/app/welcome', ctaBg: '#22c55e',
     accent: '#4f7df8', featured: true, badge: 'LIVE NOW',
+    iconColor: '#22c55e', glowColor: 'rgba(34,197,94,0.30)', floatDelay: '0.5s',
   },
   {
     title: 'Mobile App', subtitle: 'Android · iOS via Expo Go',
@@ -128,6 +132,7 @@ const PLATFORMS = [
     features: ['Expo Go (no App Store needed)', 'AsyncStorage persistence', 'Touch-optimized interface', 'Same core algorithms', 'Dark theme'],
     cta: 'Get on Expo Go →', ctaHref: 'https://expo.dev/go', ctaBg: '#7c3aed',
     accent: 'linear-gradient(90deg, #7c3aed, #4f7df8)', featured: false,
+    iconColor: '#7c3aed', glowColor: 'rgba(124,58,237,0.30)', floatDelay: '1s',
   },
 ];
 
@@ -474,59 +479,107 @@ export default function HomePage() {
             </p>
           </div>
 
+          {/* Float keyframes injected inline */}
+          <style>{`
+            @keyframes ds-float {
+              0%, 100% { transform: translateY(0px); }
+              50% { transform: translateY(-8px); }
+            }
+          `}</style>
+
           <div className="platforms-grid" style={{
             display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20,
           }}>
-            {PLATFORMS.map((p, i) => (
-              <div key={p.title} className="scroll-hidden platform-card" style={{
-                background: 'var(--s1)',
-                border: p.featured ? '2px solid #4f7df8' : '1px solid var(--b1)',
-                borderRadius: 20, overflow: 'hidden',
-                display: 'flex', flexDirection: 'column',
-                position: 'relative',
-                boxShadow: p.featured ? '0 0 40px rgba(79,125,248,0.18)' : 'none',
-                transition: 'transform 0.3s ease',
-                animationDelay: `${i * 120}ms`,
-              }}>
-                {/* Top accent bar */}
-                {!p.featured && <div style={{ height: 3, background: p.accent }} />}
-
-                {/* Featured badge */}
-                {p.featured && p.badge && (
-                  <div style={{
-                    position: 'absolute', top: 16, right: 16,
-                    background: '#22c55e', color: '#fff',
-                    fontSize: 10, fontWeight: 700, borderRadius: 99,
-                    padding: '4px 12px', letterSpacing: '0.06em',
-                  }}>{p.badge}</div>
-                )}
-
-                <div style={{ padding: '28px 28px 20px', flex: 1 }}>
-                  <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--t1)', marginBottom: 4 }}>{p.title}</h3>
-                  <p style={{ fontSize: 12, color: '#4f7df8', fontWeight: 600, marginBottom: 14 }}>{p.subtitle}</p>
-                  <p style={{ fontSize: 14, color: 'var(--t2)', lineHeight: 1.7, marginBottom: 20 }}>{p.desc}</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                    {p.features.map(f => <GreenCheck key={f}>{f}</GreenCheck>)}
-                  </div>
-                </div>
-                <div style={{ padding: '0 28px 28px' }}>
-                  <Link
-                    href={p.ctaHref}
-                    target={p.ctaHref.startsWith('http') ? '_blank' : undefined}
-                    rel={p.ctaHref.startsWith('http') ? 'noopener noreferrer' : undefined}
+            {PLATFORMS.map((p, i) => {
+              const PlatformIcon = i === 0 ? Monitor : i === 1 ? Globe : Smartphone;
+              return (
+                <Tilt
+                  key={p.title}
+                  tiltMaxAngleX={8}
+                  tiltMaxAngleY={8}
+                  glareEnable={true}
+                  glareMaxOpacity={0.08}
+                  glareColor={p.iconColor}
+                  glarePosition="all"
+                  scale={1.02}
+                  style={{ borderRadius: 20 }}
+                >
+                  <div
+                    className="scroll-hidden platform-card"
                     style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: p.ctaBg, color: '#fff',
-                      borderRadius: 10, height: 44, width: '100%',
-                      fontSize: 14, fontWeight: 600, textDecoration: 'none',
-                      transition: 'opacity 0.15s',
-                    }} className="platform-cta"
+                      background: 'var(--s1)',
+                      border: p.featured ? '2px solid #4f7df8' : '1px solid var(--b1)',
+                      borderRadius: 20, overflow: 'hidden',
+                      display: 'flex', flexDirection: 'column',
+                      position: 'relative',
+                      boxShadow: p.featured ? `0 0 40px rgba(79,125,248,0.18)` : 'none',
+                      transition: 'box-shadow 0.3s ease',
+                      animationDelay: `${i * 120}ms`,
+                      height: '100%',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.boxShadow = `0 0 30px ${p.glowColor}`;
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.boxShadow = p.featured ? '0 0 40px rgba(79,125,248,0.18)' : 'none';
+                    }}
                   >
-                    {p.cta}
-                  </Link>
-                </div>
-              </div>
-            ))}
+                    {/* Top accent bar */}
+                    {!p.featured && <div style={{ height: 3, background: p.accent }} />}
+
+                    {/* Featured badge */}
+                    {p.featured && p.badge && (
+                      <div style={{
+                        position: 'absolute', top: 16, right: 16,
+                        background: '#22c55e', color: '#fff',
+                        fontSize: 10, fontWeight: 700, borderRadius: 99,
+                        padding: '4px 12px', letterSpacing: '0.06em',
+                      }}>{p.badge}</div>
+                    )}
+
+                    <div style={{ padding: '28px 28px 20px', flex: 1 }}>
+                      {/* Floating platform icon */}
+                      <div style={{
+                        width: 56, height: 56,
+                        borderRadius: 16,
+                        background: `${p.iconColor}18`,
+                        border: `1px solid ${p.iconColor}30`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        marginBottom: 20,
+                        animation: `ds-float 3s ease infinite`,
+                        animationDelay: p.floatDelay,
+                      }}>
+                        <PlatformIcon size={28} color={p.iconColor} />
+                      </div>
+
+                      <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--t1)', marginBottom: 4 }}>{p.title}</h3>
+                      <p style={{ fontSize: 12, color: p.iconColor, fontWeight: 600, marginBottom: 14 }}>{p.subtitle}</p>
+                      <p style={{ fontSize: 14, color: 'var(--t2)', lineHeight: 1.7, marginBottom: 20 }}>{p.desc}</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                        {p.features.map(f => <GreenCheck key={f}>{f}</GreenCheck>)}
+                      </div>
+                    </div>
+
+                    <div style={{ padding: '0 28px 28px' }}>
+                      <Link
+                        href={p.ctaHref}
+                        target={p.ctaHref.startsWith('http') ? '_blank' : undefined}
+                        rel={p.ctaHref.startsWith('http') ? 'noopener noreferrer' : undefined}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          background: p.ctaBg, color: '#fff',
+                          borderRadius: 10, height: 44, width: '100%',
+                          fontSize: 14, fontWeight: 600, textDecoration: 'none',
+                          transition: 'opacity 0.15s',
+                        }} className="platform-cta"
+                      >
+                        {p.cta}
+                      </Link>
+                    </div>
+                  </div>
+                </Tilt>
+              );
+            })}
           </div>
         </div>
       </section>

@@ -1,10 +1,12 @@
+export interface FileEntry { fileName?: string; name?: string; [key: string]: unknown }
+
 export interface Lobby {
   otp: string;
   ip: string;
   port: number;
   nodeId: string;
   roomName?: string;
-  files?: any[];
+  files?: FileEntry[];
   createdAt: number;
 }
 
