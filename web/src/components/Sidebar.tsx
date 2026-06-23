@@ -3,17 +3,17 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  FolderOpen, FileEdit, AlertTriangle, Clock, Users, BarChart3, Wifi, Settings
+  FolderOpen, Edit3, AlertTriangle, Clock, Users, Activity, Wifi, Settings
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { href: '/files', label: 'Files', icon: FolderOpen },
-  { href: '/editor/new', label: 'Editor', icon: FileEdit },
-  { href: '/conflicts', label: 'Conflicts', icon: AlertTriangle },
-  { href: '/history/all', label: 'History', icon: Clock },
-  { href: '/peers', label: 'Peers', icon: Users },
-  { href: '/metrics', label: 'Metrics', icon: BarChart3 },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/app/files', label: 'Files', icon: FolderOpen },
+  { href: '/app/editor/demo', label: 'Editor', icon: Edit3 },
+  { href: '/app/conflicts', label: 'Conflicts', icon: AlertTriangle },
+  { href: '/app/history/demo', label: 'History', icon: Clock },
+  { href: '/app/peers', label: 'Peers', icon: Users },
+  { href: '/app/metrics', label: 'Metrics', icon: Activity },
+  { href: '/app/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function Sidebar() {
@@ -69,9 +69,8 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav style={{ flex: 1, padding: '0 8px' }}>
         {NAV_ITEMS.map(item => {
-          const active = pathname === item.href ||
-            (item.href !== '/files' && item.href !== '/' && pathname.startsWith('/' + item.href.split('/')[1])) ||
-            (item.href === '/files' && (pathname === '/files' || pathname === '/'));
+          const active = (item.href !== '/app/files' && pathname.startsWith(item.href.split('/demo')[0])) ||
+            (item.href === '/app/files' && pathname === '/app/files');
           const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href} style={{

@@ -9,7 +9,7 @@ import { useTheme } from '@/context/ThemeContext';
 import {
   Moon, Sun, Palette, Database, ShieldAlert, ShieldCheck, Info, Cpu,
   FileText, FileCode, FileJson, FileType as FileTypeIcon, File,
-  FileImage, FileSpreadsheet, FileArchive, Settings as SettingsIcon
+  FileImage, FileSpreadsheet, FileArchive, Settings as SettingsIcon, Lock
 } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -232,6 +232,52 @@ const SettingsPage: React.FC = () => {
               >
                 {isDark ? <Moon size={14} /> : <Sun size={14} />}
               </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Section 0.5 — Account */}
+        <div className="ds-card" style={{ overflow: 'hidden', marginBottom: '1.5rem' }}>
+          <SectionHeader
+            icon={<Lock size={14} />}
+            title="Account"
+            subtitle="Manage your local vault session"
+          />
+          <div style={{ padding: '1.2rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--ds-text)' }}>
+                Lock Repository
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--ds-text3)', marginTop: '4px' }}>
+                Log out and securely lock your local vault
+              </div>
+            </div>
+            
+            <button
+              onClick={async () => {
+                try {
+                  const res = await window.docuSync.lockVault();
+                  if (res.success) {
+                    window.location.hash = '/vault-login';
+                  }
+                } catch (err) {
+                  console.error('Failed to lock vault', err);
+                }
+              }}
+              style={{
+                background: 'var(--ds-red-bg)',
+                border: '1px solid var(--ds-red-border)',
+                color: 'var(--ds-red)',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <Lock size={14} /> Logout
             </button>
           </div>
         </div>

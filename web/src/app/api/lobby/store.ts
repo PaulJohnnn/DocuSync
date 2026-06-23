@@ -3,6 +3,8 @@ export interface Lobby {
   ip: string;
   port: number;
   nodeId: string;
+  roomName?: string;
+  files?: any[];
   createdAt: number;
 }
 

@@ -258,6 +258,20 @@ export const VaultLoginPage: React.FC = () => {
         {status === 'genesis' && (
           <div style={cardStyle}>
 
+            {/* Back button */}
+            <button
+              onClick={() => navigate('/welcome')}
+              style={{
+                background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 13, marginBottom: 16, padding: 0, fontFamily: 'inherit'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+            >
+              <span style={{ fontSize: 16 }}>←</span> Back
+            </button>
+
             <div style={{ textAlign: 'center', marginBottom: 28 }}>
               <div style={{
                 fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 10,

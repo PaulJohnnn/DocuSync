@@ -82,7 +82,7 @@ export default function Navbar() {
           }}>
             Download
           </Link>
-          <Link href="/files" className="btn-accent-nav" style={{
+          <Link href="/app/files" className="btn-accent-nav" style={{
             display: 'inline-flex', alignItems: 'center',
             background: 'linear-gradient(135deg, #4f7df8, #7c3aed)', color: '#fff',
             borderRadius: 8, height: 36, padding: '0 16px',
@@ -156,7 +156,7 @@ export default function Navbar() {
                 color: 'var(--t1)', borderRadius: 10, height: 48,
                 fontSize: 15, fontWeight: 500, textDecoration: 'none',
               }}>Download</Link>
-              <Link href="/files" onClick={() => setOpen(false)} style={{
+              <Link href="/app/files" onClick={() => setOpen(false)} style={{
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
                 background: 'linear-gradient(135deg, #4f7df8, #7c3aed)', color: '#fff', borderRadius: 10, height: 48,
                 fontSize: 15, fontWeight: 600, textDecoration: 'none',

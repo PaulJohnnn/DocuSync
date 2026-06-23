@@ -119,7 +119,7 @@ const PLATFORMS = [
     title: 'Web App', subtitle: 'Any Browser · No Install',
     desc: 'Access DocuSync from any browser. Uses localStorage for persistence and browser WebSocket for P2P. Same algorithm engine.',
     features: ['No installation needed', 'Works on any device', 'Real-time sync demo', 'Shareable public URL', 'Always up to date'],
-    cta: 'Open Web App →', ctaHref: '/files', ctaBg: '#22c55e',
+    cta: 'Open Web App →', ctaHref: '/app/welcome', ctaBg: '#22c55e',
     accent: '#4f7df8', featured: true, badge: 'LIVE NOW',
   },
   {
@@ -239,7 +239,7 @@ export default function HomePage() {
             }}>
               ⬇ Download for Windows
             </Link>
-            <Link href="/files" className="btn-hero-ghost">
+            <Link href="/app/welcome" className="btn-hero-ghost">
               Try Web App →
             </Link>
             <Link href="https://github.com/PaulJohnnn/DocuSync" target="_blank" rel="noopener noreferrer"
@@ -442,12 +442,12 @@ export default function HomePage() {
                   padding: '4px 12px', fontSize: 11, color: 'var(--t3)',
                   textAlign: 'center', border: '1px solid var(--b1)',
                 }}>
-                  🔒 docusync-pnc.vercel.app/files
+                  🔒 docusync-pnc.vercel.app/app/files
                 </div>
               </div>
               {/* App iframe */}
               <iframe
-                src="/files"
+                src="/app/files?demo=true"
                 style={{ width: '100%', height: 500, border: 'none', display: 'block' }}
                 title="DocuSync Live Demo"
               />
@@ -679,7 +679,7 @@ export default function HomePage() {
             }} className="cta-primary">
               ⬇ Download for Windows
             </Link>
-            <Link href="/files" className="cta-ghost">
+            <Link href="/app/welcome" className="cta-ghost">
               Try Web App →
             </Link>
             <Link href="https://github.com/PaulJohnnn/DocuSync" target="_blank" rel="noopener noreferrer"

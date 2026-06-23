@@ -812,7 +812,20 @@ export function registerIPCHandlers(services: EngineServices): void {
   ipcMain.handle(
     'sync:status',
     safeHandler(async () => {
-      const connectedPeers = peerManager.getConnectedPeerIds();
+      const connectedPeerIds = peerManager.getConnectedPeerIds();
+
+      // Fetch the actual IP addresses and names from Prisma
+      const registeredPeers = await prisma.peerRegistry.findMany({
+        where: { nodeId: { in: connectedPeerIds } },
+      });
+
+      // Map to full objects
+      const connectedPeers = registeredPeers.map(p => ({
+        id: p.nodeId,
+        displayName: p.displayName,
+        address: p.address,
+        port: p.port
+      }));
 
       // Count pending conflicts across all open files.
       let pendingConflicts = 0;

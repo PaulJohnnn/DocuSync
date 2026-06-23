@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server';
 import { activeLobbies, cleanupLobbies } from '../store';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
+}
+
 export async function POST(request: Request) {
   try {
     cleanupLobbies();
@@ -8,12 +18,12 @@ export async function POST(request: Request) {
     const { otp } = body;
 
     if (!otp) {
-      return NextResponse.json({ error: 'Missing otp' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing OTP' }, { status: 400, headers: corsHeaders });
     }
 
     const lobby = activeLobbies.get(otp);
     if (!lobby) {
-      return NextResponse.json({ error: 'Session expired or invalid' }, { status: 404 });
+      return NextResponse.json({ error: 'Invalid or expired OTP' }, { status: 404, headers: corsHeaders });
     }
 
     // Instantly delete the OTP so it cannot be reused
@@ -22,10 +32,11 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ip: lobby.ip,
       port: lobby.port,
-      nodeId: lobby.nodeId
-    }, { status: 200 });
+      nodeId: lobby.nodeId,
+      roomName: lobby.roomName
+    }, { status: 200, headers: corsHeaders });
 
   } catch {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: corsHeaders });
   }
 }

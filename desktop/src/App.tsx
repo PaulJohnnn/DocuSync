@@ -21,6 +21,7 @@ const PeersPage     = lazy(() => import('@/pages/PeersPage'));
 const MetricsPage   = lazy(() => import('@/pages/MetricsPage'));
 const SettingsPage  = lazy(() => import('@/pages/SettingsPage'));
 const VaultLoginPage = lazy(() => import('@/pages/VaultLoginPage'));
+const WelcomePage    = lazy(() => import('@/pages/WelcomePage'));
 
 /** Loading skeleton shown during lazy chunk loading. */
 const PageLoader: React.FC = () => (
@@ -40,9 +41,17 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
     async function checkVault() {
       try {
+        const hasSeenWelcome = localStorage.getItem('docusync_has_seen_welcome');
+        if (!hasSeenWelcome) {
+          navigate('/welcome');
+          return;
+        }
+
         const res = await window.docuSync.getVaultStatus();
         if (res.success && res.data) {
-          if (!res.data.isUnlocked) {
+          if (!res.data.isRegistered) {
+            navigate('/welcome');
+          } else if (!res.data.isUnlocked) {
             navigate('/vault-login');
           } else {
             setIsUnlocked(true);
@@ -141,6 +150,11 @@ const App: React.FC = () => (
           <Route path="/vault-login" element={
             <Suspense fallback={<PageLoader />}>
               <VaultLoginPage />
+            </Suspense>
+          } />
+          <Route path="/welcome" element={
+            <Suspense fallback={<PageLoader />}>
+              <WelcomePage />
             </Suspense>
           } />
           

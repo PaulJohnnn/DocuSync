@@ -16,19 +16,32 @@ const TitleBar: React.FC<TitleBarProps> = ({ isRightPanelOpen, onToggleRightPane
   const { syncStatus } = useElectronSync();
   const { theme, toggleTheme } = useTheme();
 
+  const [hasInternet, setHasInternet] = React.useState(navigator.onLine);
+
+  React.useEffect(() => {
+    const handleOnline = () => setHasInternet(true);
+    const handleOffline = () => setHasInternet(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const dotColor =
-    syncStatus === 'idle'     ? 'var(--green)' :
+    !hasInternet              ? 'var(--text-muted)'   :
     syncStatus === 'syncing'  ? 'var(--amber)' :
     syncStatus === 'conflict' ? 'var(--red)'   :
     syncStatus === 'error'    ? 'var(--red)'   :
-    'var(--text-muted)';
+    'var(--green)';
 
   const label =
-    syncStatus === 'idle'     ? 'Ready'    :
-    syncStatus === 'syncing'  ? 'Syncing'  :
+    !hasInternet              ? 'Offline'  :
+    syncStatus === 'syncing'  ? 'Syncing...'  :
     syncStatus === 'conflict' ? 'Conflict' :
     syncStatus === 'error'    ? 'Error'    :
-    'Disconnected';
+    'Online';
 
   return (
     <div className="ds-titlebar">

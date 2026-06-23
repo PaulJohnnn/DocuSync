@@ -86,7 +86,7 @@ function MainApp() {
   const { colors } = useTheme();
 
   return (
-    <NavigationContainer>
+    <>
       <Tab.Navigator
         screenOptions={({ route }) => ({
           tabBarIcon: ({ focused }) => (
@@ -117,25 +117,59 @@ function MainApp() {
         <Tab.Screen name="Metrics"   component={MetricsScreen}   />
         <Tab.Screen name="Settings"  component={SettingsScreen}  />
       </Tab.Navigator>
-    </NavigationContainer>
+    </>
   );
 }
 
 // ── Root with Splash ──────────────────────────────────────────────────────
 
+import { createStackNavigator } from '@react-navigation/stack';
+import WelcomeScreen from './screens/WelcomeScreen';
+import LoginScreen from './screens/LoginScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const Stack = createStackNavigator();
+
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
+  const [initialRoute, setInitialRoute] = useState<'Welcome' | 'Login' | 'Main'>('Welcome');
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 2000);
-    return () => clearTimeout(timer);
+    async function initAuth() {
+      try {
+        const hasSeenWelcome = await AsyncStorage.getItem('docusync_has_seen_welcome');
+        const isUnlocked = await AsyncStorage.getItem('docusync_unlocked');
+        const hasNode = await AsyncStorage.getItem('docusync_node_id');
+        
+        if (!hasSeenWelcome) {
+          setInitialRoute('Welcome');
+        } else if (isUnlocked) {
+          setInitialRoute('Main');
+        } else if (hasNode) {
+          setInitialRoute('Login');
+        } else {
+          setInitialRoute('Login'); // fallback
+        }
+      } catch (e) {
+        setInitialRoute('Login');
+      } finally {
+        setTimeout(() => setIsLoading(false), 1500); // give splash time
+      }
+    }
+    initAuth();
   }, []);
 
   if (isLoading) return <SplashScreen />;
 
   return (
     <ThemeProvider>
-      <MainApp />
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Welcome" component={WelcomeScreen} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Main" component={MainApp} />
+        </Stack.Navigator>
+      </NavigationContainer>
     </ThemeProvider>
   );
 }

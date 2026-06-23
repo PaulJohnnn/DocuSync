@@ -3,9 +3,10 @@
  * WPS Office–inspired 224px sidebar.
  * Logo · search bar · WORKSPACE nav · TOOLS nav · node card.
  */
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useElectronSync } from '@/context/ElectronSyncContext';
+import { toast } from 'sonner';
 import {
   Files, FileEdit, AlertTriangle, Clock,
   Network, BarChart2, Settings, Search, Lock
@@ -20,7 +21,6 @@ interface NavItem {
 
 const WORKSPACE_NAV: NavItem[] = [
   { to: '/',          icon: <Files size={16} />,         label: 'Files',     id: 'nav-files'     },
-  { to: '/editor/0',  icon: <FileEdit size={16} />,      label: 'Editor',    id: 'nav-editor'    },
   { to: '/conflicts', icon: <AlertTriangle size={16} />, label: 'Conflicts', id: 'nav-conflicts' },
   { to: '/history/0', icon: <Clock size={16} />,         label: 'History',   id: 'nav-history'   },
   { to: '/peers',     icon: <Network size={16} />,       label: 'Peers',     id: 'nav-peers'     },
@@ -35,6 +35,26 @@ const Sidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { localNodeId, pendingConflicts, connectedPeers, syncStatus } = useElectronSync();
+  const [hasInternet, setHasInternet] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setHasInternet(true);
+      toast.success('Internet reconnected. You are back online.');
+    };
+    const handleOffline = () => {
+      setHasInternet(false);
+      toast.error('Internet disconnected. You are now offline.');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleLockVault = async () => {
     try {
@@ -50,7 +70,23 @@ const Sidebar: React.FC = () => {
   const isActive = (to: string) =>
     to === '/' ? location.pathname === '/' : location.pathname.startsWith(to.split('/')[1] ? '/' + to.split('/')[1] : to);
 
-  const isOnline = syncStatus !== 'offline' && syncStatus !== 'error';
+  let statusText = 'Disconnected';
+  let statusColor = 'var(--text-muted)';
+  
+  if (!hasInternet) {
+     statusText = 'Offline';
+     statusColor = 'var(--text-muted)';
+  } else if (syncStatus === 'error') {
+     statusText = 'Error';
+     statusColor = 'var(--red)';
+  } else if (syncStatus === 'syncing') {
+     statusText = 'Syncing';
+     statusColor = 'var(--amber)';
+  } else {
+     statusText = 'Online';
+     statusColor = 'var(--green)';
+  }
+
   const shortId  = localNodeId ? localNodeId.slice(0, 8) : '--------';
 
   const renderItem = (item: NavItem) => (
@@ -124,12 +160,12 @@ const Sidebar: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             <span style={{
               width: 7, height: 7, borderRadius: '50%',
-              background: isOnline ? 'var(--green)' : 'var(--text-muted)',
-              boxShadow: isOnline ? '0 0 5px var(--green)' : 'none',
+              background: statusColor,
+              boxShadow: `0 0 5px ${statusColor}`,
               flexShrink: 0,
             }} />
-            <span style={{ fontSize: 11, fontWeight: 600, color: isOnline ? 'var(--green)' : 'var(--text-muted)' }}>
-              {isOnline ? 'Online' : 'Disconnected'}
+            <span style={{ fontSize: 11, fontWeight: 600, color: statusColor }}>
+              {statusText}
             </span>
             <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>
               {connectedPeers.length} peer{connectedPeers.length !== 1 ? 's' : ''}
@@ -149,30 +185,6 @@ const Sidebar: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Lock Repository Button ── */}
-      <div style={{ padding: '0 12px 12px 12px' }}>
-        <button
-          onClick={handleLockVault}
-          className="ds-sidebar-item"
-          style={{
-            width: '100%',
-            background: 'transparent',
-            border: 'none',
-            color: 'var(--ds-red)',
-            cursor: 'pointer',
-            justifyContent: 'flex-start',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-          }}
-        >
-          <span className="ds-sidebar-item-icon"><Lock size={16} /></span>
-          <span>Lock Repository</span>
-        </button>
-      </div>
     </nav>
   );
 };

@@ -12,12 +12,11 @@ function LogoMark() {
 
 const FOOTER_LINKS = {
   App: [
-    { label: 'Files',     href: '/files' },
-    { label: 'Editor',    href: '/editor/demo' },
-    { label: 'Conflicts', href: '/conflicts' },
-    { label: 'Metrics',   href: '/metrics' },
-  ],
-  Download: [
+    { label: 'Files',     href: '/app/files' },
+    { label: 'Editor',    href: '/app/editor/demo' },
+    { label: 'Conflicts', href: '/app/conflicts' },
+    { label: 'Metrics',   href: '/app/metrics' },
+    { label: 'Peers',     href: '/app/peers' },
     { label: 'Windows',  href: '/download' },
     { label: 'Web App',  href: 'https://docusync-pnc.vercel.app', external: true },
     { label: 'Mobile',   href: 'https://expo.dev/go', external: true },

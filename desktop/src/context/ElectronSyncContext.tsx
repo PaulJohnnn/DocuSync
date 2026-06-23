@@ -68,6 +68,18 @@ export interface PendingConflict {
   receivedAt: Date;
 }
 
+export interface ConnectedPeerInfo {
+  id: string;
+  displayName: string;
+  address: string;
+  port: number;
+}
+
+export interface PeerRoom {
+  id: string;
+  name: string;
+}
+
 /**
  * Shape of the context value exposed to consumer components.
  */
@@ -76,8 +88,12 @@ export interface ElectronSyncContextValue {
   syncStatus: SyncState;
   /** UUID of this local P2P node. */
   localNodeId: string;
-  /** Node IDs of currently connected peers. */
-  connectedPeers: string[];
+  /** Array of currently connected peers. */
+  connectedPeers: ConnectedPeerInfo[];
+  /** The current joined room. */
+  currentRoom: PeerRoom | null;
+  /** Sets the current joined room. */
+  setCurrentRoom: (room: PeerRoom | null) => void;
   /**
    * Serialised vector clock snapshot from the last `sync:status` poll.
    * `null` if the engine hasn't responded yet.
@@ -140,7 +156,28 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   const [syncStatus, setSyncStatus]       = useState<SyncState>('idle');
   const [localNodeId, setLocalNodeId]     = useState<string>('');
-  const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
+  const [connectedPeers, setConnectedPeers] = useState<ConnectedPeerInfo[]>([]);
+  const [currentRoom, setCurrentRoom] = useState<PeerRoom | null>(() => {
+    try {
+      const saved = localStorage.getItem('docusync_current_room');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  
+  useEffect(() => {
+    try {
+      if (currentRoom) {
+        localStorage.setItem('docusync_current_room', JSON.stringify(currentRoom));
+      } else {
+        localStorage.removeItem('docusync_current_room');
+      }
+    } catch {
+      // ignore
+    }
+  }, [currentRoom]);
+
   const [vectorClock, setVectorClock]     = useState<Record<string, unknown> | null>(null);
   const [pendingConflicts, setPendingConflicts] = useState<number>(0);
   const [conflictQueue, setConflictQueue] = useState<PendingConflict[]>([]);
@@ -171,7 +208,7 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
       const data = res.data as {
         localNodeId: string;
         vectorClock: Record<string, unknown>;
-        connectedPeers: string[];
+        connectedPeers: ConnectedPeerInfo[];
         pendingConflicts: number;
       };
 
@@ -284,6 +321,8 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
         syncStatus,
         localNodeId,
         connectedPeers,
+        currentRoom,
+        setCurrentRoom,
         vectorClock,
         pendingConflicts,
         conflictQueue,

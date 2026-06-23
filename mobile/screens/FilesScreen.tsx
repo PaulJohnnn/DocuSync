@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  SafeAreaView, Alert,
+  SafeAreaView, Alert, Platform,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
@@ -16,6 +16,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Colors } from '../constants/Colors';
 import LogoIcon from '../components/LogoIcon';
 import AnimatedButton from '../components/AnimatedButton';
+import ConfirmModal from '../components/ConfirmModal';
 
 interface FileRecord {
   id: string;
@@ -71,24 +72,68 @@ export default function FilesScreen({ navigation }: any) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [files, setFiles] = useState<FileRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<'my_files' | 'peer_rooms'>('my_files');
+  const [currentRoom, setCurrentRoom] = useState<{ id: string, name: string } | null>(null);
+  const [peerCount, setPeerCount] = useState<number>(0);
+  const [confirmModal, setConfirmModal] = useState(false);
+  const [roomFiles, setRoomFiles] = useState<any[]>([]);
 
-  useEffect(() => { loadFiles(); }, []);
   useEffect(() => {
-    const unsub = navigation.addListener('focus', () => loadFiles());
-    return unsub;
-  }, [navigation]);
+    loadFiles();
+    loadRoomAndPeers();
+    
+    // Poll for room updates since PeersScreen updates it
+    const timer = setInterval(() => {
+      loadRoomAndPeers();
+    }, 2000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const loadRoomAndPeers = async () => {
+    try {
+      const roomStored = await AsyncStorage.getItem('@docusync/current_room');
+      if (roomStored) {
+        const parsedRoom = JSON.parse(roomStored);
+        setCurrentRoom(parsedRoom);
+        if (!parsedRoom.id.startsWith('direct-')) {
+          try {
+            const res = await fetch(`http://192.168.68.102:3000/api/lobby/files?otp=${parsedRoom.id}`);
+            if (res.ok) {
+              const data = await res.json();
+              setRoomFiles(data.files || []);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      } else {
+        setCurrentRoom(null);
+        setRoomFiles([]);
+      }
+      
+      const peersStored = await AsyncStorage.getItem('@docusync/peers');
+      if (peersStored) {
+        const peersData = JSON.parse(peersStored);
+        const connected = peersData.filter((p: any) => p.status === 'connected').length;
+        setPeerCount(connected);
+      } else {
+        setPeerCount(0);
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const loadFiles = async () => {
     const stored = await AsyncStorage.getItem('@docusync/files');
-    if (stored) {
-      setFiles(JSON.parse(stored));
-    } else {
-      // Inject demo files
+    if (stored) setFiles(JSON.parse(stored));
+    else {
       const demoFiles: FileRecord[] = [
-        { id: 'demo-1', name: 'project-proposal.md', type: 'text/markdown', size: 1024 * 12, content: '# Proposal', status: 'synced', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        { id: 'demo-2', name: 'budget-2024.csv', type: 'text/csv', size: 1024 * 45, content: 'Q1,Q2', status: 'syncing', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        { id: 'demo-3', name: 'auth-config.json', type: 'application/json', size: 512, content: '{}', status: 'conflict', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        { id: 'demo-4', name: 'Thesis_Final_Draft.docx', type: 'application/msword', size: 1024 * 1500, content: '...', status: 'synced', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+        { id: '101', name: 'ProjectProposal.docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 1245000, content: '', status: 'synced', createdAt: '', updatedAt: '' },
+        { id: '102', name: 'Notes.md', type: 'text/markdown', size: 14500, content: '', status: 'conflict', createdAt: '', updatedAt: '' },
+        { id: '103', name: 'Data_Export.csv', type: 'text/csv', size: 890456, content: '', status: 'synced', createdAt: '', updatedAt: '' },
+        { id: '104', name: 'package.json', type: 'application/json', size: 2048, content: '', status: 'syncing', createdAt: '', updatedAt: '' },
+        { id: '105', name: 'index.tsx', type: 'text/typescript', size: 12048, content: '', status: 'synced', createdAt: '', updatedAt: '' },
       ];
       setFiles(demoFiles);
       await AsyncStorage.setItem('@docusync/files', JSON.stringify(demoFiles));
@@ -103,22 +148,41 @@ export default function FilesScreen({ navigation }: any) {
   const openFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['text/*', 'application/json'],
+        type: ['text/*', 'application/json', '*/*'],
         copyToCacheDirectory: true,
       });
       if (result.canceled) return;
-      const file = result.assets[0];
-      let content = '';
-      try { content = await FileSystem.readAsStringAsync(file.uri); }
-      catch { content = `[File: ${file.name}]`; }
+      
+      const fileId = Date.now().toString();
       const newFile: FileRecord = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        name: file.name, type: file.mimeType || 'text/plain',
-        size: file.size || content.length, content,
+        id: fileId,
+        name: result.assets[0].name,
+        type: result.assets[0].mimeType || 'text/plain',
+        size: result.assets[0].size || 0,
+        content: result.assets[0].uri,
         status: 'synced',
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
-      await saveFiles([...files, newFile]);
+      
+      if (isRoomShare && currentRoom && !currentRoom.id.startsWith('direct-')) {
+        try {
+          await fetch(`http://192.168.68.102:3000/api/lobby/files`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ otp: currentRoom.id, file: {
+              fileId: parseInt(fileId),
+              fileName: newFile.name,
+              filePath: newFile.content,
+              contentLength: newFile.size,
+            }})
+          });
+          Alert.alert('Success', 'File shared to room!');
+        } catch (e) {
+          Alert.alert('Error', 'Failed to share file to room');
+        }
+      } else {
+        await saveFiles([...files, newFile]);
+      }
     } catch { Alert.alert('Error', 'Failed to open file'); }
   };
 
@@ -135,7 +199,6 @@ export default function FilesScreen({ navigation }: any) {
   const renderFile = ({ item }: { item: FileRecord }) => {
     const ext   = extMeta(item.name, colors);
     const isConflict = item.status === 'conflict';
-    const isSyncing  = item.status === 'syncing';
 
     return (
       <TouchableOpacity
@@ -148,14 +211,11 @@ export default function FilesScreen({ navigation }: any) {
         onLongPress={() => deleteFile(item.id)}
         activeOpacity={0.75}
       >
-        {/* Extension icon */}
         <View style={[styles.extIcon, { backgroundColor: ext.bg }]}>
           <Text style={{ color: ext.color, fontSize: 10, fontWeight: '800', fontFamily: 'monospace' }}>
             {ext.label}
           </Text>
         </View>
-
-        {/* File info */}
         <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ flex: 1, paddingRight: 8 }}>
             <Text style={styles.fileName} numberOfLines={1}>{item.name}</Text>
@@ -173,8 +233,6 @@ export default function FilesScreen({ navigation }: any) {
             )}
           </View>
         </View>
-
-        {/* Chevron */}
         <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ marginLeft: 8 }} />
       </TouchableOpacity>
     );
@@ -182,7 +240,6 @@ export default function FilesScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.bgBase }]}>
-      {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.bgBase }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <LogoIcon size={32} />
@@ -191,25 +248,58 @@ export default function FilesScreen({ navigation }: any) {
             <Text style={[styles.subtitle, { color: colors.textMuted }]}>{files.length} file{files.length !== 1 ? 's' : ''} tracked</Text>
           </View>
         </View>
-        <AnimatedButton
-          onPress={openFile}
-          style={[styles.openBtn, { backgroundColor: colors.accent }]}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Ionicons name="add-circle" size={16} color="#fff" />
-            <Text style={styles.openBtnText}>Open File</Text>
-          </View>
-        </AnimatedButton>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {activeTab === 'my_files' && (
+            <React.Fragment>
+              <AnimatedButton
+                onPress={() => openFile(false)}
+                style={[styles.openBtn, { backgroundColor: colors.accent }]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="add-circle" size={16} color="#fff" />
+                  <Text style={styles.openBtnText}>Open</Text>
+                </View>
+              </AnimatedButton>
+            </React.Fragment>
+          )}
+          {activeTab === 'peer_rooms' && !currentRoom && (
+            <AnimatedButton
+              onPress={() => navigation.navigate('Peers')}
+              style={[styles.openBtn, { backgroundColor: colors.accent }]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="people" size={16} color="#fff" />
+                <Text style={styles.openBtnText}>Join</Text>
+              </View>
+            </AnimatedButton>
+          )}
+        </View>
       </View>
 
-      {/* Content */}
-      {files.length === 0 ? (
+      <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 16, backgroundColor: colors.bgCard, borderRadius: 8, padding: 4, borderWidth: 1, borderColor: colors.border }}>
+        <TouchableOpacity
+          style={{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6, backgroundColor: activeTab === 'my_files' ? colors.bgBase : 'transparent', shadowColor: activeTab === 'my_files' ? '#000' : 'transparent', shadowOpacity: 0.05, shadowRadius: 2, elevation: activeTab === 'my_files' ? 1 : 0 }}
+          onPress={() => setActiveTab('my_files')}
+        >
+          <Text style={{ fontSize: 13, fontWeight: '600', color: activeTab === 'my_files' ? colors.textPrimary : colors.textMuted }}>My Files</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6, backgroundColor: activeTab === 'peer_rooms' ? colors.bgBase : 'transparent', shadowColor: activeTab === 'peer_rooms' ? '#000' : 'transparent', shadowOpacity: 0.05, shadowRadius: 2, elevation: activeTab === 'peer_rooms' ? 1 : 0 }}
+          onPress={() => setActiveTab('peer_rooms')}
+        >
+          <Text style={{ fontSize: 13, fontWeight: '600', color: activeTab === 'peer_rooms' ? colors.textPrimary : colors.textMuted }}>Peer Rooms</Text>
+        </TouchableOpacity>
+      </View>
+
+      {activeTab === 'my_files' && files.length === 0 && (
         <View style={styles.empty}>
           <Ionicons name="documents-outline" size={64} color={colors.textMuted} style={{ marginBottom: 16 }} />
           <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No files yet</Text>
           <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>Tap "Open File" to add documents</Text>
         </View>
-      ) : (
+      )}
+
+      {activeTab === 'my_files' && files.length > 0 && (
         <View style={{ padding: 16, flex: 1 }}>
           <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 8, letterSpacing: 0.5 }}>OPEN DOCUMENTS</Text>
           <View style={[styles.tableContainer, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
@@ -222,6 +312,109 @@ export default function FilesScreen({ navigation }: any) {
           </View>
         </View>
       )}
+
+      {/* Content - Peer Rooms Empty */}
+      {activeTab === 'peer_rooms' && !currentRoom && (
+        <View style={styles.empty}>
+          <Ionicons name="people-outline" size={64} color={colors.textMuted} style={{ marginBottom: 16 }} />
+          <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>Not connected to any room</Text>
+          <Text style={[styles.emptySubtext, { color: colors.textMuted }]}>Host a live session or join an existing peer via OTP in the Peers tab.</Text>
+          <AnimatedButton
+            onPress={() => navigation.navigate('Peers')}
+            style={[styles.openBtn, { backgroundColor: colors.accent, marginTop: 16 }]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="people" size={16} color="#fff" />
+              <Text style={styles.openBtnText}>Go to Peers</Text>
+            </View>
+          </AnimatedButton>
+        </View>
+      )}
+
+      {/* Content - Selected Room Drill-down */}
+      {activeTab === 'peer_rooms' && currentRoom && (
+        <View style={{ padding: 16, flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <TouchableOpacity 
+              onPress={() => setConfirmModal(true)} 
+              style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12, padding: 6, backgroundColor: colors.bgCard, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}
+            >
+              <Ionicons name="arrow-back" size={16} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <View>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: colors.textPrimary }}>{currentRoom.name}</Text>
+              <Text style={{ fontSize: 12, color: colors.accent }}>{currentRoom.id.startsWith('direct-') ? 'Direct IP' : `OTP: ${currentRoom.id}`} • {peerCount} connected</Text>
+            </View>
+          </View>
+          
+          <Text style={{ fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 8, letterSpacing: 0.5 }}>ROOM FILES</Text>
+          {roomFiles.length === 0 ? (
+            <View style={[styles.empty, { backgroundColor: colors.bgCard, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 24, flex: 0 }]}>
+              <Ionicons name="cloud-download-outline" size={48} color={colors.textMuted} style={{ marginBottom: 12 }} />
+              <Text style={[styles.emptyTitle, { color: colors.textSecondary, fontSize: 16, marginBottom: 6 }]}>No files shared in this room yet</Text>
+              <Text style={[styles.emptySubtext, { color: colors.textMuted, fontSize: 12, marginBottom: 16 }]}>Files shared by peers will appear here.</Text>
+              <TouchableOpacity 
+                style={{ backgroundColor: colors.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                onPress={() => openFile(true)}
+              >
+                <Ionicons name="folder-open" size={16} color="#fff" />
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Share File to Room</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <FlatList
+                data={roomFiles}
+                keyExtractor={(item, idx) => item.fileId?.toString() || idx.toString()}
+                renderItem={({ item }) => {
+                  const ext = extMeta(item.fileName, colors);
+                  return (
+                    <TouchableOpacity
+                      style={[styles.fileCard, { borderBottomColor: colors.border }]}
+                      activeOpacity={0.75}
+                    >
+                      <View style={[styles.extIcon, { backgroundColor: ext.bg }]}>
+                        <Text style={{ color: ext.color, fontSize: 10, fontWeight: '800', fontFamily: 'monospace' }}>
+                          {ext.label}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={styles.fileName} numberOfLines={1}>{item.fileName}</Text>
+                          <Text style={styles.filePath} numberOfLines={1}>{formatBytes(item.contentLength)}</Text>
+                        </View>
+                      </View>
+                      <Ionicons name="cloud-download" size={16} color={colors.accent} style={{ marginLeft: 8 }} />
+                    </TouchableOpacity>
+                  );
+                }}
+                contentContainerStyle={{ paddingBottom: 20 }}
+              />
+              <TouchableOpacity 
+                style={{ backgroundColor: colors.accent, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16 }}
+                onPress={() => openFile(true)}
+              >
+                <Ionicons name="folder-open" size={16} color="#fff" />
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>Share File to Room</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
+      <ConfirmModal
+        visible={confirmModal}
+        title="Leave Room"
+        message="Are you sure you want to leave this room?"
+        confirmText="Leave"
+        cancelText="Cancel"
+        onCancel={() => setConfirmModal(false)}
+        onConfirm={async () => {
+          await AsyncStorage.removeItem('@docusync/current_room');
+          setCurrentRoom(null);
+          setConfirmModal(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
