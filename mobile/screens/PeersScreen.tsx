@@ -1,24 +1,31 @@
 /**
  * @module PeersScreen
  * P2P connection manager — tab "Peers".
- * Fixes: Join button 48px height, removed empty state, added Connected Room indicator.
+ * - Matchmaker URL read from AsyncStorage (configurable, no hardcoded IPs).
+ * - Real WebSocket RTT measured via PING/PONG timing (no Math.random() fake latency).
+ * - Peer list persisted across sessions.
  */
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, SafeAreaView, ScrollView, Alert,
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { useNetInfo } from '@react-native-community/netinfo';
 import { useTheme } from '../context/ThemeContext';
-import AnimatedButton from '../components/AnimatedButton';
 import ConfirmModal from '../components/ConfirmModal';
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+const PEERS_KEY   = '@docusync/peers';
+const ROOM_KEY    = '@docusync/current_room';
+const MATCHMAKER_KEY = '@docusync/matchmaker_url';
+const DEFAULT_MATCHMAKER = 'https://docusync-pnc.vercel.app';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface PeerInfo {
   id: string; address: string; port: number;
   status: 'connected' | 'disconnected';
-  latency: number; connectedAt: string;
+  latency: number | null;
+  connectedAt: string;
 }
 
 interface RoomInfo {
@@ -26,97 +33,146 @@ interface RoomInfo {
   name: string;
 }
 
-// Gradient-like avatar colors per peer index
-const AVATAR_COLORS = [
-  '#4f7df8', '#8b5cf6', '#22c55e', '#f59e0b', '#14b8a6', '#ef4444',
-];
+// ── Helpers ────────────────────────────────────────────────────────────────────
+const AVATAR_COLORS = ['#4f7df8', '#8b5cf6', '#22c55e', '#f59e0b', '#14b8a6', '#ef4444'];
 
 function initials(address: string): string {
   const parts = address.replace(/\./g, ' ').trim().split(' ');
   return (parts[0]?.[0] ?? 'P').toUpperCase() + (parts[1]?.[0] ?? '2').toUpperCase();
 }
 
+async function measureRTT(address: string, port: number): Promise<number | null> {
+  return new Promise(resolve => {
+    const timeoutId = setTimeout(() => resolve(null), 3000);
+    try {
+      const ws = new WebSocket(`ws://${address}:${port}`);
+      ws.onopen = () => {
+        const t0 = Date.now();
+        ws.send(JSON.stringify({ type: 'PING', timestamp: t0 }));
+        ws.onmessage = (evt) => {
+          try {
+            const msg = JSON.parse(evt.data);
+            if (msg.type === 'PONG') {
+              clearTimeout(timeoutId);
+              resolve(Date.now() - t0);
+            }
+          } catch { /* ignore parse errors */ }
+        };
+      };
+      ws.onerror = () => { clearTimeout(timeoutId); resolve(null); ws.close(); };
+    } catch { clearTimeout(timeoutId); resolve(null); }
+  });
+}
+
+// ── Component ──────────────────────────────────────────────────────────────────
 export default function PeersScreen({ navigation }: any) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [peers, setPeers] = useState<PeerInfo[]>([]);
-  const [ip,   setIp]     = useState('');
-  const [port, setPort]   = useState('8080');
   const [joinOtp, setJoinOtp] = useState('');
   const [joining, setJoining] = useState(false);
   const [currentRoom, setCurrentRoom] = useState<RoomInfo | null>(null);
+  const [matchmakerUrl, setMatchmakerUrl] = useState(DEFAULT_MATCHMAKER);
   const [confirmModal, setConfirmModal] = useState<{ visible: boolean, id: string | null }>({ visible: false, id: null });
+  const netInfo = useNetInfo();
+  const hasInternet = netInfo.isConnected !== false;
 
   useEffect(() => {
-    loadPeers();
-    loadCurrentRoom();
-    const timer = setInterval(() => {
-      setPeers(prev => prev.map(p => {
-        if (p.status === 'connected') {
-          const shift = (Math.random() - 0.5) * 5;
-          let newLat = p.latency + shift;
-          if (newLat < 1) newLat = 1;
-          return { ...p, latency: Math.round(newLat * 100) / 100 };
-        }
-        return p;
-      }));
-    }, 2000);
-    return () => clearInterval(timer);
+    (async () => {
+      const stored = await AsyncStorage.getItem(PEERS_KEY);
+      if (stored) setPeers(JSON.parse(stored));
+
+      const room = await AsyncStorage.getItem(ROOM_KEY);
+      if (room) setCurrentRoom(JSON.parse(room));
+
+      const url = await AsyncStorage.getItem(MATCHMAKER_KEY);
+      if (url) setMatchmakerUrl(url);
+    })();
   }, []);
 
-  const loadPeers = async () => {
-    const stored = await AsyncStorage.getItem('@docusync/peers');
-    if (stored) setPeers(JSON.parse(stored));
-  };
+  useEffect(() => {
+    const pollRTT = async () => {
+      setPeers(prev => prev);
+      const updated = await Promise.all(
+        peers.map(async (p) => {
+          if (p.status !== 'connected') return p;
+          const rtt = await measureRTT(p.address, p.port);
+          return { ...p, latency: rtt };
+        })
+      );
+      setPeers(updated);
+      await AsyncStorage.setItem(PEERS_KEY, JSON.stringify(updated));
+    };
 
-  const loadCurrentRoom = async () => {
-    const stored = await AsyncStorage.getItem('@docusync/current_room');
-    if (stored) setCurrentRoom(JSON.parse(stored));
-  };
+    if (peers.some(p => p.status === 'connected')) {
+      pollRTT();
+      const iv = setInterval(pollRTT, 10_000);
+      return () => clearInterval(iv);
+    }
+  }, [peers.length]);
 
   const savePeers = async (newPeers: PeerInfo[]) => {
     setPeers(newPeers);
-    await AsyncStorage.setItem('@docusync/peers', JSON.stringify(newPeers));
+    await AsyncStorage.setItem(PEERS_KEY, JSON.stringify(newPeers));
   };
 
-  const connectWithArgs = async (targetIp: string, targetPort: string) => {
-    if (!targetIp || !targetPort) return;
-    try {
-      const ws = new WebSocket(`ws://${targetIp}:${targetPort}`);
-      const newPeer: PeerInfo = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        address: targetIp, port: parseInt(targetPort),
-        status: 'disconnected',
-        latency: Math.floor(Math.random() * 20) + 1,
-        connectedAt: new Date().toISOString(),
-      };
-      ws.onopen  = () => {
-        newPeer.status = 'connected';
-        savePeers([...peers, newPeer]);
-        ws.send(JSON.stringify({
-          type: 'PEER_HELLO',
-          nodeId: newPeer.id,
-          displayName: 'DocuSync Mobile'
-        }));
-      };
-      ws.onerror = () => { newPeer.status = 'disconnected'; savePeers([...peers, newPeer]); };
-      setTimeout(() => {
-        if (newPeer.status === 'disconnected') savePeers([...peers, newPeer]);
-      }, 3000);
-    } catch {
-      const newPeer: PeerInfo = {
-        id: `${Date.now()}`, address: targetIp, port: parseInt(targetPort),
-        status: 'disconnected', latency: 0, connectedAt: new Date().toISOString(),
-      };
-      await savePeers([...peers, newPeer]);
-    }
+  const connectWithArgs = async (targetIp: string, targetPort: string): Promise<boolean> => {
+    return new Promise(resolve => {
+      try {
+        const ws = new WebSocket(`ws://${targetIp}:${targetPort}`);
+        const t0 = Date.now();
+
+        const newPeer: PeerInfo = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          address: targetIp, port: parseInt(targetPort, 10),
+          status: 'disconnected',
+          latency: null,
+          connectedAt: new Date().toISOString(),
+        };
+
+        ws.onopen = async () => {
+          newPeer.status = 'connected';
+          newPeer.latency = Date.now() - t0;
+          ws.send(JSON.stringify({
+            type: 'PEER_HELLO',
+            nodeId: newPeer.id,
+            displayName: 'DocuSync Mobile',
+          }));
+          await savePeers([...peers, newPeer]);
+          resolve(true);
+        };
+        const handleDisconnect = () => {
+          setPeers(prev => {
+            const next = prev.map(p => p.id === newPeer.id ? { ...p, status: 'disconnected' as const } : p);
+            AsyncStorage.setItem(PEERS_KEY, JSON.stringify(next));
+            return next;
+          });
+        };
+
+        ws.onerror = () => {
+          handleDisconnect();
+          resolve(false);
+        };
+        ws.onclose = () => {
+          handleDisconnect();
+        };
+        setTimeout(() => {
+          if (ws.readyState !== WebSocket.OPEN) {
+            handleDisconnect();
+            resolve(false);
+          }
+        }, 5000);
+      } catch {
+        resolve(false);
+      }
+    });
   };
 
   const handleJoinOtp = async () => {
     if (!joinOtp || joinOtp.length !== 5) return;
     setJoining(true);
     try {
-      const res = await fetch(`http://192.168.68.102:3000/api/lobby/join`, {
+      const res = await fetch(`${matchmakerUrl}/api/lobby/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ otp: joinOtp }),
@@ -125,15 +181,21 @@ export default function PeersScreen({ navigation }: any) {
       if (!res.ok) throw new Error(data.error || 'Failed to join session');
 
       const { ip: lobbyIp, port: lobbyPort, roomName } = data;
-      setIp(lobbyIp);
-      setPort(lobbyPort.toString());
 
-      await connectWithArgs(lobbyIp, lobbyPort.toString());
+      const connected = await connectWithArgs(lobbyIp, lobbyPort.toString());
+      if (!connected) {
+        Alert.alert('Warning', `Could not connect WebSocket to ${lobbyIp}:${lobbyPort}. Peer saved as offline.`);
+      }
+
       const room: RoomInfo = { id: joinOtp, name: roomName || 'OTP Session' };
-      await AsyncStorage.setItem('@docusync/current_room', JSON.stringify(room));
+      await AsyncStorage.setItem(ROOM_KEY, JSON.stringify(room));
       setCurrentRoom(room);
-      Alert.alert('Success', `Connected to Host at ${lobbyIp}:${lobbyPort}.`);
-      navigation.navigate('Files');
+      setJoinOtp('');
+
+      if (connected) {
+        Alert.alert('Connected', `Joined session at ${lobbyIp}:${lobbyPort}.`);
+        navigation.navigate('Files');
+      }
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Invalid OTP');
     } finally {
@@ -141,27 +203,36 @@ export default function PeersScreen({ navigation }: any) {
     }
   };
 
-  const connect = async () => {
-    await connectWithArgs(ip, port);
-    const room: RoomInfo = { id: `direct-${ip}`, name: `Direct Session - ${ip}` };
-    await AsyncStorage.setItem('@docusync/current_room', JSON.stringify(room));
-    setCurrentRoom(room);
-    setIp('');
-    navigation.navigate('Files');
-  };
-
   const removePeer = async (id: string) => {
     await savePeers(peers.filter(p => p.id !== id));
-    await AsyncStorage.removeItem('@docusync/current_room');
+    await AsyncStorage.removeItem(ROOM_KEY);
     setCurrentRoom(null);
   };
 
   const connected = peers.filter(p => p.status === 'connected').length;
-  const isOnline  = connected > 0;
 
   const renderPeer = ({ item, index }: { item: PeerInfo; index: number }) => {
     const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
-    const isConn      = item.status === 'connected';
+    const isConn = item.status === 'connected';
+    const latMs = item.latency;
+
+    let latencyLabel = '● Offline';
+    let latencyColor = colors.textMuted;
+    if (isConn) {
+      if (latMs === null) {
+        latencyLabel = '● Measuring…';
+        latencyColor = colors.textMuted;
+      } else if (latMs < 20) {
+        latencyLabel = `● ${latMs}ms`;
+        latencyColor = colors.green;
+      } else if (latMs < 100) {
+        latencyLabel = `● ${latMs}ms`;
+        latencyColor = colors.amber;
+      } else {
+        latencyLabel = `● ${latMs}ms`;
+        latencyColor = colors.red;
+      }
+    }
 
     return (
       <View style={styles.peerCard} key={item.id}>
@@ -177,13 +248,8 @@ export default function PeersScreen({ navigation }: any) {
 
         <View style={{ alignItems: 'flex-end', gap: 6 }}>
           <View style={[styles.statusBadge, isConn ? styles.statusBadgeOnline : styles.statusBadgeOffline]}>
-            <Text style={[styles.statusBadgeText, {
-              color: !isConn ? colors.textMuted
-                : item.latency < 20 ? colors.green
-                : item.latency < 100 ? colors.amber
-                : colors.red
-            }]}>
-              {isConn ? `● ${item.latency}ms` : '● Offline'}
+            <Text style={[styles.statusBadgeText, { color: latencyColor }]}>
+              {latencyLabel}
             </Text>
           </View>
           <TouchableOpacity
@@ -199,64 +265,42 @@ export default function PeersScreen({ navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Peers</Text>
           <Text style={styles.subtitle}>{connected} connected · {peers.length} total</Text>
         </View>
-        <View style={[styles.statusChip, isOnline ? styles.statusChipOnline : styles.statusChipOffline]}>
-          <Text style={[styles.statusChipText, { color: isOnline ? colors.green : colors.textMuted }]}>
-            {isOnline ? '● Online' : '● Offline'}
+        <View style={[styles.statusChip, hasInternet ? styles.statusChipOnline : styles.statusChipOffline]}>
+          <Text style={[styles.statusChipText, { color: hasInternet ? colors.green : colors.textMuted }]}>
+            {hasInternet ? '● Online' : '● Offline'}
           </Text>
         </View>
       </View>
 
       <ScrollView style={{ flex: 1 }}>
-
-        {/* ── Connected Room Indicator ────────────────────────────── */}
         {currentRoom && (
           <View style={styles.roomCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={styles.greenDot} />
-              <Text style={styles.roomTitle}>Room: {currentRoom.id}</Text>
+              <Text style={styles.roomTitle}>Room: {currentRoom.name}</Text>
             </View>
             <Text style={styles.roomSubtitle}>
-              {connected} {connected === 1 ? 'person' : 'people'} connected
+              OTP: {currentRoom.id} · {connected} peer{connected !== 1 ? 's' : ''} connected
             </Text>
           </View>
         )}
 
-        {/* ── Card 1: Host a Live Session ─────────────────────────── */}
-        <View style={styles.connectCard}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <Ionicons name="people" size={20} color={colors.accent} />
-            <Text style={[styles.connectLabel, { marginBottom: 0 }]}>Host a Live Session</Text>
-          </View>
-          <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 16, lineHeight: 20 }}>
-            Mobile clients cannot host WebSocket servers directly. Please use the Desktop App to generate a 5-digit code, then join from this device.
-          </Text>
-          <AnimatedButton
-            onPress={() => {}}
-            style={[{ backgroundColor: colors.bgCardHover, padding: 12, borderRadius: 8, alignItems: 'center' }]}
-            disabled={true}
-          >
-            <Text style={{ color: colors.textMuted, fontWeight: '600' }}>Desktop Only</Text>
-          </AnimatedButton>
-        </View>
-
-        {/* ── Card 2: Join Peer via OTP ───────────────────────────── */}
         <View style={styles.connectCard}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <Ionicons name="link" size={20} color={colors.green} />
             <Text style={[styles.connectLabel, { marginBottom: 0 }]}>Join Peer via OTP</Text>
           </View>
           <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 16, lineHeight: 20 }}>
-            Enter the 5-digit OTP provided by the host to join their live session.
+            Enter the 5-digit OTP provided by the Desktop host to join the live session.
           </Text>
 
-          {/* OTP row — 48px height Join button */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <TextInput
               style={[styles.input, {
                 flex: 1, height: 48,
@@ -279,43 +323,26 @@ export default function PeersScreen({ navigation }: any) {
               <Text style={styles.joinBtnText}>{joining ? '...' : 'Join'}</Text>
             </TouchableOpacity>
           </View>
-
-          {/* Direct IP fallback */}
-          <View style={{ paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
-            <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 8 }}>Or connect via Direct IP:</Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[styles.input, { flex: 1, color: colors.textPrimary }]}
-                placeholder="IP address"
-                placeholderTextColor={colors.textMuted}
-                value={ip}
-                onChangeText={setIp}
-              />
-              <TextInput
-                style={[styles.input, { width: 80, color: colors.textPrimary }]}
-                placeholder="Port"
-                placeholderTextColor={colors.textMuted}
-                value={port}
-                onChangeText={setPort}
-                keyboardType="numeric"
-              />
-              <AnimatedButton
-                onPress={connect}
-                style={[styles.connectBtn, { paddingHorizontal: 12 }]}
-              >
-                <Text style={styles.connectBtnText}>Connect IP</Text>
-              </AnimatedButton>
-            </View>
-          </View>
+          <Text style={{ fontSize: 11, color: colors.textMuted }}>
+            Matchmaker: {matchmakerUrl}
+          </Text>
         </View>
 
-        {/* ── Peer list (only when peers exist — no empty state) ──── */}
+        <View style={styles.connectCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <Ionicons name="people" size={20} color={colors.accent} />
+            <Text style={[styles.connectLabel, { marginBottom: 0 }]}>Host a Live Session</Text>
+          </View>
+          <Text style={{ color: colors.textMuted, fontSize: 13, lineHeight: 20 }}>
+            Mobile clients cannot host WebSocket servers directly. Use the Desktop App to generate an OTP, then join from this device.
+          </Text>
+        </View>
+
         {peers.length > 0 && (
           <View style={{ paddingHorizontal: 16, paddingBottom: 24, gap: 8 }}>
             {peers.map((item, index) => renderPeer({ item, index }))}
           </View>
         )}
-
       </ScrollView>
 
       <ConfirmModal
@@ -334,17 +361,12 @@ export default function PeersScreen({ navigation }: any) {
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────────
 const makeStyles = (colors: any) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bgBase },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
     backgroundColor: colors.bgBase,
   },
   title:    { fontSize: 20, fontWeight: '700', color: colors.textPrimary },
@@ -357,7 +379,6 @@ const makeStyles = (colors: any) => StyleSheet.create({
   statusChipOffline: { backgroundColor: 'rgba(255,255,255,0.04)', borderColor: colors.border },
   statusChipText: { fontSize: 12, fontWeight: '600' },
 
-  // Connected room indicator
   roomCard: {
     margin: 16, marginBottom: 0,
     backgroundColor: 'rgba(79,125,248,0.10)',
@@ -369,44 +390,30 @@ const makeStyles = (colors: any) => StyleSheet.create({
   roomSubtitle: { fontSize: 12, color: colors.textMuted, marginLeft: 18 },
 
   connectCard: {
-    margin: 16,
-    backgroundColor: colors.bgCard,
+    margin: 16, backgroundColor: colors.bgCard,
     borderWidth: 1, borderColor: colors.border,
     borderRadius: 14, padding: 16, gap: 10,
   },
   connectLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
-  inputRow: { flexDirection: 'row', gap: 8 },
   input: {
     backgroundColor: colors.bgBase,
     borderWidth: 1, borderColor: colors.border,
-    borderRadius: 8, height: 42,
-    paddingHorizontal: 12, fontSize: 13,
+    borderRadius: 8, paddingHorizontal: 12,
   },
-
-  // ── Join button: 48px × 80px ─────────────────────────────────────────────
   joinBtn: {
-    width: 80, height: 48,
-    backgroundColor: colors.accent,
-    borderRadius: 10,
-    justifyContent: 'center', alignItems: 'center',
+    width: 80, height: 48, backgroundColor: colors.accent,
+    borderRadius: 10, justifyContent: 'center', alignItems: 'center',
   },
   joinBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 
-  connectBtn: {
-    backgroundColor: colors.accent, height: 44,
-    borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-  },
-  connectBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-
   peerCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: colors.bgCard,
-    borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border,
     borderRadius: 12, padding: 14, marginBottom: 8,
   },
   avatar: {
-    width: 40, height: 40, borderRadius: 20,
-    borderWidth: 1, alignItems: 'center', justifyContent: 'center',
+    width: 40, height: 40, borderRadius: 20, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
   },
   avatarText: { fontSize: 13, fontWeight: '700' },
   peerName:   { fontSize: 14, fontWeight: '500', color: colors.textPrimary },

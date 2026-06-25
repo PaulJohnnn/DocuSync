@@ -3,7 +3,7 @@ import { activeLobbies, cleanupLobbies } from '../store';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
@@ -15,34 +15,69 @@ export async function POST(request: Request) {
   try {
     cleanupLobbies();
     const body = await request.json();
-    const { otp } = body;
+    const { otp, clientNodeId } = body;
 
     if (!otp) {
-      return NextResponse.json({ error: 'Missing OTP' }, { status: 400, headers: corsHeaders });
+      return NextResponse.json(
+        { error: 'Missing OTP' },
+        { status: 400, headers: corsHeaders }
+      );
     }
 
     const lobby = activeLobbies.get(otp);
+
     if (!lobby) {
-      return NextResponse.json({ error: 'Invalid or expired OTP' }, { status: 404, headers: corsHeaders });
+      return NextResponse.json(
+        { error: `Room not found. No active room with OTP "${otp}". Ask the host to generate a new code.` },
+        { status: 404, headers: corsHeaders }
+      );
     }
 
-    if (lobby.peersJoined >= 15) {
-      return NextResponse.json({ error: 'Room is full (max 15 peers)' }, { status: 403, headers: corsHeaders });
+    if (Date.now() > lobby.expiresAt) {
+      activeLobbies.delete(otp);
+      return NextResponse.json(
+        { error: 'This OTP has expired. Ask the host to generate a new one.' },
+        { status: 410, headers: corsHeaders }
+      );
     }
 
-    // Increment joined count, do NOT delete the OTP so others can still join.
-    // The OTP will naturally expire after 30 minutes via cleanupLobbies.
+    if (lobby.members.length >= 15) {
+      return NextResponse.json(
+        { error: 'Room is full (max 15 peers).' },
+        { status: 403, headers: corsHeaders }
+      );
+    }
+
+    // Register member
+    if (clientNodeId && !lobby.members.includes(clientNodeId)) {
+      lobby.members.push(clientNodeId);
+    }
     lobby.peersJoined += 1;
     activeLobbies.set(otp, lobby);
 
-    return NextResponse.json({
-      ip: lobby.ip,
-      port: lobby.port,
-      nodeId: lobby.nodeId,
-      roomName: lobby.roomName
-    }, { status: 200, headers: corsHeaders });
+    console.log(`[Lobby] Client joined OTP=${otp} → ${lobby.hostIp}:${lobby.hostPort} total_members=${lobby.members.length}`);
 
-  } catch {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: corsHeaders });
+    return NextResponse.json(
+      {
+        success: true,
+        otp: lobby.otp,
+        roomName: lobby.roomName,
+        hostNodeId: lobby.hostNodeId,
+        hostIp: lobby.hostIp,
+        hostPort: lobby.hostPort,
+        memberCount: lobby.members.length,
+        // Legacy compat fields
+        ip: lobby.hostIp,
+        port: lobby.hostPort,
+        nodeId: lobby.hostNodeId,
+      },
+      { status: 200, headers: corsHeaders }
+    );
+  } catch (err) {
+    console.error('[Lobby] Join error:', err);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500, headers: corsHeaders }
+    );
   }
 }

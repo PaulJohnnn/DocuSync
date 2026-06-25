@@ -58,22 +58,7 @@ import type { VectorClockJSON } from '../src/engine/vector-clock/vector-clock';
  * set are rejected with a descriptive error message.
  */
 const ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
-  // Documents
-  '.txt', '.md', '.markdown', '.rtf', '.tex', '.bib', '.log',
-  '.docx', '.doc',
-  // Web
-  '.html', '.htm', '.xml', '.svg',
-  // Data
-  '.json', '.csv', '.tsv', '.yaml', '.yml', '.toml', '.ini', '.cfg',
-  // Code
-  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
-  '.css', '.scss', '.sass', '.less',
-  '.py', '.rb', '.java', '.c', '.cpp', '.h', '.hpp',
-  '.rs', '.go', '.swift', '.kt', '.kts',
-  '.sql', '.sh', '.bash', '.zsh', '.ps1', '.bat', '.cmd',
-  // Config
-  '.env', '.gitignore', '.editorconfig',
-  '.prisma', '.graphql', '.gql', '.proto',
+  '.txt', '.md', '.json', '.csv'
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,11 +148,7 @@ function validateExtension(filePath: string): string | null {
     return null;
   }
   if (!ALLOWED_EXTENSIONS.has(ext)) {
-    return (
-      `File extension "${ext}" is not supported. ` +
-      `DocuSync only syncs text-based files. ` +
-      `Allowed: ${[...ALLOWED_EXTENSIONS].slice(0, 10).join(', ')}, ...`
-    );
+    return "Error: Binary file detected. DocuSync's delta engine only supports UTF-8 plain text files (.txt, .md).";
   }
   return null;
 }
@@ -406,6 +387,20 @@ export async function initEngine(
           verifyResolvers.delete(reqId);
         }
       });
+    },
+    onSessionTerminated: (reason: string) => {
+      console.log(`[IPC] Session terminated by Admin: ${reason}`);
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        win.webContents.send('evt:session-terminated', reason);
+      }
+    },
+    onPeerListChanged: () => {
+      console.log(`[IPC] Peer list changed, notifying renderer...`);
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        win.webContents.send('evt:peer-updated');
+      }
     },
   });
 
@@ -1319,6 +1314,139 @@ export function registerIPCHandlers(services: EngineServices): void {
     })
   );
 
+  ipcMain.handle(
+    'session:terminate',
+    safeHandler(async () => {
+      // 1. Broadcast termination to all peers
+      peerManager.broadcast({
+        type: 'SESSION_TERMINATED',
+        reason: 'Admin deleted group',
+        timestamp: new Date().toISOString(),
+      });
+      // 2. Shut down our own server gracefully
+      await peerManager.shutdown();
+      return { success: true };
+    })
+  );
+
+  // ── file:checkout ──────────────────────────────────────────────────
+  /**
+   * Saves a physical copy of an open file to a user-chosen path.
+   * Logs a CHECK_OUT event to the EventLog.
+   *
+   * @param fileId - The file ID (from `file:open`).
+   * @returns `{ saved: boolean, destPath: string }` on success.
+   */
+  ipcMain.handle(
+    'file:checkout',
+    safeHandler(async (...args: unknown[]) => {
+      const fileId = args[0] as number;
+      if (typeof fileId !== 'number') {
+        throw new Error('file:checkout requires (fileId: number).');
+      }
+      const filePath = openFiles.get(fileId);
+      if (!filePath) {
+        throw new Error(`File ID ${fileId} is not open.`);
+      }
+      const content = fileContents.get(fileId) ?? '';
+      const defaultName = path.basename(filePath);
+      const win = BrowserWindow.getAllWindows()[0];
+
+      const result = await dialog.showSaveDialog(win ?? undefined!, {
+        title: 'Download File (Check-out)',
+        defaultPath: defaultName,
+        filters: [{ name: 'All Files', extensions: ['*'] }],
+      });
+
+      if (result.canceled || !result.filePath) {
+        throw new Error('Save cancelled by user.');
+      }
+
+      await fs.promises.writeFile(result.filePath, content, 'utf-8');
+
+      // Log a CHECK_OUT event
+      vectorClock.increment();
+      const vcJson = vectorClock.toJSON();
+      const logicalTimestamp = vectorClock.counters[vectorClock.nodeIndex];
+      const eventId = generateUUID();
+      await eventLog.appendEvent({
+        eventId,
+        fileId,
+        nodeId: localNodeId,
+        eventType: 'checkout',
+        logicalTimestamp,
+        vectorClockJson: vcJson,
+        payload: JSON.stringify({ destPath: result.filePath }),
+      });
+
+      console.log(`[IPC] file:checkout → ${result.filePath}`);
+      return { saved: true, destPath: result.filePath };
+    })
+  );
+
+  // ── admin:get-activity-log ─────────────────────────────────────────
+  /**
+   * Fetches the last 50 EventLog entries for the Admin Dashboard.
+   *
+   * @returns `{ entries: ActivityEntry[] }` on success.
+   */
+  ipcMain.handle(
+    'admin:get-activity-log',
+    safeHandler(async () => {
+      const entries = await prisma.eventLog.findMany({
+        orderBy: { logicalTimestamp: 'desc' },
+        take: 50,
+      });
+      return {
+        entries: entries.map(e => ({
+          id:               e.id,
+          eventId:          e.eventId,
+          fileId:           e.fileId,
+          nodeId:           e.nodeId,
+          eventType:        e.eventType,
+          logicalTimestamp: e.logicalTimestamp,
+          createdAt:        e.createdAt.toISOString(),
+        })),
+      };
+    })
+  );
+
+  // ── cache:auto-cleanup ─────────────────────────────────────────────
+  /**
+   * Deletes compacted EventLog rows older than 30 days when the table
+   * exceeds 1000 rows. Safe to call repeatedly.
+   *
+   * @returns `{ deletedCount, totalBefore, totalAfter }` on success.
+   */
+  ipcMain.handle(
+    'cache:auto-cleanup',
+    safeHandler(async () => {
+      const totalBefore = await prisma.eventLog.count();
+      if (totalBefore <= 1000) {
+        return { deletedCount: 0, totalBefore, totalAfter: totalBefore };
+      }
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const deleted = await prisma.eventLog.deleteMany({
+        where: {
+          isCompacted: true,
+          createdAt: { lt: cutoff },
+        },
+      });
+      const totalAfter = await prisma.eventLog.count();
+      console.log(`[IPC] cache:auto-cleanup → deleted ${deleted.count} rows (${totalBefore} → ${totalAfter}).`);
+      return { deletedCount: deleted.count, totalBefore, totalAfter };
+    })
+  );
+
+  // ── cache:get-size ─────────────────────────────────────────────────
+  ipcMain.handle(
+    'cache:get-size',
+    safeHandler(async () => {
+      const count = await prisma.eventLog.count();
+      return { rowCount: count };
+    })
+  );
+
   console.log('[IPC] All handlers registered.');
 }
 
@@ -1347,10 +1475,14 @@ export async function cleanupIPCHandlers(services: EngineServices): Promise<void
 
   // Remove all IPC handlers.
   const channels = [
-    'file:open', 'file:save', 'file:history', 'file:restore',
+    'file:open', 'file:save', 'file:history', 'file:restore', 'file:checkout',
     'sync:status', 'sync:trigger',
     'conflict:list', 'conflict:detail', 'conflict:resolve',
     'peer:list', 'peer:connect',
+    'admin:get-activity-log', 'cache:auto-cleanup', 'cache:get-size',
+    'session:terminate', 'auth:verify-respond',
+    'vault:get-status', 'vault:genesis-init', 'vault:unlock', 'vault:lock', 'vault:factory-reset',
+    'network:get-lan-ip',
   ];
   for (const channel of channels) {
     ipcMain.removeHandler(channel);

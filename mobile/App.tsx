@@ -11,6 +11,7 @@ import MetricsScreen   from './screens/MetricsScreen';
 import SettingsScreen  from './screens/SettingsScreen';
 import SplashScreen    from './components/SplashScreen';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const Tab = createBottomTabNavigator();
 
@@ -137,21 +138,12 @@ export default function App() {
   useEffect(() => {
     async function initAuth() {
       try {
-        const hasSeenWelcome = await AsyncStorage.getItem('docusync_has_seen_welcome');
         const isUnlocked = await AsyncStorage.getItem('docusync_unlocked');
-        const hasNode = await AsyncStorage.getItem('docusync_node_id');
         
-        if (!hasSeenWelcome) {
-          setInitialRoute('Welcome');
-        } else if (isUnlocked) {
-          setInitialRoute('Main');
-        } else if (hasNode) {
-          setInitialRoute('Login');
-        } else {
-          setInitialRoute('Login'); // fallback
-        }
+        // Always show Welcome screen first on app startup
+        setInitialRoute('Welcome');
       } catch (e) {
-        setInitialRoute('Login');
+        setInitialRoute('Welcome');
       } finally {
         setTimeout(() => setIsLoading(false), 1500); // give splash time
       }
@@ -162,14 +154,16 @@ export default function App() {
   if (isLoading) return <SplashScreen />;
 
   return (
-    <ThemeProvider>
-      <NavigationContainer>
-        <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Welcome" component={WelcomeScreen} />
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Main" component={MainApp} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <NavigationContainer>
+          <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Welcome" component={WelcomeScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Main" component={MainApp} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

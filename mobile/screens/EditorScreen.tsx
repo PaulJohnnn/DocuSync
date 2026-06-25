@@ -6,8 +6,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, TextInput, ScrollView, StyleSheet,
-  TouchableOpacity, SafeAreaView,
+  TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -88,7 +89,7 @@ export default function EditorScreen({ route, navigation }: any) {
   }
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
       {/* Sub-header */}
       <View style={styles.header}>
         <TouchableOpacity

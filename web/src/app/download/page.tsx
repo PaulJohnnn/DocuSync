@@ -47,7 +47,7 @@ export default function DownloadPage() {
           }}>
             <div style={{ fontSize: 56, marginBottom: 20 }}>💻</div>
             <h2 style={{ fontSize: 24, fontWeight: 700, color: 'var(--t1)', marginBottom: 8 }}>DocuSync for Windows</h2>
-            <p style={{ fontSize: 13, color: '#4f7df8', fontWeight: 600, marginBottom: 24 }}>v1.0.0 · 2026</p>
+            <p style={{ fontSize: 13, color: '#4f7df8', fontWeight: 600, marginBottom: 24 }}>2026</p>
             
             <p style={{ fontSize: 14, color: 'var(--t2)', marginBottom: 16 }}>
               Full engine with SQLite database, native file system, and P2P WebSocket server.

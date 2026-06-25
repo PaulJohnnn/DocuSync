@@ -73,7 +73,19 @@ function avatarColor(nodeId: string): string {
 // ── PeersPage ───────────────────────────────────────────────────────────────
 
 const REFRESH_INTERVAL = 5_000;
-const API_URL = 'http://192.168.68.102:3000/api/lobby';
+// Central matchmaker: Vercel in production, localhost in local dev
+const MATCHMAKER_URL = 'https://docusync-pnc.vercel.app/api/lobby';
+// Fallback for local dev (both apps on same machine)
+const LOCAL_MATCHMAKER = 'http://localhost:3000/api/lobby';
+
+async function matchmakerFetch(path: string, options: RequestInit): Promise<Response> {
+  // Try Vercel first, fall back to localhost
+  try {
+    const res = await fetch(`${MATCHMAKER_URL}${path}`, options);
+    if (res.ok || res.status < 500) return res;
+  } catch { /* Vercel unreachable, try local */ }
+  return fetch(`${LOCAL_MATCHMAKER}${path}`, options);
+}
 
 const PeersPage: React.FC = () => {
   const navigate = useNavigate();
@@ -88,9 +100,6 @@ const PeersPage: React.FC = () => {
   
   const [joinOtp, setJoinOtp] = useState('');
   const [joining, setJoining] = useState(false);
-  
-  const [manualIp, setManualIp] = useState('');
-  const [manualPort, setManualPort] = useState('9000');
 
   const fetchAllRef = useRef<(initial?: boolean) => Promise<void>>();
 
@@ -117,19 +126,14 @@ const PeersPage: React.FC = () => {
 
   const [latency, setLatency] = useState<number | null>(null);
 
+  // Real RTT: we track it via the peer:list polling.
+  // Latency will be '—' until a peer is connected and reports RTT.
   useEffect(() => {
-    if (!syncStatus) {
+    if (!syncStatus || syncStatus.peerCount === 0) {
       setLatency(null);
-      return;
     }
-    // Simulate initial real-time ping
-    setLatency(1.1 + Math.random() * 0.9);
-    
-    // Fluctuate the latency slightly every 1.5 seconds to show active network status
-    const iv = setInterval(() => {
-      setLatency(1.1 + Math.random() * 0.9);
-    }, 1500);
-    return () => clearInterval(iv);
+    // Note: actual RTT is measured by the PeerManager heartbeat (PING/PONG)
+    // and exposed via peer:list. No fake random simulation.
   }, [syncStatus]);
 
   useEffect(() => { 
@@ -157,20 +161,20 @@ const PeersPage: React.FC = () => {
       const ip = ipRes.success ? ipRes.data : '127.0.0.1';
       const nodeId = statusRes.success && statusRes.data ? (statusRes.data as SyncStatusResponse).localNodeId : 'Unknown';
       
-      const res = await fetch(`${API_URL}/create`, {
+      const res = await matchmakerFetch('/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodeId, ip, port: 9000, roomName: finalRoomName })
+        body: JSON.stringify({ hostNodeId: nodeId, hostIp: ip, hostPort: 9000, nodeId, ip, port: 9000, roomName: finalRoomName })
       });
       
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create lobby');
       
       setGeneratedOtp(data.otp);
-      setCurrentRoom({ id: data.otp, name: finalRoomName });
-      toast.success('Lobby created successfully!');
+      setCurrentRoom({ id: data.otp, name: finalRoomName, isHost: true });
+      toast.success(`Room "${finalRoomName}" created! OTP: ${data.otp}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to generate OTP');
+      toast.error(err instanceof Error ? err.message : 'Failed to generate OTP. Is the web server running?');
     } finally {
       setGenerating(false);
     }
@@ -183,45 +187,49 @@ const PeersPage: React.FC = () => {
     }
     setJoining(true);
     try {
-      const res = await fetch(`${API_URL}/join`, {
+      const statusRes = await window.docuSync.getSyncStatus();
+      const clientNodeId = statusRes.success && statusRes.data
+        ? (statusRes.data as SyncStatusResponse).localNodeId
+        : 'desktop-client';
+
+      console.log('[OTP Join] Attempting to join OTP:', joinOtp);
+
+      const res = await matchmakerFetch('/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp: joinOtp })
+        body: JSON.stringify({ otp: joinOtp, clientNodeId })
       });
       
       const data = await res.json();
+      console.log('[OTP Join] Matchmaker response:', data);
       if (!res.ok) throw new Error(data.error || 'Invalid session');
       
-      toast.success('Found peer! Connecting via WebSockets...');
+      const hostIp = data.hostIp || data.ip;
+      const hostPort = data.hostPort || data.port;
+      const rName = data.roomName || 'OTP Session';
+
+      if (!hostIp || !hostPort) throw new Error('Matchmaker returned invalid host info.');
+
+      toast.success(`Found room "${rName}"! Connecting to ${hostIp}:${hostPort}...`);
+      console.log('[OTP Join] Connecting to WebSocket:', `ws://${hostIp}:${hostPort}`);
       
-      const connectRes = await window.docuSync.connectToPeer(data.ip, data.port);
-      if (!connectRes.success) throw new Error(connectRes.error ?? 'Connection error.');
+      const connectRes = await window.docuSync.connectToPeer(hostIp, hostPort);
+      console.log('[OTP Join] WS connect result:', connectRes);
+      if (!connectRes.success) throw new Error(connectRes.error ?? 'WebSocket connection failed.');
       
-      setCurrentRoom({ id: joinOtp, name: data.roomName || 'OTP Session' });
-      toast.success(`Connected to ${data.nodeId}`);
+      setCurrentRoom({ id: joinOtp, name: rName, isHost: false });
+      toast.success('Successfully joined the room!');
+      toast.success(`✅ Connected to "${rName}" — ${data.memberCount || '?'} member(s)`);
       setJoinOtp('');
       fetchAll();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to join lobby');
     } finally {
       setJoining(false);
-      setJoining(false);
     }
   };
 
-  const handleConnectIp = async () => {
-    if (!manualIp || !manualPort) return;
-    try {
-      const connectRes = await window.docuSync.connectToPeer(manualIp, parseInt(manualPort));
-      if (!connectRes.success) throw new Error(connectRes.error ?? 'Connection error.');
-      setCurrentRoom({ id: `direct-${manualIp}`, name: `Direct Session - ${manualIp}` });
-      toast.success(`Connected to Direct IP!`);
-      setManualIp('');
-      fetchAll();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to connect via IP');
-    }
-  };
+
 
   return (
     <>
@@ -345,52 +353,7 @@ const PeersPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Direct IP Connect Fallback */}
-              <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--ds-border)' }}>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
-                  Or connect via Direct IP:
-                </div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                  <input 
-                    type="text" 
-                    placeholder="IP address"
-                    value={manualIp}
-                    onChange={(e) => setManualIp(e.target.value)}
-                    style={{ 
-                      flex: 1, 
-                      padding: '10px 16px', 
-                      borderRadius: 6, 
-                      border: '1px solid var(--border)', 
-                      background: 'var(--bg-base)', 
-                      color: 'var(--text-primary)',
-                      fontSize: 14
-                    }} 
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="Port"
-                    value={manualPort}
-                    onChange={(e) => setManualPort(e.target.value.replace(/\D/g, ''))}
-                    style={{ 
-                      width: 80, 
-                      padding: '10px 16px', 
-                      borderRadius: 6, 
-                      border: '1px solid var(--border)', 
-                      background: 'var(--bg-base)', 
-                      color: 'var(--text-primary)',
-                      fontSize: 14
-                    }} 
-                  />
-                  <button 
-                    className="ds-btn ds-btn-primary" 
-                    onClick={handleConnectIp} 
-                    disabled={!manualIp || !manualPort}
-                    style={{ padding: '0 20px' }}
-                  >
-                    Connect IP
-                  </button>
-                </div>
-              </div>
+
 
             </div>
           </div>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -17,7 +18,7 @@ export default function WelcomeScreen() {
   const navigation = useNavigation<WelcomeScreenNavigationProp>();
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom', 'left', 'right']}>
       {/* Background orbs can be simple circles in React Native */}
       <View style={[styles.orb, { top: -50, left: -50, backgroundColor: 'rgba(79,125,248,0.1)' }]} />
       <View style={[styles.orb, { bottom: -50, right: -50, backgroundColor: 'rgba(99,76,230,0.1)' }]} />
@@ -60,7 +61,7 @@ export default function WelcomeScreen() {
           <Text style={styles.buttonText}>Get Started</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

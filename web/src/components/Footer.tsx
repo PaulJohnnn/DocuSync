@@ -13,7 +13,6 @@ function LogoMark() {
 const FOOTER_LINKS = {
   App: [
     { label: 'Files',     href: '/app/files' },
-    { label: 'Editor',    href: '/app/editor/demo' },
     { label: 'Conflicts', href: '/app/conflicts' },
     { label: 'Metrics',   href: '/app/metrics' },
     { label: 'Peers',     href: '/app/peers' },

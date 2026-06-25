@@ -122,6 +122,23 @@ async function bootstrap(): Promise<void> {
     engineServices = await initEngine(nodeCount, nodeIndex, wsPort);
     registerIPCHandlers(engineServices);
     console.log('[Main] Engine initialised and IPC handlers registered.');
+
+    // Proactively prune stale cache on every startup.
+    // Fires-and-forgets; never blocks app boot.
+    (async () => {
+      try {
+        const count = await engineServices!.prisma.eventLog.count();
+        if (count > 1000) {
+          const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          const deleted = await engineServices!.prisma.eventLog.deleteMany({
+            where: { isCompacted: true, createdAt: { lt: cutoff } },
+          });
+          console.log(`[Main] Auto-cleanup: removed ${deleted.count} stale EventLog rows.`);
+        }
+      } catch (e) {
+        console.warn('[Main] Auto-cleanup skipped:', e);
+      }
+    })();
   } catch (err) {
     console.error('[Main] Failed to initialise engine:', err);
     // Engine failure is non-fatal — the app still opens, but sync

@@ -1,69 +1,132 @@
 'use client';
 import React from 'react';
-import { useRouter } from 'next/navigation';
-import { Shield, Network } from 'lucide-react';
+import { Shield, Network, Zap } from 'lucide-react';
+import Link from 'next/link';
 
 export default function WelcomePage() {
-  const router = useRouter();
-
   return (
     <div style={{
-      height: '100vh',
-      width: '100vw',
+      minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
       background: 'var(--bg)',
       padding: '2rem',
-      textAlign: 'center'
+      textAlign: 'center',
+      position: 'relative',
+      overflow: 'hidden'
     }}>
-      <div style={{ marginBottom: '2rem' }}>
-        <div style={{ width: 80, height: 80, borderRadius: 20, background: 'rgba(79,125,248,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', border: '1px solid rgba(79,125,248,0.2)' }}>
-          <span style={{ fontSize: 40 }}>📄</span>
+      {/* Background Glow Orbs */}
+      <div style={{ position: 'absolute', top: '-10%', left: '-5%', width: '40%', height: '40%', background: 'radial-gradient(circle, rgba(79,125,248,0.15) 0%, rgba(0,0,0,0) 70%)', filter: 'blur(60px)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: '-10%', right: '-5%', width: '50%', height: '50%', background: 'radial-gradient(circle, rgba(34,197,94,0.1) 0%, rgba(0,0,0,0) 70%)', filter: 'blur(60px)', pointerEvents: 'none' }} />
+
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: 800 }}>
+        <div style={{ marginBottom: '2rem', animation: 'float 6s ease-in-out infinite' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/docusync-icon.png" alt="DocuSync Logo" style={{ width: 90, height: 90, borderRadius: 24, boxShadow: '0 8px 32px rgba(79,125,248,0.3)' }} />
         </div>
+        
+        <h1 style={{ 
+          fontSize: '3rem', 
+          fontWeight: 800, 
+          background: 'linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          marginBottom: '1rem',
+          letterSpacing: '-0.02em'
+        }}>
+          Welcome to DocuSync
+        </h1>
+        
+        <p style={{ fontSize: '1.15rem', color: 'var(--t2)', maxWidth: 550, marginBottom: '3.5rem', lineHeight: 1.6 }}>
+          A secure, fully decentralized file synchronization engine. No cloud servers, no subscriptions. Your data syncs directly between your trusted devices.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '4rem', width: '100%', textAlign: 'left' }}>
+          {/* Card 1 */}
+          <div style={{ 
+            background: 'rgba(255, 255, 255, 0.03)', 
+            border: '1px solid rgba(255, 255, 255, 0.05)', 
+            borderRadius: '16px', 
+            padding: '1.5rem',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+            transition: 'transform 0.2s ease, background 0.2s ease',
+            cursor: 'default'
+          }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(124, 58, 237, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+              <Shield size={20} color="#a78bfa" />
+            </div>
+            <h3 style={{ fontSize: '1.1rem', color: 'var(--t1)', marginBottom: '0.5rem', fontWeight: 600 }}>Local Encryption</h3>
+            <p style={{ fontSize: '0.9rem', color: 'var(--t2)', lineHeight: 1.5 }}>Your vault is secured with a local PIN. Your files never leave your devices.</p>
+          </div>
+
+          {/* Card 2 */}
+          <div style={{ 
+            background: 'rgba(255, 255, 255, 0.03)', 
+            border: '1px solid rgba(255, 255, 255, 0.05)', 
+            borderRadius: '16px', 
+            padding: '1.5rem',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+            transition: 'transform 0.2s ease',
+          }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(34, 197, 94, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+              <Network size={20} color="#4ade80" />
+            </div>
+            <h3 style={{ fontSize: '1.1rem', color: 'var(--t1)', marginBottom: '0.5rem', fontWeight: 600 }}>Peer-to-Peer Sync</h3>
+            <p style={{ fontSize: '0.9rem', color: 'var(--t2)', lineHeight: 1.5 }}>Sync directly with your other computers on the local network via WebSockets.</p>
+          </div>
+          
+          {/* Card 3 */}
+          <div style={{ 
+            background: 'rgba(255, 255, 255, 0.03)', 
+            border: '1px solid rgba(255, 255, 255, 0.05)', 
+            borderRadius: '16px', 
+            padding: '1.5rem',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+            transition: 'transform 0.2s ease',
+          }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(56, 189, 248, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+              <Zap size={20} color="#7dd3fc" />
+            </div>
+            <h3 style={{ fontSize: '1.1rem', color: 'var(--t1)', marginBottom: '0.5rem', fontWeight: 600 }}>Lightning Fast</h3>
+            <p style={{ fontSize: '0.9rem', color: 'var(--t2)', lineHeight: 1.5 }}>Hybrid architecture with Vector Clocks and Delta Encoding ensures instant updates.</p>
+          </div>
+        </div>
+
+        <Link href="/app/files" style={{ textDecoration: 'none' }} onClick={() => sessionStorage.setItem('docusync_has_seen_welcome_session', 'true')}>
+          <button
+            style={{ 
+              padding: '1rem 3rem', 
+              fontSize: '1.1rem',
+              fontWeight: 600,
+              background: 'linear-gradient(135deg, #4f7df8 0%, #3b5bdb 100%)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              boxShadow: '0 8px 24px rgba(79,125,248,0.4)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            Enter Workspace
+          </button>
+        </Link>
       </div>
       
-      <h1 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--t1)', marginBottom: '1rem' }}>
-        Welcome to DocuSync Web
-      </h1>
-      
-      <p style={{ fontSize: '1.1rem', color: 'var(--t2)', maxWidth: 500, marginBottom: '3rem', lineHeight: 1.6 }}>
-        A secure, fully decentralized file synchronization engine. No cloud servers, no subscriptions. Your data syncs directly between your devices.
-      </p>
-
-      <div style={{ display: 'flex', gap: '2rem', marginBottom: '4rem', textAlign: 'left', maxWidth: 600 }}>
-        <div style={{ flex: 1 }}>
-          <Shield size={24} color="#7c3aed" style={{ marginBottom: '1rem' }} />
-          <h3 style={{ fontSize: '1rem', color: 'var(--t1)', marginBottom: '0.5rem' }}>Local Storage</h3>
-          <p style={{ fontSize: '0.9rem', color: 'var(--t2)', lineHeight: 1.5 }}>Your files are persisted in your browser&apos;s local storage and never leave your trusted devices.</p>
-        </div>
-        <div style={{ flex: 1 }}>
-          <Network size={24} color="#22c55e" style={{ marginBottom: '1rem' }} />
-          <h3 style={{ fontSize: '1rem', color: 'var(--t1)', marginBottom: '0.5rem' }}>Peer-to-Peer</h3>
-          <p style={{ fontSize: '0.9rem', color: 'var(--t2)', lineHeight: 1.5 }}>Sync directly with your other computers on the local network using WebSockets.</p>
-        </div>
-      </div>
-
-      <button
-        style={{
-          padding: '0.8rem 2.5rem',
-          fontSize: '1.1rem',
-          background: '#4f7df8',
-          color: '#fff',
-          border: 'none',
-          borderRadius: 8,
-          cursor: 'pointer',
-          fontWeight: 600,
-          boxShadow: '0 4px 12px rgba(79,125,248,0.3)',
-        }}
-        onClick={() => {
-          localStorage.setItem('docusync_has_seen_welcome', 'true');
-          router.push('/app/files');
-        }}
-      >
-        Get Started
-      </button>
+      {/* CSS Animation for float */}
+      <style>
+        {`
+          @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+          }
+        `}
+      </style>
     </div>
   );
 }

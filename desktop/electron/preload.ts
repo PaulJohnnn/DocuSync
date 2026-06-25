@@ -58,12 +58,19 @@ const CH_VAULT_UNLOCK    = 'vault:unlock'     as const;
 const CH_VAULT_LOCK      = 'vault:lock'       as const;
 const CH_VAULT_FACTORY_RESET = 'vault:factory-reset' as const;
 const CH_NET_LAN_IP      = 'network:get-lan-ip' as const;
+const CH_SESSION_TERMINATE = 'session:terminate' as const;
+const CH_FILE_CHECKOUT   = 'file:checkout'     as const;
+const CH_ADMIN_LOG       = 'admin:get-activity-log' as const;
+const CH_CACHE_CLEANUP   = 'cache:auto-cleanup' as const;
+const CH_CACHE_SIZE      = 'cache:get-size'     as const;
 
 /** Main-to-renderer push channels (one-way, main → renderer). */
 const CH_EVT_CONFLICT    = 'conflict:detected'  as const;
 const CH_EVT_SYNC_STATUS = 'evt:sync-status-changed' as const;
 const CH_EVT_AUTH_VERIFY_REQ = 'auth:verify-request' as const;
 const CH_AUTH_VERIFY_RESP = 'auth:verify-respond' as const;
+const CH_EVT_SESSION_TERMINATED = 'evt:session-terminated' as const;
+const CH_EVT_PEER_UPDATED = 'evt:peer-updated' as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DocuSyncBridge Interface
@@ -221,7 +228,38 @@ export interface DocuSyncBridge {
   lockVault(): Promise<IPCResponse<{ success: boolean }>>;
   factoryReset(): Promise<IPCResponse<{ success: boolean }>>;
   getLanIp(): Promise<IPCResponse<string>>;
-  respondToVerifyRequest(reqId: string, allow: boolean): Promise<IPCResponse>;
+  respondVerifyRequest: (reqId: string, nodeId: string, allow: boolean) => Promise<IPCResponse<void>>;
+
+  /**
+   * (Admin) Broadcasts a SESSION_TERMINATED event to all peers and closes the connection.
+   */
+  terminateSession: () => Promise<IPCResponse<void>>;
+
+  /**
+   * Saves a physical copy of an open file to a user-chosen path via Save dialog.
+   * Logs a CHECK_OUT event to the EventLog.
+   */
+  checkoutFile: (fileId: number) => Promise<IPCResponse<{ saved: boolean; destPath: string }>>;
+
+  /**
+   * Fetches the last 50 EventLog entries for the Admin Dashboard.
+   */
+  getAdminActivityLog: () => Promise<IPCResponse<{ entries: unknown[] }>>;
+
+  /**
+   * Deletes compacted EventLog rows older than 30 days when the table exceeds 1000 rows.
+   */
+  cacheAutoCleanup: () => Promise<IPCResponse<{ deletedCount: number; totalBefore: number; totalAfter: number }>>;
+
+  /**
+   * Returns the current EventLog row count.
+   */
+  getCacheSize: () => Promise<IPCResponse<{ rowCount: number }>>;
+
+  /**
+   * (Admin) Responds to a pending verify request.
+   */
+  respondToVerifyRequest: (reqId: string, allow: boolean) => Promise<IPCResponse<void>>;
 
   // ── Push Event Listeners ──────────────────────────────────────────────
 
@@ -265,7 +303,6 @@ export interface DocuSyncBridge {
    * unsub();
    * ```
    */
-   */
   onSyncStatusChanged(
     listener: (payload: SyncStatusChangedPayload) => void
   ): () => void;
@@ -274,11 +311,25 @@ export interface DocuSyncBridge {
    * Registers a listener for new login attempt verification requests.
    * 
    * @param listener - Callback receiving the reqId and nodeId.
-   * @returns An unsubscribe function.
+   * @returns Unsubscribe function to remove the listener.
    */
-  onVerifyRequest(
+  onVerifyRequest: (
     listener: (reqId: string, nodeId: string) => void
-  ): () => void;
+  ) => () => void;
+
+  /**
+   * (Guest) Triggered when the Admin terminates the session.
+   */
+  onSessionTerminated: (
+    listener: (reason: string) => void
+  ) => () => void;
+
+  /**
+   * Triggered when the peer list updates (e.g. drop connection).
+   */
+  onPeerUpdated: (
+    listener: () => void
+  ) => () => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -375,8 +426,32 @@ const docuSyncBridge: DocuSyncBridge = {
     return ipcRenderer.invoke(CH_NET_LAN_IP) as any;
   },
 
-  respondToVerifyRequest(reqId: string, allow: boolean): Promise<IPCResponse> {
-    return ipcRenderer.invoke(CH_AUTH_VERIFY_RESP, reqId, allow);
+  respondVerifyRequest(reqId: string, nodeId: string, allow: boolean): Promise<IPCResponse> {
+    return ipcRenderer.invoke(CH_AUTH_VERIFY_RESP, reqId, nodeId, allow);
+  },
+
+  terminateSession: async () => {
+    return ipcRenderer.invoke(CH_SESSION_TERMINATE);
+  },
+
+  checkoutFile(fileId: number): Promise<IPCResponse<{ saved: boolean; destPath: string }>> {
+    return ipcRenderer.invoke(CH_FILE_CHECKOUT, fileId) as any;
+  },
+
+  getAdminActivityLog(): Promise<IPCResponse<{ entries: unknown[] }>> {
+    return ipcRenderer.invoke(CH_ADMIN_LOG) as any;
+  },
+
+  cacheAutoCleanup(): Promise<IPCResponse<{ deletedCount: number; totalBefore: number; totalAfter: number }>> {
+    return ipcRenderer.invoke(CH_CACHE_CLEANUP) as any;
+  },
+
+  getCacheSize(): Promise<IPCResponse<{ rowCount: number }>> {
+    return ipcRenderer.invoke(CH_CACHE_SIZE) as any;
+  },
+
+  respondToVerifyRequest(reqId: string, allow: boolean): Promise<IPCResponse<void>> {
+    return ipcRenderer.invoke(CH_AUTH_VERIFY_RESP, reqId, allow) as any;
   },
 
   // ── Push Event Listeners ─────────────────────────────────────────────
@@ -423,6 +498,32 @@ const docuSyncBridge: DocuSyncBridge = {
 
     return () => {
       ipcRenderer.off(CH_EVT_AUTH_VERIFY_REQ, wrapped);
+    };
+  },
+
+  onSessionTerminated(
+    listener: (reason: string) => void
+  ): () => void {
+    const wrapped = (_event: Electron.IpcRendererEvent, reason: string) => {
+      listener(reason);
+    };
+    ipcRenderer.on(CH_EVT_SESSION_TERMINATED, wrapped);
+
+    return () => {
+      ipcRenderer.off(CH_EVT_SESSION_TERMINATED, wrapped);
+    };
+  },
+
+  onPeerUpdated(
+    listener: () => void
+  ): () => void {
+    const wrapped = () => {
+      listener();
+    };
+    ipcRenderer.on(CH_EVT_PEER_UPDATED, wrapped);
+
+    return () => {
+      ipcRenderer.off(CH_EVT_PEER_UPDATED, wrapped);
     };
   },
 };

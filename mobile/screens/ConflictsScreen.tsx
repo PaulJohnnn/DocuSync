@@ -4,8 +4,9 @@
  */
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -106,7 +107,7 @@ export default function ConflictsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.title}>Conflicts</Text>
         <Text style={styles.subtitle}>{pending.length} pending</Text>

@@ -45,12 +45,16 @@
       {
         "from": "prisma",
         "to": "prisma",
-        "filter": ["schema.prisma"]
+        "filter": [
+          "schema.prisma"
+        ]
       },
       {
         "from": "node_modules/.prisma/client",
         "to": "prisma-engine",
-        "filter": ["query_engine-windows.dll.node"]
+        "filter": [
+          "query_engine-windows.dll.node"
+        ]
       }
     ],
     "asarUnpack": [
@@ -62,10 +66,12 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "icon": "public/docusync-logo.png",
+      "icon": "public/icon.png",
       "artifactName": "DocuSync-Setup-${version}.exe"
     },
     "nsis": {
@@ -77,12 +83,12 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "public/docusync-logo.png",
+      "icon": "public/icon.png",
       "artifactName": "DocuSync-${version}.dmg"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "public/docusync-logo.png",
+      "icon": "public/icon.png",
       "artifactName": "DocuSync-${version}.AppImage"
     }
   },
@@ -103,6 +109,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.6.2",
+    "recharts": "^3.8.1",
     "sonner": "^2.0.7",
     "uuid": "^11.1.0",
     "ws": "^8.18.2"

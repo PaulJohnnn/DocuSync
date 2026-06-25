@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { activeLobbies, cleanupLobbies, Lobby, ipRateLimits } from '../store';
+import { activeLobbies, ipRateLimits, cleanupLobbies, LobbyEntry } from '../store';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
@@ -15,40 +15,86 @@ export async function POST(request: Request) {
   try {
     cleanupLobbies();
     const body = await request.json();
-    const { nodeId, ip, port, roomName } = body;
 
-    if (!nodeId || !ip || !port) {
-      return NextResponse.json({ error: 'Missing nodeId, ip, or port' }, { status: 400, headers: corsHeaders });
+    // Accept both old shape ({ nodeId, ip, port, roomName })
+    // and new shape ({ hostNodeId, hostIp, hostPort, roomName })
+    const hostNodeId: string = body.hostNodeId || body.nodeId;
+    const hostIp: string     = body.hostIp     || body.ip;
+    const hostPort: number   = Number(body.hostPort ?? body.port ?? 9000);
+    const roomName: string   = body.roomName   || 'Unnamed Room';
+
+    if (!hostNodeId || !hostIp) {
+      return NextResponse.json(
+        { error: 'Missing required fields: hostNodeId (or nodeId), hostIp (or ip)' },
+        { status: 400, headers: corsHeaders }
+      );
     }
 
-    // IP Rate Limit (max 3 rooms per IP/hour)
-    const clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || ip;
+    // IP rate limit: max 1000 rooms per IP per hour (effectively unlimited for testing)
+    const clientIp = request.headers.get('x-forwarded-for')
+      || request.headers.get('x-real-ip')
+      || hostIp;
     const now = Date.now();
-    const timestamps = ipRateLimits.get(clientIp) || [];
-    const validTimestamps = timestamps.filter(t => now - t < 60 * 60 * 1000);
-    if (validTimestamps.length >= 3) {
-      return NextResponse.json({ error: 'Rate limit exceeded: Maximum 3 rooms per IP per hour.' }, { status: 429, headers: corsHeaders });
+    const prevTimestamps = ipRateLimits.get(clientIp) || [];
+    const validTs = prevTimestamps.filter(t => now - t < 60 * 60 * 1000);
+    if (validTs.length >= 1000) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded.' },
+        { status: 429, headers: corsHeaders }
+      );
     }
-    validTimestamps.push(now);
-    ipRateLimits.set(clientIp, validTimestamps);
+    validTs.push(now);
+    ipRateLimits.set(clientIp, validTs);
 
-    // Generate random 5-digit OTP
-    const otp = Math.floor(10000 + Math.random() * 90000).toString();
+    // Generate 5-digit OTP — retry on collision (extremely rare)
+    let otp: string;
+    let attempts = 0;
+    do {
+      otp = Math.floor(10000 + Math.random() * 90000).toString();
+      attempts++;
+    } while (activeLobbies.has(otp) && attempts < 10);
 
-    const newLobby: Lobby = {
+    const newLobby: LobbyEntry = {
       otp,
-      ip,
-      port: Number(port),
-      nodeId,
       roomName,
+      hostNodeId,
+      hostIp,
+      hostPort,
       createdAt: now,
+      expiresAt: now + 60 * 60 * 1000, // 60 minutes
+      members: [hostNodeId],
       peersJoined: 0,
+      // legacy compat fields
+      ip: hostIp,
+      port: hostPort,
+      nodeId: hostNodeId,
     };
 
     activeLobbies.set(otp, newLobby);
 
-    return NextResponse.json({ otp }, { status: 201, headers: corsHeaders });
-  } catch {
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: corsHeaders });
+    console.log(`[Lobby] Room created: OTP=${otp} host=${hostIp}:${hostPort} name="${roomName}"`);
+
+    return NextResponse.json(
+      { success: true, otp, roomName, expiresIn: 3600 },
+      { status: 201, headers: corsHeaders }
+    );
+  } catch (err) {
+    console.error('[Lobby] Create error:', err);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500, headers: corsHeaders }
+    );
   }
+}
+
+export async function GET() {
+  cleanupLobbies();
+  const rooms = Array.from(activeLobbies.values()).map(r => ({
+    otp: r.otp,
+    roomName: r.roomName,
+    memberCount: r.members.length,
+    createdAt: r.createdAt,
+    expiresAt: r.expiresAt,
+  }));
+  return NextResponse.json({ rooms, total: rooms.length }, { headers: corsHeaders });
 }

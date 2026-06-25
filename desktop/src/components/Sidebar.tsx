@@ -9,7 +9,7 @@ import { useElectronSync } from '@/context/ElectronSyncContext';
 import { toast } from 'sonner';
 import {
   Files, FileEdit, AlertTriangle, Clock,
-  Network, BarChart2, Settings, Search, Lock
+  Network, BarChart2, Settings, Search, Lock, ShieldCheck
 } from 'lucide-react';
 
 interface NavItem {
@@ -27,14 +27,13 @@ const WORKSPACE_NAV: NavItem[] = [
 ];
 
 const TOOLS_NAV: NavItem[] = [
-  { to: '/metrics',  icon: <BarChart2 size={16} />, label: 'Metrics',  id: 'nav-metrics'  },
   { to: '/settings', icon: <Settings size={16} />,  label: 'Settings', id: 'nav-settings' },
 ];
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { localNodeId, pendingConflicts, connectedPeers, syncStatus } = useElectronSync();
+  const { syncStatus, connectedPeers, pendingConflicts, localNodeId, currentRoom } = useElectronSync();
   const [hasInternet, setHasInternet] = useState(navigator.onLine);
 
   useEffect(() => {
@@ -111,7 +110,7 @@ const Sidebar: React.FC = () => {
       {/* ── Logo ── */}
       <div className="ds-sidebar-logo">
         <div className="ds-sidebar-logo-icon">
-          <img src="/docusync-logo.svg" width={24} height={24} alt="DocuSync" style={{ display: 'block' }} />
+          <img src="/icon.png" width={24} height={24} alt="DocuSync" style={{ display: 'block', borderRadius: 6 }} />
         </div>
         <div>
           <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', lineHeight: 1.2 }}>
@@ -150,6 +149,21 @@ const Sidebar: React.FC = () => {
       <div className="ds-sidebar-section-label">Tools</div>
       <div className="ds-sidebar-nav" style={{ flex: 'none' }}>
         {TOOLS_NAV.map(renderItem)}
+        {/* Admin — only shown to Session Host */}
+        {currentRoom?.isHost && (
+          <NavLink
+            to="/admin"
+            id="nav-admin"
+            className={`ds-sidebar-item ${isActive('/admin') ? 'active' : ''}`}
+          >
+            <span className="ds-sidebar-item-icon"><ShieldCheck size={16} /></span>
+            <span>Admin</span>
+            <span style={{
+              marginLeft: 'auto', fontSize: 9, background: 'var(--ds-accent-bg)',
+              color: 'var(--ds-accent)', padding: '1px 5px', borderRadius: 99, fontWeight: 700,
+            }}>HOST</span>
+          </NavLink>
+        )}
       </div>
 
       {/* ── Node card ── */}

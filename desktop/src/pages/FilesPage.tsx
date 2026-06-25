@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import {
   FolderOpen, RefreshCw, ChevronRight, Eye, EyeOff,
   FileText, FileCode, FileJson, FileType, File,
-  FileImage, FileSpreadsheet, FileArchive, Users, ArrowLeft, MoreVertical, UploadCloud
+  FileImage, FileSpreadsheet, FileArchive, Users, ArrowLeft, MoreVertical, UploadCloud, Download
 } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -65,16 +65,20 @@ function formatSize(chars: number): string {
 const FileCard: React.FC<{
   file: OpenedFile;
   hasConflict: boolean;
+  isOfflineQueued?: boolean;
   onClick: () => void;
-}> = ({ file, hasConflict, onClick }) => {
+  onCheckout: () => void;
+}> = ({ file, hasConflict, isOfflineQueued, onClick, onCheckout }) => {
   const [fileStatus, setFileStatus] = useState<'syncing' | 'synced'>('syncing');
   const { icon, color, bg } = extMeta(file.extension);
   const name = basename(file.filePath);
 
   useEffect(() => {
-    const t = setTimeout(() => setFileStatus('synced'), 2000);
-    return () => clearTimeout(t);
-  }, []);
+    if (!isOfflineQueued) {
+      const t = setTimeout(() => setFileStatus('synced'), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [isOfflineQueued]);
 
   return (
     <article
@@ -128,6 +132,8 @@ const FileCard: React.FC<{
       <div style={{ flex: 1.5, minWidth: 0, display: 'flex', alignItems: 'center', paddingRight: 16 }}>
         {hasConflict ? (
           <span style={{ fontSize: 12, color: 'var(--red)', fontWeight: 500 }}>⚠ Conflict</span>
+        ) : isOfflineQueued ? (
+          <span style={{ fontSize: 12, color: 'var(--amber)', fontWeight: 500 }}>⏳ Queued (Offline)</span>
         ) : fileStatus === 'syncing' ? (
           <span style={{ fontSize: 12, color: 'var(--amber)', fontWeight: 500 }}>↻ Syncing</span>
         ) : (
@@ -139,6 +145,16 @@ const FileCard: React.FC<{
       <div style={{ width: 80, flexShrink: 0, textAlign: 'right', fontSize: 12, color: 'var(--text-secondary)' }}>
         {formatSize(file.contentLength)}
       </div>
+
+      {/* Download (checkout) button */}
+      <button
+        className="ds-btn ds-btn-ghost"
+        title="Download file (Check-out)"
+        onClick={(e) => { e.stopPropagation(); onCheckout(); }}
+        style={{ marginLeft: 8, padding: '4px 8px', flexShrink: 0 }}
+      >
+        <Download size={13} />
+      </button>
     </article>
   );
 };
@@ -149,6 +165,7 @@ const FilesPage: React.FC = () => {
   const navigate = useNavigate();
   const { syncStatus, connectedPeers, currentRoom, setCurrentRoom, pendingConflicts, conflictQueue } = useElectronSync();
   const [openedFiles, setOpenedFiles] = useState<any[]>([]);
+  const [offlineQueued, setOfflineQueued] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState<'my_files' | 'peer_rooms'>('my_files');
   const [roomFiles, setRoomFiles] = useState<any[]>([]);
   const [opening, setOpening] = useState(false);
@@ -156,6 +173,13 @@ const FilesPage: React.FC = () => {
   const [showMetrics, setShowMetrics] = useState(false);
   const SESSION_KEY = 'docusync_opened_files';
   const mountedRef = useRef(false);
+
+  // ── Matchmaker URL (configurable — no hardcoded IPs) ──────────────────────
+  const MATCHMAKER_URL = (() => {
+    try { return localStorage.getItem('docusync_matchmaker_url') ?? 'https://docusync-pnc.vercel.app'; } catch { return 'https://docusync-pnc.vercel.app'; }
+  })();
+
+  const [publicRooms, setPublicRooms] = useState<any[]>([]);
 
   // Fetch opened files (from sync:status and IPC)
   useEffect(() => {
@@ -173,7 +197,7 @@ const FilesPage: React.FC = () => {
     const fetchRoomFiles = async () => {
       if (!currentRoom || currentRoom.id.startsWith('direct-')) return;
       try {
-        const res = await fetch(`http://192.168.68.102:3000/api/lobby/files?otp=${currentRoom.id}`);
+        const res = await fetch(`${MATCHMAKER_URL}/api/lobby/files?otp=${currentRoom.id}`);
         if (res.ok) {
           const data = await res.json();
           setRoomFiles(data.files || []);
@@ -182,15 +206,31 @@ const FilesPage: React.FC = () => {
         console.error('Failed to fetch room files', err);
       }
     };
+    
+    const fetchPublicRooms = async () => {
+      if (activeTab === 'peer_rooms' && !currentRoom) {
+        try {
+          const res = await fetch(`${MATCHMAKER_URL}/api/lobby/list`);
+          if (res.ok) {
+            const data = await res.json();
+            setPublicRooms(data.rooms || []);
+          }
+        } catch (err) {
+          console.error('Failed to fetch public rooms', err);
+        }
+      }
+    };
 
     fetchFiles();
     fetchRoomFiles();
+    fetchPublicRooms();
     const interval = setInterval(() => {
       fetchFiles();
       fetchRoomFiles();
+      fetchPublicRooms();
     }, 2000);
     return () => clearInterval(interval);
-  }, [currentRoom]);
+  }, [currentRoom, activeTab, MATCHMAKER_URL]);
 
   const handleShareToRoom = async () => {
     if (!currentRoom || currentRoom.id.startsWith('direct-')) {
@@ -208,7 +248,7 @@ const FilesPage: React.FC = () => {
           contentLength: openedFile.sizeBytes || openedFile.contentLength || 1024,
         };
         
-        await fetch(`http://192.168.68.102:3000/api/lobby/files`, {
+        await fetch(`${MATCHMAKER_URL}/api/lobby/files`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ otp: currentRoom.id, file: newFile })
@@ -226,19 +266,10 @@ const FilesPage: React.FC = () => {
   useEffect(() => {
     if (mountedRef.current) return;
     mountedRef.current = true;
+    // Load any previously opened files from sessionStorage
     try {
-      // Forcefully generate mock demo files for the user to see
-      const demoFiles: OpenedFile[] = [
-        { fileId: 101, filePath: 'C:/Users/Paul John Palamara/Documents/ProjectProposal.docx', contentLength: 1245000, extension: 'docx' },
-        { fileId: 102, filePath: 'C:/Users/Paul John Palamara/Documents/Notes.md', contentLength: 14500, extension: 'md' },
-        { fileId: 103, filePath: 'C:/Users/Paul John Palamara/Downloads/Data_Export.csv', contentLength: 890456, extension: 'csv' },
-        { fileId: 104, filePath: 'C:/Users/Paul John Palamara/Projects/DocuSync/package.json', contentLength: 2048, extension: 'json' },
-        { fileId: 105, filePath: 'C:/Users/Paul John Palamara/Projects/DocuSync/index.tsx', contentLength: 12048, extension: 'tsx' },
-        { fileId: 106, filePath: 'C:/Users/Paul John Palamara/Pictures/Architecture.png', contentLength: 4500000, extension: 'png' },
-        { fileId: 107, filePath: 'C:/Users/Paul John Palamara/Downloads/Archive.zip', contentLength: 15400000, extension: 'zip' },
-      ];
-      setOpenedFiles(demoFiles);
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(demoFiles));
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) setOpenedFiles(JSON.parse(saved));
     } catch { /* ignore */ }
   }, []);
 
@@ -252,7 +283,10 @@ const FilesPage: React.FC = () => {
     try {
       const res = await window.docuSync.openFile();
       if (!res.success) {
-        if (res.error && !res.error.includes('cancel')) toast.error(`Failed: ${res.error}`);
+        if (res.error && !res.error.includes('cancel')) {
+          if (res.error.startsWith('Error:')) toast.error(res.error);
+          else toast.error(`Failed: ${res.error}`);
+        }
         return;
       }
       const data = res.data as OpenedFile;
@@ -274,6 +308,42 @@ const FilesPage: React.FC = () => {
     const hasConflict = conflictQueue.some((c) => c.fileId === file.fileId);
     navigate(hasConflict ? '/conflicts' : `/editor/${file.fileId}`);
   }, [conflictQueue, navigate]);
+
+  const handleCheckout = useCallback(async (file: OpenedFile) => {
+    if (!window.docuSync?.checkoutFile) {
+      toast.error('Checkout not available (IPC bridge missing).');
+      return;
+    }
+    try {
+      const res = await window.docuSync.checkoutFile(file.fileId);
+      if (res.success) {
+        toast.success(`Checked out: ${basename((res.data as any).destPath)}`);
+      } else {
+        if (!res.error?.includes('cancel')) toast.error(`Checkout failed: ${res.error}`);
+      }
+    } catch (err) {
+      toast.error(`Checkout error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, []);
+
+  // Detect going offline — mark all open files as queued
+  useEffect(() => {
+    const handleOffline = () => {
+      setOfflineQueued(new Set(openedFiles.map(f => f.fileId)));
+    };
+    const handleOnline = () => {
+      if (offlineQueued.size > 0) {
+        toast.success('Queued edits synced successfully.', { duration: 4000 });
+        setOfflineQueued(new Set());
+      }
+    };
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [openedFiles, offlineQueued]);
 
   const metrics = [
     { label: 'Open Files', value: openedFiles.length, dotColor: 'var(--accent)', desc: 'documents tracked' },
@@ -375,19 +445,71 @@ const FilesPage: React.FC = () => {
 
         {/* Peer Rooms List View */}
         {activeTab === 'peer_rooms' && !currentRoom && (
-          <div className="ds-empty ds-card" style={{ minHeight: 300, marginTop: 24 }}>
-            <div className="ds-empty-icon">🌐</div>
-            <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-              Not connected to any room
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 360, lineHeight: 1.7, margin: '0 auto 24px' }}>
-              Host a live session or join an existing peer via OTP.
-            </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="ds-btn ds-btn-primary" onClick={() => navigate('/peers')}>
-                <Users size={13} /> Go to Peers Page
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Active Peer Rooms</h2>
+              <button className="ds-btn ds-btn-secondary" onClick={() => navigate('/peers')} style={{ padding: '6px 12px' }}>
+                <Users size={14} /> Host New Room
               </button>
             </div>
+            
+            {publicRooms.length === 0 ? (
+              <div className="ds-empty ds-card" style={{ minHeight: 200 }}>
+                <div className="ds-empty-icon">🌐</div>
+                <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                  No active rooms found
+                </h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 360, lineHeight: 1.7, margin: '0 auto' }}>
+                  Host a live session to create a new room.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                {publicRooms.map(room => (
+                  <div key={room.id} className="ds-card" style={{
+                    padding: 20, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'transform 0.15s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>{room.name}</h3>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'monospace' }}>OTP: {room.id}</div>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--green)', background: 'rgba(34,197,94,0.1)', padding: '4px 8px', borderRadius: 12, fontWeight: 600 }}>Active</div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--text-secondary)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Users size={14} /> {room.peersJoined || 1} peers</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FolderOpen size={14} /> {room.filesCount} files</div>
+                    </div>
+                    
+                    <button className="ds-btn ds-btn-primary" style={{ width: '100%', marginTop: 4, justifyContent: 'center' }} onClick={async () => {
+                      try {
+                        const res = await fetch(`${MATCHMAKER_URL}/api/lobby/join`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ otp: room.id, clientNodeId: `desktop-${window.docuSync?.nodeId || Date.now()}` })
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error);
+                        
+                        const connectRes = await window.docuSync.connectPeer(data.hostIp, data.hostPort);
+                        if (!connectRes.success) throw new Error(connectRes.error ?? 'Connection failed');
+                        
+                        setCurrentRoom({ id: room.id, name: data.roomName, isHost: false });
+                        toast.success('Successfully joined the room!');
+                      } catch (err: any) {
+                        toast.error(`Failed to join: ${err.message}`);
+                      }
+                    }}>
+                      Join Room
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -561,7 +683,9 @@ const FilesPage: React.FC = () => {
                     key={file.fileId}
                     file={file}
                     hasConflict={conflictQueue.some((c) => c.fileId === file.fileId)}
+                    isOfflineQueued={offlineQueued.has(file.fileId)}
                     onClick={() => handleCardClick(file)}
+                    onCheckout={() => handleCheckout(file)}
                   />
                 ))}
               </div>

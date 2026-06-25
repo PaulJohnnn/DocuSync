@@ -78,6 +78,7 @@ export interface ConnectedPeerInfo {
 export interface PeerRoom {
   id: string;
   name: string;
+  isHost?: boolean;
 }
 
 /**
@@ -314,6 +315,34 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
     setConflictQueue((prev) => prev.filter((c) => c.conflictId !== conflictId));
     setPendingConflicts((prev) => Math.max(0, prev - 1));
   }, []);
+
+  // ── Push: evt:session-terminated ──────────────────────────────────────────
+
+  useEffect(() => {
+    if (!window.docuSync) return;
+
+    const unsubscribe = window.docuSync.onSessionTerminated((reason) => {
+      console.log(`[SyncContext] Session terminated: ${reason}`);
+      setCurrentRoom(null);
+      setConnectedPeers([]);
+      setSyncStatus('offline');
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // ── Push: peer-updated ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!window.docuSync?.onPeerUpdated) return;
+
+    const unsubscribe = window.docuSync.onPeerUpdated(() => {
+      console.log(`[SyncContext] Peer updated pushed, refreshing...`);
+      refreshStatus();
+    });
+
+    return unsubscribe;
+  }, [refreshStatus]);
 
   return (
     <ElectronSyncContext.Provider

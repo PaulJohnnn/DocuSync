@@ -270,6 +270,18 @@ export interface UserVerifyResponseMessage {
   timestamp: string;
 }
 
+/**
+ * Sent by the Host (Admin) to terminate the active session and evict all guests.
+ */
+export interface SessionTerminatedMessage {
+  /** Message type discriminant. */
+  type: 'SESSION_TERMINATED';
+  /** Human-readable reason for termination. */
+  reason: string;
+  /** ISO 8601 timestamp of the termination. */
+  timestamp: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tagged Union
 // ─────────────────────────────────────────────────────────────────────────────
@@ -298,7 +310,8 @@ export type PeerMessage =
   | MergeAcceptMessage
   | MergeRejectMessage
   | UserVerifyMessage
-  | UserVerifyResponseMessage;
+  | UserVerifyResponseMessage
+  | SessionTerminatedMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Validation

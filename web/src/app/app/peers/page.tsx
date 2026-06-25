@@ -1,7 +1,15 @@
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import PageShell from '@/components/PageShell';
-import { Wifi, WifiOff, Plus, X, Key, Link2, Monitor } from 'lucide-react';
+import { Wifi, WifiOff, Link2, Users, X, Copy, CheckCircle } from 'lucide-react';
+
+// ── Central Matchmaker URL ─────────────────────────────────────────────────────
+// All platforms hit this single URL. In production this is the Vercel deployment.
+// In local dev it falls back to localhost:3000 (same machine).
+const MATCHMAKER_URL =
+  typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+    ? 'https://docusync-pnc.vercel.app/api/lobby'
+    : '/api/lobby';
 
 interface PeerInfo {
   id: string;
@@ -15,19 +23,21 @@ interface PeerInfo {
 interface RoomInfo {
   id: string;
   name: string;
+  hostIp?: string;
+  hostPort?: number;
+  memberCount?: number;
 }
 
 export default function PeersPage() {
   const [peers, setPeers] = useState<PeerInfo[]>([]);
-  const [ip, setIp] = useState('');
-  const [port, setPort] = useState('8080');
   const [otp, setOtp] = useState('');
   const [joining, setJoining] = useState(false);
   const [roomName, setRoomName] = useState('');
   const [generatedOtp, setGeneratedOtp] = useState('');
+  const [generating, setGenerating] = useState(false);
   const [currentRoom, setCurrentRoom] = useState<RoomInfo | null>(null);
-  const [wsStatus, setWsStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
-  const wsRef = useRef<WebSocket | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [joinError, setJoinError] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('docusync_peers');
@@ -41,51 +51,131 @@ export default function PeersPage() {
     localStorage.setItem('docusync_peers', JSON.stringify(newPeers));
   }, []);
 
-  const generateOtp = () => {
-    const code = Math.floor(10000 + Math.random() * 90000).toString();
-    setGeneratedOtp(code);
-    const room: RoomInfo = { id: code, name: roomName || `Session ${code}` };
-    setCurrentRoom(room);
-    localStorage.setItem('docusync_current_room', JSON.stringify(room));
+  // ── HOST: Register room with real matchmaker API ───────────────────────────
+  const generateOtp = async () => {
+    if (!roomName.trim()) {
+      alert('Please enter a room name first.');
+      return;
+    }
+    setGenerating(true);
+    try {
+      // Web app doesn't have a real WS server, so we act as coordinator only.
+      // The host IP shown is the web server address — desktop peers join via
+      // the WS address returned by the matchmaker.
+      const res = await fetch(`${MATCHMAKER_URL}/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hostNodeId: `web-${crypto.randomUUID()}`,
+          hostIp: window.location.hostname || 'localhost',
+          hostPort: 9000,
+          roomName: roomName.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create room');
+
+      setGeneratedOtp(data.otp);
+      const room: RoomInfo = { id: data.otp, name: roomName.trim(), memberCount: 1 };
+      setCurrentRoom(room);
+      localStorage.setItem('docusync_current_room', JSON.stringify(room));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to generate OTP');
+    } finally {
+      setGenerating(false);
+    }
   };
 
+  // ── JOIN: Look up room in matchmaker and connect WS ───────────────────────
   const handleJoinOtp = async () => {
     if (!otp || otp.length !== 5) return;
     setJoining(true);
-    await new Promise(r => setTimeout(r, 800)); // simulate lookup
-    const room: RoomInfo = { id: otp, name: `OTP Session ${otp}` };
-    setCurrentRoom(room);
-    localStorage.setItem('docusync_current_room', JSON.stringify(room));
-    setJoining(false);
+    setJoinError('');
+    try {
+      const res = await fetch(`${MATCHMAKER_URL}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          otp,
+          clientNodeId: `web-${crypto.randomUUID()}`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to join room');
+
+      const { hostIp, hostPort, roomName: rName, memberCount } = data;
+
+      // Try WebSocket connection to the host's desktop WS server
+      const wsUrl = `ws://${hostIp}:${hostPort}`;
+      console.log('[OTP Join] Connecting to host WS:', wsUrl);
+
+      const room: RoomInfo = {
+        id: otp,
+        name: rName || 'OTP Session',
+        hostIp,
+        hostPort,
+        memberCount,
+      };
+      setCurrentRoom(room);
+      localStorage.setItem('docusync_current_room', JSON.stringify(room));
+      alert('Successfully joined the room!');
+
+      // Add peer to list
+      const newPeer: PeerInfo = {
+        id: `${hostIp}:${hostPort}`,
+        address: hostIp,
+        port: hostPort,
+        status: 'connecting',
+        latency: 0,
+        connectedAt: new Date().toISOString(),
+      };
+      savePeers([...peers, newPeer]);
+
+      // Attempt WS connection (browser env)
+      try {
+        const ws = new WebSocket(wsUrl);
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ type: 'PEER_HELLO', nodeId: `web-client`, displayName: 'DocuSync Web' }));
+          newPeer.status = 'connected';
+          newPeer.latency = 0;
+          savePeers([...peers, newPeer]);
+          console.log('[OTP Join] ✅ WS connected to', wsUrl);
+        };
+        ws.onerror = () => {
+          console.warn('[OTP Join] WS connection failed (host may be offline or on different network)');
+          setPeers(prev => {
+            const next = prev.map(p => p.id === newPeer.id ? { ...p, status: 'disconnected' as const } : p);
+            localStorage.setItem('docusync_peers', JSON.stringify(next));
+            return next;
+          });
+        };
+        ws.onclose = () => {
+          console.warn('[OTP Join] WS connection closed');
+          setPeers(prev => {
+            const next = prev.map(p => p.id === newPeer.id ? { ...p, status: 'disconnected' as const } : p);
+            localStorage.setItem('docusync_peers', JSON.stringify(next));
+            return next;
+          });
+        };
+      } catch {
+        console.warn('[OTP Join] WS not supported in this context');
+      }
+
+      setOtp('');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Invalid OTP';
+      setJoinError(msg);
+    } finally {
+      setJoining(false);
+    }
   };
 
-  const connect = () => {
-    if (!ip || !port) return;
-    const address = `ws://${ip}:${port}`;
-    setWsStatus('connecting');
-    try {
-      const ws = new WebSocket(address);
-      wsRef.current = ws;
-      ws.onopen = () => {
-        setWsStatus('connected');
-        const newPeer: PeerInfo = {
-          id: crypto.randomUUID(), address: ip, port: parseInt(port),
-          status: 'connected', latency: Math.floor(Math.random() * 20) + 1,
-          connectedAt: new Date().toISOString(),
-        };
-        savePeers([...peers, newPeer]);
-      };
-      ws.onerror = () => {
-        setWsStatus('error');
-        const newPeer: PeerInfo = {
-          id: crypto.randomUUID(), address: ip, port: parseInt(port),
-          status: 'disconnected', latency: 0, connectedAt: new Date().toISOString(),
-        };
-        savePeers([...peers, newPeer]);
-      };
-      ws.onclose = () => setWsStatus('idle');
-    } catch {
-      setWsStatus('error');
+  const copyOtp = () => {
+    if (generatedOtp) {
+      navigator.clipboard.writeText(generatedOtp).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
     }
   };
 
@@ -93,21 +183,14 @@ export default function PeersPage() {
     savePeers(peers.filter(p => p.id !== id));
   };
 
-  const connectedCount = peers.filter(p => p.status === 'connected').length;
+  const leaveRoom = () => {
+    setCurrentRoom(null);
+    setGeneratedOtp('');
+    setRoomName('');
+    localStorage.removeItem('docusync_current_room');
+  };
 
-  const cardStyle: React.CSSProperties = {
-    background: 'var(--s1)', border: '1px solid var(--b1)',
-    borderRadius: 12, padding: 20, marginBottom: 16,
-  };
-  const labelStyle: React.CSSProperties = {
-    fontSize: 13, fontWeight: 600, color: 'var(--t1)',
-    marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8,
-  };
-  const inputStyle: React.CSSProperties = {
-    flex: 1, background: 'var(--bg)', border: '1px solid var(--b1)',
-    borderRadius: 8, padding: '10px 14px', color: 'var(--t1)',
-    fontSize: 14, outline: 'none',
-  };
+  const connectedCount = peers.filter(p => p.status === 'connected').length;
 
   return (
     <PageShell>
@@ -119,130 +202,150 @@ export default function PeersPage() {
             {connectedCount} connected • {peers.length} total
           </p>
         </div>
-        <div className="ds-badge" style={{
-          background: connectedCount > 0 ? 'var(--grb)' : 'var(--rdb)',
-          color: connectedCount > 0 ? 'var(--grn)' : 'var(--red)',
-          border: `1px solid ${connectedCount > 0 ? 'var(--grbr)' : 'var(--rdbr)'}`,
-          fontSize: 12, padding: '5px 10px',
-        }}>
-          {connectedCount > 0 ? <Wifi size={12} /> : <WifiOff size={12} />}
-          {connectedCount > 0 ? 'Online' : 'Offline'}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {currentRoom && (
+            <button
+              onClick={leaveRoom}
+              style={{ fontSize: 12, padding: '5px 10px', background: 'var(--rdb)', color: 'var(--red)', border: '1px solid var(--rdbr)', borderRadius: 6, cursor: 'pointer' }}
+            >
+              Leave Room
+            </button>
+          )}
+          <div className="ds-badge" style={{
+            background: connectedCount > 0 ? 'var(--grb)' : 'var(--rdb)',
+            color: connectedCount > 0 ? 'var(--grn)' : 'var(--red)',
+            border: `1px solid ${connectedCount > 0 ? 'var(--grbr)' : 'var(--rdbr)'}`,
+            fontSize: 12, padding: '5px 10px',
+          }}>
+            {connectedCount > 0 ? <Wifi size={12} /> : <WifiOff size={12} />}
+            {connectedCount > 0 ? 'Online' : 'Offline'}
+          </div>
         </div>
       </div>
 
       {/* Connected Room Indicator */}
       {currentRoom && (
         <div style={{
-          background: 'rgba(79,125,248,0.08)',
-          border: '1px solid rgba(79,125,248,0.25)',
-          borderRadius: 12, padding: '12px 16px',
-          marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10,
+          background: 'rgba(34,197,94,0.08)',
+          border: '1px solid rgba(34,197,94,0.25)',
+          borderRadius: 12, padding: '14px 18px',
+          marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12,
         }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
-          <div>
-            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)' }}>Room: {currentRoom.id}</span>
-            <span style={{ fontSize: 12, color: 'var(--t3)', marginLeft: 10 }}>
-              {connectedCount} {connectedCount === 1 ? 'person' : 'people'} connected
-            </span>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e', flexShrink: 0, boxShadow: '0 0 6px #22c55e' }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1)' }}>
+              ✅ Connected to Room: &quot;{currentRoom.name}&quot;
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 2 }}>
+              OTP: <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--grn)' }}>{currentRoom.id}</span>
+              {currentRoom.hostIp && (
+                <span> • Host: {currentRoom.hostIp}:{currentRoom.hostPort}</span>
+              )}
+              {currentRoom.memberCount && (
+                <span> • {currentRoom.memberCount} member{currentRoom.memberCount !== 1 ? 's' : ''}</span>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Card 1 — Host a Live Session */}
-      <div style={cardStyle}>
-        <div style={labelStyle}>
-          <Monitor size={15} style={{ color: 'var(--acc)' }} />
-          Host a Live Session
-        </div>
-        <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 14, lineHeight: 1.6 }}>
-          Generate a 5-digit OTP code. Share it with peers who can then join your session.
-        </p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input
-            type="text"
-            placeholder="Room name (optional)"
-            value={roomName}
-            onChange={e => setRoomName(e.target.value)}
-            style={{ ...inputStyle, flex: 1 }}
-          />
-          <button className="ds-btn ds-btn-primary" onClick={generateOtp}>
-            <Key size={13} /> Generate OTP
-          </button>
-        </div>
-        {generatedOtp && (
-          <div style={{
-            marginTop: 14, background: 'var(--bg)',
-            border: '1px solid var(--b1)', borderRadius: 10,
-            padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12,
-          }}>
-            <span style={{ fontSize: 13, color: 'var(--t3)' }}>Your OTP:</span>
-            <span style={{ fontSize: 28, fontWeight: 800, letterSpacing: 6, color: 'var(--acc)', fontFamily: 'monospace' }}>
-              {generatedOtp}
-            </span>
-            <span style={{ fontSize: 11, color: 'var(--grn)', background: 'var(--grb)', padding: '2px 8px', borderRadius: 99 }}>Active</span>
-          </div>
-        )}
-      </div>
+      {/* ── OTP Matchmaker ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
 
-      {/* Card 2 — Join Peer via OTP */}
-      <div style={cardStyle}>
-        <div style={labelStyle}>
-          <Link2 size={15} style={{ color: 'var(--grn)' }} />
-          Join Peer via OTP
-        </div>
-        <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 14, lineHeight: 1.6 }}>
-          Enter the 5-digit OTP provided by the host to join their live session.
-        </p>
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Card 1: Host */}
+        <div className="ds-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <Users size={20} color="var(--acc)" />
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--t1)' }}>Host a Live Session</h3>
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 16 }}>
+            Generate a secure 5-digit code and share it with peers to join this session.
+          </p>
           <input
             type="text"
-            placeholder="e.g. 88412"
-            value={otp}
-            maxLength={5}
-            onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 5))}
+            placeholder="Enter room name (e.g. paulpy)"
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value)}
+            disabled={!!generatedOtp}
             style={{
-              ...inputStyle,
-              letterSpacing: 6, fontFamily: 'monospace', fontSize: 18,
-              fontWeight: 700, textAlign: 'center',
+              width: '100%', marginBottom: 16, padding: '10px 12px',
+              background: 'var(--bg2)', border: '1px solid var(--b2)',
+              borderRadius: 8, color: 'var(--t1)', outline: 'none', boxSizing: 'border-box',
             }}
           />
-          <button
-            className="ds-btn ds-btn-primary"
-            onClick={handleJoinOtp}
-            disabled={joining || otp.length !== 5}
-            style={{ opacity: otp.length !== 5 ? 0.5 : 1, minWidth: 80 }}
-          >
-            {joining ? '...' : 'Join'}
-          </button>
-        </div>
-      </div>
 
-      {/* Card 3 — Direct IP */}
-      <div style={cardStyle}>
-        <div style={labelStyle}>
-          <Plus size={15} style={{ color: 'var(--acc)' }} />
-          Direct IP Connection
+          {!generatedOtp ? (
+            <button
+              className="ds-btn ds-btn-primary"
+              onClick={generateOtp}
+              disabled={generating || !roomName.trim()}
+              style={{ width: '100%', justifyContent: 'center', padding: '10px 0' }}
+            >
+              {generating ? 'Registering...' : 'Generate 5-Digit Collaboration OTP'}
+            </button>
+          ) : (
+            <div style={{
+              display: 'flex', flex: 1, flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', background: 'rgba(34, 197, 94, 0.05)',
+              borderRadius: 8, border: '1px solid rgba(34, 197, 94, 0.2)', padding: 16, gap: 8,
+            }}>
+              <div style={{ fontSize: 48, fontWeight: 'bold', fontFamily: 'monospace', color: 'var(--grn)', letterSpacing: '0.15em' }}>
+                {generatedOtp}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--t3)' }}>
+                Valid for 60 minutes. Share this OTP with peers.
+              </div>
+              <button
+                onClick={copyOtp}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 12px', background: 'transparent', border: '1px solid var(--b2)', borderRadius: 6, cursor: 'pointer', color: 'var(--t2)' }}
+              >
+                {copied ? <CheckCircle size={12} color="var(--grn)" /> : <Copy size={12} />}
+                {copied ? 'Copied!' : 'Copy OTP'}
+              </button>
+            </div>
+          )}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            type="text" placeholder="IP address (e.g. 192.168.1.100)"
-            value={ip} onChange={e => setIp(e.target.value)}
-            style={inputStyle}
-          />
-          <input
-            type="text" placeholder="Port"
-            value={port} onChange={e => setPort(e.target.value)}
-            style={{ ...inputStyle, flex: 'none', width: 80 }}
-          />
-          <button className="ds-btn ds-btn-primary" onClick={connect} disabled={wsStatus === 'connecting'}>
-            Connect
-          </button>
-        </div>
-        {wsStatus === 'error' && (
-          <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8 }}>
-            Connection failed — peer may be offline or unreachable
+
+        {/* Card 2: Join */}
+        <div className="ds-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <Link2 size={20} color="var(--grn)" />
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--t1)' }}>Join Peer via OTP</h3>
           </div>
-        )}
+          <div style={{ display: 'flex', flex: 1, flexDirection: 'column', justifyContent: 'center' }}>
+            <p style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 24 }}>
+              Enter the 5-digit OTP from the host to join their live session.
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <input
+                type="text"
+                placeholder="e.g. 88412"
+                value={otp}
+                onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 5)); setJoinError(''); }}
+                disabled={joining}
+                onKeyDown={(e) => e.key === 'Enter' && otp.length === 5 && handleJoinOtp()}
+                style={{
+                  flex: 1, padding: '10px 16px', borderRadius: 6,
+                  border: `1px solid ${joinError ? 'var(--red)' : 'var(--b2)'}`,
+                  background: 'var(--bg2)', color: 'var(--t1)',
+                  fontFamily: 'monospace', fontSize: 18, letterSpacing: '0.2em',
+                }}
+              />
+              <button
+                className="ds-btn ds-btn-primary"
+                onClick={handleJoinOtp}
+                disabled={joining || otp.length !== 5}
+                style={{ padding: '0 24px' }}
+              >
+                {joining ? 'Connecting...' : 'Connect'}
+              </button>
+            </div>
+            {joinError && (
+              <p style={{ fontSize: 12, color: 'var(--red)', marginTop: 8 }}>⚠ {joinError}</p>
+            )}
+          </div>
+        </div>
+
       </div>
 
       {/* Peer list */}
@@ -264,13 +367,10 @@ export default function PeersPage() {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{p.address}:{p.port}</div>
                   <div style={{ fontSize: 11, color: 'var(--t3)' }}>
-                    {p.status === 'connected' ? `${p.latency}ms` : 'Disconnected'} • {new Date(p.connectedAt).toLocaleTimeString()}
+                    {p.status} • {new Date(p.connectedAt).toLocaleTimeString()}
                   </div>
                 </div>
-                <button onClick={() => removePeer(p.id)} style={{
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: 'var(--t3)', padding: 4,
-                }}>
+                <button onClick={() => removePeer(p.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--t3)', padding: 4 }}>
                   <X size={14} />
                 </button>
               </div>

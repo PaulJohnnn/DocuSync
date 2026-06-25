@@ -22,8 +22,8 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
   // Note: we check for welcome screen redirection
   if (typeof window !== 'undefined') {
     const isDemo = window.location.search.includes('demo=true');
-    const hasSeenWelcome = localStorage.getItem('docusync_has_seen_welcome');
-    if (!hasSeenWelcome && !isDemo) {
+    const hasSeenWelcomeSession = sessionStorage.getItem('docusync_has_seen_welcome_session');
+    if (!hasSeenWelcomeSession && !isDemo) {
       window.location.href = '/app/welcome';
       return null;
     }

@@ -35,6 +35,8 @@ import {
   type PeerByeMessage,
   type SyncRequestMessage,
   type MergeAcceptMessage,
+  type UserVerifyMessage,
+  type UserVerifyResponseMessage,
 } from './message-schema';
 import { EventLogService } from '../log-sync/event-log';
 import { decode } from '../delta/delta-decoder';
@@ -169,6 +171,10 @@ export interface PeerManagerConfig {
   onSyncRequested?: OnSyncRequested;
   /** Callback when a new connection attempts to use an already active Node ID. */
   onUserVerifyRequest?: (nodeId: string) => Promise<boolean>;
+  /** Callback when the Admin terminates the session. */
+  onSessionTerminated?: (reason: string) => void;
+  /** Callback when the peer list changes. */
+  onPeerListChanged?: () => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -289,7 +295,19 @@ export class PeerManager {
     });
   }
 
-  // ── Client ──────────────────────────────────────────────────────────
+  /**
+   * Handles an incoming SESSION_TERMINATED message from the host.
+   */
+  private handleSessionTerminated(socket: WebSocket, msg: SessionTerminatedMessage): void {
+    console.log(`[PeerManager] SESSION_TERMINATED from Admin: ${msg.reason}`);
+    if (this.config.onSessionTerminated) {
+      this.config.onSessionTerminated(msg.reason);
+    }
+    // We are the guest, so shut down our side
+    this.shutdown().catch(e => console.error('[PeerManager] Error shutting down after termination:', e));
+  }
+
+  // ── PEER_BYE ──────────────────────────────────────────────────────────
 
   /**
    * Connects to a known peer at the given address and port.
@@ -534,6 +552,7 @@ export class PeerManager {
     socket.on('error', (err) => {
       const nodeId = peer.nodeId ?? 'unknown';
       console.error(`[PeerManager] Socket error for ${nodeId}:`, err.message);
+      this.handleDisconnect(socket);
     });
 
     // Mark socket as alive for heartbeat.
@@ -621,6 +640,10 @@ export class PeerManager {
 
       case 'USER_VERIFY_RESPONSE':
         this.handleUserVerifyResponse(socket, msg);
+        break;
+
+      case 'SESSION_TERMINATED':
+        this.handleSessionTerminated(socket, msg);
         break;
 
       case 'PEER_BYE':
@@ -757,6 +780,8 @@ export class PeerManager {
     if (peer.direction === 'inbound') {
       this.sendHello(socket);
     }
+
+    this.config.onPeerListChanged?.();
   }
 
   // ── Internal: USER_VERIFY Handlers ──────────────────────────────────
@@ -1016,6 +1041,8 @@ export class PeerManager {
 
     this.peers.delete(socket);
     this.rateLimiters.delete(socket);
+
+    this.config.onPeerListChanged?.();
   }
 
   // ── Internal: PEER_HELLO Sender ─────────────────────────────────────

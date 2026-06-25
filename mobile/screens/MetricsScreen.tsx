@@ -4,7 +4,8 @@
  * Static display only — no logic changes needed.
  */
 import React, { useMemo } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { Colors } from '../constants/Colors';
 
@@ -37,7 +38,7 @@ export default function MetricsScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top', 'left', 'right']}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Metrics</Text>

@@ -4,8 +4,15 @@ import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import {
   FolderOpen, Plus, FileText, FileCode, FileImage, File,
-  Trash2, Search, FileJson, FileType, FileSpreadsheet, FileArchive
+  Trash2, Search, FileJson, FileType, FileSpreadsheet, FileArchive, Users
 } from 'lucide-react';
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
 
 interface FileRecord {
   id: string;
@@ -43,35 +50,64 @@ function extMeta(ext: string): { icon: React.ReactNode; color: string; bg: strin
   }
 }
 
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1048576).toFixed(1)} MB`;
-}
-
 export default function FilesPage() {
   const router = useRouter();
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'files' | 'rooms'>('files');
+  const [publicRooms, setPublicRooms] = useState<any[]>([]);
+  const [connectedPeers, setConnectedPeers] = useState<any[]>([]);
+  const [roomFiles, setRoomFiles] = useState<any[]>([]);
 
   useEffect(() => {
     const stored = localStorage.getItem('docusync_files');
     if (stored) {
       setFiles(JSON.parse(stored));
     } else {
-      // Inject demo files
-      const demoFiles: FileRecord[] = [
-        { id: 'demo-1', name: 'project-proposal.md', type: 'text/markdown', size: 1024 * 12, content: '# Proposal', status: 'synced', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        { id: 'demo-2', name: 'budget-2024.csv', type: 'text/csv', size: 1024 * 45, content: 'Q1,Q2', status: 'syncing', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        { id: 'demo-3', name: 'auth-config.json', type: 'application/json', size: 512, content: '{}', status: 'conflict', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        { id: 'demo-4', name: 'Thesis_Final_Draft.docx', type: 'application/msword', size: 1024 * 1500, content: '...', status: 'synced', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-      ];
-      setFiles(demoFiles);
-      localStorage.setItem('docusync_files', JSON.stringify(demoFiles));
+      setFiles([]);
     }
   }, []);
 
+  useEffect(() => {
+    const fetchPeers = () => {
+      const stored = localStorage.getItem('docusync_peers');
+      if (stored) {
+        setConnectedPeers(JSON.parse(stored));
+      }
+    };
+    fetchPeers();
+    const interval = setInterval(fetchPeers, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const MATCHMAKER_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+      ? 'https://docusync-pnc.vercel.app/api/lobby'
+      : '/api/lobby';
+
+    if (activeTab === 'rooms') {
+      fetch(`${MATCHMAKER_URL}/list`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setPublicRooms(data.rooms || []);
+          }
+        })
+        .catch(err => console.error('Failed to fetch rooms', err));
+        
+      const storedRoom = typeof window !== 'undefined' ? localStorage.getItem('docusync_current_room') : null;
+      if (storedRoom) {
+        try {
+          const r = JSON.parse(storedRoom);
+          fetch(`${MATCHMAKER_URL}/files?otp=${r.id}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) setRoomFiles(data.files || []);
+            });
+        } catch {}
+      }
+    }
+  }, [activeTab]);
   const saveFiles = useCallback((newFiles: FileRecord[]) => {
     setFiles(newFiles);
     localStorage.setItem('docusync_files', JSON.stringify(newFiles));
@@ -86,6 +122,11 @@ export default function FilesPage() {
           ],
         });
         const file = await handle.getFile();
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        if (!['txt', 'md', 'json', 'csv'].includes(ext)) {
+          alert("Error: Binary file detected. DocuSync's delta engine only supports UTF-8 plain text files (.txt, .md).");
+          return;
+        }
         const content = await file.text();
         const newFile: FileRecord = {
           id: crypto.randomUUID(),
@@ -98,6 +139,7 @@ export default function FilesPage() {
           updatedAt: new Date().toISOString(),
         };
         saveFiles([...files, newFile]);
+        router.push(`/app/editor/${newFile.id}`);
       } else {
         // Fallback
         const input = document.createElement('input');
@@ -106,6 +148,11 @@ export default function FilesPage() {
         input.onchange = async (e) => {
           const file = (e.target as HTMLInputElement).files?.[0];
           if (!file) return;
+          const ext = file.name.split('.').pop()?.toLowerCase() || '';
+          if (!['txt', 'md', 'json', 'csv'].includes(ext)) {
+            alert("Error: Binary file detected. DocuSync's delta engine only supports UTF-8 plain text files (.txt, .md).");
+            return;
+          }
           const content = await file.text();
           const newFile: FileRecord = {
             id: crypto.randomUUID(),
@@ -118,12 +165,28 @@ export default function FilesPage() {
             updatedAt: new Date().toISOString(),
           };
           saveFiles([...files, newFile]);
+          router.push(`/app/editor/${newFile.id}`);
         };
         input.click();
       }
     } catch (err) {
       console.error('File open cancelled or failed', err);
     }
+  };
+
+  const createNewFile = () => {
+    const newFile: FileRecord = {
+      id: crypto.randomUUID(),
+      name: 'untitled.md',
+      type: 'text/markdown',
+      size: 0,
+      content: '',
+      status: 'synced',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    saveFiles([...files, newFile]);
+    router.push(`/app/editor/${newFile.id}`);
   };
 
   const deleteFile = (id: string) => {
@@ -141,9 +204,14 @@ export default function FilesPage() {
           <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Files</h1>
           <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>{files.length} file{files.length !== 1 ? 's' : ''} tracked</p>
         </div>
-        <button className="ds-btn ds-btn-primary" onClick={openFile}>
-          <Plus size={14} /> Open File
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="ds-btn ds-btn-secondary" onClick={createNewFile}>
+            <Plus size={14} /> New File
+          </button>
+          <button className="ds-btn ds-btn-primary" onClick={openFile}>
+            <FolderOpen size={14} /> Open File
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -182,8 +250,203 @@ export default function FilesPage() {
         />
       </div>
 
-      {/* File Data Table */}
-      {filtered.length === 0 ? (
+      {/* Content Area */}
+      {activeTab === 'rooms' ? (() => {
+        const storedRoom = typeof window !== 'undefined' ? localStorage.getItem('docusync_current_room') : null;
+        const currentRoom = storedRoom ? JSON.parse(storedRoom) as { id: string; name: string; hostIp?: string; hostPort?: number; memberCount?: number } : null;
+
+        if (!currentRoom) {
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--t1)', margin: 0 }}>Active Peer Rooms</h2>
+                <button className="ds-btn ds-btn-secondary" onClick={() => router.push('/app/peers')} style={{ padding: '6px 12px' }}>
+                  <Plus size={14} /> Host New Room
+                </button>
+              </div>
+              
+              {publicRooms.length === 0 ? (
+                <div style={{
+                  background: 'var(--s1)', borderRadius: 12, border: '1px solid var(--b1)',
+                  padding: '60px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  minHeight: 200,
+                }}>
+                  <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>🌐</div>
+                  <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--t2)', marginBottom: 8 }}>
+                    No active rooms found
+                  </h2>
+                  <p style={{ color: 'var(--t3)', fontSize: 13, maxWidth: 360, lineHeight: 1.7, textAlign: 'center', margin: '0 auto' }}>
+                    Host a live session to create a new room.
+                  </p>
+                </div>
+              ) : (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                  gap: 16
+                }}>
+                  {publicRooms.map(room => (
+                    <div key={room.id} style={{
+                      background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: 10, padding: 20,
+                      display: 'flex', flexDirection: 'column', gap: 12, transition: 'transform 0.15s', cursor: 'pointer'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--t1)', margin: '0 0 4px' }}>{room.name}</h3>
+                          <div style={{ fontSize: 12, color: 'var(--t3)', fontFamily: 'monospace' }}>OTP: {room.id}</div>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--grn)', background: 'rgba(34,197,94,0.1)', padding: '4px 8px', borderRadius: 12, fontWeight: 600 }}>Active</div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--t2)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Users size={14} /> {room.peersJoined || 1} peers</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FolderOpen size={14} /> {room.filesCount} files</div>
+                      </div>
+                      
+                      <button className="ds-btn ds-btn-primary" style={{ width: '100%', marginTop: 4, justifyContent: 'center' }} onClick={async () => {
+                        const MATCHMAKER_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+                          ? 'https://docusync-pnc.vercel.app/api/lobby'
+                          : '/api/lobby';
+                        try {
+                          const res = await fetch(`${MATCHMAKER_URL}/join`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ otp: room.id, clientNodeId: `web-${crypto.randomUUID()}` })
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error);
+                          const joinedRoom = { id: room.id, name: data.roomName, hostIp: data.hostIp, hostPort: data.hostPort, memberCount: data.memberCount };
+                          localStorage.setItem('docusync_current_room', JSON.stringify(joinedRoom));
+                          alert('Successfully joined the room!');
+                          window.location.reload();
+                        } catch (err: any) {
+                          alert(`Failed to join: ${err.message}`);
+                        }
+                      }}>
+                        Join Room
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Room Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button
+                onClick={() => {
+                  if (confirm('Are you sure you want to leave this room?')) {
+                    localStorage.removeItem('docusync_current_room');
+                    window.location.reload();
+                  }
+                }}
+                className="ds-btn ds-btn-secondary"
+                style={{ padding: '6px 12px' }}
+              >
+                ← Leave
+              </button>
+              <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--t1)', margin: 0 }}>
+                {currentRoom.name}
+              </h2>
+              <span style={{
+                fontSize: 12, background: 'var(--s2)', color: 'var(--t1)',
+                padding: '2px 8px', borderRadius: 20, fontWeight: 600, border: '1px solid var(--b1)',
+              }}>
+                OTP: {currentRoom.id}
+              </span>
+              {currentRoom.hostIp && (
+                <span style={{ fontSize: 12, color: 'var(--t3)' }}>
+                  Host: {currentRoom.hostIp}:{currentRoom.hostPort}
+                </span>
+              )}
+            </div>
+
+            {/* Active Peers */}
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', letterSpacing: 1, marginTop: 12 }}>
+              ACTIVE PEERS ({connectedPeers.length + 1})
+            </div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{
+                background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: 20, padding: '6px 16px',
+                display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--t1)'
+              }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--grn)' }}></div>
+                <strong>You</strong> (Web Node)
+              </div>
+              {connectedPeers.map((p, i) => (
+                <div key={i} style={{
+                  background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: 20, padding: '6px 16px',
+                  display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--t1)'
+                }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: p.status === 'connected' ? 'var(--grn)' : 'var(--t3)' }}></div>
+                  <strong style={{ textTransform: 'uppercase' }}>{p.id.split(':')[0]}</strong>
+                  <span style={{ color: 'var(--t3)', fontSize: 11 }}>::{p.port || 'WS'}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Room Files */}
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', letterSpacing: 1, marginTop: 24 }}>
+              ROOM FILES
+            </div>
+            
+            {roomFiles.length === 0 ? (
+              <div style={{
+                background: 'var(--s1)', borderRadius: 12, border: '1px solid var(--b1)',
+                padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                minHeight: 160,
+              }}>
+                <FolderOpen size={32} style={{ color: 'var(--t3)', opacity: 0.3, marginBottom: 12 }} />
+                <h3 style={{ fontSize: 14, fontWeight: 500, color: 'var(--t2)', marginBottom: 8 }}>
+                  No files shared in this room yet
+                </h3>
+                <p style={{ fontSize: 13, color: 'var(--t3)', maxWidth: 360, textAlign: 'center', lineHeight: 1.6 }}>
+                  Files you share here will be accessible to all connected peers in the room.
+                </p>
+                <button className="ds-btn ds-btn-primary" style={{ marginTop: 16 }} onClick={() => setActiveTab('files')}>
+                  <FolderOpen size={14} /> Share File to Room
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+                {roomFiles.map((f, i) => (
+                  <div key={i} style={{
+                    background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: 10, padding: 16,
+                    display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'transform 0.15s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                  >
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 8, background: 'rgba(59,130,246,0.1)', color: 'var(--blu)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}>
+                        <FileText size={18} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--t1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {f.fileName || f.name}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--t3)' }}>
+                          Shared File
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })() : filtered.length === 0 ? (
         <div style={{
           textAlign: 'center', padding: 60,
           color: 'var(--t3)',
@@ -251,7 +514,7 @@ export default function FilesPage() {
                     const trash = e.currentTarget.querySelector('.trash-btn') as HTMLElement;
                     if (trash) trash.style.opacity = '0';
                   }}
-                  onClick={() => router.push(`/editor/${file.id}`)}>
+                  onClick={() => router.push(`/app/editor/${file.id}`)}>
                     
                     {/* Icon */}
                     <div style={{

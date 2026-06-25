@@ -1,37 +1,48 @@
-export interface FileEntry { fileName?: string; name?: string; [key: string]: unknown }
+/**
+ * @module lobbyStore
+ * Singleton in-memory lobby store for the Next.js Matchmaker API.
+ * Uses global to survive Next.js HMR hot-reloads.
+ */
 
-export interface Lobby {
+export interface LobbyEntry {
   otp: string;
-  ip: string;
-  port: number;
-  nodeId: string;
-  roomName?: string;
-  files?: FileEntry[];
+  roomName: string;
+  hostNodeId: string;
+  hostIp: string;
+  hostPort: number;
   createdAt: number;
+  expiresAt: number;
+  members: string[];
   peersJoined: number;
+  files?: { fileName?: string; name?: string; [key: string]: unknown }[];
+  /** @deprecated kept for backwards compat with old create route */
+  ip?: string;
+  /** @deprecated */
+  port?: number;
+  /** @deprecated */
+  nodeId?: string;
 }
 
-// Use global to persist Map across Next.js HMR
-const globalWithMap = global as typeof globalThis & {
-  activeLobbies?: Map<string, Lobby>;
-  ipRateLimits?: Map<string, number[]>;
+// Use `global` to persist Map across Next.js HMR without re-initialising
+const g = global as typeof globalThis & {
+  _docusyncLobbies?: Map<string, LobbyEntry>;
+  _docusyncRateLimits?: Map<string, number[]>;
 };
 
-if (!globalWithMap.activeLobbies) {
-  globalWithMap.activeLobbies = new Map<string, Lobby>();
+if (!g._docusyncLobbies) {
+  g._docusyncLobbies = new Map<string, LobbyEntry>();
 }
-if (!globalWithMap.ipRateLimits) {
-  globalWithMap.ipRateLimits = new Map<string, number[]>();
+if (!g._docusyncRateLimits) {
+  g._docusyncRateLimits = new Map<string, number[]>();
 }
 
-export const activeLobbies = globalWithMap.activeLobbies;
-export const ipRateLimits = globalWithMap.ipRateLimits;
+export const activeLobbies   = g._docusyncLobbies!;
+export const ipRateLimits    = g._docusyncRateLimits!;
 
-// TTL: 30 minutes for OTP expiry
-const TTL = 30 * 60 * 1000;
-// IP Rate Limit Window: 1 hour
-const RATE_LIMIT_WINDOW = 60 * 60 * 1000;
+/** OTP TTL: 60 minutes */
+const TTL = 60 * 60 * 1000;
 
+/** Clean up expired rooms */
 export function cleanupLobbies() {
   const now = Date.now();
   for (const [otp, lobby] of Array.from(activeLobbies.entries())) {
@@ -39,13 +50,7 @@ export function cleanupLobbies() {
       activeLobbies.delete(otp);
     }
   }
-
-  for (const [ip, timestamps] of Array.from(ipRateLimits.entries())) {
-    const validTimestamps = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW);
-    if (validTimestamps.length === 0) {
-      ipRateLimits.delete(ip);
-    } else {
-      ipRateLimits.set(ip, validTimestamps);
-    }
-  }
 }
+
+/** Alias exported for legacy imports */
+export const lobbyStore = activeLobbies;

@@ -14,6 +14,7 @@ import {
   IconArrowLeft, IconBold, IconItalic, IconStrikethrough,
   IconH1, IconH2, IconList, IconQuote, IconCode, IconRefresh, IconHistory,
 } from '@/components/Icons';
+import { formatBytes } from '@docusync/shared/utils/formatters';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -37,12 +38,6 @@ interface FileSaveData {
 
 function basename(p: string): string {
   return p.replace(/\\/g, '/').split('/').pop() ?? p;
-}
-
-function formatBytes(b: number): string {
-  if (b >= 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} MB`;
-  if (b >= 1024) return `${(b / 1024).toFixed(1)} KB`;
-  return `${b} B`;
 }
 
 // ── ToolbarButton ───────────────────────────────────────────────────────────
@@ -80,7 +75,7 @@ const EditorPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const fileId = useMemo(() => { const n = parseInt(id ?? '', 10); return Number.isFinite(n) ? n : null; }, [id]);
-  const { connectedPeers, vectorClock, pendingConflicts } = useElectronSync();
+  const { currentRoom, connectedPeers, vectorClock, pendingConflicts } = useElectronSync();
 
   const [filePath, setFilePath] = useState('');
   const [loading, setLoading] = useState(true);
@@ -218,6 +213,18 @@ const EditorPage: React.FC = () => {
     finally { setSyncing(false); }
   }, []);
 
+  const handleDeleteGroup = useCallback(async () => {
+    if (window.confirm("WARNING: This will permanently terminate the active session and disconnect all users. Are you sure?")) {
+      try {
+        await window.docuSync.terminateSession();
+        toast.success("Session terminated.");
+        navigate('/');
+      } catch (err) {
+        toast.error("Failed to terminate session.");
+      }
+    }
+  }, [navigate]);
+
   // ── Clock display ─────────────────────────────────────────────────────────
 
   const clockDisplay = useMemo((): string => {
@@ -254,6 +261,27 @@ const EditorPage: React.FC = () => {
             </div>
           )}
         </div>
+        
+        {currentRoom?.isHost && (
+          <button
+            onClick={handleDeleteGroup}
+            style={{
+              height: 28,
+              padding: '0 12px',
+              fontSize: 12,
+              fontWeight: 600,
+              color: 'var(--bg-app)',
+              background: 'var(--red)',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              marginLeft: 'auto'
+            }}
+          >
+            Admin: Delete Group & End Session
+          </button>
+        )}
+        
         <div style={{ display: 'flex', gap: 6 }}>
           <button className="ds-btn ds-btn-ghost" onClick={() => navigate(`/history/${fileId}`)} style={{ height: 30, padding: '0 10px', fontSize: 12 }}>
             <IconHistory size={13} /> History

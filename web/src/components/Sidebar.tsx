@@ -3,12 +3,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  FolderOpen, Edit3, AlertTriangle, Clock, Users, Activity, Wifi, Settings
+  FolderOpen, AlertTriangle, Clock, Users, Activity, Wifi, Settings
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/app/files', label: 'Files', icon: FolderOpen },
-  { href: '/app/editor/demo', label: 'Editor', icon: Edit3 },
   { href: '/app/conflicts', label: 'Conflicts', icon: AlertTriangle },
   { href: '/app/history/demo', label: 'History', icon: Clock },
   { href: '/app/peers', label: 'Peers', icon: Users },
@@ -46,7 +45,7 @@ export default function Sidebar() {
           <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--b1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/docusync-logo.svg"
+              src="/docusync-icon.png"
               width={20}
               height={20}
               alt="DocuSync logo"

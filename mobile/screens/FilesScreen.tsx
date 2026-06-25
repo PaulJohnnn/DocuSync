@@ -6,8 +6,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  SafeAreaView, Alert, Platform,
+  Alert, Platform,
+  TextInput, KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -97,7 +99,7 @@ export default function FilesScreen({ navigation }: any) {
         setCurrentRoom(parsedRoom);
         if (!parsedRoom.id.startsWith('direct-')) {
           try {
-            const res = await fetch(`http://192.168.68.102:3000/api/lobby/files?otp=${parsedRoom.id}`);
+            const res = await fetch(`https://docusync-pnc.vercel.app/api/lobby/files?otp=${parsedRoom.id}`);
             if (res.ok) {
               const data = await res.json();
               setRoomFiles(data.files || []);
@@ -166,7 +168,7 @@ export default function FilesScreen({ navigation }: any) {
       
       if (isRoomShare && currentRoom && !currentRoom.id.startsWith('direct-')) {
         try {
-          await fetch(`http://192.168.68.102:3000/api/lobby/files`, {
+          await fetch(`https://docusync-pnc.vercel.app/api/lobby/files`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ otp: currentRoom.id, file: {
@@ -239,7 +241,7 @@ export default function FilesScreen({ navigation }: any) {
   };
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: colors.bgBase }]}>
+    <SafeAreaView style={[styles.root, { backgroundColor: colors.bgBase }]} edges={['top', 'left', 'right']}>
       <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.bgBase }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <LogoIcon size={32} />

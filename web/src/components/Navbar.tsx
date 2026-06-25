@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useTheme } from './ThemeProvider';
 import { Sun, Moon } from 'lucide-react';
@@ -23,6 +23,20 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -41,11 +55,25 @@ export default function Navbar() {
         WebkitBackdropFilter: 'blur(16px)',
         borderBottom: '1px solid var(--b1)',
       }}>
-        {/* LEFT — Logo */}
-        <Link href="/home" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-          <LogoMark />
-          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.01em' }}>DocuSync</span>
-        </Link>
+        {/* LEFT — Logo & Status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Link href="/home" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+            <LogoMark />
+            <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.01em' }}>DocuSync</span>
+          </Link>
+          
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '4px 10px', borderRadius: 99,
+            background: isOnline ? 'var(--grb)' : 'rgba(239, 68, 68, 0.1)',
+            border: `1px solid ${isOnline ? 'var(--grbr)' : 'rgba(239, 68, 68, 0.2)'}`,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: isOnline ? 'var(--grn)' : 'var(--red)', boxShadow: `0 0 6px ${isOnline ? 'var(--grn)' : 'var(--red)'}` }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: isOnline ? 'var(--grn)' : 'var(--red)' }}>
+              {isOnline ? 'Online' : 'Offline'}
+            </span>
+          </div>
+        </div>
 
         {/* CENTER — Nav links (desktop) */}
         <div className="nav-links-desktop" style={{ display: 'flex', gap: 32 }}>

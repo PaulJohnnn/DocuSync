@@ -93,8 +93,8 @@ const EditorPage    = lazy(() => import('@/pages/EditorPage'));
 const ConflictsPage = lazy(() => import('@/pages/ConflictsPage'));
 const HistoryPage   = lazy(() => import('@/pages/HistoryPage'));
 const PeersPage     = lazy(() => import('@/pages/PeersPage'));
-const MetricsPage   = lazy(() => import('@/pages/MetricsPage'));
 const SettingsPage  = lazy(() => import('@/pages/SettingsPage'));
+const AdminPage     = lazy(() => import('@/pages/AdminPage'));
 const VaultLoginPage = lazy(() => import('@/pages/VaultLoginPage'));
 const WelcomePage    = lazy(() => import('@/pages/WelcomePage'));
 
@@ -116,8 +116,8 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
     async function checkVault() {
       try {
-        const hasSeenWelcome = localStorage.getItem('docusync_has_seen_welcome');
-        if (!hasSeenWelcome) {
+        const hasSeenWelcomeSession = sessionStorage.getItem('docusync_has_seen_welcome_session');
+        if (!hasSeenWelcomeSession) {
           navigate('/welcome');
           return;
         }
@@ -242,8 +242,8 @@ const App: React.FC = () => (
                   <Route path="/conflicts"    element={<ConflictsPage />} />
                   <Route path="/history/:id"  element={<HistoryPage />} />
                   <Route path="/peers"        element={<PeersPage />} />
-                  <Route path="/metrics"      element={<MetricsPage />} />
                   <Route path="/settings"     element={<SettingsPage />} />
+                  <Route path="/admin"        element={<AdminPage />} />
                 </Routes>
               </AppShell>
             </AuthGuard>
