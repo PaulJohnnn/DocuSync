@@ -14,7 +14,6 @@ const FOOTER_LINKS = {
   App: [
     { label: 'Files',     href: '/app/files' },
     { label: 'Conflicts', href: '/app/conflicts' },
-    { label: 'Metrics',   href: '/app/metrics' },
     { label: 'Peers',     href: '/app/peers' },
     { label: 'Windows',  href: '/download' },
     { label: 'Web App',  href: 'https://docusync-pnc.vercel.app', external: true },

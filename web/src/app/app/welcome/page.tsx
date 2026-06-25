@@ -40,7 +40,7 @@ export default function WelcomePage() {
         </h1>
         
         <p style={{ fontSize: '1.15rem', color: 'var(--t2)', maxWidth: 550, marginBottom: '3.5rem', lineHeight: 1.6 }}>
-          A secure, fully decentralized file synchronization engine. No cloud servers, no subscriptions. Your data syncs directly between your trusted devices.
+          The ultimate decentralized workspace. Experience seamless, peer-to-peer file synchronization with zero cloud reliance. Secure, lightning-fast, and entirely yours.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '4rem', width: '100%', textAlign: 'left' }}>

@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import {
   FolderOpen, Plus, FileText, FileCode, FileImage, File,
-  Trash2, Search, FileJson, FileType, FileSpreadsheet, FileArchive, Users
+  Trash2, Search, FileJson, FileType, FileSpreadsheet, FileArchive, Users,
+  ArrowLeft, LogOut, Loader2
 } from 'lucide-react';
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -58,6 +59,11 @@ export default function FilesPage() {
   const [publicRooms, setPublicRooms] = useState<any[]>([]);
   const [connectedPeers, setConnectedPeers] = useState<any[]>([]);
   const [roomFiles, setRoomFiles] = useState<any[]>([]);
+  const [roomTick, setRoomTick] = useState(0);
+  const [showRoomList, setShowRoomList] = useState(false);
+  const [joiningRoomId, setJoiningRoomId] = useState<string | null>(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('docusync_files');
@@ -65,6 +71,14 @@ export default function FilesPage() {
       setFiles(JSON.parse(stored));
     } else {
       setFiles([]);
+    }
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('tab') === 'peer_rooms') {
+        setActiveTab('rooms');
+        window.history.replaceState({}, '', window.location.pathname);
+      }
     }
   }, []);
 
@@ -107,27 +121,176 @@ export default function FilesPage() {
         } catch {}
       }
     }
-  }, [activeTab]);
+  }, [activeTab, roomTick]);
   const saveFiles = useCallback((newFiles: FileRecord[]) => {
     setFiles(newFiles);
     localStorage.setItem('docusync_files', JSON.stringify(newFiles));
   }, []);
+
+  const handleDownloadRoomFile = async (f: any) => {
+    if (!f.content) {
+      alert("Error: This file was shared without content, or the content is unavailable.");
+      return;
+    }
+    
+    // 1. Save to Local App Storage
+    const newFile: FileRecord = {
+      id: f.fileId?.toString() || crypto.randomUUID(),
+      name: f.fileName || f.name || 'SharedFile.txt',
+      type: 'text/plain',
+      size: f.contentLength || f.content.length,
+      content: f.content,
+      status: 'synced',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    saveFiles([...files.filter(existing => existing.id !== newFile.id), newFile]);
+    
+    // 2. Native Device Download
+    try {
+      const blob = new Blob([f.content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = newFile.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to trigger native download', err);
+    }
+    
+    alert(`File "${newFile.name}" downloaded to your local files!`);
+  };
+
+  const handleShareToRoom = async (isFolder: boolean = false) => {
+    try {
+      const storedRoom = localStorage.getItem('docusync_current_room');
+      if (!storedRoom) return;
+      const r = JSON.parse(storedRoom);
+
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      if (isFolder) {
+        input.webkitdirectory = true;
+      } else {
+        input.accept = '*/*'; // Allow all files, we'll let the user decide
+      }
+      
+      input.onchange = async (e) => {
+        const selectedFiles = (e.target as HTMLInputElement).files;
+        if (!selectedFiles || selectedFiles.length === 0) return;
+        
+        const MATCHMAKER_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+          ? 'https://docusync-pnc.vercel.app/api/lobby'
+          : '/api/lobby';
+
+        const newRoomFiles = [...roomFiles];
+        const newLocalFiles = [];
+        let sharedCount = 0;
+
+        for (let i = 0; i < selectedFiles.length; i++) {
+          const file = selectedFiles[i];
+          // Skip large binary files or files starting with . (like .DS_Store)
+          if (file.name.startsWith('.') || file.size > 5 * 1024 * 1024) continue;
+          
+          try {
+            let content = '';
+            if (file.name.toLowerCase().endsWith('.docx')) {
+              const formData = new FormData();
+              formData.append('file', file);
+              const parseRes = await fetch('/api/parse-docx', { method: 'POST', body: formData });
+              const parseData = await parseRes.json();
+              if (parseData.text) {
+                content = parseData.text;
+              } else {
+                continue; // Skip if parsing failed
+              }
+            } else {
+              content = await file.text();
+            }
+
+            const newFile = {
+              fileId: Date.now() + i,
+              fileName: file.webkitRelativePath || file.name,
+              filePath: file.webkitRelativePath || 'Local Web Storage',
+              contentLength: file.size,
+              content: content,
+            };
+
+            await fetch(`${MATCHMAKER_URL}/files`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ otp: r.id, file: newFile })
+            });
+            
+            newRoomFiles.push(newFile);
+            
+            // Dual-Action: Also save to local 'My Files'
+            const localFileRecord: FileRecord = {
+              id: newFile.fileId.toString(),
+              name: newFile.fileName,
+              type: file.type || 'text/plain',
+              size: newFile.contentLength,
+              content: newFile.content,
+              status: 'synced',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            newLocalFiles.push(localFileRecord);
+            sharedCount++;
+          } catch (err) {
+            console.error('Failed to read/share file:', file.name, err);
+          }
+        }
+        
+        if (sharedCount > 0) {
+          setRoomFiles(newRoomFiles);
+          saveFiles([...files, ...newLocalFiles]);
+          alert(`Successfully shared ${sharedCount} file(s) to room and added to My Files!`);
+        } else {
+          alert('No valid text files were shared. Skipping binaries or large files.');
+        }
+      };
+      input.click();
+    } catch (err) {
+      console.error('Failed to share to room', err);
+      alert('Failed to share to room');
+    }
+  };
 
   const openFile = async () => {
     try {
       if ('showOpenFilePicker' in window) {
         const [handle] = await (window as unknown as { showOpenFilePicker: (options?: unknown) => Promise<{ getFile: () => Promise<File> }[]> }).showOpenFilePicker({
           types: [
-            { description: 'Text Files', accept: { 'text/*': ['.txt', '.md', '.json', '.ts', '.tsx', '.js', '.jsx', '.css', '.html'] } },
+            { description: 'Supported Files', accept: { '*/*': ['.txt', '.md', '.json', '.ts', '.tsx', '.js', '.jsx', '.css', '.html', '.docx', '.csv'] } },
           ],
         });
         const file = await handle.getFile();
         const ext = file.name.split('.').pop()?.toLowerCase() || '';
-        if (!['txt', 'md', 'json', 'csv'].includes(ext)) {
-          alert("Error: Binary file detected. DocuSync's delta engine only supports UTF-8 plain text files (.txt, .md).");
+        if (!['txt', 'md', 'json', 'csv', 'docx'].includes(ext)) {
+          alert("Error: Binary file detected. DocuSync's delta engine only supports UTF-8 plain text files and .docx.");
           return;
         }
-        const content = await file.text();
+
+        let content = '';
+        if (ext === 'docx') {
+          const formData = new FormData();
+          formData.append('file', file);
+          const parseRes = await fetch('/api/parse-docx', { method: 'POST', body: formData });
+          const parseData = await parseRes.json();
+          if (parseData.text) content = parseData.text;
+          else {
+            alert('Failed to extract text from .docx file.');
+            return;
+          }
+        } else {
+          content = await file.text();
+        }
+
         const newFile: FileRecord = {
           id: crypto.randomUUID(),
           name: file.name,
@@ -255,9 +418,30 @@ export default function FilesPage() {
         const storedRoom = typeof window !== 'undefined' ? localStorage.getItem('docusync_current_room') : null;
         const currentRoom = storedRoom ? JSON.parse(storedRoom) as { id: string; name: string; hostIp?: string; hostPort?: number; memberCount?: number } : null;
 
-        if (!currentRoom) {
+        if (!currentRoom || showRoomList) {
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {currentRoom && (
+                <div style={{
+                  background: 'var(--acc)', color: 'white', padding: '12px 16px', borderRadius: 8,
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)', marginBottom: 8,
+                  animation: 'fadeIn 0.3s ease'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 8px #4ade80' }} />
+                    <span style={{ fontSize: 14, fontWeight: 600 }}>Active Session: {currentRoom.name}</span>
+                  </div>
+                  <button 
+                    onClick={() => setShowRoomList(false)}
+                    style={{ background: 'rgba(255,255,255,0.2)', border: 'none', padding: '6px 12px', borderRadius: 6, color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                  >
+                    Return to Room
+                  </button>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--t1)', margin: 0 }}>Active Peer Rooms</h2>
                 <button className="ds-btn ds-btn-secondary" onClick={() => router.push('/app/peers')} style={{ padding: '6px 12px' }}>
@@ -306,28 +490,49 @@ export default function FilesPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FolderOpen size={14} /> {room.filesCount} files</div>
                       </div>
                       
-                      <button className="ds-btn ds-btn-primary" style={{ width: '100%', marginTop: 4, justifyContent: 'center' }} onClick={async () => {
-                        const MATCHMAKER_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-                          ? 'https://docusync-pnc.vercel.app/api/lobby'
-                          : '/api/lobby';
-                        try {
-                          const res = await fetch(`${MATCHMAKER_URL}/join`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ otp: room.id, clientNodeId: `web-${crypto.randomUUID()}` })
-                          });
-                          const data = await res.json();
-                          if (!res.ok) throw new Error(data.error);
-                          const joinedRoom = { id: room.id, name: data.roomName, hostIp: data.hostIp, hostPort: data.hostPort, memberCount: data.memberCount };
-                          localStorage.setItem('docusync_current_room', JSON.stringify(joinedRoom));
-                          alert('Successfully joined the room!');
-                          window.location.reload();
-                        } catch (err: any) {
-                          alert(`Failed to join: ${err.message}`);
-                        }
-                      }}>
-                        Join Room
-                      </button>
+                      <button 
+                        className="ds-btn ds-btn-primary" 
+                        style={{ width: '100%', marginTop: 4, justifyContent: 'center', opacity: joiningRoomId === room.id ? 0.8 : 1 }} 
+                        disabled={joiningRoomId === room.id}
+                        onClick={async () => {
+                          if (currentRoom?.id === room.id) {
+                            setShowRoomList(false);
+                            return;
+                          }
+                          const MATCHMAKER_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+                            ? 'https://docusync-pnc.vercel.app/api/lobby'
+                            : '/api/lobby';
+                          try {
+                            setJoiningRoomId(room.id);
+                            // Artificial delay for the cool animation effect
+                            await new Promise(resolve => setTimeout(resolve, 800));
+                            
+                            const res = await fetch(`${MATCHMAKER_URL}/join`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ otp: room.id, clientNodeId: `web-${crypto.randomUUID()}` })
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error);
+                            const joinedRoom = { id: room.id, name: data.roomName, hostIp: data.hostIp, hostPort: data.hostPort, memberCount: data.memberCount };
+                            localStorage.setItem('docusync_current_room', JSON.stringify(joinedRoom));
+                            setShowRoomList(false); // In case they were looking at the list while in another room
+                            setRoomTick(t => t + 1);
+                          } catch (err: any) {
+                            alert(`Failed to join: ${err.message}`);
+                          } finally {
+                            setJoiningRoomId(null);
+                          }
+                        }}>
+                          {joiningRoomId === room.id ? (
+                            <>
+                              <Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+                              Connecting...
+                            </>
+                          ) : (
+                            currentRoom?.id === room.id ? 'Return to Room' : 'Join Room'
+                          )}
+                        </button>
                     </div>
                   ))}
                 </div>
@@ -338,35 +543,97 @@ export default function FilesPage() {
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Room Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button
-                onClick={() => {
-                  if (confirm('Are you sure you want to leave this room?')) {
-                    localStorage.removeItem('docusync_current_room');
-                    window.location.reload();
-                  }
-                }}
-                className="ds-btn ds-btn-secondary"
-                style={{ padding: '6px 12px' }}
-              >
-                ← Leave
-              </button>
-              <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--t1)', margin: 0 }}>
-                {currentRoom.name}
-              </h2>
-              <span style={{
-                fontSize: 12, background: 'var(--s2)', color: 'var(--t1)',
-                padding: '2px 8px', borderRadius: 20, fontWeight: 600, border: '1px solid var(--b1)',
+            
+            {showLeaveConfirm && (
+              <div style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999,
+                animation: 'fadeIn 0.2s ease'
               }}>
-                OTP: {currentRoom.id}
-              </span>
-              {currentRoom.hostIp && (
-                <span style={{ fontSize: 12, color: 'var(--t3)' }}>
-                  Host: {currentRoom.hostIp}:{currentRoom.hostPort}
+                <div style={{
+                  background: 'var(--bg)', border: '1px solid var(--b1)', borderRadius: 12,
+                  padding: 24, width: 400, maxWidth: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+                  animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, color: '#ef4444' }}>
+                    <LogOut size={24} />
+                    <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--t1)' }}>Leave Session?</h2>
+                  </div>
+                  <p style={{ color: 'var(--t2)', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
+                    Are you sure you want to permanently leave <strong>{currentRoom.name}</strong>? You will be disconnected from all peers and lose access to live files.
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                    <button 
+                      className="ds-btn ds-btn-ghost" 
+                      onClick={() => setShowLeaveConfirm(false)}
+                      disabled={isLeaving}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      className="ds-btn"
+                      style={{ background: '#ef4444', color: 'white', border: 'none', opacity: isLeaving ? 0.7 : 1 }}
+                      disabled={isLeaving}
+                      onClick={async () => {
+                        setIsLeaving(true);
+                        await new Promise(r => setTimeout(r, 600)); // cool animation delay
+                        localStorage.removeItem('docusync_current_room');
+                        setIsLeaving(false);
+                        setShowLeaveConfirm(false);
+                        setRoomTick(t => t + 1);
+                      }}
+                    >
+                      {isLeaving ? <><Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} /> Leaving...</> : 'Yes, Leave Session'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Room Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, animation: 'fadeIn 0.2s ease' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button
+                  onClick={() => setShowRoomList(true)}
+                  className="ds-btn ds-btn-secondary"
+                  style={{ padding: '6px 12px', transition: 'all 0.2s' }}
+                  title="Go back to list of rooms"
+                >
+                  <ArrowLeft size={14} /> Back
+                </button>
+                <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--t1)', margin: 0 }}>
+                  {currentRoom.name}
+                </h2>
+                <span style={{
+                  fontSize: 12, background: 'var(--s2)', color: 'var(--t1)',
+                  padding: '2px 8px', borderRadius: 20, fontWeight: 600, border: '1px solid var(--b1)',
+                }}>
+                  OTP: {currentRoom.id}
                 </span>
-              )}
+              </div>
+              <button
+                onClick={() => setShowLeaveConfirm(true)}
+                className="ds-btn"
+                style={{ 
+                  padding: '6px 12px', 
+                  background: 'rgba(239, 68, 68, 0.1)', 
+                  color: '#ef4444', 
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
+              >
+                <LogOut size={14} /> Leave Session
+              </button>
             </div>
+            
+            {currentRoom.hostIp && (
+              <div style={{ fontSize: 12, color: 'var(--t3)', marginLeft: 84 }}>
+                Host: {currentRoom.hostIp}:{currentRoom.hostPort}
+              </div>
+            )}
 
             {/* Active Peers */}
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', letterSpacing: 1, marginTop: 12 }}>
@@ -410,9 +677,14 @@ export default function FilesPage() {
                 <p style={{ fontSize: 13, color: 'var(--t3)', maxWidth: 360, textAlign: 'center', lineHeight: 1.6 }}>
                   Files you share here will be accessible to all connected peers in the room.
                 </p>
-                <button className="ds-btn ds-btn-primary" style={{ marginTop: 16 }} onClick={() => setActiveTab('files')}>
-                  <FolderOpen size={14} /> Share File to Room
-                </button>
+                <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                  <button className="ds-btn ds-btn-primary" onClick={() => handleShareToRoom(false)}>
+                    <FileText size={14} /> Share Files
+                  </button>
+                  <button className="ds-btn ds-btn-secondary" onClick={() => handleShareToRoom(true)}>
+                    <FolderOpen size={14} /> Share Folder
+                  </button>
+                </div>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
@@ -436,9 +708,15 @@ export default function FilesPage() {
                           {f.fileName || f.name}
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--t3)' }}>
-                          Shared File
+                          {formatBytes(f.contentLength || f.content?.length || 0)}
                         </div>
                       </div>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDownloadRoomFile(f); }}
+                        style={{ background: 'var(--acc)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Download
+                      </button>
                     </div>
                   </div>
                 ))}

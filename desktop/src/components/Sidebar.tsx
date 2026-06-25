@@ -33,7 +33,7 @@ const TOOLS_NAV: NavItem[] = [
 const Sidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { syncStatus, connectedPeers, pendingConflicts, localNodeId, currentRoom } = useElectronSync();
+  const { syncStatus, connectedPeers, pendingConflicts, localNodeId, isAdmin } = useElectronSync();
   const [hasInternet, setHasInternet] = useState(navigator.onLine);
 
   useEffect(() => {
@@ -149,8 +149,8 @@ const Sidebar: React.FC = () => {
       <div className="ds-sidebar-section-label">Tools</div>
       <div className="ds-sidebar-nav" style={{ flex: 'none' }}>
         {TOOLS_NAV.map(renderItem)}
-        {/* Admin — only shown to Session Host */}
-        {currentRoom?.isHost && (
+        {/* Admin — only shown to Global Admin */}
+        {isAdmin && (
           <NavLink
             to="/admin"
             id="nav-admin"
@@ -161,7 +161,7 @@ const Sidebar: React.FC = () => {
             <span style={{
               marginLeft: 'auto', fontSize: 9, background: 'var(--ds-accent-bg)',
               color: 'var(--ds-accent)', padding: '1px 5px', borderRadius: 99, fontWeight: 700,
-            }}>HOST</span>
+            }}>ADMIN</span>
           </NavLink>
         )}
       </div>

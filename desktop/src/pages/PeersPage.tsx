@@ -73,18 +73,19 @@ function avatarColor(nodeId: string): string {
 // ── PeersPage ───────────────────────────────────────────────────────────────
 
 const REFRESH_INTERVAL = 5_000;
-// Central matchmaker: Vercel in production, localhost in local dev
-const MATCHMAKER_URL = 'https://docusync-pnc.vercel.app/api/lobby';
-// Fallback for local dev (both apps on same machine)
+// Local dev matchmaker (same machine as the web app on localhost:3000)
 const LOCAL_MATCHMAKER = 'http://localhost:3000/api/lobby';
+// Production matchmaker on Vercel (used only when local is unreachable)
+const VERCEL_MATCHMAKER = 'https://docusync-pnc.vercel.app/api/lobby';
 
 async function matchmakerFetch(path: string, options: RequestInit): Promise<Response> {
-  // Try Vercel first, fall back to localhost
+  // Try localhost first so desktop + web app share the SAME in-memory room store
+  // when both are running on the same machine. Fall back to Vercel in production.
   try {
-    const res = await fetch(`${MATCHMAKER_URL}${path}`, options);
+    const res = await fetch(`${LOCAL_MATCHMAKER}${path}`, { ...options, signal: AbortSignal.timeout(2000) });
     if (res.ok || res.status < 500) return res;
-  } catch { /* Vercel unreachable, try local */ }
-  return fetch(`${LOCAL_MATCHMAKER}${path}`, options);
+  } catch { /* local server not running, try Vercel */ }
+  return fetch(`${VERCEL_MATCHMAKER}${path}`, options);
 }
 
 const PeersPage: React.FC = () => {
@@ -173,6 +174,7 @@ const PeersPage: React.FC = () => {
       setGeneratedOtp(data.otp);
       setCurrentRoom({ id: data.otp, name: finalRoomName, isHost: true });
       toast.success(`Room "${finalRoomName}" created! OTP: ${data.otp}`);
+      navigate('/', { state: { tab: 'peer_rooms' } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to generate OTP. Is the web server running?');
     } finally {
@@ -207,9 +209,23 @@ const PeersPage: React.FC = () => {
       const hostIp = data.hostIp || data.ip;
       const hostPort = data.hostPort || data.port;
       const rName = data.roomName || 'OTP Session';
+      const hostType: string = data.hostType || 'desktop';
 
-      if (!hostIp || !hostPort) throw new Error('Matchmaker returned invalid host info.');
+      if (!hostIp) throw new Error('Matchmaker returned invalid host info.');
 
+      // Web-hosted rooms: the host is a browser tab — it has no WebSocket server.
+      // We join via matchmaker only (shared state through localhost:3000).
+      if (hostType === 'web') {
+        console.log('[OTP Join] Web-hosted room detected — skipping WS, joining via matchmaker only.');
+        setCurrentRoom({ id: joinOtp, name: rName, isHost: false });
+        toast.success(`✅ Joined room "${rName}" — connected via matchmaker`);
+        setJoinOtp('');
+        fetchAll();
+        navigate('/', { state: { tab: 'peer_rooms' } });
+        return;
+      }
+
+      // Desktop-hosted rooms: connect directly via WebSocket P2P.
       toast.success(`Found room "${rName}"! Connecting to ${hostIp}:${hostPort}...`);
       console.log('[OTP Join] Connecting to WebSocket:', `ws://${hostIp}:${hostPort}`);
       
@@ -222,6 +238,7 @@ const PeersPage: React.FC = () => {
       toast.success(`✅ Connected to "${rName}" — ${data.memberCount || '?'} member(s)`);
       setJoinOtp('');
       fetchAll();
+      navigate('/', { state: { tab: 'peer_rooms' } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to join lobby');
     } finally {

@@ -17,7 +17,6 @@ function LogoMark() {
 const NAV_LINKS = [
   { label: 'Features', href: '/home#features' },
   { label: 'Download', href: '/download' },
-  { label: 'Metrics',  href: '/metrics' },
   { label: 'GitHub',   href: 'https://github.com/PaulJohnnn/DocuSync', external: true },
 ];
 

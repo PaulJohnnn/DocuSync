@@ -271,7 +271,7 @@ export interface UserVerifyResponseMessage {
 }
 
 /**
- * Sent by the Host (Admin) to terminate the active session and evict all guests.
+ * Sent by the Admin/Host to cleanly terminate the session.
  */
 export interface SessionTerminatedMessage {
   /** Message type discriminant. */

@@ -30,7 +30,7 @@ export default function WelcomeScreen() {
 
         <Text style={styles.title}>Welcome to DocuSync</Text>
         <Text style={styles.description}>
-          A secure, fully decentralized file synchronization engine. No cloud servers, no subscriptions. Your data syncs directly between your devices.
+          The ultimate decentralized workspace. Experience seamless, peer-to-peer file synchronization with zero cloud reliance. Secure, lightning-fast, and entirely yours.
         </Text>
 
         <View style={styles.features}>

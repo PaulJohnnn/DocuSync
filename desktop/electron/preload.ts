@@ -130,6 +130,15 @@ export interface DocuSyncBridge {
   openFile(filePathOrId?: string | number): Promise<IPCResponse>;
 
   /**
+   * Imports a file from the room memory into the local system.
+   *
+   * @param fileName - The original file name.
+   * @param content - The file content as a string.
+   * @returns IPCResponse containing `{ fileId, filePath, fileName, content, extension, sizeBytes }`.
+   */
+  importRoomFile(fileName: string, content: string, fileId?: number): Promise<IPCResponse>;
+
+  /**
    * Saves updated content to an open file, computes a delta, appends
    * an event to the EventLog, and broadcasts a DELTA_PUSH to all peers.
    *
@@ -354,6 +363,10 @@ const docuSyncBridge: DocuSyncBridge = {
     return ipcRenderer.invoke(CH_FILE_OPEN, filePathOrId);
   },
 
+  importRoomFile(fileName: string, content: string, fileId?: number): Promise<IPCResponse> {
+    return ipcRenderer.invoke('file:import-room-file', fileName, content, fileId);
+  },
+
   saveFile(fileId: number, newContent: string): Promise<IPCResponse> {
     return ipcRenderer.invoke(CH_FILE_SAVE, fileId, newContent);
   },
@@ -426,8 +439,8 @@ const docuSyncBridge: DocuSyncBridge = {
     return ipcRenderer.invoke(CH_NET_LAN_IP) as any;
   },
 
-  respondVerifyRequest(reqId: string, nodeId: string, allow: boolean): Promise<IPCResponse> {
-    return ipcRenderer.invoke(CH_AUTH_VERIFY_RESP, reqId, nodeId, allow);
+  respondVerifyRequest(reqId: string, nodeId: string, allow: boolean): Promise<IPCResponse<void>> {
+    return ipcRenderer.invoke(CH_AUTH_VERIFY_RESP, reqId, nodeId, allow) as any;
   },
 
   terminateSession: async () => {

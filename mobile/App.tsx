@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 import FilesScreen     from './screens/FilesScreen';
 import ConflictsScreen from './screens/ConflictsScreen';
 import PeersScreen     from './screens/PeersScreen';
-import MetricsScreen   from './screens/MetricsScreen';
 import SettingsScreen  from './screens/SettingsScreen';
 import SplashScreen    from './components/SplashScreen';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
@@ -23,7 +22,6 @@ const TAB_CONFIG: Record<string, { active: IoniconName; inactive: IoniconName; c
   Files:     { active: 'documents',    inactive: 'documents-outline',    color: '#4f7df8' },
   Conflicts: { active: 'warning',      inactive: 'warning-outline',      color: '#ef4444' },
   Peers:     { active: 'people',       inactive: 'people-outline',       color: '#22c55e' },
-  Metrics:   { active: 'bar-chart',    inactive: 'bar-chart-outline',    color: '#8b5cf6' },
   Settings:  { active: 'settings',     inactive: 'settings-outline',     color: '#7e8ba8' },
 };
 
@@ -115,7 +113,6 @@ function MainApp() {
         <Tab.Screen name="Files"     component={FilesScreen}     />
         <Tab.Screen name="Conflicts" component={ConflictsScreen} />
         <Tab.Screen name="Peers"     component={PeersScreen}     />
-        <Tab.Screen name="Metrics"   component={MetricsScreen}   />
         <Tab.Screen name="Settings"  component={SettingsScreen}  />
       </Tab.Navigator>
     </>

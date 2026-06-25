@@ -5,13 +5,13 @@
  * All IPC logic and routing preserved.
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import { toast } from 'sonner';
 import {
   FolderOpen, RefreshCw, ChevronRight, Eye, EyeOff,
   FileText, FileCode, FileJson, FileType, File,
-  FileImage, FileSpreadsheet, FileArchive, Users, ArrowLeft, MoreVertical, UploadCloud, Download
+  FileImage, FileSpreadsheet, FileArchive, Users, ArrowLeft, MoreVertical, UploadCloud, Download, LogOut, Loader2
 } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -167,16 +167,28 @@ const FilesPage: React.FC = () => {
   const [openedFiles, setOpenedFiles] = useState<any[]>([]);
   const [offlineQueued, setOfflineQueued] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState<'my_files' | 'peer_rooms'>('my_files');
+  const location = useLocation();
   const [roomFiles, setRoomFiles] = useState<any[]>([]);
   const [opening, setOpening] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [showMetrics, setShowMetrics] = useState(false);
+  const [showRoomList, setShowRoomList] = useState(false);
+  const [joiningRoomId, setJoiningRoomId] = useState<string | null>(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const SESSION_KEY = 'docusync_opened_files';
   const mountedRef = useRef(false);
 
-  // ── Matchmaker URL (configurable — no hardcoded IPs) ──────────────────────
+  useEffect(() => {
+    if (location.state?.tab) {
+      setActiveTab(location.state.tab as any);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  // ── Matchmaker URL (defaults to localhost for local dev, configurable via localStorage) ──
   const MATCHMAKER_URL = (() => {
-    try { return localStorage.getItem('docusync_matchmaker_url') ?? 'https://docusync-pnc.vercel.app'; } catch { return 'https://docusync-pnc.vercel.app'; }
+    try { return localStorage.getItem('docusync_matchmaker_url') ?? 'http://localhost:3000'; } catch { return 'http://localhost:3000'; }
   })();
 
   const [publicRooms, setPublicRooms] = useState<any[]>([]);
@@ -208,7 +220,7 @@ const FilesPage: React.FC = () => {
     };
     
     const fetchPublicRooms = async () => {
-      if (activeTab === 'peer_rooms' && !currentRoom) {
+      if (activeTab === 'peer_rooms') {
         try {
           const res = await fetch(`${MATCHMAKER_URL}/api/lobby/list`);
           if (res.ok) {
@@ -246,6 +258,7 @@ const FilesPage: React.FC = () => {
           fileName: openedFile.fileName,
           filePath: openedFile.filePath,
           contentLength: openedFile.sizeBytes || openedFile.contentLength || 1024,
+          content: openedFile.content,
         };
         
         await fetch(`${MATCHMAKER_URL}/api/lobby/files`, {
@@ -309,6 +322,29 @@ const FilesPage: React.FC = () => {
     navigate(hasConflict ? '/conflicts' : `/editor/${file.fileId}`);
   }, [conflictQueue, navigate]);
 
+  const handleOpenRoomFile = useCallback(async (file: any) => {
+    if (!window.docuSync?.importRoomFile) {
+      toast.error('Import not available.');
+      return;
+    }
+    setOpening(true);
+    try {
+      const res = await window.docuSync.importRoomFile(file.fileName || file.name, file.content || '', file.fileId);
+      if (res.success) {
+        const data = res.data as OpenedFile;
+        setOpenedFiles((prev) => prev.some((f) => f.fileId === data.fileId) ? prev : [data, ...prev]);
+        toast.success(`Imported: ${basename(data.filePath)}`);
+        navigate(`/editor/${data.fileId}`);
+      } else {
+        toast.error(`Import failed: ${res.error}`);
+      }
+    } catch (err) {
+      toast.error(`Import error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setOpening(false);
+    }
+  }, [navigate]);
+
   const handleCheckout = useCallback(async (file: OpenedFile) => {
     if (!window.docuSync?.checkoutFile) {
       toast.error('Checkout not available (IPC bridge missing).');
@@ -325,6 +361,7 @@ const FilesPage: React.FC = () => {
       toast.error(`Checkout error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, []);
+
 
   // Detect going offline — mark all open files as queued
   useEffect(() => {
@@ -444,8 +481,29 @@ const FilesPage: React.FC = () => {
         )}
 
         {/* Peer Rooms List View */}
-        {activeTab === 'peer_rooms' && !currentRoom && (
+        {activeTab === 'peer_rooms' && (!currentRoom || showRoomList) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 24 }}>
+            {currentRoom && (
+              <div style={{
+                background: 'var(--ds-accent)', color: 'white', padding: '12px 16px', borderRadius: 8,
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)', marginBottom: 8,
+                animation: 'fadeIn 0.3s ease'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 8px #4ade80' }} />
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>Active Session: {currentRoom.name}</span>
+                </div>
+                <button 
+                  onClick={() => setShowRoomList(false)}
+                  style={{ background: 'rgba(255,255,255,0.2)', border: 'none', padding: '6px 12px', borderRadius: 6, color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                >
+                  Return to Room
+                </button>
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Active Peer Rooms</h2>
               <button className="ds-btn ds-btn-secondary" onClick={() => navigate('/peers')} style={{ padding: '6px 12px' }}>
@@ -485,26 +543,47 @@ const FilesPage: React.FC = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FolderOpen size={14} /> {room.filesCount} files</div>
                     </div>
                     
-                    <button className="ds-btn ds-btn-primary" style={{ width: '100%', marginTop: 4, justifyContent: 'center' }} onClick={async () => {
+                    <button 
+                      className="ds-btn ds-btn-primary" 
+                      style={{ width: '100%', marginTop: 4, justifyContent: 'center', opacity: joiningRoomId === room.id ? 0.8 : 1 }} 
+                      disabled={joiningRoomId === room.id}
+                      onClick={async () => {
+                      if (currentRoom?.id === room.id) {
+                        setShowRoomList(false);
+                        return;
+                      }
                       try {
+                        setJoiningRoomId(room.id);
+                        // Artificial delay for the cool animation effect
+                        await new Promise(resolve => setTimeout(resolve, 800));
+
                         const res = await fetch(`${MATCHMAKER_URL}/api/lobby/join`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ otp: room.id, clientNodeId: `desktop-${window.docuSync?.nodeId || Date.now()}` })
+                          body: JSON.stringify({ otp: room.id, clientNodeId: `desktop-${Date.now()}` })
                         });
                         const data = await res.json();
                         if (!res.ok) throw new Error(data.error);
                         
-                        const connectRes = await window.docuSync.connectPeer(data.hostIp, data.hostPort);
+                        const connectRes = await window.docuSync.connectToPeer(data.hostIp, data.hostPort);
                         if (!connectRes.success) throw new Error(connectRes.error ?? 'Connection failed');
                         
                         setCurrentRoom({ id: room.id, name: data.roomName, isHost: false });
-                        toast.success('Successfully joined the room!');
+                        setShowRoomList(false);
                       } catch (err: any) {
                         toast.error(`Failed to join: ${err.message}`);
+                      } finally {
+                        setJoiningRoomId(null);
                       }
                     }}>
-                      Join Room
+                      {joiningRoomId === room.id ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
+                          Connecting...
+                        </>
+                      ) : (
+                        currentRoom?.id === room.id ? 'Return to Room' : 'Join Room'
+                      )}
                     </button>
                   </div>
                 ))}
@@ -514,26 +593,89 @@ const FilesPage: React.FC = () => {
         )}
 
         {/* Selected Room Drill-down View */}
-        {activeTab === 'peer_rooms' && currentRoom && (
+        {activeTab === 'peer_rooms' && currentRoom && !showRoomList && (
           <React.Fragment>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, marginTop: 12 }}>
-              <button 
-                onClick={() => {
-                  if (window.confirm("Are you sure you want to leave this room?")) {
-                    setCurrentRoom(null);
-                  }
+
+            {showLeaveConfirm && (
+              <div style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999,
+                animation: 'fadeIn 0.2s ease'
+              }}>
+                <div style={{
+                  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12,
+                  padding: 24, width: 400, maxWidth: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
+                  animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, color: '#ef4444' }}>
+                    <LogOut size={24} />
+                    <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>Leave Session?</h2>
+                  </div>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
+                    Are you sure you want to permanently leave <strong>{currentRoom.name}</strong>? You will be disconnected from all peers and lose access to live files.
+                  </p>
+                  <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                    <button 
+                      className="ds-btn ds-btn-ghost" 
+                      onClick={() => setShowLeaveConfirm(false)}
+                      disabled={isLeaving}
+                      style={{ border: '1px solid var(--border)' }}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      className="ds-btn"
+                      style={{ background: '#ef4444', color: 'white', border: 'none', opacity: isLeaving ? 0.7 : 1 }}
+                      disabled={isLeaving}
+                      onClick={async () => {
+                        setIsLeaving(true);
+                        await new Promise(r => setTimeout(r, 600)); // cool animation delay
+                        try { await window.docuSync.terminateSession(); } catch (e) { console.error('Failed to terminate session', e); }
+                        setCurrentRoom(null);
+                        setIsLeaving(false);
+                        setShowLeaveConfirm(false);
+                      }}
+                    >
+                      {isLeaving ? <><Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} /> Leaving...</> : 'Yes, Leave Session'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 24, marginTop: 12, animation: 'fadeIn 0.2s ease' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button 
+                  onClick={() => setShowRoomList(true)}
+                  className="ds-btn ds-btn-ghost"
+                  style={{ padding: '6px 12px', border: '1px solid var(--border)', background: 'var(--bg-card)', transition: 'all 0.2s' }}
+                  title="Go back to list of rooms"
+                >
+                  <ArrowLeft size={14} /> Back
+                </button>
+                <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                  {currentRoom.name}
+                </h2>
+                <span style={{ fontSize: 12, background: `var(--bg-card-hover)`, color: 'var(--text-primary)', padding: '2px 8px', borderRadius: 20, fontWeight: 600, border: '1px solid var(--border)' }}>
+                  {currentRoom.id.startsWith('direct-') ? 'Direct IP' : `OTP: ${currentRoom.id}`}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowLeaveConfirm(true)}
+                className="ds-btn"
+                style={{ 
+                  padding: '6px 12px', 
+                  background: 'rgba(239, 68, 68, 0.1)', 
+                  color: '#ef4444', 
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  transition: 'all 0.2s'
                 }}
-                className="ds-btn ds-btn-ghost"
-                style={{ padding: '6px 12px', border: '1px solid var(--border)', background: 'var(--bg-card)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
               >
-                <ArrowLeft size={14} /> Leave
+                <LogOut size={14} /> Leave Session
               </button>
-              <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                {currentRoom.name}
-              </h2>
-              <span style={{ fontSize: 12, background: `var(--bg-card-hover)`, color: 'var(--text-primary)', padding: '2px 8px', borderRadius: 20, fontWeight: 600, border: '1px solid var(--border)' }}>
-                {currentRoom.id.startsWith('direct-') ? 'Direct IP' : `OTP: ${currentRoom.id}`}
-              </span>
             </div>
             
             {/* Active Peers Bar */}
@@ -608,7 +750,8 @@ const FilesPage: React.FC = () => {
                       key={file.fileId}
                       file={file as unknown as OpenedFile}
                       hasConflict={false}
-                      onClick={() => {}}
+                      onClick={() => handleOpenRoomFile(file)}
+                      onCheckout={() => handleCheckout(file as unknown as OpenedFile)}
                     />
                   ))}
                 </div>

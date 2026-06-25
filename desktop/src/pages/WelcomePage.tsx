@@ -29,19 +29,27 @@ const WelcomePage: React.FC = () => {
         </div>
         
         <h1 style={{ 
-          fontSize: '3rem', 
+          fontSize: '3.5rem', 
           fontWeight: 800, 
-          background: 'linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%)',
+          background: 'linear-gradient(135deg, #ffffff 0%, #818cf8 100%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           marginBottom: '1rem',
-          letterSpacing: '-0.02em'
+          letterSpacing: '-0.03em',
+          textShadow: '0 4px 30px rgba(129, 140, 248, 0.3)'
         }}>
           Welcome to DocuSync
         </h1>
         
-        <p style={{ fontSize: '1.15rem', color: 'var(--text-secondary)', maxWidth: 550, marginBottom: '3.5rem', lineHeight: 1.6 }}>
-          A secure, fully decentralized file synchronization engine. No cloud servers, no subscriptions. Your data syncs directly between your trusted devices.
+        <p style={{ 
+          fontSize: '1.25rem', 
+          color: 'var(--text-secondary)', 
+          maxWidth: 600, 
+          marginBottom: '3.5rem', 
+          lineHeight: 1.6,
+          fontWeight: 500 
+        }}>
+          The ultimate decentralized workspace. Experience seamless, peer-to-peer file synchronization with zero cloud reliance. Secure, lightning-fast, and entirely yours.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '4rem', width: '100%', textAlign: 'left' }}>

@@ -12,6 +12,34 @@ import TitleBar from '@/components/TitleBar';
 import Sidebar from '@/components/Sidebar';
 import RightPanel from '@/components/RightPanel';
 import { ShieldAlert, Check, X } from 'lucide-react';
+import { useElectronSync } from '@/context/ElectronSyncContext';
+
+/** Component to ping the Next.js matchmaker with heartbeat */
+const GlobalHeartbeat: React.FC = () => {
+  const { localNodeId, isAdmin } = useElectronSync();
+
+  useEffect(() => {
+    if (!localNodeId || isAdmin) return; // Admins don't need to heartbeat
+
+    const pingHeartbeat = async () => {
+      try {
+        await fetch('http://localhost:3000/api/lobby/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nodeId: localNodeId })
+        });
+      } catch (err) {
+        // ignore errors if server is down
+      }
+    };
+
+    pingHeartbeat();
+    const interval = setInterval(pingHeartbeat, 30000); // every 30 seconds
+    return () => clearInterval(interval);
+  }, [localNodeId, isAdmin]);
+
+  return null;
+};
 
 /** Modal that listens for auth:verify-request and prompts the user */
 const GlobalVerifyModal: React.FC = () => {
@@ -220,6 +248,8 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const App: React.FC = () => (
   <ThemeProvider>
     <ElectronSyncProvider>
+      <GlobalVerifyModal />
+      <GlobalHeartbeat />
       <HashRouter>
         <Routes>
           <Route path="/vault-login" element={

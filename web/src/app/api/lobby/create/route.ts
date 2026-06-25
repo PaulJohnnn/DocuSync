@@ -22,6 +22,7 @@ export async function POST(request: Request) {
     const hostIp: string     = body.hostIp     || body.ip;
     const hostPort: number   = Number(body.hostPort ?? body.port ?? 9000);
     const roomName: string   = body.roomName   || 'Unnamed Room';
+    const hostType: 'desktop' | 'web' | 'mobile' = body.hostType || 'desktop';
 
     if (!hostNodeId || !hostIp) {
       return NextResponse.json(
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
       hostNodeId,
       hostIp,
       hostPort,
+      hostType,
       createdAt: now,
       expiresAt: now + 60 * 60 * 1000, // 60 minutes
       members: [hostNodeId],

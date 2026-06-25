@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import { Wifi, WifiOff, Link2, Users, X, Copy, CheckCircle } from 'lucide-react';
 
@@ -29,6 +30,7 @@ interface RoomInfo {
 }
 
 export default function PeersPage() {
+  const router = useRouter();
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const [otp, setOtp] = useState('');
   const [joining, setJoining] = useState(false);
@@ -68,7 +70,8 @@ export default function PeersPage() {
         body: JSON.stringify({
           hostNodeId: `web-${crypto.randomUUID()}`,
           hostIp: window.location.hostname || 'localhost',
-          hostPort: 9000,
+          hostPort: 3000,
+          hostType: 'web',
           roomName: roomName.trim(),
         }),
       });
@@ -79,6 +82,7 @@ export default function PeersPage() {
       const room: RoomInfo = { id: data.otp, name: roomName.trim(), memberCount: 1 };
       setCurrentRoom(room);
       localStorage.setItem('docusync_current_room', JSON.stringify(room));
+      router.push('/app/files?tab=peer_rooms');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to generate OTP');
     } finally {
@@ -119,6 +123,7 @@ export default function PeersPage() {
       setCurrentRoom(room);
       localStorage.setItem('docusync_current_room', JSON.stringify(room));
       alert('Successfully joined the room!');
+      router.push('/app/files?tab=peer_rooms');
 
       // Add peer to list
       const newPeer: PeerInfo = {

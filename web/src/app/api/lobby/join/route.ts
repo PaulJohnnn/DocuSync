@@ -65,6 +65,7 @@ export async function POST(request: Request) {
         hostNodeId: lobby.hostNodeId,
         hostIp: lobby.hostIp,
         hostPort: lobby.hostPort,
+        hostType: lobby.hostType || 'desktop',
         memberCount: lobby.members.length,
         // Legacy compat fields
         ip: lobby.hostIp,

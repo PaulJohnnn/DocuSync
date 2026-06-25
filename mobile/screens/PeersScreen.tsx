@@ -194,7 +194,7 @@ export default function PeersScreen({ navigation }: any) {
 
       if (connected) {
         Alert.alert('Connected', `Joined session at ${lobbyIp}:${lobbyPort}.`);
-        navigation.navigate('Files');
+        navigation.navigate('Files', { tab: 'peer_rooms' });
       }
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Invalid OTP');

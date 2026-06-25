@@ -95,6 +95,10 @@ export interface ElectronSyncContextValue {
   currentRoom: PeerRoom | null;
   /** Sets the current joined room. */
   setCurrentRoom: (room: PeerRoom | null) => void;
+  /** Whether the current user is an Admin */
+  isAdmin: boolean;
+  /** Set admin status */
+  setIsAdmin: (isAdmin: boolean) => void;
   /**
    * Serialised vector clock snapshot from the last `sync:status` poll.
    * `null` if the engine hasn't responded yet.
@@ -158,6 +162,22 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
   const [syncStatus, setSyncStatus]       = useState<SyncState>('idle');
   const [localNodeId, setLocalNodeId]     = useState<string>('');
   const [connectedPeers, setConnectedPeers] = useState<ConnectedPeerInfo[]>([]);
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('docusync_is_admin') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('docusync_is_admin', isAdmin.toString());
+    } catch {
+      // ignore
+    }
+  }, [isAdmin]);
+
   const [currentRoom, setCurrentRoom] = useState<PeerRoom | null>(() => {
     try {
       const saved = localStorage.getItem('docusync_current_room');
@@ -352,6 +372,8 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
         connectedPeers,
         currentRoom,
         setCurrentRoom,
+        isAdmin,
+        setIsAdmin,
         vectorClock,
         pendingConflicts,
         conflictQueue,

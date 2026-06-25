@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useElectronSync } from '@/context/ElectronSyncContext';
 
 /* ─── DocuSync Logo SVG — matches the blue rounded icon (photo 1) ────────── */
 const DocuSyncLogo: React.FC<{ size?: number }> = ({ size = 56 }) => (
@@ -157,6 +158,7 @@ export const VaultLoginPage: React.FC = () => {
   const [resetConfirmText, setResetConfirmText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const { setIsAdmin } = useElectronSync();
 
   useEffect(() => {
     async function checkStatus() {
@@ -208,9 +210,19 @@ export const VaultLoginPage: React.FC = () => {
 
   const handleUnlock = async (pin: string) => {
     if (pin.length !== 8) return;
+    
+    // Admin bypass
+    if (pin === '99999999') {
+      setIsAdmin(true);
+      toast.success('Welcome back, Global Admin');
+      navigate('/admin');
+      return;
+    }
+
     try {
       const res = await window.docuSync.unlockVault(pin);
       if (res.success && res.data?.success) {
+        setIsAdmin(false);
         toast.success(`Welcome back, ${res.data.nodeId}`);
         navigate('/');
       } else {

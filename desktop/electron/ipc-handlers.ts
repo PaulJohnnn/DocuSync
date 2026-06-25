@@ -58,7 +58,7 @@ import type { VectorClockJSON } from '../src/engine/vector-clock/vector-clock';
  * set are rejected with a descriptive error message.
  */
 const ALLOWED_EXTENSIONS: ReadonlySet<string> = new Set([
-  '.txt', '.md', '.json', '.csv'
+  '.txt', '.md', '.json', '.csv', '.ts', '.tsx', '.js', '.jsx', '.css', '.html', '.docx', '.doc', ''
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -143,12 +143,8 @@ function generateUUID(): string {
  */
 function validateExtension(filePath: string): string | null {
   const ext = path.extname(filePath).toLowerCase();
-  if (ext === '') {
-    // Extensionless files (e.g., Makefile, Dockerfile) — allow.
-    return null;
-  }
-  if (!ALLOWED_EXTENSIONS.has(ext)) {
-    return "Error: Binary file detected. DocuSync's delta engine only supports UTF-8 plain text files (.txt, .md).";
+  if (ext !== '' && !ALLOWED_EXTENSIONS.has(ext)) {
+    return `Unsupported file type: ${ext || 'none'}. Allowed: ${Array.from(ALLOWED_EXTENSIONS).filter(Boolean).join(', ')}, or no extension`;
   }
   return null;
 }
@@ -323,10 +319,23 @@ export async function initEngine(
   // Pending verification requests
   const verifyResolvers = new Map<string, (allow: boolean) => void>();
 
+  // Resolve LAN IP for display name
+  let lanIp = '127.0.0.1';
+  const nets = require('os').networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      if (net.family === 'IPv4' && !net.internal) {
+        lanIp = net.address;
+        break;
+      }
+    }
+    if (lanIp !== '127.0.0.1') break;
+  }
+
   // ── Peer Manager ───────────────────────────────────────────────
   const peerManager = createPeerManager({
     localNodeId,
-    localDisplayName: require('os').hostname(),
+    localDisplayName: lanIp,
     nodeCount,
     nodeIndex,
     prisma,
@@ -561,9 +570,10 @@ export function registerIPCHandlers(services: EngineServices): void {
         const result = await dialog.showOpenDialog({
           properties: ['openFile'],
           filters: [
+            { name: 'Word Documents', extensions: ['docx', 'doc'] },
             {
-              name: 'Text Files',
-              extensions: [...ALLOWED_EXTENSIONS].map((e) => e.replace('.', '')),
+              name: 'Text & Code Files',
+              extensions: ['txt', 'md', 'json', 'csv', 'ts', 'tsx', 'js', 'jsx', 'css', 'html'],
             },
             { name: 'All Files', extensions: ['*'] },
           ],
@@ -587,8 +597,20 @@ export function registerIPCHandlers(services: EngineServices): void {
         throw new Error(`File not found: "${filePath}".`);
       }
 
-      const content = await fs.promises.readFile(filePath, 'utf-8');
       const ext = path.extname(filePath).toLowerCase();
+      let content: string;
+
+      if (ext === '.docx' || ext === '.doc') {
+        // Parse Word documents as plain text using mammoth
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const mammoth = require('mammoth');
+        const buffer = await fs.promises.readFile(filePath);
+        const result = await mammoth.extractRawText({ buffer });
+        content = result.value;
+        console.log(`[IPC] file:open (docx) → extracted ${content.length} chars from ${filePath}`);
+      } else {
+        content = await fs.promises.readFile(filePath, 'utf-8');
+      }
 
       // ── Register in memory ──────────────────────────────────────
       const newFileId = services.nextFileId++;
@@ -603,6 +625,61 @@ export function registerIPCHandlers(services: EngineServices): void {
         fileName: path.basename(filePath),
         content,
         extension: ext,
+        contentLength: Buffer.byteLength(content, 'utf-8'),
+      };
+    })
+  );
+
+  // ── file:import-room-file ──────────────────────────────────────────
+  /**
+   * Imports a file from the matchmaker room into the local system.
+   * Saves it to the user's Downloads/DocuSync folder and opens it.
+   */
+  ipcMain.handle(
+    'file:import-room-file',
+    safeHandler(async (...args: unknown[]) => {
+      const fileName = args[0] as string;
+      const content = args[1] as string;
+      const explicitFileId = args[2] as number | undefined;
+
+      if (!fileName || typeof content !== 'string') {
+        throw new Error('file:import-room-file requires (fileName: string, content: string).');
+      }
+
+      // Create DocuSync directory in Downloads if it doesn't exist
+      const { app } = require('electron');
+      const docuSyncDir = path.join(app.getPath('downloads'), 'DocuSync');
+      if (!fs.existsSync(docuSyncDir)) {
+        await fs.promises.mkdir(docuSyncDir, { recursive: true });
+      }
+
+      // Handle duplicate names by appending a timestamp or UUID
+      const ext = path.extname(fileName);
+      const base = path.basename(fileName, ext);
+      const uniqueName = `${base}_${Date.now()}${ext}`;
+      const destPath = path.join(docuSyncDir, uniqueName);
+
+      // Write content to disk
+      await fs.promises.writeFile(destPath, content, 'utf-8');
+
+      // Now open it using the same logic as file:open
+      const extLower = ext.toLowerCase();
+      
+      const newFileId = explicitFileId !== undefined ? explicitFileId : services.nextFileId++;
+      if (explicitFileId !== undefined && explicitFileId >= services.nextFileId) {
+        services.nextFileId = explicitFileId + 1;
+      }
+      openFiles.set(newFileId, destPath);
+      fileContents.set(newFileId, content);
+
+      console.log(`[IPC] file:import-room-file → ${destPath} (fileId=${newFileId})`);
+
+      return {
+        fileId: newFileId,
+        filePath: destPath,
+        fileName: uniqueName,
+        content,
+        extension: extLower.replace('.', ''),
         contentLength: Buffer.byteLength(content, 'utf-8'),
       };
     })

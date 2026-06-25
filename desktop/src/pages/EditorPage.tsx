@@ -2,12 +2,16 @@
  * @module EditorPage
  * TipTap rich-text document editor — route `/editor/:id`.
  * Full redesign: back button + filename, formatting toolbar, white editor, footer metrics.
+ * Includes real-time collaborative cursor presence (Google Docs-style).
  */
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { toast } from 'sonner';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import {
@@ -15,6 +19,89 @@ import {
   IconH1, IconH2, IconList, IconQuote, IconCode, IconRefresh, IconHistory,
 } from '@/components/Icons';
 import { formatBytes } from '@docusync/shared/utils/formatters';
+
+// ── Cursor Presence Config ───────────────────────────────────────────────────
+
+const MATCHMAKER = 'http://localhost:3000/api/lobby';
+
+/** 8 distinct peer cursor colours */
+const CURSOR_COLORS = [
+  '#e05252', '#e07e52', '#d4b84a', '#52aa5e',
+  '#4a90d9', '#7c52e0', '#d452b8', '#52c9d4',
+];
+
+function colorForNode(nodeId: string): string {
+  let hash = 0;
+  for (let i = 0; i < nodeId.length; i++) hash = (hash * 31 + nodeId.charCodeAt(i)) | 0;
+  return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length];
+}
+
+interface RemoteCursor {
+  nodeId: string;
+  displayName: string;
+  color: string;
+  from: number;
+  to: number;
+}
+
+const RemoteCursorsExtension = Extension.create({
+  name: 'remoteCursors',
+  addOptions() {
+    return {
+      cursors: [] as RemoteCursor[],
+    };
+  },
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('remoteCursors'),
+        state: {
+          init: () => DecorationSet.empty,
+          apply: (tr, oldState) => {
+            const cursors = this.options.cursors;
+            const decorations: Decoration[] = [];
+            const docSize = tr.doc.nodeSize;
+
+            cursors.forEach((c: RemoteCursor) => {
+              const from = Math.max(0, Math.min(c.from, docSize - 2));
+              const to = Math.max(0, Math.min(c.to, docSize - 2));
+
+              if (from === to) {
+                const cursorElement = document.createElement('span');
+                cursorElement.classList.add('collaboration-cursor__caret');
+                cursorElement.style.borderLeftColor = c.color;
+
+                const labelElement = document.createElement('div');
+                labelElement.classList.add('collaboration-cursor__label');
+                labelElement.style.backgroundColor = c.color;
+                labelElement.textContent = c.displayName;
+                cursorElement.appendChild(labelElement);
+
+                decorations.push(
+                  Decoration.widget(from, cursorElement, { side: 1 })
+                );
+              } else {
+                decorations.push(
+                  Decoration.inline(Math.min(from, to), Math.max(from, to), {
+                    class: 'collaboration-cursor__selection',
+                    style: `background-color: ${c.color}33`,
+                  })
+                );
+              }
+            });
+
+            return DecorationSet.create(tr.doc, decorations);
+          },
+        },
+        props: {
+          decorations(state) {
+            return this.getState(state);
+          },
+        },
+      }),
+    ];
+  },
+});
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -75,7 +162,7 @@ const EditorPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const fileId = useMemo(() => { const n = parseInt(id ?? '', 10); return Number.isFinite(n) ? n : null; }, [id]);
-  const { currentRoom, connectedPeers, vectorClock, pendingConflicts } = useElectronSync();
+  const { currentRoom, connectedPeers, vectorClock, pendingConflicts, localNodeId } = useElectronSync();
 
   const [filePath, setFilePath] = useState('');
   const [loading, setLoading] = useState(true);
@@ -85,8 +172,13 @@ const EditorPage: React.FC = () => {
   const [lastDeltaSize, setLastDeltaSize] = useState<number | null>(null);
   const [peersNotified, setPeersNotified] = useState(0);
   const [conflictBannerDismissed, setConflictBannerDismissed] = useState(false);
+  const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cursorBroadcastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevConflictCount = useRef(pendingConflicts);
+  const myNodeId = localNodeId || `anon-${Math.random().toString(36).slice(2, 8)}`;
+  const myColor = colorForNode(myNodeId);
+  const roomOtp = currentRoom?.id;
 
   useEffect(() => {
     if (pendingConflicts > prevConflictCount.current) setConflictBannerDismissed(false);
@@ -99,6 +191,7 @@ const EditorPage: React.FC = () => {
     extensions: [
       StarterKit,
       Placeholder.configure({ placeholder: 'Start writing… (auto-saves every 500 ms)' }),
+      RemoteCursorsExtension.configure({ cursors: [] }),
     ],
     content: '',
     editorProps: { attributes: { class: 'ProseMirror', 'data-testid': 'tiptap-editor' } },
@@ -106,9 +199,62 @@ const EditorPage: React.FC = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => { performSave(e.getHTML()); }, 500);
     },
+    onSelectionUpdate: ({ editor: e }) => {
+      // Broadcast cursor position to matchmaker whenever selection changes
+      if (!roomOtp || !fileId) return;
+      const { from, to } = e.state.selection;
+      if (cursorBroadcastRef.current) clearTimeout(cursorBroadcastRef.current);
+      cursorBroadcastRef.current = setTimeout(() => {
+        fetch(`${MATCHMAKER}/cursors`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            otp: roomOtp,
+            nodeId: myNodeId,
+            displayName: myNodeId.slice(0, 8),
+            color: myColor,
+            from,
+            to,
+            fileId,
+          }),
+        }).catch(() => {});
+      }, 100);
+    },
   });
 
-  useEffect(() => { return () => { if (debounceRef.current) clearTimeout(debounceRef.current); }; }, []);
+  // Cleanup debounce and cursor broadcast on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (cursorBroadcastRef.current) clearTimeout(cursorBroadcastRef.current);
+    };
+  }, []);
+
+  // ── Poll remote cursors ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!roomOtp || !fileId) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${MATCHMAKER}/cursors?otp=${roomOtp}&nodeId=${encodeURIComponent(myNodeId)}&fileId=${fileId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setRemoteCursors(data.cursors || []);
+        
+        // Update TipTap RemoteCursorsExtension
+        if (editor) {
+          const ext = editor.extensionManager.extensions.find(e => e.name === 'remoteCursors');
+          if (ext) {
+            ext.options.cursors = data.cursors || [];
+            editor.view.dispatch(editor.state.tr.setMeta('remoteCursorsUpdate', true));
+          }
+        }
+      } catch { /* matchmaker not running */ }
+    };
+    poll();
+    const iv = setInterval(poll, 1000);
+    return () => clearInterval(iv);
+  }, [roomOtp, fileId, myNodeId, editor]);
 
   // ── File load ─────────────────────────────────────────────────────────────
 
@@ -326,6 +472,37 @@ const EditorPage: React.FC = () => {
       {/* Editor */}
       {!loading && !loadError && editor && (
         <>
+          {/* Active users bar — shown when in a room with remote peers */}
+          {remoteCursors.length > 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '5px 16px',
+              background: 'rgba(79,125,248,0.06)',
+              borderBottom: '1px solid var(--border)',
+              flexShrink: 0, flexWrap: 'wrap',
+            }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>Also editing:</span>
+              {remoteCursors.map(c => (
+                <span
+                  key={c.nodeId}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: `${c.color}22`,
+                    border: `1px solid ${c.color}66`,
+                    borderRadius: 99,
+                    padding: '1px 8px',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: c.color,
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.color, display: 'inline-block' }} />
+                  {c.displayName}
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Formatting toolbar */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 2,
@@ -356,17 +533,62 @@ const EditorPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Editor sheet — white with shadow */}
+          {/* Editor sheet — white with shadow + remote cursor overlays */}
           <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg-base)', padding: '24px' }}>
-            <div style={{
-              background: '#fff',
-              maxWidth: 760,
-              margin: '0 auto',
-              borderRadius: 12,
-              boxShadow: '0 2px 20px rgba(0,0,0,0.4)',
-              overflow: 'hidden',
-            }}>
+            <div style={{ position: 'relative', background: '#fff', maxWidth: 760, margin: '0 auto', borderRadius: 12, boxShadow: '0 2px 20px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
               <EditorContent editor={editor} style={{ minHeight: 480 }} />
+
+              {/* Remote cursor carets — rendered as thin lines with labels */}
+              {remoteCursors.map(cursor => {
+                // Find the DOM position of the cursor using ProseMirror's coordsAtPos
+                try {
+                  const coords = editor.view.coordsAtPos(Math.min(cursor.from, editor.state.doc.content.size));
+                  const editorDom = editor.view.dom.getBoundingClientRect();
+                  const left = coords.left - editorDom.left;
+                  const top = coords.top - editorDom.top;
+                  return (
+                    <div
+                      key={cursor.nodeId}
+                      style={{
+                        position: 'absolute',
+                        left: Math.max(0, left),
+                        top: Math.max(0, top),
+                        pointerEvents: 'none',
+                        zIndex: 10,
+                      }}
+                    >
+                      {/* The blinking caret line */}
+                      <div style={{
+                        width: 2,
+                        height: 20,
+                        background: cursor.color,
+                        borderRadius: 1,
+                        animation: 'ds-cursor-blink 1.1s ease-in-out infinite',
+                      }} />
+                      {/* The name label above the caret */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '100%',
+                        left: 0,
+                        background: cursor.color,
+                        color: '#fff',
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '1px 5px',
+                        borderRadius: '3px 3px 3px 0',
+                        whiteSpace: 'nowrap',
+                        marginBottom: 1,
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                        letterSpacing: '0.02em',
+                      }}>
+                        {cursor.displayName}
+                      </div>
+                    </div>
+                  );
+                } catch {
+                  return null;
+                }
+              })}
             </div>
           </div>
         </>

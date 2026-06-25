@@ -59,7 +59,8 @@ export type EventType =
   | 'merge'
   | 'conflict-resolve'
   | 'restore'
-  | 'offline-replay';
+  | 'offline-replay'
+  | 'checkout';
 
 /**
  * Input data for appending a new event to the log.

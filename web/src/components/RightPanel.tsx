@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Activity, Clock, Zap, Shield, Hash } from 'lucide-react';
+import { Activity, Clock, Zap, Shield, Hash, PanelRightClose, PanelRightOpen } from 'lucide-react';
 
 type Tab = 'engine' | 'clocks' | 'delta';
 
@@ -15,6 +15,7 @@ export default function RightPanel() {
   const [tab, setTab] = useState<Tab>('engine');
   const [counters, setCounters] = useState({ events: 0, merges: 0, deltas: 0, conflicts: 0 });
   const [vcState, setVcState] = useState<number[]>([0, 0, 0]);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     const iv = setInterval(() => {
@@ -29,17 +30,42 @@ export default function RightPanel() {
     return () => clearInterval(iv);
   }, []);
 
+  if (isCollapsed) {
+    return (
+      <aside style={{
+        width: 48, minWidth: 48, height: '100vh',
+        background: 'var(--bg2)', borderLeft: '1px solid var(--b1)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 16,
+        transition: 'width 0.2s'
+      }}>
+        <button onClick={() => setIsCollapsed(false)} style={{
+          background: 'transparent', border: 'none', color: 'var(--t3)', cursor: 'pointer',
+          padding: 8, borderRadius: 8
+        }} title="Expand Engine Panel" onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+          <PanelRightOpen size={18} />
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside style={{
       width: 270, minWidth: 270, height: '100vh',
       background: 'var(--bg2)', borderLeft: '1px solid var(--b1)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      transition: 'width 0.2s'
     }}>
       {/* Tabs */}
       <div style={{
         display: 'flex', borderBottom: '1px solid var(--b1)',
-        padding: '0 8px',
+        padding: '0 8px', alignItems: 'center'
       }}>
+        <button onClick={() => setIsCollapsed(true)} style={{
+          background: 'transparent', border: 'none', color: 'var(--t3)', cursor: 'pointer',
+          padding: '8px 4px', marginRight: 4, display: 'flex', alignItems: 'center'
+        }} title="Collapse Engine Panel">
+          <PanelRightClose size={14} />
+        </button>
         {(['engine', 'clocks', 'delta'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             flex: 1, padding: '10px 0', fontSize: 11,

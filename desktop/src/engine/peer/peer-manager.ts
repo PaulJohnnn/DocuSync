@@ -37,6 +37,7 @@ import {
   type MergeAcceptMessage,
   type UserVerifyMessage,
   type UserVerifyResponseMessage,
+  type SessionTerminatedMessage,
 } from './message-schema';
 import { EventLogService } from '../log-sync/event-log';
 import { decode } from '../delta/delta-decoder';

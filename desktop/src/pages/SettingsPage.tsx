@@ -88,7 +88,7 @@ const ExtTag: React.FC<{ ext: string; rejected?: boolean }> = ({ ext, rejected =
 
 const SettingsPage: React.FC = () => {
   const [nodeId, setNodeId] = useState<string>('Loading…');
-  const [activeTab, setActiveTab] = useState<'account' | 'system' | 'files' | 'metrics' | 'about'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'system' | 'files' | 'about'>('account');
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -96,13 +96,6 @@ const SettingsPage: React.FC = () => {
   const [cacheRowCount, setCacheRowCount] = useState<number | null>(null);
   const [cleanupResult, setCleanupResult] = useState<{ deletedCount: number; totalAfter: number } | null>(null);
   const [cleaningUp, setCleaningUp] = useState(false);
-
-  // Benchmark State
-  const [benchStatus, setBenchStatus] = useState<'idle' | 'running' | 'done'>('idle');
-  const [logs, setLogs] = useState<string[]>(['> Ready to execute Live Algorithm Verification...']);
-  const [deltaData, setDeltaData] = useState<any[]>([]);
-  const [latencyData, setLatencyData] = useState<any[]>([]);
-  const [accuracy, setAccuracy] = useState<number>(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,69 +129,7 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const addLog = (msg: string) => setLogs(prev => [...prev, msg]);
 
-  const runLiveBenchmark = async () => {
-    setBenchStatus('running');
-    setLogs(['> Executing Algorithm Verification (Live Engine)...']);
-    setDeltaData([]); setLatencyData([]); setAccuracy(0);
-
-    // 1. Vector Clock Test
-    await new Promise(r => setTimeout(r, 600));
-    try {
-      const v1 = new VectorClock('nodeA');
-      const v2 = new VectorClock('nodeB');
-      v1.increment(); v2.increment(); v2.increment();
-      v1.merge(v2);
-      if (v1.get('nodeA') === 1 && v1.get('nodeB') === 2) {
-        addLog('> Vector Clocks... PASS');
-      } else throw new Error();
-    } catch {
-      addLog('> Vector Clocks... FAIL');
-    }
-
-    // 2. Delta Encoding Test
-    await new Promise(r => setTimeout(r, 600));
-    try {
-      const dData = [];
-      let baseText = "Thesis Introduction.\\nThis is a research document.\\n";
-      for (let i = 1; i <= 10; i++) {
-        const newText = baseText + `Added paragraph ${i}. Edit sequence initiated.\\n`;
-        const result = encode(baseText, newText, 'test.txt');
-        dData.push({ edit: i, rawSize: result.originalSizeBytes, deltaSize: result.deltaSizeBytes });
-        baseText = newText;
-        // Simulate minor processing time
-        await new Promise(r => setTimeout(r, 50));
-      }
-      setDeltaData(dData);
-      addLog('> Delta Encoding... PASS (Compression verified)');
-    } catch (err: any) {
-      addLog('> Delta Encoding... FAIL');
-    }
-
-    // 3. LWW Conflict Resolution & Event Log Sync Simulation
-    await new Promise(r => setTimeout(r, 600));
-    addLog('> LWW Conflict Resolution... PASS');
-    
-    await new Promise(r => setTimeout(r, 400));
-    addLog('> Event Log Sync... PASS');
-    
-    await new Promise(r => setTimeout(r, 400));
-    addLog('> External Dependencies Used: 0 (100% Custom implementation)');
-    
-    await new Promise(r => setTimeout(r, 400));
-    // Simulate latency metrics
-    setLatencyData([
-      { name: 'Average', ms: 5.17 },
-      { name: 'p95', ms: 15.26 },
-      { name: 'Maximum', ms: 19.31 },
-    ]);
-    
-    // Simulate Accuracy verification
-    setAccuracy(100);
-    addLog('> Total Live In-Browser Tests Passed: 60/60');
-    setBenchStatus('done');
-  };
 
   const CONFIG_ROWS = [
     { setting: 'Node ID',              value: nodeId },
@@ -223,7 +154,7 @@ const SettingsPage: React.FC = () => {
         
         {/* Left Sidebar Tabs */}
         <div style={{ width: '240px', display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
-          {['account', 'system', 'files', 'metrics', 'about'].map(tab => (
+          {['account', 'system', 'files', 'about'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
@@ -240,7 +171,6 @@ const SettingsPage: React.FC = () => {
               {tab === 'account' && <><User size={18} /> Account & Appearance</>}
               {tab === 'system' && <><Cpu size={18} /> System & Engine</>}
               {tab === 'files' && <><FolderSync size={18} /> File Management</>}
-              {tab === 'metrics' && <><Activity size={18} /> Live Metrics Test</>}
               {tab === 'about' && <><Info size={18} /> About DocuSync</>}
             </button>
           ))}
@@ -373,119 +303,7 @@ const SettingsPage: React.FC = () => {
             </div>
           )}
 
-          {activeTab === 'metrics' && (
-            <div className="ds-page-enter">
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <div>
-                  <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--ds-text)' }}>System Evaluation Dashboard</h2>
-                  <p style={{ fontSize: '0.9rem', color: 'var(--ds-text3)', margin: '4px 0 0 0' }}>Live CRDT & Delta Benchmark Suite</p>
-                </div>
-                <button
-                  onClick={runLiveBenchmark}
-                  disabled={benchStatus === 'running'}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px',
-                    background: benchStatus === 'running' ? 'var(--ds-border)' : 'var(--ds-accent)',
-                    color: benchStatus === 'running' ? 'var(--ds-text3)' : '#fff',
-                    border: 'none', borderRadius: '8px', fontWeight: 600, cursor: benchStatus === 'running' ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  {benchStatus === 'running' ? <Activity className="ds-pulse" size={16} /> : benchStatus === 'done' ? <CheckCircle size={16} /> : <Play size={16} />}
-                  {benchStatus === 'running' ? 'Running Tests...' : benchStatus === 'done' ? 'Re-run Benchmark' : 'Run Live Benchmark'}
-                </button>
-              </div>
 
-              <div className="ds-card" style={{ padding: '2rem', textAlign: 'center', background: 'var(--ds-surface)', border: '1px solid var(--ds-border)', marginBottom: '1.5rem' }}>
-                <h2 style={{ margin: 0, fontSize: '1rem', color: 'var(--ds-text3)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                  System Sync Accuracy Rate
-                </h2>
-                <div style={{ fontSize: '4.5rem', fontWeight: 800, color: accuracy > 0 ? 'var(--ds-green)' : 'var(--ds-text3)', marginTop: '0.5rem', textShadow: accuracy > 0 ? '0 0 20px rgba(30, 199, 106, 0.2)' : 'none' }}>
-                  {accuracy > 0 ? `${accuracy}%` : '---'}
-                </div>
-                <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: 'var(--ds-text2)' }}>
-                  Calculated dynamically by running `VectorClock.merge()` and `LWWResolver`.
-                  <br/>
-                  {accuracy > 0 && <span style={{ color: 'var(--ds-green)', fontWeight: 600 }}>✓ Live Test Passed</span>}
-                </p>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                <div className="ds-card" style={{ padding: '1.5rem', background: 'var(--ds-surface)' }}>
-                  <h3 style={{ margin: '0 0 1.5rem 0', fontSize: '0.9rem', color: 'var(--ds-text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Zap size={16} style={{ color: 'var(--ds-accent)' }} /> 
-                    Live Delta Efficiency (Bytes)
-                  </h3>
-                  <div style={{ height: 260, width: '100%' }}>
-                    {deltaData.length > 0 ? (
-                      <ResponsiveContainer>
-                        <LineChart data={deltaData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                          <XAxis dataKey="edit" stroke="var(--ds-text3)" fontSize={12} tickLine={false} axisLine={false} />
-                          <YAxis stroke="var(--ds-text3)" fontSize={12} tickLine={false} axisLine={false} />
-                          <Tooltip contentStyle={{ backgroundColor: 'var(--ds-bg)', borderColor: 'var(--ds-border)' }} />
-                          <Legend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
-                          <Line type="monotone" dataKey="rawSize" name="Raw Text" stroke="#ef4444" strokeWidth={3} dot={{ r: 4 }} />
-                          <Line type="monotone" dataKey="deltaSize" name="Encoded Delta" stroke="#10b981" strokeWidth={3} dot={{ r: 4 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ds-text3)', fontSize: '0.9rem' }}>
-                        Click "Run Live Benchmark" to plot
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="ds-card" style={{ padding: '1.5rem', background: 'var(--ds-surface)' }}>
-                  <h3 style={{ margin: '0 0 1.5rem 0', fontSize: '0.9rem', color: 'var(--ds-text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Activity size={16} style={{ color: 'var(--ds-accent)' }} /> 
-                    P2P Latency (ms)
-                  </h3>
-                  <div style={{ height: 260, width: '100%' }}>
-                    {latencyData.length > 0 ? (
-                      <ResponsiveContainer>
-                        <BarChart data={latencyData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                          <XAxis dataKey="name" stroke="var(--ds-text3)" fontSize={12} tickLine={false} axisLine={false} />
-                          <YAxis stroke="var(--ds-text3)" fontSize={12} tickLine={false} axisLine={false} />
-                          <Tooltip cursor={{ fill: 'rgba(255,255,255,0.02)' }} contentStyle={{ backgroundColor: 'var(--ds-bg)', borderColor: 'var(--ds-border)' }} />
-                          <Bar dataKey="ms" name="Latency (ms)" fill="var(--ds-accent)" radius={[4, 4, 0, 0]} barSize={40} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ds-text3)', fontSize: '0.9rem' }}>
-                        Awaiting data...
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Hacker Terminal Panel */}
-              <div className="ds-card" style={{ 
-                background: '#09090b', border: '1px solid #27272a', padding: '1.25rem', fontFamily: 'monospace',
-                boxShadow: benchStatus === 'running' ? '0 0 15px rgba(16, 185, 129, 0.1)' : 'none',
-                transition: 'box-shadow 0.3s ease'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem', borderBottom: '1px solid #27272a', paddingBottom: '0.75rem' }}>
-                  <Shield size={16} style={{ color: '#10b981' }} />
-                  <span style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 600 }}>Live Execution & Security Audit</span>
-                  {benchStatus === 'running' && <span className="ds-pulse" style={{ color: '#10b981', fontSize: '0.85rem', marginLeft: 'auto' }}>_</span>}
-                </div>
-                <div style={{ color: '#10b981', fontSize: '0.85rem', lineHeight: '1.8', display: 'flex', flexDirection: 'column', gap: '6px', minHeight: '140px' }}>
-                  {logs.map((log, idx) => (
-                    <div key={idx} style={{ animation: `fadeIn 0.2s ease-out forwards` }}>
-                      {log}
-                    </div>
-                  ))}
-                  {benchStatus === 'running' && <div style={{ color: '#a1a1aa' }}>Processing algorithms...</div>}
-                </div>
-              </div>
-
-            </div>
-          )}
 
           {activeTab === 'about' && (
             <div className="ds-page-enter">
