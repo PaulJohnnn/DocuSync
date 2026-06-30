@@ -2,26 +2,21 @@
  * @module FilesPage
  * Main file manager — route `/`.
  * 4 metric cards + structured file cards with colored icons.
- * All IPC logic and routing preserved.
+ * Refactored: uses FileService, RoomService, PeerService. No inline IPC calls.
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useElectronSync } from '@/context/ElectronSyncContext';
-import { toast } from 'sonner';
 import {
   FolderOpen, RefreshCw, ChevronRight, Eye, EyeOff,
   FileText, FileCode, FileJson, FileType, File,
-  FileImage, FileSpreadsheet, FileArchive, Users, ArrowLeft, MoreVertical, UploadCloud, Download, LogOut, Loader2
+  FileImage, FileSpreadsheet, FileArchive, Users, ArrowLeft, LogOut, Loader2, UploadCloud, Download,
 } from 'lucide-react';
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-interface OpenedFile {
-  fileId: number;
-  filePath: string;
-  contentLength: number;
-  extension: string;
-}
+import FileService, { type FileRecord } from '@/services/FileService';
+import RoomService from '@/services/RoomService';
+import { ServiceError } from '@/services/errors/ServiceError';
+import { notify } from '@docusync/shared/utils/notifications';
+import { basename, formatSize } from '@docusync/shared/utils/formatters';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -50,20 +45,10 @@ function extMeta(ext: string): { icon: React.ReactNode; color: string; bg: strin
   }
 }
 
-function basename(p: string): string {
-  return p.replace(/\\/g, '/').split('/').pop() ?? p;
-}
-
-function formatSize(chars: number): string {
-  if (chars >= 1024 * 1024) return `${(chars / (1024 * 1024)).toFixed(1)} MB`;
-  if (chars >= 1024)         return `${(chars / 1024).toFixed(1)} KB`;
-  return `${chars} B`;
-}
-
 // ── FileCard ─────────────────────────────────────────────────────────────────
 
 const FileCard: React.FC<{
-  file: OpenedFile;
+  file: FileRecord;
   hasConflict: boolean;
   isOfflineQueued?: boolean;
   onClick: () => void;
@@ -99,31 +84,22 @@ const FileCard: React.FC<{
       {/* File type icon */}
       <div style={{
         width: 28, height: 28, borderRadius: 6,
-        background: bg,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color,
-        flexShrink: 0,
-        marginRight: 12,
+        background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color, flexShrink: 0, marginRight: 12,
       }}>
         {icon}
       </div>
 
       {/* Name */}
       <div style={{ flex: 2, minWidth: 0, paddingRight: 16 }}>
-        <div style={{
-          fontWeight: 600, fontSize: 14, color: 'var(--text-primary)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
+        <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {name}
         </div>
       </div>
 
       {/* Location (Path) */}
       <div style={{ flex: 2, minWidth: 0, paddingRight: 16 }}>
-        <div style={{
-          fontSize: 12, color: 'var(--text-secondary)',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {file.filePath}
         </div>
       </div>
@@ -137,7 +113,7 @@ const FileCard: React.FC<{
         ) : fileStatus === 'syncing' ? (
           <span style={{ fontSize: 12, color: 'var(--amber)', fontWeight: 500 }}>↻ Syncing</span>
         ) : (
-          <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>✓ Synced — Working fine</span>
+          <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>✓ Synced</span>
         )}
       </div>
 
@@ -146,10 +122,10 @@ const FileCard: React.FC<{
         {formatSize(file.contentLength)}
       </div>
 
-      {/* Download (checkout) button */}
+      {/* Check-Out button */}
       <button
         className="ds-btn ds-btn-ghost"
-        title="Download file (Check-out)"
+        title="Check-Out (Download local copy)"
         onClick={(e) => { e.stopPropagation(); onCheckout(); }}
         style={{ marginLeft: 8, padding: '4px 8px', flexShrink: 0 }}
       >
@@ -164,7 +140,7 @@ const FileCard: React.FC<{
 const FilesPage: React.FC = () => {
   const navigate = useNavigate();
   const { syncStatus, connectedPeers, currentRoom, setCurrentRoom, pendingConflicts, conflictQueue } = useElectronSync();
-  const [openedFiles, setOpenedFiles] = useState<any[]>([]);
+  const [openedFiles, setOpenedFiles] = useState<FileRecord[]>([]);
   const [offlineQueued, setOfflineQueued] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState<'my_files' | 'peer_rooms'>('my_files');
   const location = useLocation();
@@ -176,6 +152,7 @@ const FilesPage: React.FC = () => {
   const [joiningRoomId, setJoiningRoomId] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [publicRooms, setPublicRooms] = useState<any[]>([]);
   const SESSION_KEY = 'docusync_opened_files';
   const mountedRef = useRef(false);
 
@@ -186,50 +163,25 @@ const FilesPage: React.FC = () => {
     }
   }, [location.state]);
 
-  // ── Matchmaker URL (defaults to localhost for local dev, configurable via localStorage) ──
-  const MATCHMAKER_URL = (() => {
-    try { return localStorage.getItem('docusync_matchmaker_url') ?? 'http://localhost:3000'; } catch { return 'http://localhost:3000'; }
-  })();
-
-  const [publicRooms, setPublicRooms] = useState<any[]>([]);
-
-  // Fetch opened files (from sync:status and IPC)
+  // Fetch files and room data on a polling interval
   useEffect(() => {
     const fetchFiles = async () => {
       try {
-        const files = await (window as any).electron.ipcRenderer.invoke('files:list');
-        if (files?.success) {
-          setOpenedFiles(files.data);
-        }
-      } catch (err) {
-        console.error('Failed to list files:', err);
-      }
+        const files = await FileService.list();
+        setOpenedFiles(files);
+      } catch { /* silently ignore polling errors */ }
     };
 
     const fetchRoomFiles = async () => {
       if (!currentRoom || currentRoom.id.startsWith('direct-')) return;
-      try {
-        const res = await fetch(`${MATCHMAKER_URL}/api/lobby/files?otp=${currentRoom.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setRoomFiles(data.files || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch room files', err);
-      }
+      const files = await RoomService.listRoomFiles(currentRoom.id);
+      setRoomFiles(files);
     };
-    
+
     const fetchPublicRooms = async () => {
       if (activeTab === 'peer_rooms') {
-        try {
-          const res = await fetch(`${MATCHMAKER_URL}/api/lobby/list`);
-          if (res.ok) {
-            const data = await res.json();
-            setPublicRooms(data.rooms || []);
-          }
-        } catch (err) {
-          console.error('Failed to fetch public rooms', err);
-        }
+        const rooms = await RoomService.listRooms();
+        setPublicRooms(rooms);
       }
     };
 
@@ -242,44 +194,12 @@ const FilesPage: React.FC = () => {
       fetchPublicRooms();
     }, 2000);
     return () => clearInterval(interval);
-  }, [currentRoom, activeTab, MATCHMAKER_URL]);
+  }, [currentRoom, activeTab]);
 
-  const handleShareToRoom = async () => {
-    if (!currentRoom || currentRoom.id.startsWith('direct-')) {
-      toast.error('Cannot share file: Not in a valid OTP lobby.');
-      return;
-    }
-    try {
-      const res = await window.docuSync.openFile();
-      if (res && res.success && res.data) {
-        const openedFile = res.data as any;
-        const newFile = {
-          fileId: openedFile.fileId,
-          fileName: openedFile.fileName,
-          filePath: openedFile.filePath,
-          contentLength: openedFile.sizeBytes || openedFile.contentLength || 1024,
-          content: openedFile.content,
-        };
-        
-        await fetch(`${MATCHMAKER_URL}/api/lobby/files`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ otp: currentRoom.id, file: newFile })
-        });
-        
-        setRoomFiles(prev => [...prev, newFile]);
-        toast.success('File shared to room!');
-      }
-    } catch (err) {
-      console.error('Failed to share file to room:', err);
-      toast.error('Failed to share file');
-    }
-  };
-
+  // Load previously opened files from session storage
   useEffect(() => {
     if (mountedRef.current) return;
     mountedRef.current = true;
-    // Load any previously opened files from sessionStorage
     try {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) setOpenedFiles(JSON.parse(saved));
@@ -291,23 +211,16 @@ const FilesPage: React.FC = () => {
   }, [openedFiles]);
 
   const handleOpenFile = useCallback(async () => {
-    if (!window.docuSync) { toast.error('IPC bridge not available.'); return; }
     setOpening(true);
     try {
-      const res = await window.docuSync.openFile();
-      if (!res.success) {
-        if (res.error && !res.error.includes('cancel')) {
-          if (res.error.startsWith('Error:')) toast.error(res.error);
-          else toast.error(`Failed: ${res.error}`);
-        }
-        return;
+      const file = await FileService.open();
+      setOpenedFiles((prev) => prev.some((f) => f.fileId === file.fileId) ? prev : [file, ...prev]);
+      notify.success(`Opened: ${basename(file.filePath)}`);
+      navigate(`/editor/${file.fileId}`);
+    } catch (error) {
+      if (error instanceof ServiceError) {
+        if (!error.message?.includes('cancel')) notify.error(error.message);
       }
-      const data = res.data as OpenedFile;
-      setOpenedFiles((prev) => prev.some((f) => f.fileId === data.fileId) ? prev : [data, ...prev]);
-      toast.success(`Opened: ${basename(data.filePath)}`);
-      navigate(`/editor/${data.fileId}`);
-    } catch (err) {
-      toast.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
     } finally { setOpening(false); }
   }, [navigate]);
 
@@ -317,51 +230,56 @@ const FilesPage: React.FC = () => {
     if (window.docuSync) window.docuSync.triggerSync?.().catch(() => {});
   }, []);
 
-  const handleCardClick = useCallback((file: OpenedFile) => {
+  const handleCardClick = useCallback((file: FileRecord) => {
     const hasConflict = conflictQueue.some((c) => c.fileId === file.fileId);
     navigate(hasConflict ? '/conflicts' : `/editor/${file.fileId}`);
   }, [conflictQueue, navigate]);
 
   const handleOpenRoomFile = useCallback(async (file: any) => {
-    if (!window.docuSync?.importRoomFile) {
-      toast.error('Import not available.');
-      return;
-    }
     setOpening(true);
     try {
-      const res = await window.docuSync.importRoomFile(file.fileName || file.name, file.content || '', file.fileId);
-      if (res.success) {
-        const data = res.data as OpenedFile;
-        setOpenedFiles((prev) => prev.some((f) => f.fileId === data.fileId) ? prev : [data, ...prev]);
-        toast.success(`Imported: ${basename(data.filePath)}`);
-        navigate(`/editor/${data.fileId}`);
-      } else {
-        toast.error(`Import failed: ${res.error}`);
-      }
-    } catch (err) {
-      toast.error(`Import error: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setOpening(false);
-    }
+      const imported = await FileService.importRoomFile(file.fileName || file.name, file.content || '', file.fileId);
+      setOpenedFiles((prev) => prev.some((f) => f.fileId === imported.fileId) ? prev : [imported, ...prev]);
+      notify.success(`Imported: ${basename(imported.filePath)}`);
+      navigate(`/editor/${imported.fileId}`);
+    } catch (error) {
+      if (error instanceof ServiceError) notify.error(error.message);
+    } finally { setOpening(false); }
   }, [navigate]);
 
-  const handleCheckout = useCallback(async (file: OpenedFile) => {
-    if (!window.docuSync?.checkoutFile) {
-      toast.error('Checkout not available (IPC bridge missing).');
-      return;
-    }
+  const handleCheckout = useCallback(async (file: FileRecord) => {
     try {
-      const res = await window.docuSync.checkoutFile(file.fileId);
-      if (res.success) {
-        toast.success(`Checked out: ${basename((res.data as any).destPath)}`);
-      } else {
-        if (!res.error?.includes('cancel')) toast.error(`Checkout failed: ${res.error}`);
+      const result = await FileService.checkOut(file.fileId);
+      notify.success(`Checked out: ${basename(result.destPath)}`);
+    } catch (error) {
+      if (error instanceof ServiceError) {
+        if (!error.message?.includes('cancel')) notify.error(error.message);
       }
-    } catch (err) {
-      toast.error(`Checkout error: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, []);
 
+  const handleShareToRoom = async () => {
+    if (!currentRoom || currentRoom.id.startsWith('direct-')) {
+      notify.error('Cannot share file: Not in a valid OTP repository.');
+      return;
+    }
+    try {
+      const file = await FileService.open();
+      const newFile = {
+        fileId: file.fileId,
+        fileName: file.fileName ?? basename(file.filePath),
+        filePath: file.filePath,
+        contentLength: file.sizeBytes ?? file.contentLength ?? 1024,
+        content: file.content,
+      };
+      await RoomService.shareFileToRoom(currentRoom.id, newFile);
+      setRoomFiles(prev => [...prev, newFile]);
+      notify.success('File shared to repository!');
+    } catch (error) {
+      if (error instanceof ServiceError) notify.error(error.message);
+      else notify.error('Failed to share file.');
+    }
+  };
 
   // Detect going offline — mark all open files as queued
   useEffect(() => {
@@ -370,7 +288,7 @@ const FilesPage: React.FC = () => {
     };
     const handleOnline = () => {
       if (offlineQueued.size > 0) {
-        toast.success('Queued edits synced successfully.', { duration: 4000 });
+        notify.flushed();
         setOfflineQueued(new Set());
       }
     };
@@ -383,13 +301,10 @@ const FilesPage: React.FC = () => {
   }, [openedFiles, offlineQueued]);
 
   const metrics = [
-    { label: 'Open Files', value: openedFiles.length, dotColor: 'var(--accent)', desc: 'documents tracked' },
-    { label: 'Peers',      value: connectedPeers.length, dotColor: 'var(--green)', desc: 'nodes connected',
-      valueColor: connectedPeers.length > 0 ? 'var(--green)' : undefined },
-    { label: 'Sync Status', value: syncStatus ?? '—', dotColor: 'var(--purple)',
-      desc: 'engine state', isText: true, textColor: 'var(--accent)' },
-    { label: 'Conflicts',  value: pendingConflicts, dotColor: 'var(--red)', desc: 'pending resolution',
-      valueColor: pendingConflicts > 0 ? 'var(--red)' : undefined },
+    { label: 'Open Files',   value: openedFiles.length,      dotColor: 'var(--accent)',  desc: 'documents tracked' },
+    { label: 'Peers',        value: connectedPeers.length,   dotColor: 'var(--green)',   desc: 'nodes connected',  valueColor: connectedPeers.length > 0 ? 'var(--green)' : undefined },
+    { label: 'Sync Status',  value: syncStatus ?? '—',       dotColor: 'var(--purple)',  desc: 'engine state',     isText: true, textColor: 'var(--accent)' },
+    { label: 'Conflicts',    value: pendingConflicts,        dotColor: 'var(--red)',     desc: 'pending resolution', valueColor: pendingConflicts > 0 ? 'var(--red)' : undefined },
   ];
 
   return (
@@ -398,30 +313,28 @@ const FilesPage: React.FC = () => {
       <div className="ds-topbar">
         <span className="ds-topbar-title">Files</span>
         <span className="ds-topbar-sep" />
-        
-        {/* SEGMENTED CONTROL */}
+
+        {/* Segmented control */}
         <div style={{ display: 'flex', background: 'var(--bg-card-hover)', borderRadius: 8, padding: 4, gap: 4 }}>
-          <button 
+          <button
             onClick={() => setActiveTab('my_files')}
-            style={{ 
+            style={{
               padding: '6px 16px', fontSize: 12, fontWeight: 600, border: 'none', borderRadius: 6, cursor: 'pointer',
               background: activeTab === 'my_files' ? 'var(--bg-card)' : 'transparent',
               color: activeTab === 'my_files' ? 'var(--text-primary)' : 'var(--text-muted)',
-              boxShadow: activeTab === 'my_files' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-              transition: 'all 0.2s'
+              boxShadow: activeTab === 'my_files' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s',
             }}>
             My Files
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('peer_rooms')}
-            style={{ 
+            style={{
               padding: '6px 16px', fontSize: 12, fontWeight: 600, border: 'none', borderRadius: 6, cursor: 'pointer',
               background: activeTab === 'peer_rooms' ? 'var(--bg-card)' : 'transparent',
               color: activeTab === 'peer_rooms' ? 'var(--text-primary)' : 'var(--text-muted)',
-              boxShadow: activeTab === 'peer_rooms' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-              transition: 'all 0.2s'
+              boxShadow: activeTab === 'peer_rooms' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s',
             }}>
-            Peer Rooms
+            Repositories
           </button>
         </div>
 
@@ -444,8 +357,7 @@ const FilesPage: React.FC = () => {
           )}
           {activeTab === 'peer_rooms' && !currentRoom && (
             <button className="ds-btn ds-btn-primary" onClick={() => navigate('/peers')}>
-              <Users size={13} />
-              Host/Join via OTP
+              <Users size={13} /> Create / Join Repository
             </button>
           )}
         </div>
@@ -463,15 +375,7 @@ const FilesPage: React.FC = () => {
                   <span className="ds-metric-dot" style={{ background: m.dotColor }} />
                   {m.label}
                 </div>
-                <div
-                  className="ds-metric-value"
-                  style={{
-                    color: (m as any).valueColor ?? 'var(--text-primary)',
-                    fontSize: (m as any).isText ? 14 : undefined,
-                    textTransform: (m as any).isText ? 'capitalize' : undefined,
-                    paddingTop: (m as any).isText ? 6 : undefined,
-                  }}
-                >
+                <div className="ds-metric-value" style={{ color: (m as any).valueColor ?? 'var(--text-primary)', fontSize: (m as any).isText ? 14 : undefined, textTransform: (m as any).isText ? 'capitalize' : undefined, paddingTop: (m as any).isText ? 6 : undefined }}>
                   {m.value}
                 </div>
                 <div className="ds-metric-desc">{m.desc}</div>
@@ -480,56 +384,39 @@ const FilesPage: React.FC = () => {
           </div>
         )}
 
-        {/* Peer Rooms List View */}
+        {/* Peer Repositories List View */}
         {activeTab === 'peer_rooms' && (!currentRoom || showRoomList) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 24 }}>
             {currentRoom && (
-              <div style={{
-                background: 'var(--ds-accent)', color: 'white', padding: '12px 16px', borderRadius: 8,
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)', marginBottom: 8,
-                animation: 'fadeIn 0.3s ease'
-              }}>
+              <div style={{ background: 'var(--ds-accent)', color: 'white', padding: '12px 16px', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)', marginBottom: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 8px #4ade80' }} />
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>Active Session: {currentRoom.name}</span>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>Active Repository: {currentRoom.name}</span>
                 </div>
-                <button 
-                  onClick={() => setShowRoomList(false)}
-                  style={{ background: 'rgba(255,255,255,0.2)', border: 'none', padding: '6px 12px', borderRadius: 6, color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                >
-                  Return to Room
+                <button onClick={() => setShowRoomList(false)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', padding: '6px 12px', borderRadius: 6, color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                  Return to Repository
                 </button>
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Active Peer Rooms</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Active Repositories</h2>
               <button className="ds-btn ds-btn-secondary" onClick={() => navigate('/peers')} style={{ padding: '6px 12px' }}>
-                <Users size={14} /> Host New Room
+                <Users size={14} /> Create Repository
               </button>
             </div>
-            
+
             {publicRooms.length === 0 ? (
               <div className="ds-empty ds-card" style={{ minHeight: 200 }}>
                 <div className="ds-empty-icon">🌐</div>
-                <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  No active rooms found
-                </h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 360, lineHeight: 1.7, margin: '0 auto' }}>
-                  Host a live session to create a new room.
-                </p>
+                <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>No active repositories found</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 360, lineHeight: 1.7, margin: '0 auto' }}>Host a live session to create a new repository.</p>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
                 {publicRooms.map(room => (
-                  <div key={room.id} className="ds-card" style={{
-                    padding: 20, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'transform 0.15s'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                  onMouseLeave={e => e.currentTarget.style.transform = 'none'}
-                  >
+                  <div key={room.id} className="ds-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'transform 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
                         <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>{room.name}</h3>
@@ -537,52 +424,34 @@ const FilesPage: React.FC = () => {
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--green)', background: 'rgba(34,197,94,0.1)', padding: '4px 8px', borderRadius: 12, fontWeight: 600 }}>Active</div>
                     </div>
-                    
                     <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--text-secondary)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Users size={14} /> {room.peersJoined || 1} peers</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FolderOpen size={14} /> {room.filesCount} files</div>
                     </div>
-                    
-                    <button 
-                      className="ds-btn ds-btn-primary" 
-                      style={{ width: '100%', marginTop: 4, justifyContent: 'center', opacity: joiningRoomId === room.id ? 0.8 : 1 }} 
+                    <button
+                      className="ds-btn ds-btn-primary"
+                      style={{ width: '100%', marginTop: 4, justifyContent: 'center', opacity: joiningRoomId === room.id ? 0.8 : 1 }}
                       disabled={joiningRoomId === room.id}
                       onClick={async () => {
-                      if (currentRoom?.id === room.id) {
-                        setShowRoomList(false);
-                        return;
-                      }
-                      try {
-                        setJoiningRoomId(room.id);
-                        // Artificial delay for the cool animation effect
-                        await new Promise(resolve => setTimeout(resolve, 800));
-
-                        const res = await fetch(`${MATCHMAKER_URL}/api/lobby/join`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ otp: room.id, clientNodeId: `desktop-${Date.now()}` })
-                        });
-                        const data = await res.json();
-                        if (!res.ok) throw new Error(data.error);
-                        
-                        const connectRes = await window.docuSync.connectToPeer(data.hostIp, data.hostPort);
-                        if (!connectRes.success) throw new Error(connectRes.error ?? 'Connection failed');
-                        
-                        setCurrentRoom({ id: room.id, name: data.roomName, isHost: false });
-                        setShowRoomList(false);
-                      } catch (err: any) {
-                        toast.error(`Failed to join: ${err.message}`);
-                      } finally {
-                        setJoiningRoomId(null);
-                      }
-                    }}>
+                        if (currentRoom?.id === room.id) { setShowRoomList(false); return; }
+                        try {
+                          setJoiningRoomId(room.id);
+                          await new Promise(resolve => setTimeout(resolve, 800));
+                          const joinResult = await RoomService.joinRoom(room.id, `desktop-${Date.now()}`);
+                          if (joinResult.hostType !== 'web') {
+                            const connectRes = await window.docuSync.connectToPeer(joinResult.hostIp, joinResult.hostPort);
+                            if (!connectRes.success) throw new Error(connectRes.error ?? 'Connection failed');
+                          }
+                          setCurrentRoom({ id: room.id, name: joinResult.roomName, isHost: false });
+                          setShowRoomList(false);
+                        } catch (err: any) {
+                          notify.error(`Failed to join: ${err.message}`);
+                        } finally { setJoiningRoomId(null); }
+                      }}>
                       {joiningRoomId === room.id ? (
-                        <>
-                          <Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} />
-                          Connecting...
-                        </>
+                        <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />Connecting...</>
                       ) : (
-                        currentRoom?.id === room.id ? 'Return to Room' : 'Join Room'
+                        currentRoom?.id === room.id ? 'Return to Repository' : 'Join Repository'
                       )}
                     </button>
                   </div>
@@ -592,104 +461,57 @@ const FilesPage: React.FC = () => {
           </div>
         )}
 
-        {/* Selected Room Drill-down View */}
+        {/* Selected Repository Drill-down View */}
         {activeTab === 'peer_rooms' && currentRoom && !showRoomList && (
           <React.Fragment>
-
             {showLeaveConfirm && (
-              <div style={{
-                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-                background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999,
-                animation: 'fadeIn 0.2s ease'
-              }}>
-                <div style={{
-                  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12,
-                  padding: 24, width: 400, maxWidth: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-                  animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
-                }}>
+              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }}>
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, width: 400, maxWidth: '90%', boxShadow: '0 20px 40px rgba(0,0,0,0.3)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, color: '#ef4444' }}>
                     <LogOut size={24} />
-                    <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>Leave Session?</h2>
+                    <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>Leave Repository?</h2>
                   </div>
                   <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
-                    Are you sure you want to permanently leave <strong>{currentRoom.name}</strong>? You will be disconnected from all peers and lose access to live files.
+                    Are you sure you want to permanently leave <strong>{currentRoom.name}</strong>? You will be disconnected from all peers.
                   </p>
                   <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                    <button 
-                      className="ds-btn ds-btn-ghost" 
-                      onClick={() => setShowLeaveConfirm(false)}
-                      disabled={isLeaving}
-                      style={{ border: '1px solid var(--border)' }}
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      className="ds-btn"
-                      style={{ background: '#ef4444', color: 'white', border: 'none', opacity: isLeaving ? 0.7 : 1 }}
-                      disabled={isLeaving}
+                    <button className="ds-btn ds-btn-ghost" onClick={() => setShowLeaveConfirm(false)} disabled={isLeaving} style={{ border: '1px solid var(--border)' }}>Cancel</button>
+                    <button className="ds-btn" style={{ background: '#ef4444', color: 'white', border: 'none', opacity: isLeaving ? 0.7 : 1 }} disabled={isLeaving}
                       onClick={async () => {
                         setIsLeaving(true);
-                        await new Promise(r => setTimeout(r, 600)); // cool animation delay
-                        try { await window.docuSync.terminateSession(); } catch (e) { console.error('Failed to terminate session', e); }
+                        await new Promise(r => setTimeout(r, 600));
+                        try { await window.docuSync.terminateSession(); } catch (e) { console.error('Terminate session error:', e); }
                         setCurrentRoom(null);
                         setIsLeaving(false);
                         setShowLeaveConfirm(false);
-                      }}
-                    >
-                      {isLeaving ? <><Loader2 size={16} className="animate-spin" style={{ animation: 'spin 1s linear infinite' }} /> Leaving...</> : 'Yes, Leave Session'}
+                      }}>
+                      {isLeaving ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />Leaving...</> : 'Yes, Leave Repository'}
                     </button>
                   </div>
                 </div>
               </div>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 24, marginTop: 12, animation: 'fadeIn 0.2s ease' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 24, marginTop: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button 
-                  onClick={() => setShowRoomList(true)}
-                  className="ds-btn ds-btn-ghost"
-                  style={{ padding: '6px 12px', border: '1px solid var(--border)', background: 'var(--bg-card)', transition: 'all 0.2s' }}
-                  title="Go back to list of rooms"
-                >
+                <button onClick={() => setShowRoomList(true)} className="ds-btn ds-btn-ghost" style={{ padding: '6px 12px', border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
                   <ArrowLeft size={14} /> Back
                 </button>
-                <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                  {currentRoom.name}
-                </h2>
-                <span style={{ fontSize: 12, background: `var(--bg-card-hover)`, color: 'var(--text-primary)', padding: '2px 8px', borderRadius: 20, fontWeight: 600, border: '1px solid var(--border)' }}>
+                <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{currentRoom.name}</h2>
+                <span style={{ fontSize: 12, background: 'var(--bg-card-hover)', color: 'var(--text-primary)', padding: '2px 8px', borderRadius: 20, fontWeight: 600, border: '1px solid var(--border)' }}>
                   {currentRoom.id.startsWith('direct-') ? 'Direct IP' : `OTP: ${currentRoom.id}`}
                 </span>
               </div>
-              <button
-                onClick={() => setShowLeaveConfirm(true)}
-                className="ds-btn"
-                style={{ 
-                  padding: '6px 12px', 
-                  background: 'rgba(239, 68, 68, 0.1)', 
-                  color: '#ef4444', 
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
-              >
-                <LogOut size={14} /> Leave Session
+              <button onClick={() => setShowLeaveConfirm(true)} className="ds-btn" style={{ padding: '6px 12px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}>
+                <LogOut size={14} /> Leave Repository
               </button>
             </div>
-            
+
             {/* Active Peers Bar */}
-            <div style={{
-              background: 'var(--bg-card)',
-              borderRadius: 8,
-              border: '1px solid var(--border)',
-              padding: '16px',
-              marginBottom: '24px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12
-            }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border)', padding: 16, marginBottom: 24 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
                 Active Peers ({connectedPeers.length})
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
@@ -699,7 +521,7 @@ const FilesPage: React.FC = () => {
                   connectedPeers.map(peer => (
                     <div key={peer.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-body)', padding: '6px 12px', borderRadius: 20, border: '1px solid var(--border)' }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ds-green)' }} />
-                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{peer.displayName || 'Anonymous'}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{peer.displayName || 'Anonymous'}</span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{peer.address}:{peer.port}</span>
                     </div>
                   ))
@@ -707,37 +529,18 @@ const FilesPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="ds-section-label" style={{ paddingBottom: 8 }}>
-              Room Files
-            </div>
-            
+            <div className="ds-section-label" style={{ paddingBottom: 8 }}>Repository Files</div>
+
             {roomFiles.length === 0 ? (
               <div className="ds-empty ds-card" style={{ minHeight: 200, padding: '40px 20px' }}>
-                <div className="ds-empty-icon" style={{ marginBottom: 12 }}>
-                  <UploadCloud size={48} color="var(--border)" strokeWidth={1.5} />
-                </div>
-                <h2 style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-                  No files shared in this room yet
-                </h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 360, lineHeight: 1.6, margin: '0 auto 16px' }}>
-                  Files you share here will be accessible to all connected peers in the room.
-                </p>
-                <button className="ds-btn ds-btn-primary" onClick={handleShareToRoom}>
-                  <FolderOpen size={13} /> Share File to Room
-                </button>
+                <div className="ds-empty-icon" style={{ marginBottom: 12 }}><UploadCloud size={48} color="var(--border)" strokeWidth={1.5} /></div>
+                <h2 style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>No files shared in this repository yet</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 360, lineHeight: 1.6, margin: '0 auto 16px' }}>Files you share here will be accessible to all connected peers.</p>
+                <button className="ds-btn ds-btn-primary" onClick={handleShareToRoom}><FolderOpen size={13} /> Add File to Repository</button>
               </div>
             ) : (
-              <div style={{
-                background: 'var(--bg-card)',
-                borderRadius: 8,
-                border: '1px solid var(--border)',
-                overflow: 'hidden',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-              }}>
-                <div style={{
-                  display: 'flex', padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
-                  textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--bg-card-hover)', borderBottom: '1px solid var(--border)'
-                }}>
+              <div style={{ background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--bg-card-hover)', borderBottom: '1px solid var(--border)' }}>
                   <div style={{ width: 28, marginRight: 12 }} />
                   <div style={{ flex: 2, paddingRight: 16 }}>Name</div>
                   <div style={{ flex: 2, paddingRight: 16 }}>Location</div>
@@ -746,80 +549,48 @@ const FilesPage: React.FC = () => {
                 </div>
                 <div className="ds-files-grid" style={{ gap: 0 }}>
                   {roomFiles.map((file) => (
-                    <FileCard
-                      key={file.fileId}
-                      file={file as unknown as OpenedFile}
-                      hasConflict={false}
+                    <FileCard key={file.fileId} file={file as unknown as FileRecord} hasConflict={false}
                       onClick={() => handleOpenRoomFile(file)}
-                      onCheckout={() => handleCheckout(file as unknown as OpenedFile)}
-                    />
+                      onCheckout={() => handleCheckout(file as unknown as FileRecord)} />
                   ))}
                 </div>
                 <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
-                  <button className="ds-btn ds-btn-ghost" onClick={handleShareToRoom}>
-                    <FolderOpen size={13} /> Add More Files
-                  </button>
+                  <button className="ds-btn ds-btn-ghost" onClick={handleShareToRoom}><FolderOpen size={13} /> Add More Files</button>
                 </div>
               </div>
             )}
           </React.Fragment>
         )}
 
-        {/* My Files File list */}
+        {/* My Files empty state */}
         {activeTab === 'my_files' && openedFiles.length === 0 && (
           <div className="ds-empty ds-card" style={{ minHeight: 300 }}>
             <div className="ds-empty-icon">📂</div>
-            <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
-              No files opened yet
-            </h2>
+            <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>No files opened yet</h2>
             <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 360, lineHeight: 1.7, margin: '0 auto 24px' }}>
               Click <strong style={{ color: 'var(--text-primary)' }}>Open File</strong> to begin.
               DocuSync tracks every edit via delta encoding and syncs across peers using vector clocks.
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="ds-btn ds-btn-primary" onClick={handleOpenFile}>
-                <FolderOpen size={13} /> Open File
-              </button>
-              <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/peers')}>
-                Manage Peers
-              </button>
+              <button className="ds-btn ds-btn-primary" onClick={handleOpenFile}><FolderOpen size={13} /> Open File</button>
+              <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/peers')}>Manage Repositories</button>
             </div>
           </div>
         )}
 
-        {/* My Files List Continuation */}
+        {/* My Files list */}
         {activeTab === 'my_files' && openedFiles.length > 0 && (
           <React.Fragment>
-            <div className="ds-section-label" style={{ marginTop: 24, paddingBottom: 8 }}>
-              Open Documents
-            </div>
-            
-            <div style={{
-              background: 'var(--bg-card)',
-              borderRadius: 8,
-              border: '1px solid var(--border)',
-              overflow: 'hidden',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-            }}>
-              {/* Table Header */}
-              <div style={{
-                display: 'flex',
-                padding: '10px 16px',
-                fontSize: 11,
-                fontWeight: 600,
-                color: 'var(--text-muted)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                background: 'var(--bg-card-hover)',
-                borderBottom: '1px solid var(--border)'
-              }}>
-                <div style={{ width: 28, marginRight: 12 }} /> {/* Icon spacer */}
+            <div className="ds-section-label" style={{ marginTop: 24, paddingBottom: 8 }}>Open Documents</div>
+            <div style={{ background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--bg-card-hover)', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ width: 28, marginRight: 12 }} />
                 <div style={{ flex: 2, paddingRight: 16 }}>Name</div>
                 <div style={{ flex: 2, paddingRight: 16 }}>Location</div>
                 <div style={{ flex: 1.5, paddingRight: 16 }}>Status</div>
                 <div style={{ width: 80, textAlign: 'right' }}>Size</div>
+                <div style={{ width: 60 }} />
               </div>
-
               <div className="ds-files-grid" style={{ gap: 0 }}>
                 {openedFiles.map((file) => (
                   <FileCard

@@ -52,6 +52,7 @@ const CH_CONFLICT_DETAIL  = 'conflict:detail'  as const;
 const CH_CONFLICT_RESOLVE = 'conflict:resolve' as const;
 const CH_PEER_LIST       = 'peer:list'       as const;
 const CH_PEER_CONNECT    = 'peer:connect'    as const;
+const CH_PEER_CONNECT_SUPABASE = 'peer:connect-supabase' as const;
 const CH_VAULT_STATUS    = 'vault:get-status' as const;
 const CH_VAULT_GENESIS   = 'vault:genesis-init' as const;
 const CH_VAULT_UNLOCK    = 'vault:unlock'     as const;
@@ -66,6 +67,7 @@ const CH_CACHE_SIZE      = 'cache:get-size'     as const;
 
 /** Main-to-renderer push channels (one-way, main → renderer). */
 const CH_EVT_CONFLICT    = 'conflict:detected'  as const;
+const CH_EVT_MERGE_ACCEPTED = 'evt:merge-accepted' as const;
 const CH_EVT_SYNC_STATUS = 'evt:sync-status-changed' as const;
 const CH_EVT_AUTH_VERIFY_REQ = 'auth:verify-request' as const;
 const CH_AUTH_VERIFY_RESP = 'auth:verify-respond' as const;
@@ -229,6 +231,14 @@ export interface DocuSyncBridge {
    */
   connectToPeer(address: string, port: number): Promise<IPCResponse>;
 
+  /**
+   * Connects to a peer via Supabase Realtime channel.
+   * 
+   * @param otp - The OTP of the room.
+   * @returns IPCResponse containing `{ connected, otp, connectedPeers }`.
+   */
+  connectToSupabase(otp: string): Promise<IPCResponse>;
+
   // ── Vault & Network ──────────────────────────────────────────────────
 
   getVaultStatus(): Promise<IPCResponse<{ isRegistered: boolean, isUnlocked: boolean, nodeId: string | null }>>;
@@ -273,25 +283,30 @@ export interface DocuSyncBridge {
   // ── Push Event Listeners ──────────────────────────────────────────────
 
   /**
-   * Registers a listener for conflict-detected push events from the engine.
-   *
-   * The main process sends this event when a concurrent write conflict is
-   * detected and owner resolution is required.
+   * Subscribes to conflict detection events pushed from the main process.
    *
    * @param listener - Callback receiving the conflict payload.
-   * @returns An unsubscribe function — call it to remove the listener.
+   * @returns Unsubscribe function.
    *
    * @example
    * ```ts
    * const unsub = window.docuSync.onConflictDetected((payload) => {
-   *   showConflictUI(payload.conflictId, payload.summary);
+   *   console.log('Conflict on file:', payload.fileId);
    * });
-   * // In cleanup:
-   * unsub();
+   * // Later: unsub();
    * ```
    */
   onConflictDetected(
     listener: (payload: ConflictDetectedPayload) => void
+  ): () => void;
+
+  /**
+   * Subscribes to merge acceptance events pushed from the main process.
+   * 
+   * @param listener - Callback receiving conflictId and resolvedBy
+   */
+  onMergeAccepted(
+    listener: (conflictId: string, resolvedBy: string) => void
   ): () => void;
 
   /**
@@ -413,6 +428,10 @@ const docuSyncBridge: DocuSyncBridge = {
     return ipcRenderer.invoke(CH_PEER_CONNECT, address, port);
   },
 
+  connectToSupabase(otp: string): Promise<IPCResponse> {
+    return ipcRenderer.invoke(CH_PEER_CONNECT_SUPABASE, otp);
+  },
+
   // ── Vault & Network ──────────────────────────────────────────────────
 
   getVaultStatus(): Promise<IPCResponse<{ isRegistered: boolean, isUnlocked: boolean, nodeId: string | null }>> {
@@ -485,6 +504,23 @@ const docuSyncBridge: DocuSyncBridge = {
     // Return a typed unsubscribe function.
     return () => {
       ipcRenderer.off(CH_EVT_CONFLICT, wrapped);
+    };
+  },
+
+  onMergeAccepted(
+    listener: (conflictId: string, resolvedBy: string) => void
+  ): () => void {
+    const wrapped = (
+      _event: Electron.IpcRendererEvent,
+      conflictId: string,
+      resolvedBy: string
+    ) => {
+      listener(conflictId, resolvedBy);
+    };
+    ipcRenderer.on(CH_EVT_MERGE_ACCEPTED, wrapped);
+
+    return () => {
+      ipcRenderer.off(CH_EVT_MERGE_ACCEPTED, wrapped);
     };
   },
 

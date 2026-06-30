@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNetInfo } from '@react-native-community/netinfo';
 import { useTheme } from '../context/ThemeContext';
 import ConfirmModal from '../components/ConfirmModal';
+import { useMobileSync, PeerInfo } from '../context/MobileSyncContext';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const PEERS_KEY   = '@docusync/peers';
@@ -21,13 +22,6 @@ const MATCHMAKER_KEY = '@docusync/matchmaker_url';
 const DEFAULT_MATCHMAKER = 'https://docusync-pnc.vercel.app';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-interface PeerInfo {
-  id: string; address: string; port: number;
-  status: 'connected' | 'disconnected';
-  latency: number | null;
-  connectedAt: string;
-}
-
 interface RoomInfo {
   id: string;
   name: string;
@@ -68,8 +62,8 @@ async function measureRTT(address: string, port: number): Promise<number | null>
 export default function PeersScreen({ navigation }: any) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [peers, setPeers] = useState<PeerInfo[]>([]);
   const [joinOtp, setJoinOtp] = useState('');
+  const { peers, connectToPeer, disconnectPeer } = useMobileSync();
   const [joining, setJoining] = useState(false);
   const [currentRoom, setCurrentRoom] = useState<RoomInfo | null>(null);
   const [matchmakerUrl, setMatchmakerUrl] = useState(DEFAULT_MATCHMAKER);
@@ -141,6 +135,18 @@ export default function PeersScreen({ navigation }: any) {
           await savePeers([...peers, newPeer]);
           resolve(true);
         };
+        
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'MERGE_ACCEPT') {
+              const resolvedBy = msg.resolvedBy || 'Owner';
+              Alert.alert('✅ Conflict Resolved', `Conflict resolved by ${resolvedBy.slice(0, 8)}. File synced.`);
+            }
+          } catch (e) {
+            console.error('Failed to parse WS message', e);
+          }
+        };
         const handleDisconnect = () => {
           setPeers(prev => {
             const next = prev.map(p => p.id === newPeer.id ? { ...p, status: 'disconnected' as const } : p);
@@ -204,7 +210,7 @@ export default function PeersScreen({ navigation }: any) {
   };
 
   const removePeer = async (id: string) => {
-    await savePeers(peers.filter(p => p.id !== id));
+    disconnectPeer(id);
     await AsyncStorage.removeItem(ROOM_KEY);
     setCurrentRoom(null);
   };
@@ -219,8 +225,8 @@ export default function PeersScreen({ navigation }: any) {
     let latencyLabel = '● Offline';
     let latencyColor = colors.textMuted;
     if (isConn) {
-      if (latMs === null) {
-        latencyLabel = '● Measuring…';
+      if (latMs === null || latMs === 0) {
+        latencyLabel = '● Connected';
         latencyColor = colors.textMuted;
       } else if (latMs < 20) {
         latencyLabel = `● ${latMs}ms`;

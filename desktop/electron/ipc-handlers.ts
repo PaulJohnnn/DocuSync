@@ -369,7 +369,7 @@ export async function initEngine(
         summary
       );
     },
-    onMergeAccepted: async (conflictId, fileId, winnerPayload, _vcJson) => {
+    onMergeAccepted: async (conflictId, fileId, winnerPayload, _vcJson, resolvedByNodeId?: string) => {
       // Update in-memory cache.
       fileContents.set(fileId, winnerPayload);
 
@@ -379,6 +379,13 @@ export async function initEngine(
         await fs.promises.writeFile(filePath, winnerPayload, 'utf-8');
         console.log(`[IPC] Applied merge resolution to ${filePath}`);
       }
+
+      // Notify renderer
+      BrowserWindow.getAllWindows()[0]?.webContents.send(
+        'evt:merge-accepted',
+        conflictId,
+        resolvedByNodeId || 'Owner'
+      );
     },
     onUserVerifyRequest: (nodeId: string): Promise<boolean> => {
       return new Promise((resolve) => {
@@ -1287,6 +1294,7 @@ export function registerIPCHandlers(services: EngineServices): void {
       };
     })
   );
+
 
   // ── Vault & Identity ────────────────────────────────────────────────
   let isUnlocked = false;

@@ -95,6 +95,7 @@
   "dependencies": {
     "@docusync/shared": "*",
     "@prisma/client": "^6.9.0",
+    "@supabase/supabase-js": "^2.108.2",
     "@tiptap/extension-highlight": "3.20.1",
     "@tiptap/extension-placeholder": "^3.20.1",
     "@tiptap/extension-text-align": "3.20.1",

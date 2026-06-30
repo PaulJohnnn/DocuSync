@@ -36,6 +36,7 @@ import React, {
   ReactNode,
 } from 'react';
 import type { ConflictDetectedPayload, SyncStatusChangedPayload } from '../../electron/preload';
+import { toast } from 'sonner';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -303,6 +304,22 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
 
     return unsub;
   }, []);
+
+  // ── Push: merge-accepted ──────────────────────────────────────────────────
+  
+  useEffect(() => {
+    if (!window.docuSync?.onMergeAccepted) return;
+
+    const unsub = window.docuSync.onMergeAccepted((conflictId, resolvedBy) => {
+      toast.success(`Conflict resolved by ${resolvedBy.slice(0, 8)}. File synced.`, {
+        icon: '✅',
+      });
+      // Optionally refresh status
+      refreshStatus();
+    });
+
+    return unsub;
+  }, [refreshStatus]);
 
   // ── Push: sync-status-changed ─────────────────────────────────────────────
 

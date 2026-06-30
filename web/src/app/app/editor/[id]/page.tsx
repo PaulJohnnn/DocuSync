@@ -22,6 +22,10 @@ export default function EditorPage() {
   const [vcState, setVcState] = useState<number[]>([0, 0, 0]);
   const [deltaSize, setDeltaSize] = useState(0);
   const lastSave = useRef('');
+  
+  // Realtime Sync state
+  const channelRef = useRef<any>(null);
+  const localNodeIdRef = useRef(`web-${Math.floor(Math.random()*10000)}`);
 
   useEffect(() => {
     const stored = localStorage.getItem('docusync_files');
@@ -33,12 +37,69 @@ export default function EditorPage() {
       setContent(found.content);
       lastSave.current = found.content;
     }
+
+    const savedNodeId = localStorage.getItem('docusync_node_id');
+    if (savedNodeId) localNodeIdRef.current = savedNodeId;
+  }, [fileId]);
+
+  // Connect to Supabase Realtime
+  useEffect(() => {
+    import('@/lib/supabase').then(({ supabase }) => {
+      if (!supabase) return;
+      const storedRoomStr = localStorage.getItem('docusync_current_room');
+      if (!storedRoomStr) return;
+      try {
+        const room = JSON.parse(storedRoomStr);
+        if (room && room.id) {
+          console.log('[Web Sync] Connecting to Supabase Realtime channel:', `room-${room.id}`);
+          const channel = supabase.channel(`room-${room.id}`, {
+            config: { broadcast: { self: false } }
+          });
+          
+          channel.on('broadcast', { event: 'peer_message' }, async (payload: any) => {
+            if (payload?.payload?.message) {
+              try {
+                const msg = JSON.parse(payload.payload.message);
+                if (msg.type === 'DELTA_PUSH' && msg.fileId.toString() === fileId.toString()) {
+                  console.log('[Web Sync] Received DELTA_PUSH', msg);
+                  
+                  // Decode delta
+                  const { decode } = await import('@/lib/delta-decoder');
+                  try {
+                    const result = decode(lastSave.current, msg.deltaBase64);
+                    setContent(result.content);
+                    lastSave.current = result.content;
+                    setDeltaSize(msg.deltaBase64.length);
+                    setVcState(msg.vectorClockJson.counters || [0,0,0]);
+                  } catch (e) {
+                    console.error('[Web Sync] Delta decode failed:', e);
+                    // Fallback to full content sync if it fails?
+                  }
+                }
+              } catch (e) {
+                console.error('[Web Sync] Failed to parse message', e);
+              }
+            }
+          }).subscribe();
+
+          channelRef.current = channel;
+        }
+      } catch (e) {
+        console.error('Error parsing room', e);
+      }
+    });
+
+    return () => {
+      if (channelRef.current) {
+        channelRef.current.unsubscribe();
+      }
+    };
   }, [fileId]);
 
   // Auto-save every 500ms
   useEffect(() => {
     if (!file) return;
-    const iv = setInterval(() => {
+    const iv = setInterval(async () => {
       if (content !== lastSave.current) {
         const stored = localStorage.getItem('docusync_files');
         if (!stored) return;
@@ -50,23 +111,52 @@ export default function EditorPage() {
           files[idx].size = new Blob([content]).size;
           localStorage.setItem('docusync_files', JSON.stringify(files));
 
-          // Simulate delta
-          const delta = Math.abs(content.length - lastSave.current.length);
-          setDeltaSize(delta);
+          // Increment VC
+          let currentVc = [0, 0, 0];
           setVcState(v => {
             const n = [...v];
             n[0] = n[0] + 1;
+            currentVc = n;
             return n;
           });
+
+          // Generate delta and send DELTA_PUSH
+          try {
+            const { encode } = await import('@/lib/delta-encoder');
+            const result = encode(lastSave.current, content, file.name || 'file.txt');
+            setDeltaSize(result.deltaSizeBytes);
+
+            if (channelRef.current && result.deltaBase64) {
+              const msg = {
+                type: 'DELTA_PUSH',
+                eventId: crypto.randomUUID(),
+                nodeId: localNodeIdRef.current,
+                fileId: parseInt(fileId, 10) || 1,
+                deltaBase64: result.deltaBase64,
+                logicalTimestamp: currentVc[0],
+                vectorClockJson: { nodeCount: 3, nodeIndex: 0, root: { children: [] }, counters: currentVc },
+                timestamp: new Date().toISOString()
+              };
+
+              console.log('[Web Sync] Sending DELTA_PUSH', msg);
+              channelRef.current.send({
+                type: 'broadcast',
+                event: 'peer_message',
+                payload: { message: JSON.stringify(msg) }
+              });
+            }
+          } catch (e) {
+            console.error('[Web Sync] Delta encode failed:', e);
+          }
 
           // Log event
           const events = JSON.parse(localStorage.getItem(`docusync_events_${fileId}`) || '[]');
           events.push({
             id: events.length + 1,
             eventId: crypto.randomUUID(),
-            fileId, nodeId: localStorage.getItem('docusync_node_id') || 'web',
+            fileId, nodeId: localNodeIdRef.current,
             eventType: 'edit',
-            logicalTimestamp: events.length + 1,
+            logicalTimestamp: currentVc[0],
             payload: content.slice(0, 200),
             createdAt: new Date().toISOString(),
           });

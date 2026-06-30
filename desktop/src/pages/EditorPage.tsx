@@ -12,13 +12,14 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
-import { toast } from 'sonner';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import {
   IconArrowLeft, IconBold, IconItalic, IconStrikethrough,
   IconH1, IconH2, IconList, IconQuote, IconCode, IconRefresh, IconHistory,
 } from '@/components/Icons';
-import { formatBytes } from '@docusync/shared/utils/formatters';
+import { formatBytes, basename } from '@docusync/shared/utils/formatters';
+import { notify } from '@docusync/shared/utils/notifications';
+import SyncService from '@/services/SyncService';
 
 // ── Cursor Presence Config ───────────────────────────────────────────────────
 
@@ -121,11 +122,6 @@ interface FileSaveData {
   vectorClock: Record<string, unknown>;
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function basename(p: string): string {
-  return p.replace(/\\/g, '/').split('/').pop() ?? p;
-}
 
 // ── ToolbarButton ───────────────────────────────────────────────────────────
 
@@ -339,9 +335,9 @@ const EditorPage: React.FC = () => {
       const data = res.data as FileSaveData;
       setLastDeltaSize(data.deltaSize ?? data.bytesSaved);
       setPeersNotified(data.peersNotified ?? 0);
-      if (explicit) toast.success('Saved & synced', { description: `Δ ${formatBytes(data.deltaSize ?? 0)}`, duration: 2500 });
+      if (explicit) notify.saved(data.deltaSize ?? 0, data.peersNotified ?? 0);
     } catch (err) {
-      if (explicit) toast.error(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
+      if (explicit) notify.error(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally { setSaving(false); }
   }, [fileId]);
 
@@ -350,23 +346,22 @@ const EditorPage: React.FC = () => {
   // ── Sync ──────────────────────────────────────────────────────────────────
 
   const handleSyncNow = useCallback(async () => {
-    if (!window.docuSync) return;
     setSyncing(true);
     try {
-      const res = await window.docuSync.triggerSync();
-      if (res.success) toast.success('Sync triggered'); else toast.error(`Sync failed: ${res.error}`);
-    } catch (err) { toast.error(`Sync error: ${err instanceof Error ? err.message : String(err)}`); }
+      await SyncService.trigger();
+      notify.success('Sync triggered');
+    } catch (err) { notify.error(`Sync error: ${err instanceof Error ? err.message : String(err)}`); }
     finally { setSyncing(false); }
   }, []);
 
   const handleDeleteGroup = useCallback(async () => {
     if (window.confirm("WARNING: This will permanently terminate the active session and disconnect all users. Are you sure?")) {
       try {
-        await window.docuSync.terminateSession();
-        toast.success("Session terminated.");
+        await SyncService.terminateSession();
+        notify.success('Session terminated.');
         navigate('/');
-      } catch (err) {
-        toast.error("Failed to terminate session.");
+      } catch {
+        notify.error('Failed to terminate session.');
       }
     }
   }, [navigate]);

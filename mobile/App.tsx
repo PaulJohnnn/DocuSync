@@ -11,6 +11,7 @@ import SettingsScreen  from './screens/SettingsScreen';
 import SplashScreen    from './components/SplashScreen';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { MobileSyncProvider } from './context/MobileSyncContext';
 
 const Tab = createBottomTabNavigator();
 
@@ -153,13 +154,15 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <NavigationContainer>
-          <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="Welcome" component={WelcomeScreen} />
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Main" component={MainApp} />
-          </Stack.Navigator>
-        </NavigationContainer>
+        <MobileSyncProvider>
+          <NavigationContainer>
+            <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="Welcome" component={WelcomeScreen} />
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Main" component={MainApp} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </MobileSyncProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

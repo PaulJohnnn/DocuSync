@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { activeLobbies, ipRateLimits, cleanupLobbies, LobbyEntry } from '../store';
+import { supabase } from '@/lib/supabase';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,11 +13,8 @@ export async function OPTIONS() {
 
 export async function POST(request: Request) {
   try {
-    cleanupLobbies();
     const body = await request.json();
 
-    // Accept both old shape ({ nodeId, ip, port, roomName })
-    // and new shape ({ hostNodeId, hostIp, hostPort, roomName })
     const hostNodeId: string = body.hostNodeId || body.nodeId;
     const hostIp: string     = body.hostIp     || body.ip;
     const hostPort: number   = Number(body.hostPort ?? body.port ?? 9000);
@@ -30,49 +27,39 @@ export async function POST(request: Request) {
         { status: 400, headers: corsHeaders }
       );
     }
-
-    // IP rate limit: max 1000 rooms per IP per hour (effectively unlimited for testing)
-    const clientIp = request.headers.get('x-forwarded-for')
-      || request.headers.get('x-real-ip')
-      || hostIp;
-    const now = Date.now();
-    const prevTimestamps = ipRateLimits.get(clientIp) || [];
-    const validTs = prevTimestamps.filter(t => now - t < 60 * 60 * 1000);
-    if (validTs.length >= 1000) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded.' },
-        { status: 429, headers: corsHeaders }
-      );
+    
+    if (!supabase) {
+        return NextResponse.json({ error: 'Supabase is not configured' }, { status: 500, headers: corsHeaders });
     }
-    validTs.push(now);
-    ipRateLimits.set(clientIp, validTs);
 
-    // Generate 5-digit OTP — retry on collision (extremely rare)
     let otp: string;
     let attempts = 0;
+    let isUnique = false;
+    
     do {
       otp = Math.floor(10000 + Math.random() * 90000).toString();
+      const { data } = await supabase.from('matchmaker_lobbies').select('otp').eq('otp', otp).maybeSingle();
+      if (!data) isUnique = true;
       attempts++;
-    } while (activeLobbies.has(otp) && attempts < 10);
+    } while (!isUnique && attempts < 10);
 
-    const newLobby: LobbyEntry = {
-      otp,
-      roomName,
-      hostNodeId,
-      hostIp,
-      hostPort,
-      hostType,
-      createdAt: now,
-      expiresAt: now + 60 * 60 * 1000, // 60 minutes
-      members: [hostNodeId],
-      peersJoined: 0,
-      // legacy compat fields
-      ip: hostIp,
-      port: hostPort,
-      nodeId: hostNodeId,
-    };
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 60 * 60 * 1000);
 
-    activeLobbies.set(otp, newLobby);
+    const { error } = await supabase.from('matchmaker_lobbies').insert({
+        otp,
+        room_name: roomName,
+        host_node_id: hostNodeId,
+        host_ip: hostIp,
+        host_port: hostPort,
+        host_type: hostType,
+        created_at: now.toISOString(),
+        expires_at: expiresAt.toISOString()
+    });
+
+    if (error) {
+        throw new Error(error.message);
+    }
 
     console.log(`[Lobby] Room created: OTP=${otp} host=${hostIp}:${hostPort} name="${roomName}"`);
 
@@ -90,13 +77,18 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  cleanupLobbies();
-  const rooms = Array.from(activeLobbies.values()).map(r => ({
+  if (!supabase) return NextResponse.json({ rooms: [], total: 0 }, { headers: corsHeaders });
+  
+  // Cleanup expired lobbies
+  await supabase.from('matchmaker_lobbies').delete().lt('expires_at', new Date().toISOString());
+  
+  const { data } = await supabase.from('matchmaker_lobbies').select('*');
+  const rooms = (data || []).map((r: any) => ({
     otp: r.otp,
-    roomName: r.roomName,
-    memberCount: r.members.length,
-    createdAt: r.createdAt,
-    expiresAt: r.expiresAt,
+    roomName: r.room_name,
+    memberCount: 1, // simplified
+    createdAt: new Date(r.created_at).getTime(),
+    expiresAt: new Date(r.expires_at).getTime(),
   }));
   return NextResponse.json({ rooms, total: rooms.length }, { headers: corsHeaders });
 }

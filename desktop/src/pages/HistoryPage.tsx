@@ -1,53 +1,19 @@
 /**
  * @module HistoryPage
  * EventLog version history page — route `/history/:fileId`.
- * Timeline cards with icon circles, ts badges, relative time, restore button.
- * All IPC logic preserved.
+ * Refactored: uses FileService. No inline IPC calls or duplicate formatters.
  */
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 import { IconArrowLeft, IconEdit, IconGitMerge, IconScale, IconFilePlus, IconRefresh } from '@/components/Icons';
+import FileService, { type HistoryEntry } from '@/services/FileService';
+import { ServiceError } from '@/services/errors/ServiceError';
+import { notify } from '@docusync/shared/utils/notifications';
+import { formatRelativeTime } from '@docusync/shared/utils/formatters';
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-type EventType = 'edit' | 'merge' | 'conflict-resolve' | 'restore' | 'offline-replay';
-
-interface HistoryEntry {
-  id: number;
-  eventId: string;
-  nodeId: string;
-  eventType: EventType;
-  logicalTimestamp: number;
-  createdAt: string;
-  isCompacted: boolean;
-  payloadPreview: string;
-}
-
-interface HistoryResponse {
-  fileId: number;
-  entries: HistoryEntry[];
-  totalEntries: number;
-}
-
-type RestoringMap = Record<string, boolean>;
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-function relativeTime(iso: string): string {
-  try {
-    const diff = new Date(iso).getTime() - Date.now();
-    const abs = Math.abs(diff);
-    const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
-    if (abs < 60_000) return rtf.format(Math.round(diff / 1_000), 'second');
-    if (abs < 3_600_000) return rtf.format(Math.round(diff / 60_000), 'minute');
-    if (abs < 86_400_000) return rtf.format(Math.round(diff / 3_600_000), 'hour');
-    if (abs < 604_800_000) return rtf.format(Math.round(diff / 86_400_000), 'day');
-    return new Date(iso).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch { return iso; }
-}
-
-function eventMeta(type: EventType): { icon: React.ReactNode; label: string; color: string; bg: string } {
+function eventMeta(type: HistoryEntry['eventType']): { icon: React.ReactNode; label: string; color: string; bg: string } {
   switch (type) {
     case 'edit':
       return { icon: <IconEdit size={16} />, label: 'Edit', color: 'var(--ds-accent)', bg: 'var(--ds-accent-bg)' };
@@ -62,13 +28,13 @@ function eventMeta(type: EventType): { icon: React.ReactNode; label: string; col
   }
 }
 
-function truncate(text: string, max = 100): string {
+function truncatePreview(text: string, max = 120): string {
   if (!text) return '';
   const clean = text.replace(/[\r\n\t]+/g, ' ').trim();
   return clean.length <= max ? clean : clean.slice(0, max) + '…';
 }
 
-// ── TimelineEntry ───────────────────────────────────────────────────────────
+// ── TimelineItem ─────────────────────────────────────────────────────────────
 
 const TimelineItem: React.FC<{
   entry: HistoryEntry;
@@ -102,21 +68,15 @@ const TimelineItem: React.FC<{
 
         {/* Payload preview */}
         {entry.payloadPreview && (
-          <div style={{
-            fontSize: '0.68rem', color: 'var(--ds-text2)',
-            background: 'var(--ds-bg3)', borderRadius: 'var(--ds-radius-sm)',
-            padding: '0.35rem 0.5rem', fontFamily: 'monospace',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            maxWidth: '100%', marginBottom: '0.35rem',
-          }}>
-            {truncate(entry.payloadPreview, 120)}
+          <div style={{ fontSize: '0.68rem', color: 'var(--ds-text2)', background: 'var(--ds-bg3)', borderRadius: 'var(--ds-radius-sm)', padding: '0.35rem 0.5rem', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', marginBottom: '0.35rem' }}>
+            {truncatePreview(entry.payloadPreview)}
           </div>
         )}
 
         {/* Footer */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '0.65rem', color: 'var(--ds-text3)' }}>
-            {relativeTime(entry.createdAt)}
+            {formatRelativeTime(entry.createdAt)}
           </span>
           <button
             className="ds-btn ds-btn-ghost"
@@ -133,7 +93,7 @@ const TimelineItem: React.FC<{
   );
 };
 
-// ── HistoryPage ─────────────────────────────────────────────────────────────
+// ── HistoryPage ───────────────────────────────────────────────────────────────
 
 const HistoryPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -144,36 +104,31 @@ const HistoryPage: React.FC = () => {
   const [totalEntries, setTotalEntries] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [restoring, setRestoring] = useState<RestoringMap>({});
+  const [restoring, setRestoring] = useState<Record<string, boolean>>({});
 
   const fetchHistory = useCallback(async () => {
     if (fileId === null) { setLoadError('Invalid file ID.'); setLoading(false); return; }
-    if (!window.docuSync) { setLoadError('IPC bridge not available.'); setLoading(false); return; }
     setLoading(true); setLoadError(null);
     try {
-      const res = await window.docuSync.getHistory(fileId);
-      if (!res.success || !res.data) throw new Error(res.error ?? 'No data.');
-      const data = res.data as HistoryResponse;
+      const data = await FileService.getHistory(fileId);
       setEntries([...data.entries].sort((a, b) => b.logicalTimestamp - a.logicalTimestamp));
       setTotalEntries(data.totalEntries);
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : String(err));
+      setLoadError(err instanceof ServiceError ? err.message : String(err));
     } finally { setLoading(false); }
   }, [fileId]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   const handleRestore = useCallback(async (eventId: string) => {
-    if (fileId === null || !window.docuSync) return;
+    if (fileId === null) return;
     setRestoring(prev => ({ ...prev, [eventId]: true }));
     try {
-      const res = await window.docuSync.restoreVersion(fileId, eventId);
-      if (!res.success) throw new Error(res.error ?? 'Restore error.');
-      const data = res.data as { fileId: number; restoredToEventId: string; contentLength: number };
-      toast.success('Version restored', { description: `${data.contentLength} chars restored`, duration: 4000 });
+      const data = await FileService.restoreVersion(fileId, eventId);
+      notify.success('Version restored', `${data.contentLength} chars restored`);
       navigate(`/editor/${data.fileId}`);
     } catch (err) {
-      toast.error(`Restore failed: ${err instanceof Error ? err.message : String(err)}`);
+      notify.error(err instanceof ServiceError ? err.message : `Restore failed: ${String(err)}`);
       setRestoring(prev => ({ ...prev, [eventId]: false }));
     }
   }, [fileId, navigate]);
@@ -219,7 +174,7 @@ const HistoryPage: React.FC = () => {
             <div className="ds-empty-icon">🕐</div>
             <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>No history yet</h2>
             <p style={{ color: 'var(--ds-text2)', fontSize: '0.82rem', maxWidth: 340, margin: '0 auto 1.5rem' }}>
-              Start editing this file to create EventLog entries. Each save generates a new event.
+              Start editing this file to create EventLog entries. Each Check-In generates a new event.
             </p>
             <button className="ds-btn ds-btn-primary" onClick={() => navigate(`/editor/${fileId}`)}>Open Editor</button>
           </div>

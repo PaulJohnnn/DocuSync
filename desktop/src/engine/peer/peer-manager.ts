@@ -53,8 +53,9 @@ import type { VectorClockJSON } from '../vector-clock/vector-clock';
  *
  * Any peer exceeding this rate is disconnected to prevent abuse
  * or runaway sync loops.
+ * Increased to 50 to allow reliable 10Hz benchmarking with JS setInterval burstiness.
  */
-const MAX_MESSAGES_PER_SECOND = 10;
+const MAX_MESSAGES_PER_SECOND = 50;
 
 /**
  * Interval (ms) to clean up stale rate-limiter entries.
@@ -132,7 +133,8 @@ export type OnMergeAccepted = (
   conflictId: string,
   fileId: number,
   winnerPayload: string,
-  vectorClockJson: VectorClockJSON
+  vectorClockJson: VectorClockJSON,
+  resolvedByNodeId?: string
 ) => void | Promise<void>;
 
 /**
@@ -182,41 +184,6 @@ export interface PeerManagerConfig {
 // PeerManager Class
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Manages all P2P WebSocket connections for a DocuSync node.
- *
- * **Lifecycle:**
- * 1. Create via {@link createPeerManager}.
- * 2. Call {@link startServer} to listen for inbound connections.
- * 3. Call {@link connectToPeer} for each known peer address.
- * 4. Use {@link broadcast} to push messages to all connected peers.
- * 5. Call {@link shutdown} for graceful teardown.
- *
- * **Rate limiting:** Each connection is tracked by a sliding-window
- * rate limiter. If a peer exceeds {@link MAX_MESSAGES_PER_SECOND},
- * the connection is terminated and the peer is logged as rate-limited.
- *
- * **Message handling:** All inbound messages pass through
- * {@link validateMessage} from the message-schema module. Only valid
- * messages reach the handler; malformed payloads are rejected with a
- * warning log and the connection is preserved (to allow retries).
- *
- * @example
- * ```ts
- * const manager = createPeerManager({
- *   localNodeId: myNodeId,
- *   localDisplayName: 'Alice-Laptop',
- *   nodeCount: 3,
- *   nodeIndex: 0,
- *   prisma,
- *   eventLog,
- *   getFileContent: async (fid) => readLocalFile(fid),
- * });
- *
- * await manager.startServer(9000);
- * await manager.connectToPeer('192.168.1.10', 9000);
- * ```
- */
 export class PeerManager {
   /** Configuration. @internal */
   private readonly config: PeerManagerConfig;
@@ -1010,7 +977,8 @@ export class PeerManager {
         msg.conflictId,
         msg.fileId,
         msg.winnerPayload,
-        msg.vectorClockJson
+        msg.vectorClockJson,
+        msg.resolvedBy
       );
     }
   }

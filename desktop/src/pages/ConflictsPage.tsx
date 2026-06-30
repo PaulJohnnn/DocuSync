@@ -1,27 +1,21 @@
 /**
  * @module ConflictsPage
  * Conflict resolution hub — route `/conflicts`.
- * Amber banner, red-bordered conflict cards, side-by-side diff, 3 action buttons.
- * All IPC logic preserved from original implementation.
+ * Refactored: uses ConflictService. No inline IPC calls.
+ * Buttons renamed Accept / Reject per manuscript spec.
  */
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 import { useElectronSync, type PendingConflict } from '@/context/ElectronSyncContext';
 import { IconAlertTriangle, IconRefresh, IconArrowLeft, IconShield, IconZap, IconCheck } from '@/components/Icons';
+import ConflictService, { type ConflictRecord } from '@/services/ConflictService';
+import { ServiceError } from '@/services/errors/ServiceError';
+import { notify } from '@docusync/shared/utils/notifications';
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ── Types ────────────────────────────────────────────────────────────────────
 
-interface ConflictDetail {
-  conflictId: string;
-  fileId: number;
+interface ConflictDetail extends Omit<ConflictRecord, 'detectedAt'> {
   summary: string;
-  nodeIdA: string;
-  nodeIdB: string;
-  payloadA: string;
-  payloadB: string;
-  logicalTimestampA: number;
-  logicalTimestampB: number;
   detectedAt: Date;
   resolving: boolean;
 }
@@ -33,7 +27,7 @@ interface DiffLine {
   lineNumB: number | null;
 }
 
-// ── Diff Engine ─────────────────────────────────────────────────────────────
+// ── Diff Engine ───────────────────────────────────────────────────────────────
 
 function lcs(a: string[], b: string[]): string[] {
   const m = a.length, n = b.length;
@@ -75,93 +69,61 @@ function extractNodeId(summary: string, side: 'A' | 'B'): string {
   return side === 'A' ? match[1] : match[2];
 }
 
-// ── Side-by-side DiffView ───────────────────────────────────────────────────
+// ── DiffView ──────────────────────────────────────────────────────────────────
 
 const DiffView: React.FC<{ lines: DiffLine[] }> = ({ lines }) => {
   if (lines.length === 0) return (
-    <div style={{ padding: '1rem', color: 'var(--ds-text3)', fontSize: '0.8rem', textAlign: 'center' }}>
-      No differences — files are identical.
-    </div>
+    <div style={{ padding: '1rem', color: 'var(--ds-text3)', fontSize: '0.8rem', textAlign: 'center' }}>No differences — files are identical.</div>
   );
-
   const sideA = lines.filter(l => l.type === 'equal' || l.type === 'delete');
   const sideB = lines.filter(l => l.type === 'equal' || l.type === 'insert');
-
   return (
     <div className="ds-diff-container">
-      {/* Side A */}
       <div className="ds-diff-side">
-        <div className="ds-diff-header" style={{ color: 'var(--ds-red)', background: 'var(--ds-red-bg)' }}>
-          Side A — Original
-        </div>
-        {sideA.map((line, i) => (
-          <div key={i} className={`ds-diff-line ${line.type === 'delete' ? 'ds-diff-line-del' : ''}`}>
-            {line.text || '\u00A0'}
-          </div>
-        ))}
+        <div className="ds-diff-header" style={{ color: 'var(--ds-red)', background: 'var(--ds-red-bg)' }}>Side A — Original</div>
+        {sideA.map((line, i) => <div key={i} className={`ds-diff-line ${line.type === 'delete' ? 'ds-diff-line-del' : ''}`}>{line.text || '\u00A0'}</div>)}
       </div>
-      {/* Side B */}
       <div className="ds-diff-side">
-        <div className="ds-diff-header" style={{ color: 'var(--ds-green)', background: 'var(--ds-green-bg)' }}>
-          Side B — Incoming
-        </div>
-        {sideB.map((line, i) => (
-          <div key={i} className={`ds-diff-line ${line.type === 'insert' ? 'ds-diff-line-ins' : ''}`}>
-            {line.text || '\u00A0'}
-          </div>
-        ))}
+        <div className="ds-diff-header" style={{ color: 'var(--ds-green)', background: 'var(--ds-green-bg)' }}>Side B — Incoming</div>
+        {sideB.map((line, i) => <div key={i} className={`ds-diff-line ${line.type === 'insert' ? 'ds-diff-line-ins' : ''}`}>{line.text || '\u00A0'}</div>)}
       </div>
     </div>
   );
 };
 
-// ── ConflictCard ────────────────────────────────────────────────────────────
+// ── ConflictCard ──────────────────────────────────────────────────────────────
 
 const ConflictCard: React.FC<{
   conflict: ConflictDetail;
-  onResolve: (id: string, winner: 'A' | 'B') => Promise<void>;
-}> = ({ conflict, onResolve }) => {
+  onAccept: (id: string) => Promise<void>;
+  onReject: (id: string) => Promise<void>;
+}> = ({ conflict, onAccept, onReject }) => {
   const diffLines = useMemo(() => lineDiff(conflict.payloadA, conflict.payloadB), [conflict.payloadA, conflict.payloadB]);
   const lwwWinner: 'A' | 'B' = conflict.logicalTimestampA >= conflict.logicalTimestampB ? 'A' : 'B';
   const delCount = diffLines.filter(l => l.type === 'delete').length;
   const insCount = diffLines.filter(l => l.type === 'insert').length;
 
   return (
-    <article
-      className="ds-card"
-      style={{ overflow: 'hidden', opacity: conflict.resolving ? 0.6 : 1 }}
-    >
+    <article className="ds-card" style={{ overflow: 'hidden', opacity: conflict.resolving ? 0.6 : 1 }}>
       {/* Card header */}
-      <div style={{
-        background: 'var(--bg-sidebar)',
-        borderBottom: '1px solid var(--border)',
-        padding: '12px 16px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
+      <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 9 }}>CONFLICT</span>
           <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>File #{conflict.fileId}</span>
           <IconAlertTriangle size={14} style={{ color: 'var(--red)' }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-            {conflict.detectedAt.toLocaleString()}
-          </span>
-          <code style={{ fontSize: 10, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '2px 7px', borderRadius: 4 }}>
-            {conflict.conflictId.slice(0, 10)}…
-          </code>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{conflict.detectedAt.toLocaleString()}</span>
+          <code style={{ fontSize: 10, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '2px 7px', borderRadius: 4 }}>{conflict.conflictId.slice(0, 10)}…</code>
         </div>
       </div>
 
       {/* Content */}
       <div style={{ padding: '14px 16px' }}>
-        {/* Diff counts */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <span className="ds-badge ds-badge-red">−{delCount} deleted</span>
           <span className="ds-badge ds-badge-green">+{insCount} added</span>
         </div>
-
-        {/* Node labels */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
           <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: 8, padding: '6px 10px' }}>
             <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Original · Node A</div>
@@ -174,34 +136,26 @@ const ConflictCard: React.FC<{
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>ts={conflict.logicalTimestampB}</div>
           </div>
         </div>
-
-        {/* Diff */}
         <DiffView lines={diffLines} />
       </div>
 
-      {/* Action bar */}
-      <div style={{
-        background: 'var(--bg-sidebar)',
-        borderTop: '1px solid var(--border)',
-        padding: '10px 16px',
-        display: 'flex', gap: 8, flexWrap: 'wrap',
-        alignItems: 'center',
-      }}>
-        <button className="ds-btn ds-btn-ghost" disabled={conflict.resolving} onClick={() => onResolve(conflict.conflictId, 'A')} style={{ fontSize: 12, height: 32 }}>
-          <IconShield size={13} /> Keep Original
+      {/* Action bar — Accept / Reject (manuscript terminology) */}
+      <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '10px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button className="ds-btn ds-btn-ghost" disabled={conflict.resolving} onClick={() => onReject(conflict.conflictId)} style={{ fontSize: 12, height: 32 }}>
+          <IconShield size={13} /> Reject (Keep Original)
         </button>
         <button
           className="ds-btn"
           disabled={conflict.resolving}
-          onClick={() => onResolve(conflict.conflictId, lwwWinner)}
-          title={`LWW: Side ${lwwWinner} wins`}
+          onClick={() => lwwWinner === 'B' ? onAccept(conflict.conflictId) : onReject(conflict.conflictId)}
+          title={`LWW Auto: Side ${lwwWinner} wins`}
           style={{ fontSize: 12, height: 32, background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--border-accent)' }}
         >
           <IconZap size={13} /> ⚡ LWW Auto
           <span style={{ fontSize: 9, background: 'rgba(79,125,248,0.25)', borderRadius: 3, padding: '0 4px', marginLeft: 2 }}>→ {lwwWinner}</span>
         </button>
-        <button className="ds-btn ds-btn-success" disabled={conflict.resolving} onClick={() => onResolve(conflict.conflictId, 'B')} style={{ fontSize: 12, height: 32 }}>
-          <IconCheck size={13} /> Accept Change
+        <button className="ds-btn ds-btn-success" disabled={conflict.resolving} onClick={() => onAccept(conflict.conflictId)} style={{ fontSize: 12, height: 32 }}>
+          <IconCheck size={13} /> Accept (Apply Incoming)
         </button>
         {conflict.resolving && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>Resolving…</span>}
       </div>
@@ -209,7 +163,7 @@ const ConflictCard: React.FC<{
   );
 };
 
-// ── ConflictsPage ───────────────────────────────────────────────────────────
+// ── ConflictsPage ─────────────────────────────────────────────────────────────
 
 const ConflictsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -226,29 +180,24 @@ const ConflictsPage: React.FC = () => {
   // Load from DB on mount
   useEffect(() => {
     refreshStatus();
-    if (!window.docuSync?.listConflicts) return;
     (async () => {
       try {
-        const resp = await window.docuSync.listConflicts();
-        if (resp.success && (resp as any).data?.conflicts) {
-          const conflicts = (resp as any).data.conflicts as any[];
-          setDetails(prev => {
-            const next = new Map(prev);
-            for (const c of conflicts) {
-              if (!next.has(c.conflictId)) {
-                next.set(c.conflictId, {
-                  conflictId: c.conflictId, fileId: c.fileId,
-                  summary: `${c.nodeIdA.slice(0,8)} vs ${c.nodeIdB.slice(0,8)}`,
-                  nodeIdA: c.nodeIdA, nodeIdB: c.nodeIdB, payloadA: c.payloadA, payloadB: c.payloadB,
-                  logicalTimestampA: c.logicalTimestampA, logicalTimestampB: c.logicalTimestampB,
-                  detectedAt: new Date(c.detectedAt), resolving: false,
-                });
-              }
+        const conflicts = await ConflictService.list();
+        setDetails(prev => {
+          const next = new Map(prev);
+          for (const c of conflicts) {
+            if (!next.has(c.conflictId)) {
+              next.set(c.conflictId, {
+                ...c,
+                summary: `${c.nodeIdA.slice(0,8)} vs ${c.nodeIdB.slice(0,8)}`,
+                detectedAt: new Date(c.detectedAt),
+                resolving: false,
+              });
             }
-            return next;
-          });
-        }
-      } catch (err) { console.warn('[ConflictsPage] list failed:', err); }
+          }
+          return next;
+        });
+      } catch { /* silently ignore */ }
     })();
   }, []);
 
@@ -260,21 +209,13 @@ const ConflictsPage: React.FC = () => {
       let changed = false;
       for (const conflict of conflictQueue) {
         if (next.has(conflict.conflictId)) continue;
-        if (window.docuSync?.getConflictDetail) {
-          try {
-            const resp = await window.docuSync.getConflictDetail(conflict.conflictId);
-            if (!cancelled && resp.success && (resp as any).data) {
-              const c = (resp as any).data;
-              next.set(conflict.conflictId, {
-                conflictId: c.conflictId, fileId: c.fileId, summary: conflict.summary,
-                nodeIdA: c.nodeIdA, nodeIdB: c.nodeIdB, payloadA: c.payloadA, payloadB: c.payloadB,
-                logicalTimestampA: c.logicalTimestampA ?? 0, logicalTimestampB: c.logicalTimestampB ?? 1,
-                detectedAt: new Date(c.detectedAt), resolving: false,
-              });
-              changed = true; continue;
-            }
-          } catch { /* fallback */ }
-        }
+        try {
+          const detail = await ConflictService.getDetail(conflict.conflictId);
+          if (!cancelled) {
+            next.set(conflict.conflictId, { ...detail, summary: conflict.summary, detectedAt: new Date(detail.detectedAt), resolving: false });
+            changed = true; continue;
+          }
+        } catch { /* fallback */ }
         if (!cancelled) { next.set(conflict.conflictId, buildFallbackDetail(conflict)); changed = true; }
       }
       for (const key of next.keys()) {
@@ -285,19 +226,38 @@ const ConflictsPage: React.FC = () => {
     return () => { cancelled = true; };
   }, [conflictQueue, buildFallbackDetail]);
 
-  const handleResolve = useCallback(async (conflictId: string, winner: 'A' | 'B') => {
-    if (!window.docuSync) { toast.error('IPC bridge not available.'); return; }
-    setDetails(prev => { const next = new Map(prev); const e = next.get(conflictId); if (e) next.set(conflictId, { ...e, resolving: true }); return next; });
+  const setResolving = (conflictId: string, value: boolean) => {
+    setDetails(prev => {
+      const next = new Map(prev);
+      const e = next.get(conflictId);
+      if (e) next.set(conflictId, { ...e, resolving: value });
+      return next;
+    });
+  };
+
+  const handleAccept = useCallback(async (conflictId: string) => {
+    setResolving(conflictId, true);
     try {
-      const res = await window.docuSync.resolveConflict(conflictId, winner);
-      if (!res.success) throw new Error(res.error ?? 'Unknown error.');
+      await ConflictService.accept(conflictId);
       markConflictResolved(conflictId);
-      toast.success(`Resolved — ${winner === 'A' ? 'Original kept' : 'Change accepted'}.`);
+      notify.success('Change accepted — incoming version applied.');
     } catch (err) {
-      toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
-      setDetails(prev => { const next = new Map(prev); const e = next.get(conflictId); if (e) next.set(conflictId, { ...e, resolving: false }); return next; });
+      notify.error(err instanceof ServiceError ? err.message : String(err));
+      setResolving(conflictId, false);
     }
-  }, [markConflictResolved, details]);
+  }, [markConflictResolved]);
+
+  const handleReject = useCallback(async (conflictId: string) => {
+    setResolving(conflictId, true);
+    try {
+      await ConflictService.reject(conflictId);
+      markConflictResolved(conflictId);
+      notify.success('Change rejected — original version kept.');
+    } catch (err) {
+      notify.error(err instanceof ServiceError ? err.message : String(err));
+      setResolving(conflictId, false);
+    }
+  }, [markConflictResolved]);
 
   const sorted = useMemo(() => [...details.values()].sort((a, b) => b.detectedAt.getTime() - a.detectedAt.getTime()), [details]);
 
@@ -320,7 +280,7 @@ const ConflictsPage: React.FC = () => {
             <span style={{ fontSize: '1.1rem' }}>⚠️</span>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 13 }}>{pendingConflicts} conflict{pendingConflicts !== 1 ? 's' : ''} require your review</div>
-              <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 2, opacity: 0.8 }}>Resolve before changes propagate to peers.</div>
+              <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 2, opacity: 0.8 }}>As the document owner, Accept or Reject each change before it propagates to peers.</div>
             </div>
           </div>
         )}
@@ -340,7 +300,14 @@ const ConflictsPage: React.FC = () => {
         {/* Conflict cards */}
         {sorted.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {sorted.map(c => <ConflictCard key={c.conflictId} conflict={c} onResolve={handleResolve} />)}
+            {sorted.map(c => (
+              <ConflictCard
+                key={c.conflictId}
+                conflict={c}
+                onAccept={handleAccept}
+                onReject={handleReject}
+              />
+            ))}
           </div>
         )}
       </div>

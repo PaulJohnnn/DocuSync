@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import { Wifi, WifiOff, Link2, Users, X, Copy, CheckCircle } from 'lucide-react';
+import { useWebSync } from '@/context/WebSyncContext';
 
 // ── Central Matchmaker URL ─────────────────────────────────────────────────────
 // All platforms hit this single URL. In production this is the Vercel deployment.
@@ -31,7 +32,7 @@ interface RoomInfo {
 
 export default function PeersPage() {
   const router = useRouter();
-  const [peers, setPeers] = useState<PeerInfo[]>([]);
+  const { peers, connectToPeer, disconnectPeer } = useWebSync();
   const [otp, setOtp] = useState('');
   const [joining, setJoining] = useState(false);
   const [roomName, setRoomName] = useState('');
@@ -42,15 +43,8 @@ export default function PeersPage() {
   const [joinError, setJoinError] = useState('');
 
   useEffect(() => {
-    const stored = localStorage.getItem('docusync_peers');
-    if (stored) setPeers(JSON.parse(stored));
     const storedRoom = localStorage.getItem('docusync_current_room');
     if (storedRoom) setCurrentRoom(JSON.parse(storedRoom));
-  }, []);
-
-  const savePeers = useCallback((newPeers: PeerInfo[]) => {
-    setPeers(newPeers);
-    localStorage.setItem('docusync_peers', JSON.stringify(newPeers));
   }, []);
 
   // ── HOST: Register room with real matchmaker API ───────────────────────────
@@ -109,10 +103,6 @@ export default function PeersPage() {
 
       const { hostIp, hostPort, roomName: rName, memberCount } = data;
 
-      // Try WebSocket connection to the host's desktop WS server
-      const wsUrl = `ws://${hostIp}:${hostPort}`;
-      console.log('[OTP Join] Connecting to host WS:', wsUrl);
-
       const room: RoomInfo = {
         id: otp,
         name: rName || 'OTP Session',
@@ -125,51 +115,12 @@ export default function PeersPage() {
       alert('Successfully joined the room!');
       router.push('/app/files?tab=peer_rooms');
 
-      // Add peer to list
-      const newPeer: PeerInfo = {
-        id: `${hostIp}:${hostPort}`,
-        address: hostIp,
-        port: hostPort,
-        status: 'connecting',
-        latency: 0,
-        connectedAt: new Date().toISOString(),
-      };
-      savePeers([...peers, newPeer]);
-
-      // Attempt WS connection (browser env)
-      try {
-        const ws = new WebSocket(wsUrl);
-        ws.onopen = () => {
-          ws.send(JSON.stringify({ type: 'PEER_HELLO', nodeId: `web-client`, displayName: 'DocuSync Web' }));
-          newPeer.status = 'connected';
-          newPeer.latency = 0;
-          savePeers([...peers, newPeer]);
-          console.log('[OTP Join] ✅ WS connected to', wsUrl);
-        };
-        ws.onerror = () => {
-          console.warn('[OTP Join] WS connection failed (host may be offline or on different network)');
-          setPeers(prev => {
-            const next = prev.map(p => p.id === newPeer.id ? { ...p, status: 'disconnected' as const } : p);
-            localStorage.setItem('docusync_peers', JSON.stringify(next));
-            return next;
-          });
-        };
-        ws.onclose = () => {
-          console.warn('[OTP Join] WS connection closed');
-          setPeers(prev => {
-            const next = prev.map(p => p.id === newPeer.id ? { ...p, status: 'disconnected' as const } : p);
-            localStorage.setItem('docusync_peers', JSON.stringify(next));
-            return next;
-          });
-        };
-      } catch {
-        console.warn('[OTP Join] WS not supported in this context');
-      }
+      connectToPeer(hostIp, hostPort);
 
       setOtp('');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Invalid OTP';
-      setJoinError(msg);
+    } catch (e) {
+      setJoinError('Error connecting to matchmaker.');
+      console.error(e);
     } finally {
       setJoining(false);
     }
@@ -185,7 +136,7 @@ export default function PeersPage() {
   };
 
   const removePeer = (id: string) => {
-    savePeers(peers.filter(p => p.id !== id));
+    disconnectPeer(id);
   };
 
   const leaveRoom = () => {
