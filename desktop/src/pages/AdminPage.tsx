@@ -9,8 +9,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Users, RefreshCw, Layers } from 'lucide-react';
 import { useElectronSync } from '@/context/ElectronSyncContext';
-import AdminService from '@/services/AdminService';
+import AdminService, { type SessionLogEntry, type GenerateAccountResult } from '@/services/AdminService';
 import { formatTimestampRelative } from '@docusync/shared/utils/formatters';
+import { notify } from '@docusync/shared/utils/notifications';
 
 interface AdminStats {
   rooms: any[];
@@ -24,11 +25,19 @@ const AdminPage: React.FC = () => {
   const { isAdmin } = useElectronSync();
 
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [sessionLog, setSessionLog] = useState<SessionLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const [deleteOtp, setDeleteOtp] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generatedAccount, setGeneratedAccount] = useState<GenerateAccountResult | null>(null);
 
   const fetchStats = useCallback(async () => {
     const data = await AdminService.getStats();
     setStats(data);
+    const log = await AdminService.getSessionLog(10);
+    setSessionLog(log);
     setLoading(false);
   }, []);
 
@@ -69,6 +78,86 @@ const AdminPage: React.FC = () => {
           </div>
         ) : (
           <>
+            {/* Admin Actions */}
+            <div className="ds-card" style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '1rem 1.25rem', borderBottom: '1px solid var(--ds-border)' }}>
+                <ShieldCheck size={18} color="var(--ds-accent)" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--ds-text)' }}>Admin Actions</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--ds-text3)' }}>Provision accounts and manage global groups</div>
+                </div>
+              </div>
+              
+              <div style={{ padding: '1.25rem', display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                {/* Generate Account */}
+                <div style={{ flex: 1, minWidth: 300 }}>
+                  <h3 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>Generate Verified Account</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--ds-text3)', marginBottom: '1rem' }}>Provision a new Node ID + PIN for external researchers.</p>
+                  
+                  {generatedAccount ? (
+                    <div style={{ background: 'var(--ds-green-bg)', border: '1px solid var(--ds-green)', borderRadius: 'var(--ds-radius-md)', padding: '1rem' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--ds-green)', fontWeight: 600, marginBottom: '0.5rem' }}>Account Generated Successfully</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div><span style={{ fontSize: '0.7rem', color: 'var(--ds-text2)' }}>Node ID: </span><code style={{ fontSize: '0.8rem', color: 'var(--ds-text)' }}>{generatedAccount.nodeId}</code></div>
+                        <div><span style={{ fontSize: '0.7rem', color: 'var(--ds-text2)' }}>Temp PIN: </span><code style={{ fontSize: '0.8rem', color: 'var(--ds-text)' }}>{generatedAccount.tempPin}</code></div>
+                      </div>
+                      <button className="ds-btn ds-btn-ghost" onClick={() => setGeneratedAccount(null)} style={{ marginTop: '0.5rem', fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}>Clear</button>
+                    </div>
+                  ) : (
+                    <button 
+                      className="ds-btn ds-btn-primary" 
+                      disabled={generating}
+                      onClick={async () => {
+                        setGenerating(true);
+                        try {
+                          const res = await AdminService.generateAccount('Researcher');
+                          setGeneratedAccount(res);
+                          notify.success('Account generated');
+                        } catch (err: any) { notify.error(err.message); }
+                        finally { setGenerating(false); }
+                      }}
+                    >
+                      {generating ? 'Generating...' : 'Provision New Account'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Delete Group */}
+                <div style={{ flex: 1, minWidth: 300 }}>
+                  <h3 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--ds-red)' }}>Delete Repository (Group)</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--ds-text3)', marginBottom: '1rem' }}>Force-terminate a collaboration group by its OTP.</p>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input 
+                      type="text" 
+                      className="ds-input" 
+                      placeholder="e.g. 12345" 
+                      value={deleteOtp} 
+                      onChange={e => setDeleteOtp(e.target.value)} 
+                      style={{ flex: 1, fontFamily: 'monospace' }}
+                    />
+                    <button 
+                      className="ds-btn" 
+                      style={{ background: 'var(--ds-red)', color: 'white', border: 'none' }}
+                      disabled={deleting || deleteOtp.length < 3}
+                      onClick={async () => {
+                        if (!window.confirm(`Are you sure you want to forcibly delete group ${deleteOtp}?`)) return;
+                        setDeleting(true);
+                        try {
+                          await AdminService.deleteGroup(deleteOtp);
+                          notify.success(`Group ${deleteOtp} deleted`);
+                          setDeleteOtp('');
+                          fetchStats();
+                        } catch (err: any) { notify.error(err.message); }
+                        finally { setDeleting(false); }
+                      }}
+                    >
+                      {deleting ? 'Deleting...' : 'Terminate Group'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Registered Users */}
             <div className="ds-card" style={{ marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '1rem 1.25rem', borderBottom: '1px solid var(--ds-border)' }}>
@@ -124,6 +213,36 @@ const AdminPage: React.FC = () => {
                         <code style={{ fontSize: '0.8rem', color: 'var(--ds-green)', fontFamily: 'monospace' }}>{r.otp}</code>
                         <code style={{ fontSize: '0.8rem', color: 'var(--ds-accent)', fontFamily: 'monospace' }}>{r.hostNodeId.slice(0, 16)}...</code>
                         <span style={{ fontSize: '0.8rem', color: 'var(--ds-text2)' }}>{r.memberCount} users</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Session Log */}
+            <div className="ds-card" style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '1rem 1.25rem', borderBottom: '1px solid var(--ds-border)' }}>
+                <ShieldCheck size={18} color="var(--ds-accent)" />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--ds-text)' }}>Global Session Audit Log</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--ds-text3)' }}>Recent actions across all network nodes</div>
+                </div>
+              </div>
+              {sessionLog.length === 0 ? (
+                <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--ds-text3)', fontSize: '0.82rem' }}>No session logs available.</div>
+              ) : (
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '120px 150px 120px 1fr', padding: '8px 1.25rem', fontSize: 11, fontWeight: 600, color: 'var(--ds-text3)', textTransform: 'uppercase', letterSpacing: '0.05em', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--ds-border)' }}>
+                    <span>Time</span><span>Node ID</span><span>Action</span><span>Detail</span>
+                  </div>
+                  <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                    {sessionLog.map((log, i) => (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 150px 120px 1fr', padding: '10px 1.25rem', alignItems: 'center', borderBottom: '1px solid var(--ds-border)' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--ds-text3)' }}>{new Date(log.timestamp).toLocaleTimeString()}</span>
+                        <code style={{ fontSize: '0.75rem', color: 'var(--ds-accent)', fontFamily: 'monospace' }}>{log.nodeId}</code>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: log.action.includes('CONFLICT') ? 'var(--ds-amber)' : 'var(--ds-text)' }}>{log.action}</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--ds-text2)' }}>{log.detail}</span>
                       </div>
                     ))}
                   </div>

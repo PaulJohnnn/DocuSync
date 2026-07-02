@@ -24,9 +24,17 @@ const cursors = g._docusyncCursors!;
 
 /** Remove cursors older than 10 seconds (inactive users) */
 function cleanCursors() {
-  const stale = Date.now() - 10_000;
-  for (const [key, c] of cursors.entries()) {
-    if (c.ts < stale) cursors.delete(key);
+  const staleTime = Date.now() - 10000;
+  for (const cursor of Array.from(cursors.values())) {
+    if (cursor.ts < staleTime) {
+      // Find the key corresponding to this cursor to delete it
+      for (const [key, c] of Array.from(cursors.entries())) {
+        if (c === cursor) {
+          cursors.delete(key);
+          break;
+        }
+      }
+    }
   }
 }
 
@@ -74,7 +82,7 @@ export async function GET(request: Request) {
   }
 
   const result = [];
-  for (const [key, c] of cursors.entries()) {
+  for (const [key, c] of Array.from(cursors.entries())) {
     if (!key.startsWith(`${otp}:`)) continue;
     if (c.nodeId === myNodeId) continue;        // skip self
     if (c.fileId !== fileId) continue;          // skip different files

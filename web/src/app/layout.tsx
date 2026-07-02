@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 
 import ClientLayoutWrapper from '@/components/ClientLayoutWrapper';
 import { WebSyncProvider } from '@/context/WebSyncContext';
+import { SyncStateProvider } from '@/context/SyncStateContext';
 import { Toaster } from 'sonner';
 
 export default function RootLayout({
@@ -20,12 +21,14 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body>
         <ThemeProvider>
-          <WebSyncProvider>
-            <ClientLayoutWrapper>
-              {children}
-            </ClientLayoutWrapper>
-            <Toaster position="bottom-right" richColors />
-          </WebSyncProvider>
+          <SyncStateProvider>
+            <WebSyncProvider>
+              <ClientLayoutWrapper>
+                {children}
+              </ClientLayoutWrapper>
+              <Toaster position="bottom-right" richColors />
+            </WebSyncProvider>
+          </SyncStateProvider>
         </ThemeProvider>
       </body>
     </html>

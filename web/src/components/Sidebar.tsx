@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   FolderOpen, AlertTriangle, Clock, Users, Activity, Wifi, Settings
 } from 'lucide-react';
+import OnlineStatusPill from './OnlineStatusPill';
 
 const NAV_ITEMS = [
   { href: '/app/files', label: 'Files', icon: FolderOpen },
@@ -94,6 +95,9 @@ export default function Sidebar() {
         borderTop: '1px solid var(--b1)',
         marginTop: 'auto',
       }}>
+        <div style={{ marginBottom: 12 }}>
+          <OnlineStatusPill />
+        </div>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
           fontSize: 11, color: 'var(--t3)',

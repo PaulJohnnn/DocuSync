@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { activeLobbies, cleanupLobbies, LobbyEntry } from '../store';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,68 +27,55 @@ export async function POST(request: Request) {
         { status: 400, headers: corsHeaders }
       );
     }
-    
-    if (!supabase) {
-        return NextResponse.json({ error: 'Supabase is not configured' }, { status: 500, headers: corsHeaders });
-    }
+
+    cleanupLobbies();
 
     let otp: string;
     let attempts = 0;
-    let isUnique = false;
     
     do {
       otp = Math.floor(10000 + Math.random() * 90000).toString();
-      const { data } = await supabase.from('matchmaker_lobbies').select('otp').eq('otp', otp).maybeSingle();
-      if (!data) isUnique = true;
       attempts++;
-    } while (!isUnique && attempts < 10);
+    } while (activeLobbies.has(otp) && attempts < 10);
 
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 60 * 60 * 1000);
+    const now = Date.now();
+    const expiresAt = now + 60 * 60 * 1000;
 
-    const { error } = await supabase.from('matchmaker_lobbies').insert({
+    const newLobby: LobbyEntry = {
         otp,
-        room_name: roomName,
-        host_node_id: hostNodeId,
-        host_ip: hostIp,
-        host_port: hostPort,
-        host_type: hostType,
-        created_at: now.toISOString(),
-        expires_at: expiresAt.toISOString()
-    });
+        roomName,
+        hostNodeId,
+        hostIp,
+        hostPort,
+        hostType,
+        createdAt: now,
+        expiresAt,
+        members: [],
+        peersJoined: 0,
+        files: [],
+        ip: hostIp,
+        port: hostPort,
+        nodeId: hostNodeId
+    };
 
-    if (error) {
-        throw new Error(error.message);
-    }
-
-    console.log(`[Lobby] Room created: OTP=${otp} host=${hostIp}:${hostPort} name="${roomName}"`);
+    activeLobbies.set(otp, newLobby);
 
     return NextResponse.json(
-      { success: true, otp, roomName, expiresIn: 3600 },
-      { status: 201, headers: corsHeaders }
+      {
+        success: true,
+        otp,
+        roomName,
+        hostNodeId,
+        hostIp,
+        hostPort,
+        hostType
+      },
+      { headers: corsHeaders }
     );
-  } catch (err) {
-    console.error('[Lobby] Create error:', err);
+  } catch (error: any) {
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: 'Internal server error: ' + error.message },
       { status: 500, headers: corsHeaders }
     );
   }
-}
-
-export async function GET() {
-  if (!supabase) return NextResponse.json({ rooms: [], total: 0 }, { headers: corsHeaders });
-  
-  // Cleanup expired lobbies
-  await supabase.from('matchmaker_lobbies').delete().lt('expires_at', new Date().toISOString());
-  
-  const { data } = await supabase.from('matchmaker_lobbies').select('*');
-  const rooms = (data || []).map((r: any) => ({
-    otp: r.otp,
-    roomName: r.room_name,
-    memberCount: 1, // simplified
-    createdAt: new Date(r.created_at).getTime(),
-    expiresAt: new Date(r.expires_at).getTime(),
-  }));
-  return NextResponse.json({ rooms, total: rooms.length }, { headers: corsHeaders });
 }

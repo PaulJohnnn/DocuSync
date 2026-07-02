@@ -1,8 +1,9 @@
+'use client';
 import React, { useState, useRef, useEffect, Suspense } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useElectronSync } from '@/context/ElectronSyncContext';
-import mockAuthService from '../services/mockAuthService';
+import { useRouter, useSearchParams } from 'next/navigation';
+import mockAuthService from '@/lib/mockAuthService';
 
+// ── DocuSync Logo SVG ─────────────────────────────────────────────────────
 const DocuSyncLogo: React.FC<{ size?: number }> = ({ size = 80 }) => (
   <svg width={size} height={size} viewBox="0 0 100 100" fill="none" style={{ filter: 'drop-shadow(0px 8px 16px rgba(79, 70, 229, 0.25))' }}>
     <rect width="100" height="100" rx="24" fill="#4f7df8" />
@@ -13,6 +14,17 @@ const DocuSyncLogo: React.FC<{ size?: number }> = ({ size = 80 }) => (
   </svg>
 );
 
+// ── Wave SVG (left panel bottom) ──────────────────────────────────────────
+const WaveDecor: React.FC = () => (
+  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, overflow: 'hidden', lineHeight: 0 }}>
+    <svg viewBox="0 0 500 140" preserveAspectRatio="none" style={{ width: '100%', height: 140, display: 'block' }}>
+      <path d="M0,80 C80,140 160,20 240,80 S400,140 500,80 L500,140 L0,140 Z" fill="rgba(255,255,255,0.08)" />
+      <path d="M0,100 C100,160 200,40 300,100 S440,160 500,100 L500,140 L0,140 Z" fill="rgba(255,255,255,0.05)" />
+    </svg>
+  </div>
+);
+
+// ── 6-digit PIN input (exact mockup design) ────────────────────────────────
 const SixDigitPin: React.FC<{
   value: string;
   onChange: (v: string) => void;
@@ -31,16 +43,19 @@ const SixDigitPin: React.FC<{
         borderRadius: 12, background: '#ffffff', padding: '11px 14px',
         cursor: 'text', gap: 10,
         boxShadow: error ? '0 0 0 3px rgba(239,68,68,0.12)' : undefined,
-        animation: shake ? 'shake 0.4s ease' : 'none',
+        animation: shake ? 'shake 0.4s ease' : undefined,
         transition: 'border-color 0.2s',
       }}
         onClick={() => inputRef.current?.focus()}
+        onFocus={() => inputRef.current?.focus()}
       >
+        {/* Lock icon */}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={error ? '#ef4444' : '#94a3b8'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
 
+        {/* 6 PIN slots */}
         <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
           {Array.from({ length: 6 }).map((_, i) => {
             const filled = i < value.length;
@@ -64,6 +79,7 @@ const SixDigitPin: React.FC<{
           })}
         </div>
 
+        {/* Eye toggle */}
         <button
           type="button"
           onClick={e => { e.stopPropagation(); onToggleShow(); }}
@@ -87,6 +103,7 @@ const SixDigitPin: React.FC<{
           )}
         </button>
 
+        {/* Hidden real input */}
         <input
           ref={inputRef}
           type="text"
@@ -101,28 +118,38 @@ const SixDigitPin: React.FC<{
   );
 };
 
-// ── Sign Up Form ─────────────────────────────────────────────────────────────
+// ── Sign Up form inner ──────────────────────────────────────────────────────
 function SignUpForm({ onBack }: { onBack: () => void }) {
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
   const [approvedPin, setApprovedPin] = useState<string | null>(null);
 
   useEffect(() => {
     if (!success) return;
-    // Check once immediately
-    mockAuthService.checkApprovalStatus(email).then(pin => { if (pin) setApprovedPin(pin); });
-    // Then subscribe to live changes
-    const unsubscribe = mockAuthService.subscribeToDatabaseChanges(() => {
-      mockAuthService.checkApprovalStatus(email).then(pin => { if (pin) setApprovedPin(pin); });
+    
+    // Initial check in case it was instantly approved (rare)
+    mockAuthService.checkApprovalStatus(email).then(pin => {
+      if (pin) setApprovedPin(pin);
     });
+
+    const unsubscribe = mockAuthService.subscribeToDatabaseChanges(() => {
+      mockAuthService.checkApprovalStatus(email).then(pin => {
+        if (pin) setApprovedPin(pin);
+      });
+    });
+    
     return unsubscribe;
   }, [success, email]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) { setEmailError('Email is required.'); return; }
+    if (!email) {
+      setEmailError('Email is required.');
+      return;
+    }
     setLoading(true);
     try {
       await mockAuthService.requestAccount(email);
@@ -141,10 +168,11 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
       <div style={{ textAlign: 'center', padding: '40px 0', animation: 'fadeInUp 0.4s ease' }}>
         <div style={{
           width: 64, height: 64, borderRadius: '50%',
-          background: approvedPin ? 'rgba(34,197,94,0.1)' : 'rgba(79,70,229,0.06)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
+          background: 'rgba(34,197,94,0.1)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px',
         }}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={approvedPin ? '#16a34a' : '#4f46e5'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </div>
@@ -152,31 +180,32 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
           <>
             <h3 style={{ fontSize: 20, fontWeight: 700, color: '#166534', marginBottom: 8 }}>Request Approved!</h3>
             <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 16, lineHeight: 1.5 }}>
-              Your profile has been approved. Use the PIN below to log in.
+              Your profile has been approved by the administrator. Use the PIN below to log in.
             </p>
             <div style={{
               background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px',
-              marginBottom: 24, fontSize: 28, fontWeight: 800, color: '#0f172a', letterSpacing: '6px',
-              fontFamily: 'monospace',
+              marginBottom: 24, fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '4px'
             }}>
               {approvedPin}
             </div>
-            <button onClick={onBack} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, background: 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)', color: '#fff', border: 'none', cursor: 'pointer' }}>
-              Go to Login
-            </button>
           </>
         ) : (
           <>
-            <h3 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>Request Sent!</h3>
+            <h3 style={{ fontSize: 20, fontWeight: 700, color: '#166534', marginBottom: 8 }}>Request Sent!</h3>
             <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 24, lineHeight: 1.5 }}>
-              Your profile request for <strong>{email}</strong> has been sent. Waiting for admin approval...
+              Your profile request for <strong>{email}</strong> has been logged locally. Please contact the device administrator to approve this profile.
             </p>
-            <div style={{ width: 32, height: 32, margin: '0 auto 16px', border: '3px solid #e2e8f0', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <button onClick={onBack} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
-              Back to Unlock
-            </button>
           </>
         )}
+        <button
+          onClick={onBack}
+          style={{
+            padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600,
+            background: '#fff', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer'
+          }}
+        >
+          Back to Unlock
+        </button>
       </div>
     );
   }
@@ -227,13 +256,13 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
       >
         {loading ? 'Requesting...' : 'Request Local Profile'}
       </button>
-
+      
       <button
         type="button"
         onClick={onBack}
         style={{
           width: '100%', padding: '14px', borderRadius: 12, fontSize: 14, fontWeight: 600,
-          background: '#fff', color: '#64748b', border: '1.5px solid #e2e8f0', cursor: 'pointer',
+          background: '#fff', color: '#64748b', border: 'none', cursor: 'pointer',
         }}
       >
         Back to Unlock
@@ -242,22 +271,29 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
   );
 }
 
+// ── Unlock form inner (needs searchParams) ────────────────────────────────
 function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const prefilledEmail = searchParams.get('email') ?? localStorage.getItem('docusync_remembered_email') ?? '';
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const [email, setEmail] = useState(prefilledEmail);
+  const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState('');
   const [pin, setPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [showPin, setShowPin] = useState(false);
-  const [remember, setRemember] = useState(!!prefilledEmail);
+  const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [shake, setShake] = useState(false);
   const [success, setSuccess] = useState(false);
-  const { setIsAdmin } = useElectronSync();
+
+  useEffect(() => {
+    const prefilled = searchParams.get('email') ?? mockAuthService.getRememberedEmail();
+    if (prefilled) {
+      setEmail(prefilled);
+      setRemember(true);
+    }
+  }, [searchParams]);
 
   const triggerShake = () => {
     setShake(true);
@@ -277,23 +313,19 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
     setLoading(true);
 
     try {
-      const user = await mockAuthService.login(email, pin);
-      if (user.isAdmin) {
-        setIsAdmin(true);
-      } else {
-        setIsAdmin(false);
-      }
-
+      const user = await mockAuthService.unlockWorkspace(email, pin);
       if (remember) {
-        localStorage.setItem('docusync_remembered_email', email);
+        mockAuthService.setRememberedEmail(email);
       } else {
-        localStorage.removeItem('docusync_remembered_email');
+        mockAuthService.clearRememberedEmail();
       }
-
       setSuccess(true);
       setTimeout(() => {
-        if (user.isAdmin) navigate('/admin');
-        else navigate('/');
+        if (user.isAdmin) {
+          router.push('/app/admin/dashboard');
+        } else {
+          router.push('/app/files');
+        }
       }, 800);
     } catch (err: any) {
       setAuthError(err?.message ?? 'Invalid credentials. Please try again.');
@@ -326,6 +358,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
 
   return (
     <form onSubmit={handleUnlock} noValidate>
+      {/* Email field */}
       <div style={{ marginBottom: 20 }}>
         <label htmlFor="unlock-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>
           Local Identifier (Email)
@@ -361,6 +394,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         {emailError && <p style={{ marginTop: 4, fontSize: 12, color: '#ef4444' }}>{emailError}</p>}
       </div>
 
+      {/* PIN field */}
       <div style={{ marginBottom: 4 }}>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>
           6-Digit Security PIN
@@ -376,6 +410,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         {pinError && <p style={{ marginTop: 4, fontSize: 12, color: '#ef4444' }}>{pinError}</p>}
       </div>
 
+      {/* Auth error */}
       {authError && (
         <div style={{
           padding: '10px 14px', borderRadius: 10, marginBottom: 16,
@@ -386,6 +421,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         </div>
       )}
 
+      {/* Remember + Forgot PIN row */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, marginTop: 8 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#475569' }}>
           <input
@@ -405,6 +441,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         </button>
       </div>
 
+      {/* Primary CTA — Unlock Workspace */}
       <button
         type="submit"
         id="unlock-workspace-btn"
@@ -438,12 +475,14 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         )}
       </button>
 
+      {/* Or divider */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
         <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
         <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>or</span>
         <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
       </div>
 
+      {/* Secondary CTA — Create Local Profile */}
       <button
         type="button"
         id="create-local-profile-btn"
@@ -468,6 +507,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         Create Local Profile
       </button>
 
+      {/* Trust footer */}
       <div style={{
         marginTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
         fontSize: 11, color: '#94a3b8',
@@ -481,7 +521,48 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
   );
 }
 
-export default function VaultLoginPage() {
+// ── Hint card (shows mock credentials) ────────────────────────────────────
+const HintCard: React.FC = () => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{
+      position: 'fixed', bottom: 20, left: 20, zIndex: 100,
+      background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+      boxShadow: '0 4px 20px rgba(0,0,0,0.1)', overflow: 'hidden',
+      maxWidth: 280, fontSize: 12,
+    }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', padding: '8px 14px', background: '#f8fafc', border: 'none',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          fontSize: 12, fontWeight: 600, color: '#4f46e5',
+        }}
+      >
+        <span>🧪 Mock Credentials (DEV)</span>
+        <span>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ padding: '10px 14px', borderTop: '1px solid #f1f5f9' }}>
+          <div style={{ marginBottom: 6 }}>
+            <strong style={{ color: '#64748b' }}>User:</strong>
+            <div style={{ fontFamily: 'monospace', background: '#f8fafc', padding: '4px 8px', borderRadius: 6, marginTop: 3 }}>
+              alice@docusync.local / PIN: 123456
+            </div>
+          </div>
+          <div>
+            <strong style={{ color: '#64748b' }}>Admin:</strong>
+            <div style={{ fontFamily: 'monospace', background: '#f8fafc', padding: '4px 8px', borderRadius: 6, marginTop: 3 }}>
+              admin / PIN: admin
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default function UnlockWorkspacePage() {
   const [mode, setMode] = useState<'unlock' | 'signup'>('unlock');
 
   return (
@@ -503,19 +584,24 @@ export default function VaultLoginPage() {
           position: 'relative', overflow: 'hidden',
           padding: '64px 48px 48px',
         }}>
+          {/* Top-left dot grid decoration */}
           <div style={{
             position: 'absolute', top: 32, left: 32, width: 60, height: 80,
             backgroundImage: 'radial-gradient(#cbd5e1 2px, transparent 2px)',
             backgroundSize: '12px 12px', opacity: 0.8
           }} />
 
+          {/* Center content */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
             <div style={{ marginBottom: 24 }}>
               <DocuSyncLogo size={88} />
             </div>
+
             <h1 style={{ fontSize: 32, fontWeight: 800, color: '#0f172a', marginBottom: 16, textAlign: 'center' }}>
               Login to <span style={{ color: '#4f46e5' }}>DocuSync</span>
             </h1>
+
+            {/* shield divider */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', marginBottom: 20, width: 120 }}>
               <div style={{ flex: 1, height: 1.5, background: 'rgba(79,70,229,0.2)' }} />
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -523,12 +609,14 @@ export default function VaultLoginPage() {
               </svg>
               <div style={{ flex: 1, height: 1.5, background: 'rgba(79,70,229,0.2)' }} />
             </div>
+
             <p style={{ fontSize: 15, color: '#334155', lineHeight: 1.6, textAlign: 'center', maxWidth: 300, fontWeight: 500 }}>
               A decentralized collaborative workspace powered by peer-to-peer synchronization.
               Your files remain under your control with no centralized cloud dependency.
             </p>
           </div>
 
+          {/* Bottom decorative wave */}
           <div style={{ position: 'absolute', bottom: 60, left: 0, right: 0, height: 120, zIndex: 1, opacity: 0.6 }}>
             <svg viewBox="0 0 500 120" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
               <path d="M0,40 C150,100 350,0 500,40 L500,120 L0,120 Z" fill="rgba(199,210,254,0.4)" />
@@ -536,9 +624,11 @@ export default function VaultLoginPage() {
             </svg>
           </div>
 
+          {/* Bottom features row */}
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-            borderTop: '1px solid rgba(148,163,184,0.2)', paddingTop: 20, zIndex: 10,
+            borderTop: '1px solid rgba(148,163,184,0.2)', paddingTop: 20,
+            zIndex: 10,
           }}>
             {[
               { icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', title: 'Private', sub: 'Your data stays local', color: '#4f46e5' },
@@ -557,28 +647,29 @@ export default function VaultLoginPage() {
             ))}
           </div>
         </div>
+
         {/* ── Right panel ─────────────────────────────────────────────── */}
         <div style={{
           flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: '80px', background: '#ffffff',
         }}>
           <div style={{ width: '100%', maxWidth: 480 }}>
+            {/* Header */}
             <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
               <div style={{
                 width: 48, height: 48, borderRadius: 12,
-                background: '#eef2ff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0
+                background: '#eef2ff', color: '#4f46e5',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
                 {mode === 'signup' ? (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                     <circle cx="9" cy="7" r="4" />
                     <line x1="19" y1="8" x2="19" y2="14" />
                     <line x1="16" y1="11" x2="22" y2="11" />
                   </svg>
                 ) : (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                   </svg>
@@ -605,7 +696,10 @@ export default function VaultLoginPage() {
         </div>
       </div>
 
-      <style>{`
+      <HintCard />
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes fadeInUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
         @keyframes shake {
@@ -615,7 +709,10 @@ export default function VaultLoginPage() {
           60%{transform:translateX(-4px)}
           80%{transform:translateX(4px)}
         }
-      `}</style>
+        @media(max-width:768px){
+          [style*="flex: 0 0 50%"]{display:none!important}
+        }
+      `}} />
     </div>
   );
-};
+}

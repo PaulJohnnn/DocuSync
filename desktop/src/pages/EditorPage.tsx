@@ -191,10 +191,6 @@ const EditorPage: React.FC = () => {
     ],
     content: '',
     editorProps: { attributes: { class: 'ProseMirror', 'data-testid': 'tiptap-editor' } },
-    onUpdate: ({ editor: e }) => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => { performSave(e.getHTML()); }, 500);
-    },
     onSelectionUpdate: ({ editor: e }) => {
       // Broadcast cursor position to matchmaker whenever selection changes
       if (!roomOtp || !fileId) return;
@@ -394,7 +390,7 @@ const EditorPage: React.FC = () => {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {filePath ? basename(filePath) : `File #${fileId}`}
-            {saving && <span style={{ color: 'var(--amber)', fontSize: 11, fontWeight: 400, marginLeft: 8 }}>saving…</span>}
+            {saving && <span style={{ color: 'var(--amber)', fontSize: 11, fontWeight: 400, marginLeft: 8 }}>checking in…</span>}
           </div>
           {filePath && (
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -523,7 +519,7 @@ const EditorPage: React.FC = () => {
                 disabled={saving}
                 style={{ height: 30, fontSize: 12, padding: '0 14px' }}
               >
-                {saving ? '↻ Saving…' : '💾 Save'}
+                {saving ? '↻ Checking In…' : '💾 Check-In'}
               </button>
             </div>
           </div>

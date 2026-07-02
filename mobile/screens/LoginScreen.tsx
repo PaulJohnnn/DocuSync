@@ -1,8 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, TextInput, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Rect, Circle } from 'react-native-svg';
+import mockAuthService from '../services/mockAuthService';
 
 type RootStackParamList = {
   Welcome: undefined;
@@ -12,318 +16,334 @@ type RootStackParamList = {
 
 type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
 
+const DocuSyncLogo = ({ size = 80 }) => (
+  <View style={{
+    shadowColor: '#4f46e5', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 16,
+    elevation: 10,
+  }}>
+    <Svg width={size} height={size} viewBox="0 0 100 100" fill="none">
+      <Rect width="100" height="100" rx="24" fill="#4f7df8" />
+      <Rect x="22" y="28" width="56" height="12" rx="6" fill="white" />
+      <Rect x="22" y="48" width="56" height="12" rx="6" fill="white" />
+      <Rect x="22" y="68" width="32" height="12" rx="6" fill="white" />
+      <Circle cx="70" cy="70" r="18" fill="#22c55e" />
+    </Svg>
+  </View>
+);
+
 export default function LoginScreen() {
   const navigation = useNavigation<LoginScreenNavigationProp>();
-  const [status, setStatus] = useState<'loading' | 'genesis' | 'locked'>('loading');
-  const [nodeId, setNodeId] = useState<string | null>(null);
-  const [pinInput, setPinInput] = useState('');
-  const [generatedPin, setGeneratedPin] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [mode, setMode] = useState<'unlock' | 'signup'>('unlock');
+  const [email, setEmail] = useState('');
+  const [pin, setPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
+  const [remember, setRemember] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [signupSuccess, setSignupSuccess] = useState(false);
+
   const inputRef = useRef<TextInput>(null);
 
-  useEffect(() => {
-    async function checkStatus() {
-      try {
-        const id = await AsyncStorage.getItem('docusync_node_id');
-        const hash = await AsyncStorage.getItem('docusync_password_hash');
-        
-        setTimeout(() => {
-          if (id && hash) {
-            setStatus('locked');
-            setNodeId(id);
-          } else {
-            setStatus('genesis');
-            setGeneratedPin(Math.floor(10000000 + Math.random() * 90000000).toString());
-          }
-        }, 1000); // Small delay to show the nice background
-      } catch (e) {
-        setStatus('genesis');
-        setGeneratedPin(Math.floor(10000000 + Math.random() * 90000000).toString());
-      }
-    }
-    checkStatus();
+  React.useEffect(() => {
+    AsyncStorage.getItem('docusync_remembered_email').then(val => {
+      if (val) { setEmail(val); setRemember(true); }
+    });
   }, []);
 
-  const handleGenesis = async () => {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const id = 'node-' + Math.random().toString(36).substring(2, 9);
-      await AsyncStorage.setItem('docusync_node_id', id);
-      await AsyncStorage.setItem('docusync_password_hash', generatedPin);
-      await AsyncStorage.setItem('docusync_unlocked', 'true');
-      
-      Alert.alert('Account created!', `Your Node ID: ${id}`);
-      navigation.replace('Main');
-    } catch (err) {
-      Alert.alert('Error', 'Something went wrong.');
-    } finally {
-      setCreating(false);
+  const handleUnlock = async () => {
+    if (!email || pin.length < 5) {
+      setErrorMsg('Please enter valid email and PIN.');
+      return;
     }
-  };
-
-  const handleUnlock = async (pin: string) => {
-    if (pin.length !== 8) return;
+    setErrorMsg('');
+    setLoading(true);
     try {
-      const hash = await AsyncStorage.getItem('docusync_password_hash');
-      if (pin === hash) {
-        await AsyncStorage.setItem('docusync_unlocked', 'true');
-        navigation.replace('Main');
+      const user = await mockAuthService.login(email, pin);
+      if (user.isAdmin) {
+        await AsyncStorage.setItem('docusync_is_admin', 'true');
       } else {
-        setPinInput('');
-        Alert.alert('Error', 'Incorrect PIN — please try again.');
-        inputRef.current?.focus();
+        await AsyncStorage.removeItem('docusync_is_admin');
       }
-    } catch (e) {
-      Alert.alert('Error', 'Unlock failed.');
+      if (remember) {
+        await AsyncStorage.setItem('docusync_remembered_email', email);
+      } else {
+        await AsyncStorage.removeItem('docusync_remembered_email');
+      }
+      await AsyncStorage.setItem('docusync_unlocked', 'true');
+      navigation.replace('Main');
+    } catch (e: any) {
+      setErrorMsg(e.message || 'Unlock failed.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (status === 'loading') {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#4f7df8" />
-        <Text style={{ color: 'rgba(255,255,255,0.5)', marginTop: 16 }}>Starting DocuSync...</Text>
-      </View>
-    );
-  }
+  const [generatedPin, setGeneratedPin] = useState('');
+
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (signupSuccess && !generatedPin) {
+      interval = setInterval(async () => {
+        const pin = await mockAuthService.checkApprovalStatus(email);
+        if (pin) setGeneratedPin(pin);
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [signupSuccess, email, generatedPin]);
+
+  const handleSignup = async () => {
+    if (!email) { setErrorMsg('Please enter your email.'); return; }
+    setErrorMsg('');
+    setLoading(true);
+    try {
+      await mockAuthService.requestAccount(email);
+      setSignupSuccess(true);
+      setGeneratedPin('');
+    } catch (e: any) {
+      setErrorMsg(e.message || 'Request failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.orb, { top: -50, left: -50, backgroundColor: 'rgba(79,125,248,0.1)' }]} />
-      <View style={[styles.orb, { bottom: -50, right: -50, backgroundColor: 'rgba(99,76,230,0.1)' }]} />
-
-      <View style={styles.card}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, backgroundColor: '#e0e7ff' }} bounces={false}>
         
-        {status === 'genesis' && (
-          <View>
-            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-              <Text style={styles.backText}>← Back</Text>
-            </TouchableOpacity>
+        {/* Top Header Section */}
+        <SafeAreaView edges={['top']} style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20 }}>
+          <DocuSyncLogo size={70} />
+          
+          <Text style={{ fontSize: 26, fontWeight: '800', color: '#0f172a', marginTop: 20, textAlign: 'center' }}>
+            Login to <Text style={{ color: '#4f46e5' }}>DocuSync</Text>
+          </Text>
 
-            <Text style={styles.title}>Create Your Account</Text>
-            <Text style={styles.description}>
-              DocuSync works directly between devices — no cloud sign-in needed. We've generated a secure PIN to protect your account.
-            </Text>
-
-            <View style={styles.pinCard}>
-              <Text style={styles.pinLabel}>Your Security PIN</Text>
-              <Text style={styles.pinText}>{generatedPin.slice(0, 4)}-{generatedPin.slice(4)}</Text>
-            </View>
-
-            <View style={styles.infoBox}>
-              <Text style={styles.infoText}>📌 Please save this PIN somewhere safe — you'll need it each time you sign in on this device.</Text>
-            </View>
-
-            <TouchableOpacity 
-              style={[styles.button, creating && { opacity: 0.7 }]} 
-              onPress={handleGenesis}
-              disabled={creating}
-            >
-              {creating ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.buttonText}>✅ Create My Account</Text>
-              )}
-            </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 12, width: 120 }}>
+            <View style={{ flex: 1, height: 1.5, backgroundColor: 'rgba(79,70,229,0.2)' }} />
+            <Ionicons name="shield-checkmark" size={16} color="#6366f1" style={{ marginHorizontal: 8 }} />
+            <View style={{ flex: 1, height: 1.5, backgroundColor: 'rgba(79,70,229,0.2)' }} />
           </View>
-        )}
 
-        {status === 'locked' && (
-          <View>
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.description}>Signed in as <Text style={{ color: '#818cf8', fontWeight: 'bold' }}>{nodeId}</Text></Text>
+          <Text style={{ fontSize: 14, color: '#334155', textAlign: 'center', lineHeight: 22, fontWeight: '500', paddingHorizontal: 20 }}>
+            A decentralized collaborative workspace powered by peer-to-peer synchronization.
+          </Text>
+        </SafeAreaView>
 
-            <View style={styles.pinDotsContainer}>
-              {Array.from({ length: 8 }).map((_, i) => (
-                <View key={i} style={[
-                  styles.pinDot,
-                  i < pinInput.length ? styles.pinDotActive : {}
-                ]} />
-              ))}
+        {/* Bottom Card Section */}
+        <View style={{ 
+          flex: 1, backgroundColor: '#ffffff', borderTopLeftRadius: 32, borderTopRightRadius: 32,
+          padding: 24, paddingBottom: 40,
+          shadowColor: '#000', shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.05, shadowRadius: 20,
+          elevation: 20
+        }}>
+          
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#eef2ff', justifyContent: 'center', alignItems: 'center', marginRight: 16 }}>
+              <Ionicons name="lock-closed" size={20} color="#4f46e5" />
             </View>
+            <View>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: '#0f172a' }}>Unlock Workspace</Text>
+              <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Access your local encrypted workspace.</Text>
+            </View>
+          </View>
+
+          {/* Email Input */}
+          <Text style={styles.label}>Local Identifier (Email)</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          {/* PIN Input */}
+          <Text style={[styles.label, { marginTop: 16 }]}>6-Digit Security PIN</Text>
+          <View style={styles.inputContainer}>
+            <Ionicons name="keypad" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
+            
+            <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
+              {Array.from({ length: 6 }).map((_, i) => {
+                const filled = i < pin.length;
+                return (
+                  <View key={i} style={{
+                    width: 30, height: 32, borderRadius: 6,
+                    backgroundColor: filled ? 'rgba(79,70,229,0.07)' : 'rgba(0,0,0,0.03)',
+                    borderWidth: 1.5, borderColor: filled ? 'rgba(79,70,229,0.3)' : 'rgba(0,0,0,0.05)',
+                    justifyContent: 'center', alignItems: 'center'
+                  }}>
+                    {filled && (
+                      showPin 
+                      ? <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#3730a3' }}>{pin[i]}</Text>
+                      : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#3730a3' }} />
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity onPress={() => setShowPin(!showPin)} style={{ padding: 4 }}>
+              <Ionicons name={showPin ? "eye-off" : "eye"} size={20} color="#94a3b8" />
+            </TouchableOpacity>
 
             <TextInput
               ref={inputRef}
-              style={styles.hiddenInput}
+              style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
+              value={pin}
+              onChangeText={t => setPin(t.substring(0, 6))}
               keyboardType="number-pad"
-              maxLength={8}
-              value={pinInput}
-              onChangeText={(v) => {
-                const numeric = v.replace(/[^0-9]/g, '');
-                setPinInput(numeric);
-                if (numeric.length === 8) handleUnlock(numeric);
-              }}
-              autoFocus
             />
-
             <TouchableOpacity 
-              activeOpacity={0.8}
-              onPress={() => inputRef.current?.focus()}
-              style={styles.tapArea}
-            >
-              <Text style={styles.tapText}>
-                {pinInput.length === 0 ? 'Tap here and enter your 8-digit PIN' :
-                 pinInput.length < 8 ? `${8 - pinInput.length} more digit(s) to go` : 'Checking...'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.button, pinInput.length !== 8 && styles.buttonDisabled]} 
-              onPress={() => handleUnlock(pinInput)}
-              disabled={pinInput.length !== 8}
-            >
-              <Text style={[styles.buttonText, pinInput.length !== 8 && { color: 'rgba(255,255,255,0.4)' }]}>
-                🔓 Sign In
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={{ marginTop: 24, alignItems: 'center' }}
-              onPress={() => {
-                setStatus('genesis');
-                setGeneratedPin(Math.floor(10000000 + Math.random() * 90000000).toString());
-                setPinInput('');
-              }}
-            >
-              <Text style={{ color: '#818cf8', textDecorationLine: 'underline', fontSize: 13 }}>Reset and Create New Account</Text>
-            </TouchableOpacity>
+              style={StyleSheet.absoluteFillObject} 
+              onPress={() => inputRef.current?.focus()} 
+              activeOpacity={1} 
+            />
           </View>
-        )}
 
-      </View>
-    </View>
+          {errorMsg && mode === 'unlock' ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+
+          {mode === 'unlock' ? (
+            <>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 20 }}>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => setRemember(!remember)}>
+                  <View style={{ width: 18, height: 18, borderWidth: 1.5, borderColor: remember ? '#4f46e5' : '#cbd5e1', borderRadius: 4, marginRight: 8, backgroundColor: remember ? '#4f46e5' : 'transparent', justifyContent: 'center', alignItems: 'center' }}>
+                    {remember && <Ionicons name="checkmark" size={14} color="#fff" />}
+                  </View>
+                  <Text style={{ fontSize: 13, color: '#475569' }}>Remember this device</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setErrorMsg('PIN reset requires admin contact in local-first mode.')}>
+                  <Text style={{ fontSize: 13, color: '#4f46e5', fontWeight: '500' }}>Forgot PIN?</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleUnlock} disabled={loading}>
+                {loading ? <ActivityIndicator color="#fff" /> : (
+                  <>
+                    <Ionicons name="unlock" size={18} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={styles.primaryBtnText}>Unlock Workspace</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 16 }}>
+                <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+                <Text style={{ marginHorizontal: 12, fontSize: 12, color: '#94a3b8', fontWeight: '500' }}>or</Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: '#e2e8f0' }} />
+              </View>
+
+              <TouchableOpacity style={styles.secondaryBtn} onPress={() => { setMode('signup'); setErrorMsg(''); }}>
+                <Ionicons name="person-add" size={16} color="#1e293b" style={{ marginRight: 8 }} />
+                <Text style={styles.secondaryBtnText}>Create Local Profile</Text>
+              </TouchableOpacity>
+            </>
+          ) : signupSuccess ? (
+            <View style={{ alignItems: 'center', padding: 24 }}>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(34,197,94,0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
+                <Ionicons name="checkmark-circle" size={32} color="#16a34a" />
+              </View>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: '#166534', marginBottom: 8 }}>
+                {generatedPin ? 'Request Approved!' : 'Request Sent!'}
+              </Text>
+              
+              {generatedPin ? (
+                <>
+                  <Text style={{ fontSize: 13, color: '#4b5563', textAlign: 'center', lineHeight: 20 }}>
+                    Your profile for <Text style={{ fontWeight: '700' }}>{email}</Text> has been approved. Use this PIN to unlock:
+                  </Text>
+                  <View style={{ marginTop: 16, backgroundColor: '#f0fdf4', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, borderWidth: 1, borderColor: '#bbf7d0' }}>
+                    <Text style={{ fontSize: 28, fontWeight: '800', color: '#15803d', letterSpacing: 4 }}>{generatedPin}</Text>
+                  </View>
+                </>
+              ) : (
+                <Text style={{ fontSize: 13, color: '#4b5563', textAlign: 'center', lineHeight: 20 }}>
+                  Your profile request for <Text style={{ fontWeight: '700' }}>{email}</Text> has been sent. Please contact your administrator to approve it.
+                </Text>
+              )}
+              
+              <TouchableOpacity
+                onPress={() => { setMode('unlock'); setSignupSuccess(false); setGeneratedPin(''); setEmail(''); }}
+                style={{ marginTop: 24, padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#e2e8f0', paddingHorizontal: 28 }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#475569' }}>Back to Unlock</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.label}>Email Address</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  value={email}
+                  onChangeText={v => { setEmail(v); setErrorMsg(''); }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+              {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+              <TouchableOpacity style={[styles.primaryBtn, { marginTop: 20 }]} onPress={handleSignup} disabled={loading}>
+                {loading ? <ActivityIndicator color="#fff" /> : (
+                  <>
+                    <Ionicons name="person-add" size={18} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={styles.primaryBtnText}>Request Local Profile</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.secondaryBtn, { marginTop: 10 }]} onPress={() => { setMode('unlock'); setErrorMsg(''); }}>
+                <Text style={styles.secondaryBtnText}>Back to Unlock</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 24, paddingBottom: 12 }}>
+            <Ionicons name="shield-checkmark" size={12} color="#a5b4fc" style={{ marginRight: 6 }} />
+            <Text style={{ fontSize: 11, color: '#94a3b8' }}>Private • Decentralized • Local-First</Text>
+          </View>
+        </View>
+
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#070b14',
-    padding: 20,
-    justifyContent: 'center',
+  label: {
+    fontSize: 13, fontWeight: '600', color: '#1e293b', marginBottom: 6
   },
-  orb: {
-    position: 'absolute',
-    width: 300,
-    height: 300,
-    borderRadius: 150,
+  inputContainer: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#e2e8f0',
+    borderRadius: 12, backgroundColor: '#fff',
+    paddingHorizontal: 14, height: 50
   },
-  card: {
-    backgroundColor: 'rgba(11,17,32,0.92)',
-    borderRadius: 24,
-    padding: 30,
-    borderColor: 'rgba(79,125,248,0.18)',
-    borderWidth: 1,
+  input: {
+    flex: 1, fontSize: 14, color: '#0f172a'
   },
-  backBtn: {
-    marginBottom: 16,
-    alignSelf: 'flex-start',
+  errorText: {
+    color: '#ef4444', fontSize: 12, marginTop: 8,
+    backgroundColor: 'rgba(239,68,68,0.1)', padding: 10, borderRadius: 8,
+    overflow: 'hidden'
   },
-  backText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 14,
+  primaryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#4f46e5', padding: 16, borderRadius: 12,
+    shadowColor: '#4f46e5', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10,
+    elevation: 8,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 8,
-    textAlign: 'center',
+  primaryBtnText: {
+    color: '#fff', fontSize: 15, fontWeight: '700'
   },
-  description: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
+  secondaryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0',
+    padding: 14, borderRadius: 12
   },
-  pinCard: {
-    backgroundColor: 'rgba(79,125,248,0.07)',
-    borderColor: 'rgba(79,125,248,0.22)',
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  pinLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    color: 'rgba(79,125,248,0.7)',
-    marginBottom: 8,
-  },
-  pinText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    letterSpacing: 4,
-  },
-  infoBox: {
-    backgroundColor: 'rgba(79,125,248,0.06)',
-    borderColor: 'rgba(79,125,248,0.15)',
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 24,
-  },
-  infoText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
-    lineHeight: 18,
-  },
-  button: {
-    height: 50,
-    backgroundColor: '#4f7df8',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
-  },
-  buttonDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  pinDotsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-    marginBottom: 20,
-  },
-  pinDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.14)',
-  },
-  pinDotActive: {
-    backgroundColor: '#4f7df8',
-    borderColor: '#4f7df8',
-  },
-  hiddenInput: {
-    position: 'absolute',
-    width: 1,
-    height: 1,
-    opacity: 0,
-  },
-  tapArea: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  tapText: {
-    color: 'rgba(255,255,255,0.3)',
-    fontSize: 12,
-  },
+  secondaryBtnText: {
+    color: '#1e293b', fontSize: 15, fontWeight: '600'
+  }
 });

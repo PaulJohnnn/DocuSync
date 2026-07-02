@@ -13,6 +13,7 @@ import Sidebar from '@/components/Sidebar';
 import RightPanel from '@/components/RightPanel';
 import { ShieldAlert, Check, X } from 'lucide-react';
 import { useElectronSync } from '@/context/ElectronSyncContext';
+import mockAuthService from '@/services/mockAuthService';
 
 /** Component to ping the Next.js matchmaker with heartbeat */
 const GlobalHeartbeat: React.FC = () => {
@@ -123,6 +124,7 @@ const HistoryPage   = lazy(() => import('@/pages/HistoryPage'));
 const PeersPage     = lazy(() => import('@/pages/PeersPage'));
 const SettingsPage  = lazy(() => import('@/pages/SettingsPage'));
 const AdminPage     = lazy(() => import('@/pages/AdminPage'));
+const MetricsPage   = lazy(() => import('@/pages/MetricsPage'));
 const VaultLoginPage = lazy(() => import('@/pages/VaultLoginPage'));
 const WelcomePage    = lazy(() => import('@/pages/WelcomePage'));
 
@@ -144,24 +146,15 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   useEffect(() => {
     async function checkVault() {
       try {
-        const hasSeenWelcomeSession = sessionStorage.getItem('docusync_has_seen_welcome_session');
-        if (!hasSeenWelcomeSession) {
-          navigate('/welcome');
-          return;
-        }
-
-        const res = await window.docuSync.getVaultStatus();
-        if (res.success && res.data) {
-          if (!res.data.isRegistered) {
-            navigate('/welcome');
-          } else if (!res.data.isUnlocked) {
-            navigate('/vault-login');
-          } else {
-            setIsUnlocked(true);
-          }
+        // Replace real vault status check with centralized mock API check
+        const user = mockAuthService.getCurrentUser();
+        if (user) {
+          setIsUnlocked(true);
+        } else {
+          navigate('/vault-login');
         }
       } catch (err) {
-        console.error('Failed to check vault status', err);
+        console.error('Failed to check auth status', err);
         navigate('/vault-login');
       }
     }
@@ -272,6 +265,7 @@ const App: React.FC = () => (
                   <Route path="/conflicts"    element={<ConflictsPage />} />
                   <Route path="/history/:id"  element={<HistoryPage />} />
                   <Route path="/peers"        element={<PeersPage />} />
+                  <Route path="/metrics"      element={<MetricsPage />} />
                   <Route path="/settings"     element={<SettingsPage />} />
                   <Route path="/admin"        element={<AdminPage />} />
                 </Routes>

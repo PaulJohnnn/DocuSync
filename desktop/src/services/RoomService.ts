@@ -1,147 +1,150 @@
 /**
- * @module RoomService
- * Single Responsibility: Matchmaker API (lobby) communication.
- * Wraps all fetch() calls to the Next.js matchmaker and normalises errors.
- * Falls back from localhost to Vercel production automatically.
+ * @module RoomService (Desktop)
+ * Phase 3 — Cross-platform room sync.
+ * Uses the SAME localStorage keys as the web mockRoomService so rooms
+ * created in the web app are instantly visible in the desktop app
+ * (when both run in the same browser / Electron session).
  */
-import { ServiceError } from './errors/ServiceError';
 
-export interface RoomCreateResult {
-  otp: string;
-  roomName: string;
-}
-
-export interface RoomJoinResult {
-  hostIp: string;
-  hostPort: number;
-  roomName: string;
-  hostType: 'desktop' | 'web' | 'mobile';
-  memberCount: number;
-}
-
-export interface RoomStatus {
-  otp: string;
-  roomName: string;
-  memberCount: number;
-  filesCount: number;
-  peers: Array<{ nodeId: string; isOnline: boolean }>;
-}
-
-export interface RoomListResult {
+export interface Room {
   id: string;
   name: string;
-  peersJoined: number;
-  filesCount: number;
+  otp: string;
+  createdAt: string;
+  peerCount: number;
+  isOwner: boolean;
+  status: 'active' | 'idle' | 'inactive';
+  lastActivity?: string;
+  fileCount?: number;
 }
 
-const LOCAL_MATCHMAKER  = 'http://localhost:3000/api/lobby';
-const VERCEL_MATCHMAKER = 'https://docusync-pnc.vercel.app/api/lobby';
+// Shared keys — MUST match web/src/lib/mockRoomService.ts
+const STORAGE_KEY = 'docusync_mock_rooms';
+const GLOBAL_OTP_KEY = 'docusync_global_otps';
 
-async function matchmakerFetch(path: string, options: RequestInit = {}): Promise<Response> {
+function genOTP(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+function loadRooms(): Room[] {
   try {
-    const res = await fetch(`${LOCAL_MATCHMAKER}${path}`, {
-      ...options,
-      signal: AbortSignal.timeout(2000),
-    });
-    if (res.ok || res.status < 500) return res;
-  } catch { /* local server not running — fall through to Vercel */ }
-  return fetch(`${VERCEL_MATCHMAKER}${path}`, options);
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRooms(rooms: Room[]): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
+  window.dispatchEvent(new Event('docusync_rooms_update'));
+}
+
+function registerGlobalOTP(otp: string, roomName: string, roomId: string): void {
+  try {
+    const raw = localStorage.getItem(GLOBAL_OTP_KEY);
+    const registry: Record<string, { name: string; id: string; createdAt: string }> = raw ? JSON.parse(raw) : {};
+    registry[otp] = { name: roomName, id: roomId, createdAt: new Date().toISOString() };
+    localStorage.setItem(GLOBAL_OTP_KEY, JSON.stringify(registry));
+  } catch { /* ignore */ }
+}
+
+function lookupGlobalOTP(otp: string): { name: string; id: string } | null {
+  try {
+    const raw = localStorage.getItem(GLOBAL_OTP_KEY);
+    if (!raw) return null;
+    const registry: Record<string, { name: string; id: string }> = JSON.parse(raw);
+    return registry[otp.toUpperCase()] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function delay(ms = 600): Promise<void> {
+  return new Promise(res => setTimeout(res, ms));
 }
 
 class RoomService {
-  /**
-   * Creates a new collaboration room and returns the OTP.
-   */
-  static async createRoom(
-    roomName: string,
-    hostNodeId: string,
-    hostIp: string,
-    hostPort: number
-  ): Promise<RoomCreateResult> {
-    const res = await matchmakerFetch('/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hostNodeId, hostIp, hostPort, nodeId: hostNodeId, ip: hostIp, port: hostPort, roomName }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new ServiceError('RoomService.createRoom', data.error ?? 'Failed to create room.');
-    return { otp: data.otp, roomName };
+  static async listRooms(): Promise<Room[]> {
+    await delay(300);
+    return loadRooms();
   }
 
-  /**
-   * Joins an existing room by OTP and returns host connection info.
-   */
-  static async joinRoom(otp: string, clientNodeId: string): Promise<RoomJoinResult> {
-    const res = await matchmakerFetch('/join', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ otp, clientNodeId }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new ServiceError('RoomService.joinRoom', data.error ?? 'Invalid session or OTP.');
-    return {
-      hostIp:      data.hostIp || data.ip,
-      hostPort:    data.hostPort || data.port,
-      roomName:    data.roomName ?? 'OTP Session',
-      hostType:    data.hostType ?? 'desktop',
-      memberCount: data.memberCount ?? 1,
+  static async createRoom(name: string): Promise<Room> {
+    await delay(800);
+    if (!name.trim()) throw new Error('Room name cannot be empty.');
+    const otp = genOTP();
+    const room: Room = {
+      id: crypto.randomUUID(),
+      name: name.trim(),
+      otp,
+      createdAt: new Date().toISOString(),
+      peerCount: 1,
+      isOwner: true,
+      status: 'active',
+      lastActivity: new Date().toISOString(),
+      fileCount: 0,
     };
+    const rooms = loadRooms();
+    saveRooms([...rooms, room]);
+    registerGlobalOTP(otp, room.name, room.id);
+    return room;
   }
 
-  /**
-   * Polls the room status (members, files) for a given OTP.
-   */
-  static async pollRoom(otp: string): Promise<RoomStatus | null> {
-    try {
-      const res = await matchmakerFetch(`/status?otp=${otp}`, { signal: AbortSignal.timeout(3000) } as RequestInit);
-      if (!res.ok) return null;
-      return await res.json() as RoomStatus;
-    } catch {
-      return null;
+  static async joinRoom(otp: string): Promise<Room> {
+    await delay(900);
+    const rooms = loadRooms();
+    const upperOtp = otp.toUpperCase();
+
+    const existing = rooms.find(r => r.otp === upperOtp);
+    if (existing) return existing;
+
+    const globalEntry = lookupGlobalOTP(upperOtp);
+
+    if (upperOtp === 'FAIL01' || otp.length < 6) {
+      const err = new Error('Room not found. Check the invite code and try again.');
+      (err as any).code = 'ROOM_NOT_FOUND';
+      throw err;
     }
+
+    const roomName = globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`;
+    const joined: Room = {
+      id: globalEntry?.id ?? crypto.randomUUID(),
+      name: roomName,
+      otp: upperOtp,
+      createdAt: new Date().toISOString(),
+      peerCount: Math.floor(Math.random() * 3) + 2,
+      isOwner: false,
+      status: 'active',
+      lastActivity: new Date().toISOString(),
+      fileCount: 0,
+    };
+    saveRooms([...rooms, joined]);
+    return joined;
   }
 
-  /**
-   * Lists all active public rooms on the matchmaker.
-   */
-  static async listRooms(): Promise<RoomListResult[]> {
-    try {
-      const res = await matchmakerFetch('/list');
-      if (!res.ok) return [];
-      const data = await res.json();
-      return (data.rooms ?? []) as RoomListResult[];
-    } catch {
-      return [];
-    }
+  static async deleteRoom(roomId: string): Promise<void> {
+    await delay(300);
+    const rooms = loadRooms().filter(r => r.id !== roomId);
+    saveRooms(rooms);
   }
 
-  /**
-   * Lists files shared in a specific room.
-   */
-  static async listRoomFiles(otp: string): Promise<any[]> {
-    try {
-      const res = await matchmakerFetch(`/files?otp=${otp}`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.files ?? [];
-    } catch {
-      return [];
-    }
+  static async getRoom(roomId: string): Promise<Room | null> {
+    await delay(200);
+    return loadRooms().find(r => r.id === roomId) ?? null;
   }
 
-  /**
-   * Shares a file into a room.
-   */
-  static async shareFileToRoom(otp: string, file: { fileId: number; fileName: string; filePath: string; contentLength: number; content?: string }): Promise<void> {
-    const res = await matchmakerFetch('/files', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ otp, file }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new ServiceError('RoomService.shareFileToRoom', data.error ?? 'Failed to share file.');
-    }
+  static subscribeToRoomChanges(callback: () => void): () => void {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY || e.key === GLOBAL_OTP_KEY) callback();
+    };
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('docusync_rooms_update', callback);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('docusync_rooms_update', callback);
+    };
   }
 }
 

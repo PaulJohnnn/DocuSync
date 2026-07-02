@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { activeLobbies, cleanupLobbies } from '../store';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,63 +14,59 @@ export async function OPTIONS() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { otp, clientNodeId } = body;
+    const { otp, memberNodeId } = body;
 
     if (!otp) {
       return NextResponse.json(
-        { error: 'Missing OTP' },
+        { error: 'Missing required field: otp' },
         { status: 400, headers: corsHeaders }
       );
     }
-    
-    if (!supabase) {
-        return NextResponse.json({ error: 'Supabase is not configured' }, { status: 500, headers: corsHeaders });
-    }
 
-    const { data: lobby, error } = await supabase.from('matchmaker_lobbies').select('*').eq('otp', otp).maybeSingle();
+    cleanupLobbies();
 
-    if (!lobby || error) {
+    const lobby = activeLobbies.get(otp);
+
+    if (!lobby) {
       return NextResponse.json(
         { error: `Room not found. No active room with OTP "${otp}". Ask the host to generate a new code.` },
         { status: 404, headers: corsHeaders }
       );
     }
 
-    if (new Date() > new Date(lobby.expires_at)) {
-      await supabase.from('matchmaker_lobbies').delete().eq('otp', otp);
+    if (Date.now() > lobby.expiresAt) {
+      activeLobbies.delete(otp);
       return NextResponse.json(
         { error: 'This OTP has expired. Ask the host to generate a new one.' },
         { status: 410, headers: corsHeaders }
       );
     }
 
-    // Register member in Supabase (simplified for now as member list isn't strictly enforced in the table structure we created)
-    
-    console.log(`[Lobby] Client joined OTP=${otp} → ${lobby.host_ip}:${lobby.host_port}`);
+    if (memberNodeId && !lobby.members.includes(memberNodeId)) {
+      lobby.members.push(memberNodeId);
+      lobby.peersJoined++;
+    }
 
     return NextResponse.json(
       {
         success: true,
         otp: lobby.otp,
-        roomName: lobby.room_name,
-        hostNodeId: lobby.host_node_id,
-        hostIp: lobby.host_ip,
-        hostPort: lobby.host_port,
-        hostType: lobby.host_type || 'desktop',
-        memberCount: 2, // Dummy count
-        // Legacy compat fields
-        ip: lobby.host_ip,
-        port: lobby.host_port,
-        nodeId: lobby.host_node_id,
+        roomName: lobby.roomName,
+        hostNodeId: lobby.hostNodeId,
+        hostIp: lobby.hostIp,
+        hostPort: lobby.hostPort,
+        hostType: lobby.hostType || 'desktop',
+        memberCount: lobby.members.length + 1,
+        ip: lobby.hostIp,
+        port: lobby.hostPort,
+        nodeId: lobby.hostNodeId,
       },
-      { status: 200, headers: corsHeaders }
+      { headers: corsHeaders }
     );
-  } catch (err) {
-    console.error('[Lobby] Join error:', err);
+  } catch (error: any) {
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: 'Internal server error: ' + error.message },
       { status: 500, headers: corsHeaders }
     );
   }
 }
-

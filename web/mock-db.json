@@ -1,0 +1,104 @@
+{
+  "users": [
+    {
+      "id": "user-001",
+      "email": "alice@docusync.local",
+      "name": "Alice Reyes",
+      "pin": "123456",
+      "isAdmin": false,
+      "createdAt": "2025-01-10T08:00:00Z",
+      "status": "active"
+    },
+    {
+      "id": "user-002",
+      "email": "admin",
+      "name": "Admin",
+      "pin": "admin",
+      "isAdmin": true,
+      "createdAt": "2025-01-01T08:00:00Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1782961143610",
+      "email": "zyra@gmail",
+      "name": "zyra",
+      "pin": "247210",
+      "isAdmin": false,
+      "createdAt": "2026-07-02T02:59:03.610Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1782961264892",
+      "email": "pauljohnpalamara123@gmail.com",
+      "name": "pauljohnpalamara123",
+      "pin": "328436",
+      "isAdmin": false,
+      "createdAt": "2026-07-02T03:01:04.892Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1782961431427",
+      "email": "paul@gmail.com",
+      "name": "paul",
+      "pin": "931148",
+      "isAdmin": false,
+      "createdAt": "2026-07-02T03:03:51.427Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1782962437192",
+      "email": "pol@gmail.com",
+      "name": "pol",
+      "pin": "785787",
+      "isAdmin": false,
+      "createdAt": "2026-07-02T03:20:37.192Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1782962735817",
+      "email": "puppy911@gmail.com",
+      "name": "puppy911",
+      "pin": "329932",
+      "isAdmin": false,
+      "createdAt": "2026-07-02T03:25:35.818Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1782963205869",
+      "email": "polcute123",
+      "name": "polcute123",
+      "pin": "810241",
+      "isAdmin": false,
+      "createdAt": "2026-07-02T03:33:25.869Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1782963233329",
+      "email": "admins",
+      "name": "admins",
+      "pin": "483910",
+      "isAdmin": false,
+      "createdAt": "2026-07-02T03:33:53.329Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1782963778428",
+      "email": "pol",
+      "name": "pol",
+      "pin": "837152",
+      "isAdmin": false,
+      "createdAt": "2026-07-02T03:42:58.428Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1782963787893",
+      "email": "s",
+      "name": "s",
+      "pin": "504092",
+      "isAdmin": false,
+      "createdAt": "2026-07-02T03:43:07.893Z",
+      "status": "active"
+    }
+  ],
+  "pending": []
+}

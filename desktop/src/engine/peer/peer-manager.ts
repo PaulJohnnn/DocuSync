@@ -250,6 +250,7 @@ export class PeerManager {
 
       this.server.on('error', (err) => {
         console.error(`[PeerManager] Server error:`, err);
+        this.server = null; // Clear so retry logic can work
         reject(err);
       });
 

@@ -351,7 +351,7 @@ const FilesPage: React.FC = () => {
               </button>
               <button id="btn-open-file" className="ds-btn ds-btn-primary" onClick={handleOpenFile} disabled={opening}>
                 <FolderOpen size={13} />
-                {opening ? 'Opening…' : 'Open File'}
+                {opening ? 'Checking out…' : 'Check-Out (Open)'}
               </button>
             </React.Fragment>
           )}
@@ -492,70 +492,138 @@ const FilesPage: React.FC = () => {
               </div>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 24, marginTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, animation: 'fadeIn 0.2s ease', marginTop: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button onClick={() => setShowRoomList(true)} className="ds-btn ds-btn-ghost" style={{ padding: '6px 12px', border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                <button
+                  onClick={() => setShowRoomList(true)}
+                  className="ds-btn ds-btn-ghost"
+                  style={{ padding: '6px 12px', transition: 'all 0.2s', border: '1px solid var(--border)', background: 'var(--bg-card)' }}
+                  title="Go back to list of rooms"
+                >
                   <ArrowLeft size={14} /> Back
                 </button>
-                <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{currentRoom.name}</h2>
-                <span style={{ fontSize: 12, background: 'var(--bg-card-hover)', color: 'var(--text-primary)', padding: '2px 8px', borderRadius: 20, fontWeight: 600, border: '1px solid var(--border)' }}>
-                  {currentRoom.id.startsWith('direct-') ? 'Direct IP' : `OTP: ${currentRoom.id}`}
+                <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                  {currentRoom.name}
+                </h2>
+                <span style={{
+                  fontSize: 12, background: 'var(--bg-card)', color: 'var(--text-primary)',
+                  padding: '2px 8px', borderRadius: 20, fontWeight: 600, border: '1px solid var(--border)',
+                }}>
+                  OTP: {currentRoom.id}
                 </span>
               </div>
-              <button onClick={() => setShowLeaveConfirm(true)} className="ds-btn" style={{ padding: '6px 12px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}>
-                <LogOut size={14} /> Leave Repository
+              <button
+                onClick={() => setShowLeaveConfirm(true)}
+                className="ds-btn"
+                style={{ 
+                  padding: '6px 12px', 
+                  background: 'rgba(239, 68, 68, 0.1)', 
+                  color: '#ef4444', 
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'; }}
+              >
+                <LogOut size={14} /> Leave Session
               </button>
             </div>
 
-            {/* Active Peers Bar */}
-            <div style={{ background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border)', padding: 16, marginBottom: 24 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
-                Active Peers ({connectedPeers.length})
+            {/* Active Peers */}
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: 1, marginTop: 24, marginBottom: 12 }}>
+              ACTIVE PEERS ({connectedPeers.length + 1})
+            </div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{
+                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, padding: '6px 16px',
+                display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-primary)'
+              }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)' }}></div>
+                <strong>You</strong> (Desktop Node)
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                {connectedPeers.length === 0 ? (
-                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Waiting for peers to join...</span>
-                ) : (
-                  connectedPeers.map(peer => (
-                    <div key={peer.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-body)', padding: '6px 12px', borderRadius: 20, border: '1px solid var(--border)' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--ds-green)' }} />
-                      <span style={{ fontSize: 13, fontWeight: 500 }}>{peer.displayName || 'Anonymous'}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{peer.address}:{peer.port}</span>
-                    </div>
-                  ))
-                )}
-              </div>
+              {connectedPeers.map((p, i) => (
+                <div key={i} style={{
+                  background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, padding: '6px 16px',
+                  display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-primary)'
+                }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: p.status === 'connected' ? 'var(--green)' : 'var(--text-muted)' }}></div>
+                  <strong style={{ textTransform: 'uppercase' }}>{p.displayName || p.id.substring(0,8)}</strong>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>::{p.port || 'WS'}</span>
+                </div>
+              ))}
             </div>
 
-            <div className="ds-section-label" style={{ paddingBottom: 8 }}>Repository Files</div>
-
+            {/* Room Files */}
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: 1, marginTop: 32, marginBottom: 12 }}>
+              ROOM FILES
+            </div>
+            
             {roomFiles.length === 0 ? (
-              <div className="ds-empty ds-card" style={{ minHeight: 200, padding: '40px 20px' }}>
-                <div className="ds-empty-icon" style={{ marginBottom: 12 }}><UploadCloud size={48} color="var(--border)" strokeWidth={1.5} /></div>
-                <h2 style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>No files shared in this repository yet</h2>
-                <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 360, lineHeight: 1.6, margin: '0 auto 16px' }}>Files you share here will be accessible to all connected peers.</p>
-                <button className="ds-btn ds-btn-primary" onClick={handleShareToRoom}><FolderOpen size={13} /> Add File to Repository</button>
+              <div style={{
+                background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)',
+                padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                minHeight: 160,
+              }}>
+                <FolderOpen size={32} style={{ color: 'var(--text-muted)', opacity: 0.3, marginBottom: 12 }} />
+                <h3 style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 8 }}>
+                  No files shared in this room yet
+                </h3>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 360, textAlign: 'center', lineHeight: 1.6 }}>
+                  Files you share here will be accessible to all connected peers in the room.
+                </p>
+                <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                  <button className="ds-btn ds-btn-primary" onClick={handleShareToRoom}>
+                    <FileText size={14} /> Add File to Repository
+                  </button>
+                </div>
               </div>
             ) : (
-              <div style={{ background: 'var(--bg-card)', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
-                <div style={{ display: 'flex', padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--bg-card-hover)', borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ width: 28, marginRight: 12 }} />
-                  <div style={{ flex: 2, paddingRight: 16 }}>Name</div>
-                  <div style={{ flex: 2, paddingRight: 16 }}>Location</div>
-                  <div style={{ flex: 1.5, paddingRight: 16 }}>Status</div>
-                  <div style={{ width: 80, textAlign: 'right' }}>Size</div>
-                </div>
-                <div className="ds-files-grid" style={{ gap: 0 }}>
-                  {roomFiles.map((file) => (
-                    <FileCard key={file.fileId} file={file as unknown as FileRecord} hasConflict={false}
-                      onClick={() => handleOpenRoomFile(file)}
-                      onCheckout={() => handleCheckout(file as unknown as FileRecord)} />
-                  ))}
-                </div>
-                <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
-                  <button className="ds-btn ds-btn-ghost" onClick={handleShareToRoom}><FolderOpen size={13} /> Add More Files</button>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+                {roomFiles.map((f, i) => (
+                  <div key={i} style={{
+                    background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16,
+                    display: 'flex', flexDirection: 'column', gap: 12, cursor: 'pointer', transition: 'transform 0.15s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'none'}
+                  >
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: 8, background: 'rgba(59,130,246,0.1)', color: 'var(--accent)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}>
+                        <FileText size={18} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {f.fileName || f.name}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                          {formatSize(f.contentLength || f.content?.length || 0)}
+                        </div>
+                      </div>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleCheckout(f); }}
+                        style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Check-Out
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                
+                <div style={{
+                  background: 'transparent', border: '1px dashed var(--border)', borderRadius: 10, padding: 16,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s',
+                  minHeight: 80
+                }}
+                onClick={handleShareToRoom}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-card-hover)'; e.currentTarget.style.borderColor = 'var(--accent)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--border)'; }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--accent)', fontWeight: 500, fontSize: 14 }}>
+                    <FolderOpen size={16} /> Add More Files
+                  </div>
                 </div>
               </div>
             )}
@@ -568,11 +636,11 @@ const FilesPage: React.FC = () => {
             <div className="ds-empty-icon">📂</div>
             <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>No files opened yet</h2>
             <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 360, lineHeight: 1.7, margin: '0 auto 24px' }}>
-              Click <strong style={{ color: 'var(--text-primary)' }}>Open File</strong> to begin.
+              Click <strong style={{ color: 'var(--text-primary)' }}>Check-Out (Open)</strong> to begin.
               DocuSync tracks every edit via delta encoding and syncs across peers using vector clocks.
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="ds-btn ds-btn-primary" onClick={handleOpenFile}><FolderOpen size={13} /> Open File</button>
+              <button className="ds-btn ds-btn-primary" onClick={handleOpenFile}><FolderOpen size={13} /> Check-Out (Open)</button>
               <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/peers')}>Manage Repositories</button>
             </div>
           </div>
