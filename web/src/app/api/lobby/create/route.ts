@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { activeLobbies, cleanupLobbies, LobbyEntry } from '../store';
+import { LobbyEntry } from '../store';
+import { redis } from '@/lib/redis';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -28,18 +29,27 @@ export async function POST(request: Request) {
       );
     }
 
-    cleanupLobbies();
-
     let otp: string;
     let attempts = 0;
+    let isUnique = false;
     
+    // Generate unique OTP
     do {
       otp = Math.floor(10000 + Math.random() * 90000).toString();
+      const existing = await redis.get(`lobby:${otp}`);
+      if (!existing) {
+        isUnique = true;
+      }
       attempts++;
-    } while (activeLobbies.has(otp) && attempts < 10);
+    } while (!isUnique && attempts < 10);
+
+    if (!isUnique) {
+      throw new Error("Could not generate a unique OTP");
+    }
 
     const now = Date.now();
-    const expiresAt = now + 60 * 60 * 1000;
+    const TTL_SECONDS = 60 * 60; // 1 hour
+    const expiresAt = now + TTL_SECONDS * 1000;
 
     const newLobby: LobbyEntry = {
         otp,
@@ -58,7 +68,8 @@ export async function POST(request: Request) {
         nodeId: hostNodeId
     };
 
-    activeLobbies.set(otp, newLobby);
+    // Save to Redis with 1 hour TTL
+    await redis.set(`lobby:${otp}`, newLobby, { ex: TTL_SECONDS });
 
     return NextResponse.json(
       {

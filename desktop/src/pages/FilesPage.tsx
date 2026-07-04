@@ -439,10 +439,10 @@ const FilesPage: React.FC = () => {
                           await new Promise(resolve => setTimeout(resolve, 800));
                           const joinResult = await RoomService.joinRoom(room.id, `desktop-${Date.now()}`);
                           if (joinResult.hostType !== 'web') {
-                            const connectRes = await window.docuSync.connectToPeer(joinResult.hostIp, joinResult.hostPort);
+                            const connectRes = await window.docuSync.connectToPeer(joinResult.hostIp ?? '', joinResult.hostPort ?? 9000);
                             if (!connectRes.success) throw new Error(connectRes.error ?? 'Connection failed');
                           }
-                          setCurrentRoom({ id: room.id, name: joinResult.roomName, isHost: false });
+                          setCurrentRoom({ id: room.id, name: joinResult.roomName ?? joinResult.name, isHost: false });
                           setShowRoomList(false);
                         } catch (err: any) {
                           notify.error(`Failed to join: ${err.message}`);
@@ -546,7 +546,7 @@ const FilesPage: React.FC = () => {
                   background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, padding: '6px 16px',
                   display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-primary)'
                 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: p.status === 'connected' ? 'var(--green)' : 'var(--text-muted)' }}></div>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)' }}></div>
                   <strong style={{ textTransform: 'uppercase' }}>{p.displayName || p.id.substring(0,8)}</strong>
                   <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>::{p.port || 'WS'}</span>
                 </div>

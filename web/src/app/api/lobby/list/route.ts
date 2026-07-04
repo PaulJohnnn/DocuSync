@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { activeLobbies, cleanupLobbies } from '../store';
+import { redis } from '@/lib/redis';
+import { LobbyEntry } from '../store';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,17 +16,25 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    cleanupLobbies();
+    const keys = await redis.keys('lobby:*');
     
-    const rooms = Array.from(activeLobbies.values()).map(lobby => ({
-      id: lobby.otp,
-      name: lobby.roomName,
-      hostIp: lobby.hostIp || lobby.ip, // fallback for legacy
-      hostPort: lobby.hostPort || lobby.port,
-      peersJoined: lobby.peersJoined || lobby.members?.length || 0,
-      filesCount: lobby.files?.length || 0,
-      createdAt: lobby.createdAt
-    }));
+    if (keys.length === 0) {
+      return NextResponse.json({ success: true, rooms: [] }, { headers: corsHeaders });
+    }
+
+    const lobbies = await redis.mget<LobbyEntry[]>(...keys);
+    
+    const rooms = lobbies
+      .filter((lobby): lobby is LobbyEntry => lobby !== null)
+      .map(lobby => ({
+        id: lobby.otp,
+        name: lobby.roomName,
+        hostIp: lobby.hostIp || lobby.ip, // fallback for legacy
+        hostPort: lobby.hostPort || lobby.port,
+        peersJoined: lobby.peersJoined || lobby.members?.length || 0,
+        filesCount: lobby.files?.length || 0,
+        createdAt: lobby.createdAt
+      }));
     
     // Sort by newest first
     rooms.sort((a, b) => b.createdAt - a.createdAt);

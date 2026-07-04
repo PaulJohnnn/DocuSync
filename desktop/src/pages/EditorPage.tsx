@@ -21,9 +21,13 @@ import { formatBytes, basename } from '@docusync/shared/utils/formatters';
 import { notify } from '@docusync/shared/utils/notifications';
 import SyncService from '@/services/SyncService';
 
-// ── Cursor Presence Config ───────────────────────────────────────────────────
-
-const MATCHMAKER = 'http://localhost:3000/api/lobby';
+// ── Matchmaker URL (Vercel in production, localhost in dev) ──────────────────
+// The env var VITE_MATCHMAKER is set in .env.local / Vercel env settings.
+// Falls back to the live Vercel deployment so desktop dev still works.
+const MATCHMAKER = (
+  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MATCHMAKER) ||
+  'https://docu-sync-chi.vercel.app/api/lobby'
+);
 
 /** 8 distinct peer cursor colours */
 const CURSOR_COLORS = [
@@ -169,9 +173,12 @@ const EditorPage: React.FC = () => {
   const [peersNotified, setPeersNotified] = useState(0);
   const [conflictBannerDismissed, setConflictBannerDismissed] = useState(false);
   const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>([]);
+  const [incomingBanner, setIncomingBanner] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cursorBroadcastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevConflictCount = useRef(pendingConflicts);
+  // lastSyncedAt tracks which remote version we've already applied (LWW guard)
+  const lastSyncedAt = useRef<number>(0);
   const myNodeId = localNodeId || `anon-${Math.random().toString(36).slice(2, 8)}`;
   const myColor = colorForNode(myNodeId);
   const roomOtp = currentRoom?.id;
@@ -221,6 +228,40 @@ const EditorPage: React.FC = () => {
       if (cursorBroadcastRef.current) clearTimeout(cursorBroadcastRef.current);
     };
   }, []);
+
+  // ── Poll remote document (Phase 4 — Live Sync) ────────────────────────────
+  // Every 3 seconds, ask the matchmaker for the latest committed version.
+  // If the remote version is newer than what we last applied (LWW), apply it.
+  useEffect(() => {
+    if (!roomOtp || !fileId) return;
+    const pollDoc = async () => {
+      try {
+        const url = `${MATCHMAKER}/doc?otp=${roomOtp}&fileId=${fileId}&since=${lastSyncedAt.current}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.unchanged || !data.snapshot) return;
+        const snap = data.snapshot;
+        // LWW: only apply if it's genuinely newer and not written by us
+        if (snap.committedAt > lastSyncedAt.current && snap.authorNodeId !== myNodeId) {
+          lastSyncedAt.current = snap.committedAt;
+          if (editor && snap.content) {
+            // Preserve local cursor position
+            const { from } = editor.state.selection;
+            editor.commands.setContent(snap.content, { emitUpdate: false });
+            // Restore cursor position (clamped to new doc size)
+            const maxPos = editor.state.doc.content.size;
+            editor.commands.setTextSelection(Math.min(from, maxPos - 1));
+          }
+          setIncomingBanner(`↓ Synced from ${snap.authorName} (v${snap.seq})`);
+          setTimeout(() => setIncomingBanner(null), 4000);
+        }
+      } catch { /* matchmaker unreachable — offline mode */ }
+    };
+    pollDoc();
+    const iv = setInterval(pollDoc, 3000);
+    return () => clearInterval(iv);
+  }, [roomOtp, fileId, myNodeId, editor]);
 
   // ── Poll remote cursors ───────────────────────────────────────────────────
 
@@ -323,19 +364,49 @@ const EditorPage: React.FC = () => {
   // ── Save ──────────────────────────────────────────────────────────────────
 
   const performSave = useCallback(async (html: string, explicit = false) => {
-    if (fileId === null || !window.docuSync) return;
     setSaving(true);
     try {
-      const res = await window.docuSync.saveFile(fileId, html);
-      if (!res.success) throw new Error(res.error ?? 'Save error.');
-      const data = res.data as FileSaveData;
-      setLastDeltaSize(data.deltaSize ?? data.bytesSaved);
-      setPeersNotified(data.peersNotified ?? 0);
-      if (explicit) notify.saved(data.deltaSize ?? 0, data.peersNotified ?? 0);
+      let savedDeltaSize = 0;
+      let savedPeersNotified = 0;
+
+      // ── Step 1: Save to local SQLite via IPC (Desktop only) ──────────────
+      if (fileId !== null && window.docuSync) {
+        const res = await window.docuSync.saveFile(fileId, html);
+        if (!res.success) throw new Error(res.error ?? 'Save error.');
+        const data = res.data as FileSaveData;
+        savedDeltaSize = data.deltaSize ?? data.bytesSaved;
+        savedPeersNotified = data.peersNotified ?? 0;
+        setLastDeltaSize(savedDeltaSize);
+        setPeersNotified(savedPeersNotified);
+      }
+
+      // ── Step 2: Push to Redis doc store (Phase 4 Check-In) ───────────────
+      // This is the cross-device sync step. Any device in the same room
+      // will pick this up within 3 seconds via the polling loop above.
+      if (roomOtp && fileId !== null) {
+        const deltaSize = savedDeltaSize || new Blob([html]).size;
+        const now = Date.now();
+        lastSyncedAt.current = now; // Mark this as our own commit to avoid re-applying
+        await fetch(`${MATCHMAKER}/doc`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            otp: roomOtp,
+            fileId,
+            authorNodeId: myNodeId,
+            authorName: myNodeId.slice(0, 8),
+            content: html,
+            vectorClock: vectorClock ?? {},
+            deltaSize,
+          }),
+        });
+      }
+
+      if (explicit) notify.saved(savedDeltaSize, savedPeersNotified);
     } catch (err) {
-      if (explicit) notify.error(`Save failed: ${err instanceof Error ? err.message : String(err)}`);
+      if (explicit) notify.error(`Check-In failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally { setSaving(false); }
-  }, [fileId]);
+  }, [fileId, roomOtp, myNodeId, vectorClock]);
 
   const handleExplicitSave = useCallback(async () => { if (editor) await performSave(editor.getHTML(), true); }, [editor, performSave]);
 
@@ -429,6 +500,23 @@ const EditorPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Incoming sync banner — shown when a remote peer's Check-In is applied */}
+      {incomingBanner && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '6px 16px',
+          background: 'rgba(34,197,94,0.12)',
+          borderBottom: '1px solid rgba(34,197,94,0.25)',
+          flexShrink: 0,
+          fontSize: 12,
+          fontWeight: 600,
+          color: '#16a34a',
+        }}>
+          <span>🔄</span>
+          <span>{incomingBanner}</span>
+        </div>
+      )}
 
       {/* Conflict banner */}
       {pendingConflicts > 0 && !conflictBannerDismissed && (

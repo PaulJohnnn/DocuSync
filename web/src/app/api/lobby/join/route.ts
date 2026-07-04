@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { activeLobbies, cleanupLobbies } from '../store';
+import { LobbyEntry } from '../store';
+import { redis } from '@/lib/redis';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,9 +24,7 @@ export async function POST(request: Request) {
       );
     }
 
-    cleanupLobbies();
-
-    const lobby = activeLobbies.get(otp);
+    const lobby = await redis.get<LobbyEntry>(`lobby:${otp}`);
 
     if (!lobby) {
       return NextResponse.json(
@@ -35,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     if (Date.now() > lobby.expiresAt) {
-      activeLobbies.delete(otp);
+      await redis.del(`lobby:${otp}`);
       return NextResponse.json(
         { error: 'This OTP has expired. Ask the host to generate a new one.' },
         { status: 410, headers: corsHeaders }
@@ -45,6 +44,8 @@ export async function POST(request: Request) {
     if (memberNodeId && !lobby.members.includes(memberNodeId)) {
       lobby.members.push(memberNodeId);
       lobby.peersJoined++;
+      // We must write it back if we mutate
+      await redis.set(`lobby:${otp}`, lobby, { ex: 60 * 60 });
     }
 
     return NextResponse.json(

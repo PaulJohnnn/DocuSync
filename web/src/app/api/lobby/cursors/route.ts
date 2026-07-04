@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { redis } from '@/lib/redis';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,47 +12,20 @@ export async function OPTIONS() {
 }
 
 /**
- * Cursor position store — keyed by `roomOtp:nodeId`.
- * Stored in global so it survives Next.js HMR.
- */
-const g = global as typeof globalThis & {
-  _docusyncCursors?: Map<string, { nodeId: string; displayName: string; color: string; from: number; to: number; fileId: number; ts: number }>;
-};
-if (!g._docusyncCursors) {
-  g._docusyncCursors = new Map();
-}
-const cursors = g._docusyncCursors!;
-
-/** Remove cursors older than 10 seconds (inactive users) */
-function cleanCursors() {
-  const staleTime = Date.now() - 10000;
-  for (const cursor of Array.from(cursors.values())) {
-    if (cursor.ts < staleTime) {
-      // Find the key corresponding to this cursor to delete it
-      for (const [key, c] of Array.from(cursors.entries())) {
-        if (c === cursor) {
-          cursors.delete(key);
-          break;
-        }
-      }
-    }
-  }
-}
-
-/**
  * POST /api/lobby/cursors
  * Body: { otp, nodeId, displayName, color, from, to, fileId }
- * Stores the cursor position for this node.
+ * Stores the cursor position in Redis with a 15-second TTL.
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { otp, nodeId, displayName, color, from, to, fileId } = body;
+
     if (!otp || !nodeId) {
       return NextResponse.json({ error: 'Missing otp or nodeId' }, { status: 400, headers: corsHeaders });
     }
-    cleanCursors();
-    cursors.set(`${otp}:${nodeId}`, {
+
+    const cursor = {
       nodeId,
       displayName: displayName || nodeId.slice(0, 8),
       color: color || '#4f7df8',
@@ -59,7 +33,11 @@ export async function POST(request: Request) {
       to: Number(to) || 0,
       fileId: Number(fileId) || 0,
       ts: Date.now(),
-    });
+    };
+
+    // 15-second TTL: if a user stops sending heartbeats, their cursor vanishes
+    await redis.set(`cursor:${otp}:${nodeId}`, cursor, { ex: 15 });
+
     return NextResponse.json({ ok: true }, { headers: corsHeaders });
   } catch {
     return NextResponse.json({ error: 'Bad request' }, { status: 400, headers: corsHeaders });
@@ -71,7 +49,6 @@ export async function POST(request: Request) {
  * Returns all OTHER users' cursor positions in this room+file.
  */
 export async function GET(request: Request) {
-  cleanCursors();
   const url = new URL(request.url);
   const otp = url.searchParams.get('otp');
   const myNodeId = url.searchParams.get('nodeId');
@@ -81,13 +58,29 @@ export async function GET(request: Request) {
     return NextResponse.json({ cursors: [] }, { headers: corsHeaders });
   }
 
-  const result = [];
-  for (const [key, c] of Array.from(cursors.entries())) {
-    if (!key.startsWith(`${otp}:`)) continue;
-    if (c.nodeId === myNodeId) continue;        // skip self
-    if (c.fileId !== fileId) continue;          // skip different files
-    result.push(c);
+  // Scan for all cursor keys in this room
+  const keys = await redis.keys(`cursor:${otp}:*`);
+
+  if (keys.length === 0) {
+    return NextResponse.json({ cursors: [] }, { headers: corsHeaders });
   }
+
+  type CursorEntry = {
+    nodeId: string;
+    displayName: string;
+    color: string;
+    from: number;
+    to: number;
+    fileId: number;
+    ts: number;
+  };
+
+  const allCursors = await redis.mget<CursorEntry[]>(...keys);
+
+  const result = allCursors
+    .filter((c): c is CursorEntry => c !== null)
+    .filter(c => c.nodeId !== myNodeId)   // skip self
+    .filter(c => c.fileId === fileId);    // same file only
 
   return NextResponse.json({ cursors: result }, { headers: corsHeaders });
 }

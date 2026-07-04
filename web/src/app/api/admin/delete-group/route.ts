@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { activeLobbies } from '../../lobby/store';
+import { redis } from '@/lib/redis';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,10 +29,8 @@ export async function DELETE(request: Request) {
       }
     }
 
-    // Also remove from in-memory store if present
-    if (activeLobbies.has(otp)) {
-      activeLobbies.delete(otp);
-    }
+    // Remove from Redis store
+    await redis.del(`lobby:${otp}`);
 
     return NextResponse.json({ success: true, message: `Group ${otp} deleted` }, { status: 200, headers: corsHeaders });
   } catch (err) {

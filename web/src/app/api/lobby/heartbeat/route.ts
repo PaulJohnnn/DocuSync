@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { activeUsers } from '../store';
+import { redis } from '@/lib/redis';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,11 +27,13 @@ export async function POST(request: Request) {
       || request.headers.get('x-real-ip')
       || 'unknown';
 
-    activeUsers.set(nodeId, {
+    const TTL_SECONDS = 60 * 5; // 5 minutes
+
+    await redis.set(`user:${nodeId}`, {
       nodeId,
       lastActive: Date.now(),
       ip: clientIp
-    });
+    }, { ex: TTL_SECONDS });
 
     return NextResponse.json({ success: true }, { status: 200, headers: corsHeaders });
   } catch (err) {

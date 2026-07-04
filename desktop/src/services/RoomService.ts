@@ -16,6 +16,12 @@ export interface Room {
   status: 'active' | 'idle' | 'inactive';
   lastActivity?: string;
   fileCount?: number;
+  // Phase 3 matchmaker fields (populated when joining via Redis OTP)
+  roomName?: string;
+  hostNodeId?: string;
+  hostIp?: string;
+  hostPort?: number;
+  hostType?: 'desktop' | 'web' | 'mobile';
 }
 
 // Shared keys — MUST match web/src/lib/mockRoomService.ts
@@ -92,37 +98,8 @@ class RoomService {
     return room;
   }
 
-  static async joinRoom(otp: string): Promise<Room> {
-    await delay(900);
-    const rooms = loadRooms();
-    const upperOtp = otp.toUpperCase();
 
-    const existing = rooms.find(r => r.otp === upperOtp);
-    if (existing) return existing;
 
-    const globalEntry = lookupGlobalOTP(upperOtp);
-
-    if (upperOtp === 'FAIL01' || otp.length < 6) {
-      const err = new Error('Room not found. Check the invite code and try again.');
-      (err as any).code = 'ROOM_NOT_FOUND';
-      throw err;
-    }
-
-    const roomName = globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`;
-    const joined: Room = {
-      id: globalEntry?.id ?? crypto.randomUUID(),
-      name: roomName,
-      otp: upperOtp,
-      createdAt: new Date().toISOString(),
-      peerCount: Math.floor(Math.random() * 3) + 2,
-      isOwner: false,
-      status: 'active',
-      lastActivity: new Date().toISOString(),
-      fileCount: 0,
-    };
-    saveRooms([...rooms, joined]);
-    return joined;
-  }
 
   static async deleteRoom(roomId: string): Promise<void> {
     await delay(300);
@@ -133,6 +110,69 @@ class RoomService {
   static async getRoom(roomId: string): Promise<Room | null> {
     await delay(200);
     return loadRooms().find(r => r.id === roomId) ?? null;
+  }
+
+  /**
+   * joinRoom — overloaded to accept an optional memberNodeId
+   * used by the FilesPage "Join Repository" flow (Phase 3 live)
+   */
+  static async joinRoom(otp: string, memberNodeId?: string): Promise<Room> {
+    await delay(900);
+    const rooms = loadRooms();
+    const upperOtp = otp.toUpperCase();
+
+    const existing = rooms.find(r => r.otp === upperOtp || r.id === otp);
+    if (existing) return existing;
+
+    const globalEntry = lookupGlobalOTP(upperOtp);
+
+    if (upperOtp === 'FAIL01' || otp.length < 5) {
+      const err = new Error('Room not found. Check the invite code and try again.');
+      (err as any).code = 'ROOM_NOT_FOUND';
+      throw err;
+    }
+
+    const roomName = globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`;
+    const joined: Room = {
+      id: globalEntry?.id ?? otp,
+      name: roomName,
+      roomName,
+      otp: upperOtp,
+      createdAt: new Date().toISOString(),
+      peerCount: Math.floor(Math.random() * 3) + 2,
+      isOwner: false,
+      status: 'active',
+      lastActivity: new Date().toISOString(),
+      fileCount: 0,
+      hostType: 'desktop',
+    };
+    saveRooms([...rooms, joined]);
+    return joined;
+  }
+
+  /** List files shared to a room (fetches from matchmaker) */
+  static async listRoomFiles(roomId: string): Promise<any[]> {
+    try {
+      const MATCHMAKER = 'https://docu-sync-chi.vercel.app/api/lobby';
+      const res = await fetch(`${MATCHMAKER}/files?otp=${encodeURIComponent(roomId)}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.files || [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Share a file into a room by posting it to the matchmaker */
+  static async shareFileToRoom(roomId: string, file: Record<string, unknown>): Promise<void> {
+    try {
+      const MATCHMAKER = 'https://docu-sync-chi.vercel.app/api/lobby';
+      await fetch(`${MATCHMAKER}/files`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: roomId, file }),
+      });
+    } catch { /* offline — ignore */ }
   }
 
   static subscribeToRoomChanges(callback: () => void): () => void {
