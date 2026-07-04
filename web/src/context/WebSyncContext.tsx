@@ -55,9 +55,11 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
         console.error('Failed to parse peers from local storage', e);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const savePeers = (newPeers: PeerInfo[]) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _savePeers = (newPeers: PeerInfo[]) => {
     setPeers(newPeers);
     localStorage.setItem('docusync_peers', JSON.stringify(newPeers));
   };

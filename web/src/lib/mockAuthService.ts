@@ -42,7 +42,7 @@ async function pollDatabase() {
         window.dispatchEvent(new Event('docusync_db_update'));
       }
     }
-  } catch (err) {
+  } catch (_err) {
     // Ignore polling errors
   }
 }
@@ -140,8 +140,8 @@ export async function getActiveUsers(): Promise<AuthUser[]> {
     const res = await fetch(`${API_BASE}?action=sync`);
     if (res.ok) {
       const data = await res.json();
-      return (data.users || []).filter((u: any) => u.status === 'active' && !u.isAdmin).map((u: any) => {
-        const { pin, ...safe } = u;
+      return (data.users || []).filter((u: AuthUser & { status: string; isAdmin: boolean; pin: string }) => u.status === 'active' && !u.isAdmin).map((u: AuthUser & { pin: string }) => {
+        const { pin: _pin, ...safe } = u;
         return safe;
       });
     }
@@ -165,7 +165,7 @@ export async function checkApprovalStatus(email: string): Promise<string | null>
   }
 }
 
-export async function approveRequest(reqId: string, assignedPin?: string): Promise<string> {
+export async function approveRequest(reqId: string, _assignedPin?: string): Promise<string> {
   const res = await fetch(API_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -180,7 +180,7 @@ export async function approveRequest(reqId: string, assignedPin?: string): Promi
 }
 
 export async function rejectRequest(reqId: string): Promise<void> {
-  const res = await fetch(API_BASE, {
+  await fetch(API_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'deny', reqId })
@@ -188,7 +188,7 @@ export async function rejectRequest(reqId: string): Promise<void> {
   pollDatabase();
 }
 
-export async function revokeUser(userId: string): Promise<void> {
+export async function revokeUser(_userId: string): Promise<void> {
   // Not implemented on backend yet but can be added
 }
 

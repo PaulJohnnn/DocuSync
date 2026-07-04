@@ -33,7 +33,7 @@ export async function DELETE(request: Request) {
     await redis.del(`lobby:${otp}`);
 
     return NextResponse.json({ success: true, message: `Group ${otp} deleted` }, { status: 200, headers: corsHeaders });
-  } catch (err) {
+  } catch (_err) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: corsHeaders });
   }
 }

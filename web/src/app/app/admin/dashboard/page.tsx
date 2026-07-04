@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import mockAuthService, { AuthUser } from '@/lib/mockAuthService';
 import { toast } from 'sonner';
-import { ShieldCheck, UserCheck, UserPlus, Clock, X, Check, Search, Shield, UserX, Activity } from 'lucide-react';
+import { ShieldCheck, Clock, X, Check, UserX, Activity } from 'lucide-react';
 
 export default function AdminDashboardPage() {
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);

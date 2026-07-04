@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  FolderOpen, AlertTriangle, Clock, Users, Activity, Wifi, Settings
+  FolderOpen, AlertTriangle, Clock, Users, Wifi, Settings
 } from 'lucide-react';
 import OnlineStatusPill from './OnlineStatusPill';
 

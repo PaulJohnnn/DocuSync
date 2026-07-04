@@ -15,6 +15,7 @@ const DocuSyncLogo: React.FC<{ size?: number }> = ({ size = 80 }) => (
 );
 
 // ── Wave SVG (left panel bottom) ──────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const WaveDecor: React.FC = () => (
   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, overflow: 'hidden', lineHeight: 0 }}>
     <svg viewBox="0 0 500 140" preserveAspectRatio="none" style={{ width: '100%', height: 140, display: 'block' }}>

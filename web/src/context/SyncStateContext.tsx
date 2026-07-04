@@ -101,7 +101,7 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
     setSyncStateRaw('conflict');
   }, []);
 
-  const resolveConflict = useCallback((choice: 'accept' | 'reject') => {
+  const resolveConflict = useCallback((_choice: 'accept' | 'reject') => {
     setConflict(null);
     setSyncStateRaw('synced');
     setTimeout(() => setSyncStateRaw('online'), 3000);

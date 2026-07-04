@@ -16,7 +16,7 @@ export async function GET() {
   try {
     // 1. Get all active rooms from Redis
     const lobbyKeys = await redis.keys('lobby:*');
-    let rooms: any[] = [];
+    let rooms: { otp: string; roomName: string; hostNodeId: string; memberCount: number; createdAt: number; expiresAt: number }[] = [];
     if (lobbyKeys.length > 0) {
       const lobbies = await redis.mget<LobbyEntry[]>(...lobbyKeys);
       rooms = lobbies
@@ -33,7 +33,7 @@ export async function GET() {
 
     // 2. Get all known users from Redis
     const userKeys = await redis.keys('user:*');
-    let users: any[] = [];
+    let users: { nodeId: string; lastActive: number; isOnline: boolean; ip: string | undefined }[] = [];
     if (userKeys.length > 0) {
       const activeUsers = await redis.mget<UserPresence[]>(...userKeys);
       const now = Date.now();
