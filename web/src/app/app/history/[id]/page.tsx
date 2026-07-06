@@ -5,6 +5,7 @@ import PageShell from '@/components/PageShell';
 import {
   Clock, FileEdit, GitMerge, AlertTriangle, RotateCcw, ArrowLeft, Activity
 } from 'lucide-react';
+import { uGet, uSet } from '@/lib/userStorage';
 
 interface EventRecord {
   id: number;
@@ -35,7 +36,7 @@ export default function HistoryPage() {
   useEffect(() => {
     if (fileId === 'all') {
       // Aggregate all events from all files
-      const filesStr = localStorage.getItem('docusync_files');
+      const filesStr = uGet('files');
       if (!filesStr) return;
       const files = JSON.parse(filesStr);
       const allEvents: EventRecord[] = [];
@@ -56,7 +57,7 @@ export default function HistoryPage() {
         evts.sort((a: EventRecord, b: EventRecord) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setEvents(evts);
       }
-      const filesStr = localStorage.getItem('docusync_files');
+      const filesStr = uGet('files');
       if (filesStr) {
         const files = JSON.parse(filesStr);
         const f = files.find((f: Record<string, unknown>) => f.id === fileId);
@@ -67,14 +68,14 @@ export default function HistoryPage() {
 
   const restore = (event: EventRecord) => {
     if (fileId === 'all') return;
-    const stored = localStorage.getItem('docusync_files');
+    const stored = uGet('files');
     if (!stored) return;
     const files = JSON.parse(stored);
     const idx = files.findIndex((f: Record<string, unknown>) => f.id === fileId);
     if (idx >= 0) {
       files[idx].content = event.payload;
       files[idx].updatedAt = new Date().toISOString();
-      localStorage.setItem('docusync_files', JSON.stringify(files));
+      uSet('files', JSON.stringify(files));
       router.push(`/editor/${fileId}`);
     }
   };

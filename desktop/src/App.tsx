@@ -47,6 +47,7 @@ const GlobalVerifyModal: React.FC = () => {
   const [request, setRequest] = useState<{ reqId: string; nodeId: string } | null>(null);
 
   useEffect(() => {
+    if (!window.docuSync) return;
     const unsub = window.docuSync.onVerifyRequest((reqId, nodeId) => {
       setRequest({ reqId, nodeId });
     });
@@ -56,7 +57,9 @@ const GlobalVerifyModal: React.FC = () => {
   if (!request) return null;
 
   const handleRespond = async (allow: boolean) => {
-    await window.docuSync.respondToVerifyRequest(request.reqId, allow);
+    if (window.docuSync) {
+      await window.docuSync.respondToVerifyRequest(request.reqId, allow);
+    }
     setRequest(null);
   };
 
@@ -127,6 +130,7 @@ const AdminPage     = lazy(() => import('@/pages/AdminPage'));
 const MetricsPage   = lazy(() => import('@/pages/MetricsPage'));
 const VaultLoginPage = lazy(() => import('@/pages/VaultLoginPage'));
 const WelcomePage    = lazy(() => import('@/pages/WelcomePage'));
+const WebRTCDemoPage = lazy(() => import('@/pages/WebRTCDemoPage'));
 
 /** Loading skeleton shown during lazy chunk loading. */
 const PageLoader: React.FC = () => (
@@ -173,7 +177,9 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       // 10 minutes = 600,000 ms
       timeoutId = setTimeout(async () => {
         try {
-          await window.docuSync.lockVault();
+          if (window.docuSync) {
+            await window.docuSync.lockVault();
+          }
           navigate('/vault-login');
         } catch (err) {
           console.error('Failed to auto-lock vault:', err);
@@ -253,6 +259,13 @@ const App: React.FC = () => (
           <Route path="/welcome" element={
             <Suspense fallback={<PageLoader />}>
               <WelcomePage />
+            </Suspense>
+          } />
+          
+          {/* Public WebRTC Demo Route */}
+          <Route path="/webrtc-demo" element={
+            <Suspense fallback={<PageLoader />}>
+              <WebRTCDemoPage />
             </Suspense>
           } />
           

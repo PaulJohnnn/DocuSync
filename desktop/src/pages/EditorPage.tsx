@@ -162,7 +162,7 @@ const EditorPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const fileId = useMemo(() => { const n = parseInt(id ?? '', 10); return Number.isFinite(n) ? n : null; }, [id]);
-  const { currentRoom, connectedPeers, vectorClock, pendingConflicts, localNodeId } = useElectronSync();
+  const { currentRoom, connectedPeers, matchmakerPeerCount, vectorClock, pendingConflicts, localNodeId } = useElectronSync();
 
   const [filePath, setFilePath] = useState('');
   const [loading, setLoading] = useState(true);
@@ -690,7 +690,7 @@ const EditorPage: React.FC = () => {
             <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Δ {formatBytes(lastDeltaSize)}</span>
           )}
           <span style={{ fontSize: 10, color: peersNotified > 0 ? 'var(--green)' : 'var(--text-muted)' }}>
-            {peersNotified > 0 ? `✓ ${peersNotified} notified` : `${connectedPeers.length} peers`}
+            {peersNotified > 0 ? `✓ ${peersNotified} notified` : `${Math.max(connectedPeers.length, matchmakerPeerCount - 1)} peers`}
           </span>
           <span style={{
             marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)',

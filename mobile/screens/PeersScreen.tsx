@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import mockRoomService, { type Room } from '../services/mockRoomService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { uSet } from '../utils/userStorage';
 import { Ionicons } from '@expo/vector-icons';
 
 type ViewState = 'list' | 'create_name' | 'create_generating' | 'create_success' | 'join_otp' | 'join_loading' | 'join_success' | 'join_error';
@@ -70,7 +70,7 @@ export default function PeersScreen({ navigation }: any) {
   };
 
   const handleEnterWorkspace = async (room: Room) => {
-    await AsyncStorage.setItem('@docusync/current_room', JSON.stringify(room));
+    await uSet('current_room', JSON.stringify(room));
     navigation.navigate('Files');
   };
 

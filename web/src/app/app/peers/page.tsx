@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import mockRoomService, { type Room } from '@/lib/mockRoomService';
+import { uSet } from '@/lib/userStorage';
 
 // ── View state machine ────────────────────────────────────────────────────
 // list → create_name → create_generating → create_success → workspace
@@ -323,7 +324,7 @@ export default function RoomsPage() {
   };
 
   const handleEnterWorkspace = (room: Room) => {
-    localStorage.setItem('docusync_current_room', JSON.stringify(room));
+    uSet('current_room', JSON.stringify(room));
     sessionStorage.setItem('docusync_has_seen_welcome_session', 'true');
     router.push('/app/files');
   };

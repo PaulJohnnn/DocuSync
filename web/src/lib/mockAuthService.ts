@@ -41,6 +41,20 @@ async function pollDatabase() {
       if (changed) {
         window.dispatchEvent(new Event('docusync_db_update'));
       }
+      
+      const sessionStr = sessionStorage.getItem(SESSION_KEY);
+      if (sessionStr) {
+        try {
+          const user = JSON.parse(sessionStr);
+          if (user && user.id) {
+            const stillExists = (data.users || []).find((u: any) => u.id === user.id && u.status === 'active');
+            if (!stillExists) {
+              console.warn('[mockAuthService] Account deleted or revoked. Logging out.');
+              logout();
+            }
+          }
+        } catch { }
+      }
     }
   } catch (_err) {
     // Ignore polling errors
@@ -188,8 +202,13 @@ export async function rejectRequest(reqId: string): Promise<void> {
   pollDatabase();
 }
 
-export async function revokeUser(_userId: string): Promise<void> {
-  // Not implemented on backend yet but can be added
+export async function revokeUser(userId: string): Promise<void> {
+  await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'revoke', userId })
+  });
+  pollDatabase();
 }
 
 export function subscribeToDatabaseChanges(callback: () => void) {

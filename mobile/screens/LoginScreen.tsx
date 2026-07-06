@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Rect, Circle } from 'react-native-svg';
 import mockAuthService from '../services/mockAuthService';
+import { uSet, uRemove } from '../utils/userStorage';
 
 type RootStackParamList = {
   Welcome: undefined;
@@ -60,9 +61,9 @@ export default function LoginScreen() {
     try {
       const user = await mockAuthService.login(email, pin);
       if (user.isAdmin) {
-        await AsyncStorage.setItem('docusync_is_admin', 'true');
+        await uSet('is_admin', 'true');
       } else {
-        await AsyncStorage.removeItem('docusync_is_admin');
+        await uRemove('is_admin');
       }
       if (remember) {
         await AsyncStorage.setItem('docusync_remembered_email', email);

@@ -35,7 +35,8 @@ export async function POST(request: Request) {
     
     // Generate unique OTP
     do {
-      otp = Math.floor(10000 + Math.random() * 90000).toString();
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      otp = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
       const existing = await redis.get(`lobby:${otp}`);
       if (!existing) {
         isUnique = true;

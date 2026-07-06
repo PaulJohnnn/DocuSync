@@ -14,7 +14,7 @@ export interface AuthUser {
 }
 
 const SESSION_KEY = 'docusync_auth_user';
-const API_BASE = 'http://localhost:3001/api/auth';
+const API_BASE = 'http://localhost:3000/api/auth';
 
 // ── Polling logic for reactivity ─────────────────────────────────────────
 let _usersHash = '';
@@ -40,6 +40,20 @@ async function pollDatabase() {
       }
       if (changed) {
         window.dispatchEvent(new Event('docusync_db_update'));
+      }
+
+      const sessionStr = sessionStorage.getItem(SESSION_KEY);
+      if (sessionStr) {
+        try {
+          const user = JSON.parse(sessionStr);
+          if (user && user.id) {
+            const stillExists = (data.users || []).find((u: any) => u.id === user.id && u.status === 'active');
+            if (!stillExists) {
+              console.warn('[mockAuthService] Account deleted or revoked. Logging out.');
+              logout();
+            }
+          }
+        } catch { }
       }
     }
   } catch (err) {

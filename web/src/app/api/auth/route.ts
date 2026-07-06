@@ -143,6 +143,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true }, { headers: corsHeaders });
     }
 
+    if (action === 'revoke') {
+      const { userId } = body;
+      const idx = db.users.findIndex((u: any) => u.id === userId);
+      if (idx !== -1) {
+        db.users.splice(idx, 1);
+        saveDb(db);
+      }
+      return NextResponse.json({ success: true }, { headers: corsHeaders });
+    }
+
     return NextResponse.json({ error: 'Unknown POST action' }, { status: 400, headers: corsHeaders });
 
   } catch (err) {

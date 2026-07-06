@@ -1050,7 +1050,7 @@ export function registerIPCHandlers(services: EngineServices): void {
 
           allConflicts.push({
             conflictId: c.conflictId,
-            fileId: c.fileId,
+            fileId: Number(c.fileId),
             eventIdA: c.eventIdA,
             nodeIdA: c.nodeIdA,
             payloadA: c.payloadA,
@@ -1084,7 +1084,7 @@ export function registerIPCHandlers(services: EngineServices): void {
 
         allConflicts.push({
           conflictId: row.conflictId,
-          fileId: row.fileId,
+          fileId: Number(row.fileId),
           eventIdA: row.eventIdA,
           nodeIdA: row.nodeIdA,
           payloadA: row.payloadA,

@@ -12,12 +12,85 @@ import {
   AlignLeft, AlignCenter, AlignRight, Highlighter
 } from 'lucide-react';
 
+import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
+
+export interface RemoteCursor {
+  nodeId: string;
+  displayName: string;
+  color: string;
+  from: number;
+  to: number;
+}
+
+const RemoteCursorsExtension = Extension.create({
+  name: 'remoteCursors',
+  addOptions() {
+    return {
+      cursors: [] as RemoteCursor[],
+    };
+  },
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('remoteCursors'),
+        state: {
+          init: () => DecorationSet.empty,
+          apply: (tr, oldState) => {
+            const cursors = this.options.cursors;
+            const decorations: Decoration[] = [];
+            const docSize = tr.doc.nodeSize;
+
+            cursors.forEach((c: RemoteCursor) => {
+              const from = Math.max(0, Math.min(c.from, docSize - 2));
+              const to = Math.max(0, Math.min(c.to, docSize - 2));
+
+              if (from === to) {
+                const cursorElement = document.createElement('span');
+                cursorElement.classList.add('collaboration-cursor__caret');
+                cursorElement.style.borderLeftColor = c.color;
+
+                const labelElement = document.createElement('div');
+                labelElement.classList.add('collaboration-cursor__label');
+                labelElement.style.backgroundColor = c.color;
+                labelElement.textContent = c.displayName;
+                cursorElement.appendChild(labelElement);
+
+                decorations.push(
+                  Decoration.widget(from, cursorElement, { side: 1 })
+                );
+              } else {
+                decorations.push(
+                  Decoration.inline(Math.min(from, to), Math.max(from, to), {
+                    class: 'collaboration-cursor__selection',
+                    style: `background-color: ${c.color}33`,
+                  })
+                );
+              }
+            });
+
+            return DecorationSet.create(tr.doc, decorations);
+          },
+        },
+        props: {
+          decorations(state) {
+            return this.getState(state);
+          },
+        },
+      }),
+    ];
+  },
+});
+
 interface Props {
   content: string;
   onChange: (content: string) => void;
+  cursors?: RemoteCursor[];
+  onSelectionUpdate?: (from: number, to: number) => void;
 }
 
-export default function TipTapEditor({ content, onChange }: Props) {
+export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate }: Props) {
   const initialized = useRef(false);
 
   const editor = useEditor({
@@ -27,10 +100,17 @@ export default function TipTapEditor({ content, onChange }: Props) {
       Underline,
       Placeholder.configure({ placeholder: 'Start typing your document...' }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      RemoteCursorsExtension.configure({ cursors: [] }),
     ],
     content: content || '<p></p>',
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
+    },
+    onSelectionUpdate: ({ editor }) => {
+      if (onSelectionUpdate) {
+        const { from, to } = editor.state.selection;
+        onSelectionUpdate(from, to);
+      }
     },
     editorProps: {
       attributes: {
@@ -45,6 +125,16 @@ export default function TipTapEditor({ content, onChange }: Props) {
       initialized.current = true;
     }
   }, [editor, content]);
+
+  useEffect(() => {
+    if (editor) {
+      const ext = editor.extensionManager.extensions.find(e => e.name === 'remoteCursors');
+      if (ext) {
+        ext.options.cursors = cursors;
+        editor.view.dispatch(editor.state.tr.setMeta('remoteCursorsUpdate', true));
+      }
+    }
+  }, [editor, cursors]);
 
   if (!editor) return null;
 

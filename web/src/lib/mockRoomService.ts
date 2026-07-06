@@ -1,13 +1,10 @@
 /**
  * @module mockRoomService (Web)
  * Phase 3 — Cross-platform room sync.
- * Rooms are stored in localStorage under a SHARED key so that any OTP code
- * created on Web can be joined on Desktop (same browser), and vice-versa.
- *
- * Mobile uses AsyncStorage with the same key format; bridging across
- * native/web requires the same OTP to be typed in manually, which is the
- * intended UX for a P2P sync demo.
+ * Rooms are stored under user-scoped keys so each account has its own room list.
  */
+
+import { uGet, uSet } from './userStorage';
 
 export interface Room {
   id: string;
@@ -23,10 +20,9 @@ export interface Room {
   fileCount?: number;
 }
 
-// ── Shared storage key — same key used by Desktop RoomService ──────────────
-const STORAGE_KEY = 'docusync_mock_rooms';
-// Global OTP registry — allows cross-device join simulation within same browser
-const GLOBAL_OTP_KEY = 'docusync_global_otps';
+// User-scoped storage keys (resolved at call time)
+const ROOMS_KEY = 'rooms';
+const GLOBAL_OTP_KEY = 'global_otps';
 
 function genOTP(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -36,7 +32,7 @@ function genOTP(): string {
 function loadRooms(): Room[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = uGet(ROOMS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -45,25 +41,24 @@ function loadRooms(): Room[] {
 
 function saveRooms(rooms: Room[]): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
-  // Notify other components (same-tab)
+  uSet(ROOMS_KEY, JSON.stringify(rooms));
   window.dispatchEvent(new Event('docusync_rooms_update'));
 }
 
 function registerGlobalOTP(otp: string, roomName: string, roomId: string): void {
   if (typeof window === 'undefined') return;
   try {
-    const raw = localStorage.getItem(GLOBAL_OTP_KEY);
+    const raw = uGet(GLOBAL_OTP_KEY);
     const registry: Record<string, { name: string; id: string; createdAt: string }> = raw ? JSON.parse(raw) : {};
     registry[otp] = { name: roomName, id: roomId, createdAt: new Date().toISOString() };
-    localStorage.setItem(GLOBAL_OTP_KEY, JSON.stringify(registry));
+    uSet(GLOBAL_OTP_KEY, JSON.stringify(registry));
   } catch { /* ignore */ }
 }
 
 function lookupGlobalOTP(otp: string): { name: string; id: string } | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(GLOBAL_OTP_KEY);
+    const raw = uGet(GLOBAL_OTP_KEY);
     if (!raw) return null;
     const registry: Record<string, { name: string; id: string }> = JSON.parse(raw);
     return registry[otp.toUpperCase()] ?? null;
@@ -78,17 +73,73 @@ function delay(ms = 600): Promise<void> {
 
 // ── Service methods ────────────────────────────────────────────────────────
 
-/** List all rooms this device has joined or created. */
+/** List all rooms this device has joined or created, updating with live data from matchmaker. */
 export async function listRooms(): Promise<Room[]> {
-  await delay(300);
-  return loadRooms();
+  const localRooms = loadRooms();
+  if (localRooms.length === 0) return [];
+  
+  try {
+    const MATCHMAKER = process.env.NODE_ENV === 'development'
+      ? '/api/lobby'
+      : 'https://docusync-pnc.vercel.app/api/lobby';
+      
+    const res = await fetch(`${MATCHMAKER}/list`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.rooms) {
+        const liveMap = new Map(data.rooms.map((r: any) => [r.id, r]));
+        let changed = false;
+        for (const room of localRooms) {
+          const live = liveMap.get(room.otp);
+          if (live) {
+            if (room.peerCount !== live.peersJoined || room.fileCount !== live.filesCount) {
+              room.peerCount = live.peersJoined;
+              room.fileCount = live.filesCount;
+              changed = true;
+            }
+          }
+        }
+        if (changed) saveRooms(localRooms);
+      }
+    }
+  } catch { /* offline fallback */ }
+
+  return localRooms;
 }
 
 /** Create a new room with the given name. Returns the created room + OTP. */
 export async function createRoom(name: string): Promise<Room> {
-  await delay(800);
   if (!name.trim()) throw new Error('Room name cannot be empty.');
-  const otp = genOTP();
+  let otp = genOTP();
+  let isMatchmakerSuccess = false;
+
+  try {
+    const MATCHMAKER = process.env.NODE_ENV === 'development'
+      ? '/api/lobby'
+      : 'https://docusync-pnc.vercel.app/api/lobby';
+      
+    const res = await fetch(`${MATCHMAKER}/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roomName: name.trim(),
+        hostNodeId: `web-${Date.now()}`,
+        hostIp: '127.0.0.1',
+        hostPort: 3000,
+        hostType: 'web'
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.otp) {
+        otp = data.otp;
+        isMatchmakerSuccess = true;
+      }
+    }
+  } catch {
+    // Offline fallback
+  }
+
   const room: Room = {
     id: crypto.randomUUID(),
     name: name.trim(),
@@ -102,39 +153,69 @@ export async function createRoom(name: string): Promise<Room> {
   };
   const rooms = loadRooms();
   saveRooms([...rooms, room]);
-  // Register the OTP globally so other tabs/platforms can join
-  registerGlobalOTP(otp, room.name, room.id);
+  if (!isMatchmakerSuccess) {
+    registerGlobalOTP(otp, room.name, room.id);
+  }
   return room;
 }
 
 /** Join a room using an OTP. Throws if invalid. */
 export async function joinRoom(otp: string): Promise<Room> {
-  await delay(900);
   const rooms = loadRooms();
   const upperOtp = otp.toUpperCase();
 
-  // Already have this room locally
-  const existing = rooms.find(r => r.otp === upperOtp);
-  if (existing) return existing;
-
-  // Check global OTP registry (cross-tab created rooms)
-  const globalEntry = lookupGlobalOTP(upperOtp);
-
-  // Hard fail
-  if (upperOtp === 'FAIL01' || otp.length < 6) {
+  if (upperOtp === 'FAIL01' || otp.length < 5) {
     const err = new Error('Room not found. Check the invite code and try again.');
     (err as any).code = 'ROOM_NOT_FOUND';
     throw err;
   }
 
-  // If not in global registry, simulate finding a remote room
-  const roomName = globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`;
+  const MATCHMAKER_URL = process.env.NODE_ENV === 'development'
+    ? '/api/lobby'
+    : 'https://docusync-pnc.vercel.app/api/lobby';
+
+  let apiRoomName: string | null = null;
+  let apiHostIp: string | undefined;
+  let apiHostPort: number | undefined;
+  let apiHostType: 'desktop' | 'web' | 'mobile' = 'desktop';
+  let apiMemberCount = 1;
+
+  try {
+    const res = await fetch(`${MATCHMAKER_URL}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ otp: upperOtp, clientNodeId: `web-join-${Date.now()}` }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.roomName) {
+        apiRoomName = data.roomName;
+        apiHostIp = data.hostIp;
+        apiHostPort = data.hostPort;
+        apiHostType = data.hostType || 'desktop';
+        apiMemberCount = data.memberCount || 1;
+      }
+    }
+  } catch { /* offline – fall through to local lookup */ }
+
+  const globalEntry = lookupGlobalOTP(upperOtp);
+  const roomName = apiRoomName ?? (globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`);
+
+  const existing = rooms.find(r => r.otp === upperOtp || r.id === otp);
+  if (existing) {
+    if (existing.name !== roomName) {
+      existing.name = roomName;
+      saveRooms(rooms);
+    }
+    return existing;
+  }
+
   const joined: Room = {
     id: globalEntry?.id ?? crypto.randomUUID(),
     name: roomName,
     otp: upperOtp,
     createdAt: new Date().toISOString(),
-    peerCount: Math.floor(Math.random() * 3) + 2,
+    peerCount: apiMemberCount,
     isOwner: false,
     status: 'active',
     lastActivity: new Date().toISOString(),

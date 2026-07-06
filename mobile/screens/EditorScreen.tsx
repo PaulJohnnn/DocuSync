@@ -1,7 +1,7 @@
 /**
  * @module EditorScreen
  * Text editor — route "Editor".
- * All AsyncStorage/auto-save/delta logic unchanged. Only visual layer updated.
+ * Uses user-scoped storage so each account edits their own files.
  */
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { uGet, uSet } from '../utils/userStorage';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { Colors } from '../constants/Colors';
@@ -30,22 +31,55 @@ export default function EditorScreen({ route, navigation }: any) {
   const [deltaSize, setDeltaSize] = useState(0);
   const lastSave = useRef('');
 
+  const lastSyncedAt = useRef(0);
+
   useEffect(() => { loadFile(); }, [fileId]);
 
   const loadFile = async () => {
-    const stored = await AsyncStorage.getItem('@docusync/files');
+    const stored = await uGet('files');
     if (!stored) return;
     const files: FileRecord[] = JSON.parse(stored);
     const found = files.find(f => f.id === fileId);
     if (found) { setFile(found); setContent(found.content); lastSave.current = found.content; }
   };
 
+  // Poll Matchmaker /doc
+  useEffect(() => {
+    let iv: NodeJS.Timeout;
+    const pollDoc = async () => {
+      try {
+        const storedRoomStr = await uGet('current_room');
+        if (!storedRoomStr) return;
+        const room = JSON.parse(storedRoomStr);
+        if (!room) return;
+        const roomOtp = room.otp || room.id;
+        
+        const url = `http://192.168.68.100:3000/api/lobby/doc?otp=${roomOtp}&fileId=${fileId}&since=${lastSyncedAt.current || 0}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.unchanged || !data.snapshot) return;
+        
+        const snap = data.snapshot;
+        if (snap.committedAt > (lastSyncedAt.current || 0) && snap.authorNodeId !== 'mobile-node') {
+          lastSyncedAt.current = snap.committedAt;
+          setContent(snap.content);
+          lastSave.current = snap.content;
+          setSaved(true);
+        }
+      } catch {}
+    };
+    pollDoc();
+    iv = setInterval(pollDoc, 1500);
+    return () => clearInterval(iv);
+  }, [fileId]);
+
   // Auto-save every 500ms — unchanged logic
   useEffect(() => {
     if (!file) return;
     const iv = setInterval(async () => {
       if (content !== lastSave.current) {
-        const stored = await AsyncStorage.getItem('@docusync/files');
+        const stored = await uGet('files');
         if (!stored) return;
         const files: FileRecord[] = JSON.parse(stored);
         const idx = files.findIndex(f => f.id === fileId);
@@ -53,11 +87,39 @@ export default function EditorScreen({ route, navigation }: any) {
           files[idx].content = content;
           files[idx].updatedAt = new Date().toISOString();
           files[idx].size = content.length;
-          await AsyncStorage.setItem('@docusync/files', JSON.stringify(files));
+          await uSet('files', JSON.stringify(files));
 
           const delta = Math.abs(content.length - lastSave.current.length);
           setDeltaSize(delta);
-          setVcState(v => { const n = [...v]; n[0] = n[0] + 1; return n; });
+          
+          let currentVc = [0, 0, 0];
+          setVcState(v => { const n = [...v]; n[0] = n[0] + 1; currentVc = n; return n; });
+
+          // Push to Matchmaker
+          try {
+            const storedRoomStr = await uGet('current_room');
+            if (storedRoomStr) {
+              const room = JSON.parse(storedRoomStr);
+              const roomOtp = room.otp || room.id;
+              const now = Date.now();
+              lastSyncedAt.current = now;
+              await fetch('http://192.168.68.100:3000/api/lobby/doc', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  otp: roomOtp,
+                  fileId,
+                  authorNodeId: 'mobile-node',
+                  authorName: 'Mobile',
+                  content,
+                  vectorClock: { nodeCount: 3, nodeIndex: 2, root: { children: [] }, counters: currentVc },
+                  deltaSize: delta,
+                }),
+              });
+            }
+          } catch (e) {
+            console.error('[Mobile Sync] Push failed:', e);
+          }
 
           const evStr = await AsyncStorage.getItem(`@docusync/events/${fileId}`);
           const events = evStr ? JSON.parse(evStr) : [];
@@ -65,7 +127,7 @@ export default function EditorScreen({ route, navigation }: any) {
             id: events.length + 1,
             eventId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             fileId, nodeId: 'mobile-node', eventType: 'edit',
-            logicalTimestamp: events.length + 1,
+            logicalTimestamp: currentVc[0],
             payload: content.slice(0, 200),
             createdAt: new Date().toISOString(),
           });

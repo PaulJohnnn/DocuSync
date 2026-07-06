@@ -52,6 +52,7 @@ const CH_CONFLICT_DETAIL  = 'conflict:detail'  as const;
 const CH_CONFLICT_RESOLVE = 'conflict:resolve' as const;
 const CH_PEER_LIST       = 'peer:list'       as const;
 const CH_PEER_CONNECT    = 'peer:connect'    as const;
+const CH_SYNC_HANDLE_PEER_MESSAGE = 'sync:handle-peer-message' as const;
 const CH_PEER_CONNECT_SUPABASE = 'peer:connect-supabase' as const;
 const CH_VAULT_STATUS    = 'vault:get-status' as const;
 const CH_VAULT_GENESIS   = 'vault:genesis-init' as const;
@@ -73,6 +74,7 @@ const CH_EVT_AUTH_VERIFY_REQ = 'auth:verify-request' as const;
 const CH_AUTH_VERIFY_RESP = 'auth:verify-respond' as const;
 const CH_EVT_SESSION_TERMINATED = 'evt:session-terminated' as const;
 const CH_EVT_PEER_UPDATED = 'evt:peer-updated' as const;
+const CH_EVT_SEND_PEER_MESSAGE = 'evt:send-peer-message' as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DocuSyncBridge Interface
@@ -229,7 +231,12 @@ export interface DocuSyncBridge {
    * @param port    - WebSocket port of the peer.
    * @returns IPCResponse containing `{ connected, address, port, connectedPeers }`.
    */
-  connectToPeer(address: string, port: number): Promise<IPCResponse>;
+  connectToPeer(address: string, port: number): Promise<IPCResponse<{ connectedPeers: string[] }>>;
+
+  /**
+   * Sends a message from the Renderer's WebRTC layer to the Main process PeerManager.
+   */
+  handlePeerMessage(peerId: string, msgStr: string): Promise<IPCResponse<{ handled: boolean }>>;
 
   /**
    * Connects to a peer via Supabase Realtime channel.
@@ -342,10 +349,17 @@ export interface DocuSyncBridge {
   ) => () => void;
 
   /**
-   * (Guest) Triggered when the Admin terminates the session.
+   * Called when the session is terminated.
    */
   onSessionTerminated: (
-    listener: (reason: string) => void
+    callback: (reason: string) => void
+  ) => () => void;
+
+  /**
+   * Called when the PeerManager wants to send a message to a WebRTC peer.
+   */
+  onSendPeerMessage: (
+    callback: (peerId: string, msgStr: string) => void
   ) => () => void;
 
   /**
@@ -424,12 +438,16 @@ const docuSyncBridge: DocuSyncBridge = {
     return ipcRenderer.invoke(CH_PEER_LIST);
   },
 
-  connectToPeer(address: string, port: number): Promise<IPCResponse> {
+  connectToPeer(address: string, port: number): Promise<IPCResponse<{ connectedPeers: string[] }>> {
     return ipcRenderer.invoke(CH_PEER_CONNECT, address, port);
   },
 
   connectToSupabase(otp: string): Promise<IPCResponse> {
     return ipcRenderer.invoke(CH_PEER_CONNECT_SUPABASE, otp);
+  },
+
+  handlePeerMessage: async (peerId, msgStr) => {
+    return await ipcRenderer.invoke(CH_SYNC_HANDLE_PEER_MESSAGE, peerId, msgStr);
   },
 
   // ── Vault & Network ──────────────────────────────────────────────────
@@ -550,16 +568,24 @@ const docuSyncBridge: DocuSyncBridge = {
     };
   },
 
-  onSessionTerminated(
-    listener: (reason: string) => void
-  ): () => void {
+  onSessionTerminated: (callback) => {
     const wrapped = (_event: Electron.IpcRendererEvent, reason: string) => {
-      listener(reason);
+      callback(reason);
     };
     ipcRenderer.on(CH_EVT_SESSION_TERMINATED, wrapped);
 
     return () => {
-      ipcRenderer.off(CH_EVT_SESSION_TERMINATED, wrapped);
+      ipcRenderer.removeListener(CH_EVT_SESSION_TERMINATED, wrapped);
+    };
+  },
+
+  onSendPeerMessage: (callback) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, peerId: string, msgStr: string) => {
+      callback(peerId, msgStr);
+    };
+    ipcRenderer.on(CH_EVT_SEND_PEER_MESSAGE, wrapped);
+    return () => {
+      ipcRenderer.removeListener(CH_EVT_SEND_PEER_MESSAGE, wrapped);
     };
   },
 

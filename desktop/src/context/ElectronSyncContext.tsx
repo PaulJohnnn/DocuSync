@@ -37,6 +37,8 @@ import React, {
 } from 'react';
 import type { ConflictDetectedPayload, SyncStatusChangedPayload } from '../../electron/preload';
 import { notify } from '@docusync/shared/utils/notifications';
+import { uGet, uSet, uRemove } from '../utils/userStorage';
+import { WebRTCManager } from '@docusync/shared/engine/WebRTCManager';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -79,6 +81,7 @@ export interface ConnectedPeerInfo {
 export interface PeerRoom {
   id: string;
   name: string;
+  otp?: string;
   isHost?: boolean;
 }
 
@@ -124,6 +127,12 @@ export interface ElectronSyncContextValue {
    * @param conflictId - UUID of the resolved conflict to remove from the queue.
    */
   markConflictResolved: (conflictId: string) => void;
+  /**
+   * Number of peers in the current room according to the Redis matchmaker.
+   * This reflects cross-device joins (web, mobile, desktop) — unlike
+   * `connectedPeers` which only counts active WebSocket connections.
+   */
+  matchmakerPeerCount: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -165,7 +174,7 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
   const [connectedPeers, setConnectedPeers] = useState<ConnectedPeerInfo[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('docusync_is_admin') === 'true';
+      return uGet('is_admin') === 'true';
     } catch {
       return false;
     }
@@ -173,7 +182,7 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     try {
-      localStorage.setItem('docusync_is_admin', isAdmin.toString());
+      uSet('is_admin', isAdmin.toString());
     } catch {
       // ignore
     }
@@ -181,7 +190,7 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
 
   const [currentRoom, setCurrentRoom] = useState<PeerRoom | null>(() => {
     try {
-      const saved = localStorage.getItem('docusync_current_room');
+      const saved = uGet('current_room');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -191,9 +200,9 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     try {
       if (currentRoom) {
-        localStorage.setItem('docusync_current_room', JSON.stringify(currentRoom));
+        uSet('current_room', JSON.stringify(currentRoom));
       } else {
-        localStorage.removeItem('docusync_current_room');
+        uRemove('current_room');
       }
     } catch {
       // ignore
@@ -203,10 +212,89 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
   const [vectorClock, setVectorClock]     = useState<Record<string, unknown> | null>(null);
   const [pendingConflicts, setPendingConflicts] = useState<number>(0);
   const [conflictQueue, setConflictQueue] = useState<PendingConflict[]>([]);
+  const [matchmakerPeerCount, setMatchmakerPeerCount] = useState<number>(0);
 
   /** Ref so interval callback always reads latest state without re-subscribing. */
   const stateRef = useRef({ pendingConflicts });
   stateRef.current = { pendingConflicts };
+
+  const webRtcRef = useRef<WebRTCManager | null>(null);
+
+  // ── WebRTC Signaling & Connection ──────────────────────────────────────────
+  useEffect(() => {
+    if (!currentRoom || !localNodeId) return;
+    const roomOtp = currentRoom.otp || currentRoom.id;
+    if (roomOtp.startsWith('direct-')) return;
+
+    const MATCHMAKER_SIGNAL = import.meta.env.DEV
+      ? 'http://localhost:3000/api/lobby/signal'
+      : 'https://docusync-pnc.vercel.app/api/lobby/signal';
+
+    const manager = new WebRTCManager(MATCHMAKER_SIGNAL, roomOtp, localNodeId);
+    
+    manager.onMessage = (peerId, msg) => {
+      window.docuSync?.handlePeerMessage(peerId, JSON.stringify(msg));
+    };
+
+    manager.startSignaling();
+    webRtcRef.current = manager;
+
+    return () => {
+      manager.disconnectAll();
+      webRtcRef.current = null;
+    };
+  }, [currentRoom, localNodeId]);
+
+  // ── Route outgoing peer messages to WebRTC ───────────────────────────────
+  useEffect(() => {
+    if (!window.docuSync) return;
+    return window.docuSync.onSendPeerMessage((peerId, msgStr) => {
+      if (webRtcRef.current) {
+        try {
+          const msg = JSON.parse(msgStr);
+          webRtcRef.current.sendTo(peerId, msg);
+        } catch {}
+      }
+    });
+  }, []);
+
+  // ── Poll matchmaker for cross-device peer count and WebRTC mesh ──────────
+  useEffect(() => {
+    const MATCHMAKER = import.meta.env.DEV
+      ? 'http://localhost:3000/api/lobby'
+      : 'https://docusync-pnc.vercel.app/api/lobby';
+
+    const pollMatchmaker = async () => {
+      const roomOtp = currentRoom?.otp || currentRoom?.id;
+      if (!roomOtp || roomOtp.startsWith('direct-')) return;
+      try {
+        const res = await fetch(`${MATCHMAKER}/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ otp: roomOtp, nodeId: localNodeId }), // include nodeId to register self
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.memberCount === 'number') {
+            setMatchmakerPeerCount(data.memberCount);
+          }
+          if (Array.isArray(data.members) && webRtcRef.current) {
+            // WebRTC Mesh logic: To prevent duplicate connections, 
+            // only the node with the "greater" ID initiates the offer.
+            for (const member of data.members) {
+              if (member.nodeId && member.nodeId > localNodeId) {
+                webRtcRef.current.connectToPeer(member.nodeId);
+              }
+            }
+          }
+        }
+      } catch { /* Redis unreachable — keep last known count */ }
+    };
+
+    pollMatchmaker();
+    const iv = setInterval(pollMatchmaker, 10_000);
+    return () => clearInterval(iv);
+  }, [currentRoom, localNodeId]);
 
   // ── Fetch sync status from engine ────────────────────────────────────────
 
@@ -394,6 +482,7 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
         conflictQueue,
         refreshStatus,
         markConflictResolved,
+        matchmakerPeerCount,
       }}
     >
       {children}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import RoomService, { type Room } from '../services/RoomService';
+import { uSet } from '../utils/userStorage';
 
 // ── View state machine ────────────────────────────────────────────────────
 // list → create_name → create_generating → create_success → workspace
@@ -232,9 +233,12 @@ const RoomCard: React.FC<{
   );
 };
 
+import { useElectronSync } from '../context/ElectronSyncContext';
+
 // ── Main page ─────────────────────────────────────────────────────────────
 export default function PeersPage() {
   const navigate = useNavigate();
+  const { setCurrentRoom } = useElectronSync();
   const [view, setView] = useState<View>('list');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
@@ -307,7 +311,8 @@ export default function PeersPage() {
   };
 
   const handleEnterWorkspace = (room: Room) => {
-    localStorage.setItem('docusync_current_room', JSON.stringify(room));
+    uSet('current_room', JSON.stringify(room));
+    setCurrentRoom(room);
     sessionStorage.setItem('docusync_has_seen_welcome_session', 'true');
     navigate('/');
   };

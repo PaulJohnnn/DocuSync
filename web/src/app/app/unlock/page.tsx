@@ -527,7 +527,7 @@ const HintCard: React.FC = () => {
   const [open, setOpen] = useState(false);
   return (
     <div style={{
-      position: 'fixed', bottom: 20, left: 20, zIndex: 100,
+      position: 'fixed', bottom: 24, right: 24, zIndex: 100,
       background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
       boxShadow: '0 4px 20px rgba(0,0,0,0.1)', overflow: 'hidden',
       maxWidth: 280, fontSize: 12,
@@ -583,7 +583,7 @@ export default function UnlockWorkspacePage() {
           background: 'linear-gradient(160deg, #f5f3ff 0%, #e0e7ff 100%)',
           display: 'flex', flexDirection: 'column',
           position: 'relative', overflow: 'hidden',
-          padding: '64px 48px 48px',
+          padding: '64px 48px 120px',
         }}>
           {/* Top-left dot grid decoration */}
           <div style={{
@@ -618,7 +618,7 @@ export default function UnlockWorkspacePage() {
           </div>
 
           {/* Bottom decorative wave */}
-          <div style={{ position: 'absolute', bottom: 60, left: 0, right: 0, height: 120, zIndex: 1, opacity: 0.6 }}>
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 120, zIndex: 1, opacity: 0.6 }}>
             <svg viewBox="0 0 500 120" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
               <path d="M0,40 C150,100 350,0 500,40 L500,120 L0,120 Z" fill="rgba(199,210,254,0.4)" />
               <path d="M0,60 C200,120 400,20 500,60 L500,120 L0,120 Z" fill="rgba(165,180,252,0.3)" />
@@ -627,9 +627,10 @@ export default function UnlockWorkspacePage() {
 
           {/* Bottom features row */}
           <div style={{
+            position: 'absolute', bottom: 32, left: 48, right: 48,
             display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-            borderTop: '1px solid rgba(148,163,184,0.2)', paddingTop: 20,
-            zIndex: 10,
+            borderTop: '1px solid rgba(148,163,184,0.3)', paddingTop: 24,
+            zIndex: 10, gap: 16, flexWrap: 'wrap'
           }}>
             {[
               { icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', title: 'Private', sub: 'Your data stays local', color: '#4f46e5' },

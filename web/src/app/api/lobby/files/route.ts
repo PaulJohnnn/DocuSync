@@ -45,7 +45,11 @@ export async function POST(request: Request) {
     if (!lobby.files) lobby.files = [];
     
     // Check if file already exists (by name or id)
-    const existingIndex = lobby.files.findIndex((f) => f.fileName === file.fileName || f.name === file.name);
+    const existingIndex = lobby.files.findIndex((f) => {
+      const existingName = f.fileName || f.name;
+      const newName = file.fileName || file.name;
+      return existingName && newName && existingName === newName;
+    });
     if (existingIndex >= 0) {
       lobby.files[existingIndex] = file;
     } else {

@@ -1,11 +1,10 @@
 /**
  * @module mockRoomService (Mobile)
  * Phase 3 — Room sync via AsyncStorage.
- * OTP codes created on Web/Desktop can be joined on Mobile by typing them in.
- * AsyncStorage bridges the data persistence on native.
+ * Rooms are stored under user-scoped keys so each account has isolated room data.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
+import { uGet, uSet } from '../utils/userStorage';
 
 export interface Room {
   id: string;
@@ -19,8 +18,9 @@ export interface Room {
   fileCount?: number;
 }
 
-const STORAGE_KEY = '@docusync/mock_rooms';
-const GLOBAL_OTP_KEY = '@docusync/global_otps';
+// User-scoped storage keys (resolved at call time)
+const ROOMS_KEY = 'rooms';
+const GLOBAL_OTP_KEY = 'global_otps';
 
 function genOTP(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -29,7 +29,7 @@ function genOTP(): string {
 
 async function loadRooms(): Promise<Room[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const raw = await uGet(ROOMS_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -37,21 +37,21 @@ async function loadRooms(): Promise<Room[]> {
 }
 
 async function saveRooms(rooms: Room[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
+  await uSet(ROOMS_KEY, JSON.stringify(rooms));
 }
 
 async function registerGlobalOTP(otp: string, roomName: string, roomId: string): Promise<void> {
   try {
-    const raw = await AsyncStorage.getItem(GLOBAL_OTP_KEY);
+    const raw = await uGet(GLOBAL_OTP_KEY);
     const registry: Record<string, { name: string; id: string; createdAt: string }> = raw ? JSON.parse(raw) : {};
     registry[otp] = { name: roomName, id: roomId, createdAt: new Date().toISOString() };
-    await AsyncStorage.setItem(GLOBAL_OTP_KEY, JSON.stringify(registry));
+    await uSet(GLOBAL_OTP_KEY, JSON.stringify(registry));
   } catch { /* ignore */ }
 }
 
 async function lookupGlobalOTP(otp: string): Promise<{ name: string; id: string } | null> {
   try {
-    const raw = await AsyncStorage.getItem(GLOBAL_OTP_KEY);
+    const raw = await uGet(GLOBAL_OTP_KEY);
     if (!raw) return null;
     const registry: Record<string, { name: string; id: string }> = JSON.parse(raw);
     return registry[otp.toUpperCase()] ?? null;
@@ -59,6 +59,7 @@ async function lookupGlobalOTP(otp: string): Promise<{ name: string; id: string 
     return null;
   }
 }
+
 
 function delay(ms = 600): Promise<void> {
   return new Promise(res => setTimeout(res, ms));
@@ -70,9 +71,35 @@ export async function listRooms(): Promise<Room[]> {
 }
 
 export async function createRoom(name: string): Promise<Room> {
-  await delay(800);
   if (!name.trim()) throw new Error('Room name cannot be empty.');
-  const otp = genOTP();
+  let otp = genOTP();
+  let isMatchmakerSuccess = false;
+
+  try {
+    const MATCHMAKER = 'http://192.168.68.100:3000/api/lobby';
+      
+    const res = await fetch(`${MATCHMAKER}/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roomName: name.trim(),
+        hostNodeId: `mobile-${Date.now()}`,
+        hostIp: '127.0.0.1',
+        hostPort: 8081,
+        hostType: 'mobile'
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.otp) {
+        otp = data.otp;
+        isMatchmakerSuccess = true;
+      }
+    }
+  } catch {
+    // Offline fallback
+  }
+
   const room: Room = {
     id: Crypto.randomUUID(),
     name: name.trim(),
@@ -86,33 +113,66 @@ export async function createRoom(name: string): Promise<Room> {
   };
   const rooms = await loadRooms();
   await saveRooms([...rooms, room]);
-  await registerGlobalOTP(otp, room.name, room.id);
+  if (!isMatchmakerSuccess) {
+    await registerGlobalOTP(otp, room.name, room.id);
+  }
   return room;
 }
 
 export async function joinRoom(otp: string): Promise<Room> {
-  await delay(900);
   const rooms = await loadRooms();
   const upperOtp = otp.toUpperCase();
 
-  const existing = rooms.find(r => r.otp === upperOtp);
-  if (existing) return existing;
-
-  const globalEntry = await lookupGlobalOTP(upperOtp);
-
-  if (upperOtp === 'FAIL01' || otp.length < 6) {
+  if (upperOtp === 'FAIL01' || otp.length < 5) {
     const err = new Error('Room not found. Check the invite code and try again.');
     (err as any).code = 'ROOM_NOT_FOUND';
     throw err;
   }
 
-  const roomName = globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`;
+  const MATCHMAKER_URL = 'http://192.168.68.100:3000/api/lobby';
+
+  let apiRoomName: string | null = null;
+  let apiHostIp: string | undefined;
+  let apiHostPort: number | undefined;
+  let apiHostType: 'desktop' | 'web' | 'mobile' = 'desktop';
+  let apiMemberCount = 1;
+
+  try {
+    const res = await fetch(`${MATCHMAKER_URL}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ otp: upperOtp, clientNodeId: `mobile-join-${Date.now()}` }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.roomName) {
+        apiRoomName = data.roomName;
+        apiHostIp = data.hostIp;
+        apiHostPort = data.hostPort;
+        apiHostType = data.hostType || 'desktop';
+        apiMemberCount = data.memberCount || 1;
+      }
+    }
+  } catch { /* offline – fall through to local lookup */ }
+
+  const globalEntry = await lookupGlobalOTP(upperOtp);
+  const roomName = apiRoomName ?? (globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`);
+
+  const existing = rooms.find(r => r.otp === upperOtp || r.id === otp);
+  if (existing) {
+    if (existing.name !== roomName) {
+      existing.name = roomName;
+      await saveRooms(rooms);
+    }
+    return existing;
+  }
+
   const joined: Room = {
     id: globalEntry?.id ?? Crypto.randomUUID(),
     name: roomName,
     otp: upperOtp,
     createdAt: new Date().toISOString(),
-    peerCount: Math.floor(Math.random() * 3) + 2,
+    peerCount: apiMemberCount,
     isOwner: false,
     status: 'active',
     lastActivity: new Date().toISOString(),

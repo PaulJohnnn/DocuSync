@@ -18,10 +18,10 @@ export interface AuthUser {
 const SESSION_KEY = '@docusync/auth_user';
 
 // On physical device or Android emulator, localhost might need to be specific.
-// Assuming Web mode or emulator on same machine for now.
+// Next.js web server runs on port 3000 (not 3001).
 const API_BASE = Platform.OS === 'web' 
-  ? 'http://localhost:3001/api/auth' 
-  : 'http://10.0.2.2:3001/api/auth'; // 10.0.2.2 is Android emulator to localhost
+  ? 'http://localhost:3000/api/auth' 
+  : 'http://192.168.68.100:3000/api/auth';
 
 // ── Auth methods ───────────────────────────────────────────────────────────
 

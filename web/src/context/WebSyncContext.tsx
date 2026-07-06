@@ -10,6 +10,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { toast } from 'sonner';
+import { uGet, uSet } from '@/lib/userStorage';
 
 export interface PeerInfo {
   id: string;
@@ -40,7 +41,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
 
   // Load existing peers from localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem('docusync_peers');
+    const stored = uGet('peers');
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
@@ -61,7 +62,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _savePeers = (newPeers: PeerInfo[]) => {
     setPeers(newPeers);
-    localStorage.setItem('docusync_peers', JSON.stringify(newPeers));
+    uSet('peers', JSON.stringify(newPeers));
   };
 
   const connectToPeer = useCallback((address: string, port: number) => {
