@@ -15,6 +15,7 @@ import RoomService from '@/services/RoomService';
 import { ServiceError } from '@/services/errors/ServiceError';
 import { notify } from '@docusync/shared/utils/notifications';
 import { basename, formatSize } from '@docusync/shared/utils/formatters';
+import { uRemove } from '@/utils/userStorage';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -110,7 +111,7 @@ const FilesPage: React.FC = () => {
     return (
       <React.Fragment>
         <div className="ds-topbar">
-          <span className="ds-topbar-title">Files</span>
+          <span className="ds-topbar-title">Room Workspace</span>
         </div>
         <div className="ds-main-scroll ds-page-enter">
           <div className="ds-empty ds-card" style={{ minHeight: 340, marginTop: 32 }}>
@@ -119,7 +120,7 @@ const FilesPage: React.FC = () => {
               No room selected
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: 13, maxWidth: 360, lineHeight: 1.7, margin: '0 auto 24px' }}>
-              Go to <strong style={{ color: 'var(--text-primary)' }}>Peers</strong> and enter a room to see and collaborate on files.
+              Go to <strong style={{ color: 'var(--text-primary)' }}>Peers</strong> and enter a room to see and collaborate in your workspace.
             </p>
             <button className="ds-btn ds-btn-primary" onClick={() => navigate('/peers')}>
               Go to Peers →
@@ -213,6 +214,8 @@ const FilesPage: React.FC = () => {
                   await new Promise(r => setTimeout(r, 600));
                   try { await window.docuSync.terminateSession(); } catch {}
                   setCurrentRoom(null);
+                  uRemove('files');
+                  uRemove('current_room');
                   setIsLeaving(false);
                   setShowLeaveConfirm(false);
                   navigate('/peers');

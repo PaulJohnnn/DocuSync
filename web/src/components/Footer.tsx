@@ -12,7 +12,7 @@ function LogoMark() {
 
 const FOOTER_LINKS = {
   App: [
-    { label: 'Files',     href: '/app/files' },
+    { label: 'Room',      href: '/app/files' },
     { label: 'Conflicts', href: '/app/conflicts' },
     { label: 'Peers',     href: '/app/peers' },
     { label: 'Windows',  href: '/download' },

@@ -19,6 +19,13 @@ export const darkColors = {
   purple:        '#8b5cf6',
   teal:          '#14b8a6',
   white:         '#ffffff',
+  textDim:       '#7e8ba8',
+  primary:       '#4f7df8',
+  text:          '#eef0f8',
+  surface:       '#111827',
+  success:       '#22c55e',
+  blue:          '#4f7df8',
+  error:         '#ef4444',
 };
 
 export const lightColors = {
@@ -42,6 +49,13 @@ export const lightColors = {
   purple:        '#7c3aed',
   teal:          '#0d9488',
   white:         '#ffffff',
+  textDim:       '#4b5563',
+  primary:       '#2563eb',
+  text:          '#1f2937',
+  surface:       '#ffffff',
+  success:       '#16a34a',
+  blue:          '#2563eb',
+  error:         '#dc2626',
 };
 
 // Default fallback to prevent instant crashes on old imports

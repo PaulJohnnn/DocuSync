@@ -84,9 +84,14 @@ export function MobileSyncProvider({ children }: { children: ReactNode }) {
         ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data);
-            if (msg.type === 'MERGE_ACCEPT') {
-              const resolvedBy = msg.resolvedBy || 'Owner';
-              Alert.alert('✅ Conflict Resolved', `Conflict resolved by ${resolvedBy.slice(0, 8)}. File synced.`);
+            if (msg.type === 'MERGE_ACCEPT' || msg.type === 'MERGE_REJECT' || msg.type === 'MERGE_RESOLVED') {
+              const resolvedBy = msg.resolvedBy || msg.rejectedBy || 'Owner';
+              const action = msg.type === 'MERGE_REJECT' || msg.winner === 'A' ? 'rejected' : 'resolved';
+              Alert.alert('✅ Conflict Resolved', `Conflict ${action} by ${resolvedBy.slice(0, 8)}. File synced.`);
+              import('react-native').then(({ DeviceEventEmitter }) => {
+                DeviceEventEmitter.emit('docusync_ws_merge_accept', msg);
+                DeviceEventEmitter.emit('docusync_ws_merge_reject', msg);
+              });
             }
           } catch (e) {
             console.error('[MobileSync] Failed to parse WS message', e);

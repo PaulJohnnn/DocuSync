@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import RoomService, { type Room } from '../services/RoomService';
-import { uSet } from '../utils/userStorage';
+import { uSet, uRemove } from '../utils/userStorage';
 
 // ── View state machine ────────────────────────────────────────────────────
 // list → create_name → create_generating → create_success → workspace
@@ -307,6 +307,8 @@ export default function PeersPage() {
   const handleDelete = async (roomId: string) => {
     await RoomService.deleteRoom(roomId);
     setRooms(prev => prev.filter(r => r.id !== roomId));
+    uRemove('current_room');
+    uRemove('files');
     setDeleteConfirm(null);
   };
 

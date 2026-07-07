@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import FilesScreen     from './screens/FilesScreen';
 import ConflictsScreen from './screens/ConflictsScreen';
+import HistoryScreen   from './screens/HistoryScreen';
 import PeersScreen     from './screens/PeersScreen';
 import SettingsScreen  from './screens/SettingsScreen';
 import SplashScreen    from './components/SplashScreen';
@@ -22,6 +23,7 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 const TAB_CONFIG: Record<string, { active: IoniconName; inactive: IoniconName; color: string }> = {
   Files:     { active: 'documents',    inactive: 'documents-outline',    color: '#4f7df8' },
   Conflicts: { active: 'warning',      inactive: 'warning-outline',      color: '#ef4444' },
+  History:   { active: 'time',         inactive: 'time-outline',         color: '#8b5cf6' },
   Peers:     { active: 'people',       inactive: 'people-outline',       color: '#22c55e' },
   Settings:  { active: 'settings',     inactive: 'settings-outline',     color: '#7e8ba8' },
 };
@@ -111,8 +113,9 @@ function MainApp() {
           headerShown: false,
         })}
       >
-        <Tab.Screen name="Files"     component={FilesScreen}     />
+        <Tab.Screen name="Files"     component={FilesScreen}     options={{ title: 'Room' }} />
         <Tab.Screen name="Conflicts" component={ConflictsScreen} />
+        <Tab.Screen name="History"   component={HistoryScreen}   />
         <Tab.Screen name="Peers"     component={PeersScreen}     />
         <Tab.Screen name="Settings"  component={SettingsScreen}  />
       </Tab.Navigator>
@@ -126,6 +129,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import WelcomeScreen from './screens/WelcomeScreen';
 import LoginScreen from './screens/LoginScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { uRemove } from './utils/userStorage';
 
 const Stack = createStackNavigator();
 
@@ -137,6 +141,10 @@ export default function App() {
     async function initAuth() {
       try {
         const isUnlocked = await AsyncStorage.getItem('docusync_unlocked');
+        
+        // Clear stale session testing data to ensure tests start fresh
+        await uRemove('current_room');
+        await uRemove('files');
         
         // Always show Welcome screen first on app startup
         setInitialRoute('Welcome');

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import mockRoomService, { type Room } from '@/lib/mockRoomService';
-import { uSet } from '@/lib/userStorage';
+import { uSet, uRemove } from '@/lib/userStorage';
 
 // ── View state machine ────────────────────────────────────────────────────
 // list → create_name → create_generating → create_success → workspace
@@ -320,6 +320,8 @@ export default function RoomsPage() {
   const handleDelete = async (roomId: string) => {
     await mockRoomService.deleteRoom(roomId);
     setRooms(prev => prev.filter(r => r.id !== roomId));
+    uRemove('current_room');
+    uRemove('files');
     setDeleteConfirm(null);
   };
 

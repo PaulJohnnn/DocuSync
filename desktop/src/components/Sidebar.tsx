@@ -20,7 +20,7 @@ interface NavItem {
 }
 
 const WORKSPACE_NAV: NavItem[] = [
-  { to: '/',          icon: <Files size={16} />,         label: 'Files',     id: 'nav-files'     },
+  { to: '/',          icon: <Files size={16} />,         label: 'Room',      id: 'nav-files'     },
   { to: '/conflicts', icon: <AlertTriangle size={16} />, label: 'Conflicts', id: 'nav-conflicts' },
   { to: '/history/0', icon: <Clock size={16} />,         label: 'History',   id: 'nav-history'   },
   { to: '/peers',     icon: <Network size={16} />,       label: 'Peers',     id: 'nav-peers'     },

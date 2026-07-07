@@ -140,70 +140,78 @@ export default function LoginScreen() {
           
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
             <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#eef2ff', justifyContent: 'center', alignItems: 'center', marginRight: 16 }}>
-              <Ionicons name="lock-closed" size={20} color="#4f46e5" />
+              <Ionicons name={mode === 'signup' && !signupSuccess ? "person-add" : mode === 'unlock' ? "lock-closed" : "checkmark-circle"} size={20} color="#4f46e5" />
             </View>
             <View>
-              <Text style={{ fontSize: 20, fontWeight: '800', color: '#0f172a' }}>Unlock Workspace</Text>
-              <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Access your local encrypted workspace.</Text>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: '#0f172a' }}>
+                {mode === 'signup' && !signupSuccess ? 'Create Local Profile' : mode === 'unlock' ? 'Unlock Workspace' : 'Profile Status'}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                {mode === 'signup' && !signupSuccess ? 'Request a profile from the administrator.' : mode === 'unlock' ? 'Access your local encrypted workspace.' : 'Your request status.'}
+              </Text>
             </View>
           </View>
 
-          {/* Email Input */}
-          <Text style={styles.label}>Local Identifier (Email)</Text>
-          <View style={styles.inputContainer}>
-            <Ionicons name="mail" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
+          {mode === 'unlock' && (
+            <>
+              {/* Email Input */}
+              <Text style={styles.label}>Local Identifier (Email)</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
 
-          {/* PIN Input */}
-          <Text style={[styles.label, { marginTop: 16 }]}>6-Digit Security PIN</Text>
-          <View style={styles.inputContainer}>
-            <Ionicons name="keypad" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
-            
-            <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
-              {Array.from({ length: 6 }).map((_, i) => {
-                const filled = i < pin.length;
-                return (
-                  <View key={i} style={{
-                    width: 30, height: 32, borderRadius: 6,
-                    backgroundColor: filled ? 'rgba(79,70,229,0.07)' : 'rgba(0,0,0,0.03)',
-                    borderWidth: 1.5, borderColor: filled ? 'rgba(79,70,229,0.3)' : 'rgba(0,0,0,0.05)',
-                    justifyContent: 'center', alignItems: 'center'
-                  }}>
-                    {filled && (
-                      showPin 
-                      ? <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#3730a3' }}>{pin[i]}</Text>
-                      : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#3730a3' }} />
-                    )}
-                  </View>
-                );
-              })}
-            </View>
+              {/* PIN Input */}
+              <Text style={[styles.label, { marginTop: 16 }]}>6-Digit Security PIN</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="keypad" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
+                
+                <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
+                  {Array.from({ length: 6 }).map((_, i) => {
+                    const filled = i < pin.length;
+                    return (
+                      <View key={i} style={{
+                        width: 30, height: 32, borderRadius: 6,
+                        backgroundColor: filled ? 'rgba(79,70,229,0.07)' : 'rgba(0,0,0,0.03)',
+                        borderWidth: 1.5, borderColor: filled ? 'rgba(79,70,229,0.3)' : 'rgba(0,0,0,0.05)',
+                        justifyContent: 'center', alignItems: 'center'
+                      }}>
+                        {filled && (
+                          showPin 
+                          ? <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#3730a3' }}>{pin[i]}</Text>
+                          : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#3730a3' }} />
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
 
-            <TouchableOpacity onPress={() => setShowPin(!showPin)} style={{ padding: 4 }}>
-              <Ionicons name={showPin ? "eye-off" : "eye"} size={20} color="#94a3b8" />
-            </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowPin(!showPin)} style={{ padding: 4 }}>
+                  <Ionicons name={showPin ? "eye-off" : "eye"} size={20} color="#94a3b8" />
+                </TouchableOpacity>
 
-            <TextInput
-              ref={inputRef}
-              style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
-              value={pin}
-              onChangeText={t => setPin(t.substring(0, 6))}
-              keyboardType="number-pad"
-            />
-            <TouchableOpacity 
-              style={StyleSheet.absoluteFillObject} 
-              onPress={() => inputRef.current?.focus()} 
-              activeOpacity={1} 
-            />
-          </View>
+                <TextInput
+                  ref={inputRef}
+                  style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
+                  value={pin}
+                  onChangeText={t => setPin(t.substring(0, 6))}
+                  keyboardType="number-pad"
+                />
+                <TouchableOpacity 
+                  style={StyleSheet.absoluteFillObject} 
+                  onPress={() => inputRef.current?.focus()} 
+                  activeOpacity={1} 
+                />
+              </View>
+            </>
+          )}
 
           {errorMsg && mode === 'unlock' ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
 
@@ -224,7 +232,7 @@ export default function LoginScreen() {
               <TouchableOpacity style={styles.primaryBtn} onPress={handleUnlock} disabled={loading}>
                 {loading ? <ActivityIndicator color="#fff" /> : (
                   <>
-                    <Ionicons name="unlock" size={18} color="#fff" style={{ marginRight: 8 }} />
+                    <Ionicons name="lock-open-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
                     <Text style={styles.primaryBtnText}>Unlock Workspace</Text>
                   </>
                 )}

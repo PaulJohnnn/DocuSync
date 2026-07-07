@@ -235,29 +235,65 @@ const ConflictsPage: React.FC = () => {
     });
   };
 
+  const MATCHMAKER = (
+    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MATCHMAKER) ||
+    'https://docusync-pnc.vercel.app/api/lobby'
+  );
+
+  const pushResolutionToMatchmaker = async (conflictId: string, winner: 'A' | 'B') => {
+    const detail = details.get(conflictId);
+    if (!detail) return;
+    
+    const otp = currentRoom?.id || currentRoom?.otp;
+    if (!otp) return;
+
+    const winnerPayload = winner === 'A' ? detail.payloadA : detail.payloadB;
+    const deltaSize = new Blob([winnerPayload]).size;
+
+    try {
+      await fetch(`${MATCHMAKER}/doc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          otp,
+          fileId: detail.fileId,
+          authorNodeId: localNodeId || 'host',
+          authorName: 'Host (Auto-Merge)',
+          content: winnerPayload,
+          vectorClock: {},
+          deltaSize,
+        }),
+      });
+    } catch (e) {
+      console.error('[Matchmaker] Failed to push conflict resolution:', e);
+    }
+  };
+
   const handleAccept = useCallback(async (conflictId: string) => {
     setResolving(conflictId, true);
     try {
       await ConflictService.accept(conflictId);
       markConflictResolved(conflictId);
-      notify.success('Change accepted — incoming version applied.');
+      await pushResolutionToMatchmaker(conflictId, 'B'); // Incoming wins
+      notify.success('Change accepted — incoming version applied and synced.');
     } catch (err) {
       notify.error(err instanceof ServiceError ? err.message : String(err));
       setResolving(conflictId, false);
     }
-  }, [markConflictResolved]);
+  }, [markConflictResolved, currentRoom, details, localNodeId]);
 
   const handleReject = useCallback(async (conflictId: string) => {
     setResolving(conflictId, true);
     try {
       await ConflictService.reject(conflictId);
       markConflictResolved(conflictId);
-      notify.success('Change rejected — original version kept.');
+      await pushResolutionToMatchmaker(conflictId, 'A'); // Original wins
+      notify.success('Change rejected — original version kept and synced.');
     } catch (err) {
       notify.error(err instanceof ServiceError ? err.message : String(err));
       setResolving(conflictId, false);
     }
-  }, [markConflictResolved]);
+  }, [markConflictResolved, currentRoom, details, localNodeId]);
 
   const sorted = useMemo(() => [...details.values()].sort((a, b) => b.detectedAt.getTime() - a.detectedAt.getTime()), [details]);
 

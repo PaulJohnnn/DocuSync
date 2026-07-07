@@ -24,7 +24,8 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
-import type { IncomingMessage } from 'http';
+import * as http from 'http';
+import * as crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import {
   validateMessage,
@@ -172,6 +173,10 @@ export interface PeerManagerConfig {
   onMergeAccepted?: OnMergeAccepted;
   /** Callback for sync requests. */
   onSyncRequested?: OnSyncRequested;
+  /** LWWResolver for concurrent HTTP push handling. */
+  lwwResolver?: any;
+  /** Local VectorClock instance for logical timestamps. */
+  vectorClock?: any;
   /** Callback when a new connection attempts to use an already active Node ID. */
   onUserVerifyRequest?: (nodeId: string) => Promise<boolean>;
   /** Callback when the Admin terminates the session. */
@@ -194,6 +199,8 @@ export class PeerManager {
   /** Rate limiter state per socket. @internal */
   private readonly rateLimiters: Map<WebSocket, RateLimiterEntry> = new Map();
 
+  /** The HTTP server instance serving WebSockets and REST. @internal */
+  private httpServer: http.Server | null = null;
   /** The WebSocket server instance (if started). @internal */
   private server: WebSocketServer | null = null;
 
@@ -238,9 +245,15 @@ export class PeerManager {
     }
 
     return new Promise((resolve, reject) => {
-      this.server = new WebSocketServer({ port });
+      this.httpServer = http.createServer((req, res) => {
+        this.handleHttpRequest(req, res).catch(e => {
+          console.error('[PeerManager] Uncaught HTTP error:', e);
+        });
+      });
 
-      this.server.on('listening', () => {
+      this.server = new WebSocketServer({ server: this.httpServer });
+
+      this.httpServer.listen(port, () => {
         console.log(`[PeerManager] Server listening on port ${port}`);
 
         // Start heartbeat and cleanup timers.
@@ -248,13 +261,14 @@ export class PeerManager {
         resolve();
       });
 
-      this.server.on('error', (err) => {
+      this.httpServer.on('error', (err) => {
         console.error(`[PeerManager] Server error:`, err);
         this.server = null; // Clear so retry logic can work
+        this.httpServer = null;
         reject(err);
       });
 
-      this.server.on('connection', (socket: WebSocket, req: IncomingMessage) => {
+      this.server.on('connection', (socket: WebSocket, req: http.IncomingMessage) => {
         const remoteAddr = req.socket.remoteAddress ?? 'unknown';
         const remotePort = req.socket.remotePort ?? 0;
         console.log(`[PeerManager] Inbound connection from ${remoteAddr}:${remotePort}`);
@@ -274,6 +288,177 @@ export class PeerManager {
     }
     // We are the guest, so shut down our side
     this.shutdown().catch(e => console.error('[PeerManager] Error shutting down after termination:', e));
+  }
+
+  // ── HTTP Sync Endpoints ──────────────────────────────────────────────────
+  
+  private async handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, corsHeaders);
+      res.end();
+      return;
+    }
+
+    try {
+      const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+      if (url.pathname === '/sync/status' && req.method === 'GET') {
+        const fileId = parseInt(url.searchParams.get('fileId') || '0', 10);
+        const sinceStr = url.searchParams.get('since');
+        if (!fileId) {
+          res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'fileId required' }));
+          return;
+        }
+
+        const history = await this.config.eventLog.getHistory(fileId);
+        if (history.length === 0) {
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ upToDate: true }));
+          return;
+        }
+
+        const latestEvent = history[history.length - 1];
+        const latestVc = VectorClock.fromJSON(latestEvent.vectorClockJson);
+        const latestContent = await this.config.getFileContent(fileId);
+
+        if (!sinceStr) {
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON() }));
+          return;
+        }
+
+        let clientVc: VectorClock;
+        try {
+          clientVc = VectorClock.fromJSON(JSON.parse(decodeURIComponent(sinceStr)));
+        } catch {
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON() }));
+          return;
+        }
+
+        const relation = latestVc.compare(clientVc);
+
+        if (relation === 'dominated' || relation === 'equal') {
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ upToDate: true, vectorClock: latestVc.toJSON() }));
+        } else {
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON() }));
+        }
+        return;
+      }
+
+      if (url.pathname === '/sync/push' && req.method === 'POST') {
+        let bodyStr = '';
+        for await (const chunk of req) bodyStr += chunk;
+        const body = JSON.parse(bodyStr);
+
+        const fileId = parseInt(body.fileId, 10);
+        const incomingVc = VectorClock.fromJSON(body.vectorClock);
+        const delta = body.delta;
+        const remoteContent = body.content || '';
+        const nodeId = body.nodeId || `client-${Date.now()}`;
+
+        if (!this.config.vectorClock || !this.config.lwwResolver) {
+          res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Engine dependencies missing' }));
+          return;
+        }
+
+        const relation = this.config.vectorClock.compare(incomingVc);
+        const localContent = await this.config.getFileContent(fileId);
+
+        if (relation === 'dominant') {
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ merged: true, upToDate: false, content: localContent, vectorClock: this.config.vectorClock.toJSON() }));
+          return;
+        } else if (relation === 'equal') {
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ merged: true, upToDate: true, vectorClock: this.config.vectorClock.toJSON() }));
+          return;
+        } else if (relation === 'dominated') {
+          this.config.vectorClock.merge(incomingVc);
+          
+          let newContent = remoteContent || localContent;
+          try {
+            if (delta) {
+              const decoded = decode(localContent, delta);
+              newContent = decoded.content;
+            }
+          } catch {}
+
+          const eventId = crypto.randomUUID();
+          await this.config.eventLog.appendEvent({
+            eventId,
+            fileId,
+            nodeId,
+            eventType: 'merge',
+            logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex],
+            vectorClockJson: this.config.vectorClock.toJSON(),
+            payload: delta || remoteContent || '',
+          });
+
+          if (this.config.onDeltaApplied) {
+            await this.config.onDeltaApplied(fileId, newContent, eventId, nodeId, this.config.vectorClock.toJSON());
+          }
+
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ merged: true, vectorClock: this.config.vectorClock.toJSON() }));
+          return;
+        } else {
+          // concurrent - escalate
+          const eventA = {
+            eventId: crypto.randomUUID(),
+            fileId,
+            nodeId: this.config.localNodeId,
+            payload: localContent,
+            logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+            vectorClockJson: this.config.vectorClock.toJSON(),
+          };
+          const eventB = {
+            eventId: crypto.randomUUID(),
+            fileId,
+            nodeId,
+            payload: remoteContent || localContent,
+            logicalTimestamp: incomingVc.counters[incomingVc.nodeIndex] || 1,
+            vectorClockJson: incomingVc.toJSON(),
+          };
+
+          const resolveResult = await this.config.lwwResolver.resolve(eventA, eventB, this.config.vectorClock, incomingVc);
+          
+          if (resolveResult.outcome === 'escalated') {
+            if (this.config.onConflictNotified && resolveResult.conflictId) {
+              await this.config.onConflictNotified(
+                resolveResult.conflictId,
+                fileId,
+                `Concurrent edit detected between ${nodeId} and ${this.config.localNodeId}`
+              );
+            }
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ escalated: true, conflictId: resolveResult.conflictId }));
+            return;
+          }
+          
+          // Should not happen, but fallback
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ merged: true }));
+          return;
+        }
+      }
+      
+      res.writeHead(404, corsHeaders);
+      res.end();
+    } catch (e: any) {
+      console.error('[PeerManager] HTTP error:', e);
+      res.writeHead(500, corsHeaders);
+      res.end(JSON.stringify({ error: e.message }));
+    }
   }
 
   // ── PEER_BYE ──────────────────────────────────────────────────────────
@@ -442,6 +627,12 @@ export class PeerManager {
         this.server!.close(() => resolve());
       });
       this.server = null;
+    }
+    if (this.httpServer) {
+      await new Promise<void>((resolve) => {
+        this.httpServer!.close(() => resolve());
+      });
+      this.httpServer = null;
     }
 
     console.log('[PeerManager] Shutdown complete.');

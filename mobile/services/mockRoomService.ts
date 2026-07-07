@@ -3,7 +3,13 @@
  * Phase 3 — Room sync via AsyncStorage.
  * Rooms are stored under user-scoped keys so each account has isolated room data.
  */
-import * as Crypto from 'expo-crypto';
+// Removed expo-crypto to fix AES module error
+function uuidv4(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 import { uGet, uSet } from '../utils/userStorage';
 
 export interface Room {
@@ -16,6 +22,8 @@ export interface Room {
   status: 'active' | 'idle' | 'inactive';
   lastActivity?: string;
   fileCount?: number;
+  hostIp?: string;
+  hostPort?: number;
 }
 
 // User-scoped storage keys (resolved at call time)
@@ -40,20 +48,20 @@ async function saveRooms(rooms: Room[]): Promise<void> {
   await uSet(ROOMS_KEY, JSON.stringify(rooms));
 }
 
-async function registerGlobalOTP(otp: string, roomName: string, roomId: string): Promise<void> {
+async function registerGlobalOTP(otp: string, roomName: string, roomId: string, hostIp = '127.0.0.1', hostPort = 8081): Promise<void> {
   try {
     const raw = await uGet(GLOBAL_OTP_KEY);
-    const registry: Record<string, { name: string; id: string; createdAt: string }> = raw ? JSON.parse(raw) : {};
-    registry[otp] = { name: roomName, id: roomId, createdAt: new Date().toISOString() };
+    const registry: Record<string, any> = raw ? JSON.parse(raw) : {};
+    registry[otp] = { name: roomName, id: roomId, hostIp, hostPort, createdAt: new Date().toISOString() };
     await uSet(GLOBAL_OTP_KEY, JSON.stringify(registry));
   } catch { /* ignore */ }
 }
 
-async function lookupGlobalOTP(otp: string): Promise<{ name: string; id: string } | null> {
+async function lookupGlobalOTP(otp: string): Promise<{ name: string; id: string; hostIp?: string; hostPort?: number } | null> {
   try {
     const raw = await uGet(GLOBAL_OTP_KEY);
     if (!raw) return null;
-    const registry: Record<string, { name: string; id: string }> = JSON.parse(raw);
+    const registry: Record<string, any> = JSON.parse(raw);
     return registry[otp.toUpperCase()] ?? null;
   } catch {
     return null;
@@ -76,7 +84,7 @@ export async function createRoom(name: string): Promise<Room> {
   let isMatchmakerSuccess = false;
 
   try {
-    const MATCHMAKER = 'http://192.168.68.100:3000/api/lobby';
+    const MATCHMAKER = 'http://192.168.68.101:3000/api/lobby';
       
     const res = await fetch(`${MATCHMAKER}/create`, {
       method: 'POST',
@@ -101,7 +109,7 @@ export async function createRoom(name: string): Promise<Room> {
   }
 
   const room: Room = {
-    id: Crypto.randomUUID(),
+    id: uuidv4(),
     name: name.trim(),
     otp,
     createdAt: new Date().toISOString(),
@@ -110,12 +118,13 @@ export async function createRoom(name: string): Promise<Room> {
     status: 'active',
     lastActivity: new Date().toISOString(),
     fileCount: 0,
+    hostIp: '127.0.0.1',
+    hostPort: 8081,
   };
   const rooms = await loadRooms();
   await saveRooms([...rooms, room]);
-  if (!isMatchmakerSuccess) {
-    await registerGlobalOTP(otp, room.name, room.id);
-  }
+  // Always register so peers can discover hostIp via the OTP registry
+  await registerGlobalOTP(otp, room.name, room.id, room.hostIp, room.hostPort);
   return room;
 }
 
@@ -129,7 +138,7 @@ export async function joinRoom(otp: string): Promise<Room> {
     throw err;
   }
 
-  const MATCHMAKER_URL = 'http://192.168.68.100:3000/api/lobby';
+  const MATCHMAKER_URL = 'http://192.168.68.101:3000/api/lobby';
 
   let apiRoomName: string | null = null;
   let apiHostIp: string | undefined;
@@ -157,18 +166,21 @@ export async function joinRoom(otp: string): Promise<Room> {
 
   const globalEntry = await lookupGlobalOTP(upperOtp);
   const roomName = apiRoomName ?? (globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`);
+  const targetIp = apiHostIp || globalEntry?.hostIp || '127.0.0.1';
+  const targetPort = apiHostPort || globalEntry?.hostPort || 9000;
 
   const existing = rooms.find(r => r.otp === upperOtp || r.id === otp);
   if (existing) {
-    if (existing.name !== roomName) {
-      existing.name = roomName;
-      await saveRooms(rooms);
-    }
+    let changed = false;
+    if (existing.name !== roomName) { existing.name = roomName; changed = true; }
+    if (!existing.hostIp || existing.hostIp !== targetIp) { existing.hostIp = targetIp; changed = true; }
+    if (!existing.hostPort || existing.hostPort !== targetPort) { existing.hostPort = targetPort; changed = true; }
+    if (changed) await saveRooms(rooms);
     return existing;
   }
 
   const joined: Room = {
-    id: globalEntry?.id ?? Crypto.randomUUID(),
+    id: globalEntry?.id ?? uuidv4(),
     name: roomName,
     otp: upperOtp,
     createdAt: new Date().toISOString(),
@@ -177,6 +189,8 @@ export async function joinRoom(otp: string): Promise<Room> {
     status: 'active',
     lastActivity: new Date().toISOString(),
     fileCount: 0,
+    hostIp: targetIp,
+    hostPort: targetPort,
   };
   await saveRooms([...rooms, joined]);
   return joined;

@@ -81,25 +81,11 @@ export default function ConflictsScreen() {
         </View>
 
         {isPending && (
-          <View style={styles.actionRow}>
-            <AnimatedButton
-              onPress={() => resolve(item.id, 'A')}
-              style={[styles.actionBtn, styles.actionBtnGhost]}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="checkmark-circle-outline" size={16} color={colors.textSecondary} />
-                <Text style={[styles.actionBtnText, { color: colors.textSecondary }]}>Keep Original</Text>
-              </View>
-            </AnimatedButton>
-            <AnimatedButton
-              onPress={() => resolve(item.id, 'B')}
-              style={[styles.actionBtn, styles.actionBtnPrimary]}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Ionicons name="checkmark-circle" size={16} color="#fff" />
-                <Text style={[styles.actionBtnText, { color: colors.white }]}>Accept Change</Text>
-              </View>
-            </AnimatedButton>
+          <View style={[styles.actionRow, { padding: 10, backgroundColor: colors.amberLight, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(245,158,11,0.25)', flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+            <Ionicons name="warning" size={16} color={colors.amber} />
+            <Text style={{ fontSize: 12, color: colors.amber, flex: 1, fontWeight: '500' }}>
+              Change escalated to host for conflict resolution. Waiting for room owner to accept or reject.
+            </Text>
           </View>
         )}
       </View>
@@ -117,8 +103,8 @@ export default function ConflictsScreen() {
         <View style={styles.alertBar}>
           <Text style={{ fontSize: 16 }}>⚠</Text>
           <View style={{ flex: 1 }}>
-            <Text style={styles.alertTitle}>{pending.length} conflicts need resolution</Text>
-            <Text style={styles.alertText}>Resolve before changes propagate to peers.</Text>
+            <Text style={styles.alertTitle}>{pending.length} escalated conflicts detected</Text>
+            <Text style={styles.alertText}>Waiting for room owner (host) to review and resolve.</Text>
           </View>
         </View>
       )}

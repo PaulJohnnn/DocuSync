@@ -18,6 +18,8 @@ export interface Room {
   lastActivity?: string;
   /** Number of files currently in the room */
   fileCount?: number;
+  hostIp?: string;
+  hostPort?: number;
 }
 
 // User-scoped storage keys (resolved at call time)
@@ -45,22 +47,22 @@ function saveRooms(rooms: Room[]): void {
   window.dispatchEvent(new Event('docusync_rooms_update'));
 }
 
-function registerGlobalOTP(otp: string, roomName: string, roomId: string): void {
+function registerGlobalOTP(otp: string, roomName: string, roomId: string, hostIp = '127.0.0.1', hostPort = 3000): void {
   if (typeof window === 'undefined') return;
   try {
     const raw = uGet(GLOBAL_OTP_KEY);
-    const registry: Record<string, { name: string; id: string; createdAt: string }> = raw ? JSON.parse(raw) : {};
-    registry[otp] = { name: roomName, id: roomId, createdAt: new Date().toISOString() };
+    const registry: Record<string, any> = raw ? JSON.parse(raw) : {};
+    registry[otp] = { name: roomName, id: roomId, hostIp, hostPort, createdAt: new Date().toISOString() };
     uSet(GLOBAL_OTP_KEY, JSON.stringify(registry));
   } catch { /* ignore */ }
 }
 
-function lookupGlobalOTP(otp: string): { name: string; id: string } | null {
+function lookupGlobalOTP(otp: string): { name: string; id: string; hostIp?: string; hostPort?: number } | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = uGet(GLOBAL_OTP_KEY);
     if (!raw) return null;
-    const registry: Record<string, { name: string; id: string }> = JSON.parse(raw);
+    const registry: Record<string, any> = JSON.parse(raw);
     return registry[otp.toUpperCase()] ?? null;
   } catch {
     return null;
@@ -90,7 +92,7 @@ export async function listRooms(): Promise<Room[]> {
         const liveMap = new Map(data.rooms.map((r: any) => [r.id, r]));
         let changed = false;
         for (const room of localRooms) {
-          const live = liveMap.get(room.otp);
+          const live = liveMap.get(room.otp) as any;
           if (live) {
             if (room.peerCount !== live.peersJoined || room.fileCount !== live.filesCount) {
               room.peerCount = live.peersJoined;
@@ -150,12 +152,13 @@ export async function createRoom(name: string): Promise<Room> {
     status: 'active',
     lastActivity: new Date().toISOString(),
     fileCount: 0,
+    hostIp: '127.0.0.1',
+    hostPort: 3000,
   };
   const rooms = loadRooms();
   saveRooms([...rooms, room]);
-  if (!isMatchmakerSuccess) {
-    registerGlobalOTP(otp, room.name, room.id);
-  }
+  // Always register so joiners can discover hostIp via the OTP registry
+  registerGlobalOTP(otp, room.name, room.id, room.hostIp, room.hostPort);
   return room;
 }
 
@@ -200,13 +203,16 @@ export async function joinRoom(otp: string): Promise<Room> {
 
   const globalEntry = lookupGlobalOTP(upperOtp);
   const roomName = apiRoomName ?? (globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`);
+  const targetIp = apiHostIp || globalEntry?.hostIp || '127.0.0.1';
+  const targetPort = apiHostPort || globalEntry?.hostPort || 9000;
 
   const existing = rooms.find(r => r.otp === upperOtp || r.id === otp);
   if (existing) {
-    if (existing.name !== roomName) {
-      existing.name = roomName;
-      saveRooms(rooms);
-    }
+    let changed = false;
+    if (existing.name !== roomName) { existing.name = roomName; changed = true; }
+    if (!existing.hostIp || existing.hostIp !== targetIp) { existing.hostIp = targetIp; changed = true; }
+    if (!existing.hostPort || existing.hostPort !== targetPort) { existing.hostPort = targetPort; changed = true; }
+    if (changed) saveRooms(rooms);
     return existing;
   }
 
@@ -220,6 +226,8 @@ export async function joinRoom(otp: string): Promise<Room> {
     status: 'active',
     lastActivity: new Date().toISOString(),
     fileCount: 0,
+    hostIp: targetIp,
+    hostPort: targetPort,
   };
   saveRooms([...rooms, joined]);
   return joined;
@@ -243,7 +251,7 @@ export function subscribeToRoomChanges(callback: () => void): () => void {
   if (typeof window === 'undefined') return () => {};
 
   const handleStorage = (e: StorageEvent) => {
-    if (e.key === STORAGE_KEY || e.key === GLOBAL_OTP_KEY) callback();
+    if (e.key === ROOMS_KEY || e.key === GLOBAL_OTP_KEY) callback();
   };
 
   window.addEventListener('storage', handleStorage);

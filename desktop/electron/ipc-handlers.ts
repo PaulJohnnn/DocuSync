@@ -340,6 +340,8 @@ export async function initEngine(
     nodeIndex,
     prisma,
     eventLog,
+    lwwResolver,
+    vectorClock,
     getFileContent: async (fileId: number) => {
       return fileContents.get(fileId) ?? '';
     },
@@ -1206,6 +1208,18 @@ export function registerIPCHandlers(services: EngineServices): void {
       };
       const peersNotified = peerManager.broadcast(acceptMsg);
 
+      if (winner === 'A') {
+        const rejectMsg: PeerMessage = {
+          type: 'MERGE_REJECT',
+          conflictId,
+          fileId: conflict.fileId,
+          reason: 'Owner rejected peer changes and kept original content.',
+          rejectedBy: localNodeId,
+          timestamp: new Date().toISOString(),
+        };
+        peerManager.broadcast(rejectMsg);
+      }
+
       // ── Update local file ───────────────────────────────────────
       const winnerPayload = winner === 'A' ? conflict.payloadA : conflict.payloadB;
       fileContents.set(conflict.fileId, winnerPayload);
@@ -1493,6 +1507,24 @@ export function registerIPCHandlers(services: EngineServices): void {
           createdAt:        e.createdAt.toISOString(),
         })),
       };
+    })
+  );
+
+  // ── network:get-lan-ip ─────────────────────────────────────────────
+  ipcMain.handle(
+    'network:get-lan-ip',
+    safeHandler(async () => {
+      const os = require('os');
+      const nets = os.networkInterfaces();
+      for (const name of Object.keys(nets)) {
+        for (const net of nets[name]!) {
+          // Skip internal (i.e. 127.0.0.1) and non-IPv4 addresses
+          if (net.family === 'IPv4' && !net.internal) {
+            return net.address;
+          }
+        }
+      }
+      return '127.0.0.1';
     })
   );
 

@@ -1,27 +1,21 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
-import { ArrowLeft, Save, RefreshCw, Clock } from 'lucide-react';
+import { ArrowLeft, Save, RefreshCw, Clock, WifiOff, Wifi } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { uGet, uSet } from '@/lib/userStorage';
-
+import { useWebSync } from '@/context/WebSyncContext';
 const TipTapEditor = dynamic(() => import('@/components/TipTapEditor'), { ssr: false });
+
+// ── Matchmaker URL ─────────────────────────────────────────────────────────
+const MATCHMAKER_URL = process.env.NODE_ENV === 'development'
+  ? '/api/lobby'
+  : 'https://docusync-pnc.vercel.app/api/lobby';
 
 interface FileRecord {
   id: string; name: string; type: string; size: number;
   content: string; status: string; createdAt: string; updatedAt: string;
-}
-
-const CURSOR_COLORS = [
-  '#e05252', '#e07e52', '#d4b84a', '#52aa5e',
-  '#4a90d9', '#7c52e0', '#d452b8', '#52c9d4',
-];
-
-function colorForNode(nodeId: string): string {
-  let hash = 0;
-  for (let i = 0; i < nodeId.length; i++) hash = (hash * 31 + nodeId.charCodeAt(i)) | 0;
-  return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length];
 }
 
 export default function EditorPage() {
@@ -31,18 +25,45 @@ export default function EditorPage() {
   const [file, setFile] = useState<FileRecord | null>(null);
   const [content, setContent] = useState('');
   const [saved, setSaved] = useState(true);
-  const [vcState, setVcState] = useState<number[]>([0, 0, 0]);
-  const [deltaSize, setDeltaSize] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [syncStatusMsg, setSyncStatusMsg] = useState('Ready');
+  const [escalated, setEscalated] = useState(false);
+  const [offlineQueue, setOfflineQueue] = useState(false);
+  
   const lastSave = useRef('');
   const lastSyncedAt = useRef(0);
-  
-  // Realtime Sync state
   const channelRef = useRef<any>(null);
-  const cursorPollRef = useRef<any>(null);
-  const cursorBroadcastRef = useRef<any>(null);
   const localNodeIdRef = useRef(`web-${Math.floor(Math.random()*10000)}`);
-  const [remoteCursors, setRemoteCursors] = useState<any[]>([]);
+  const syncDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const { peers } = useWebSync();
+  const connectedPeersCount = peers.filter((p) => p.status === 'connected').length;
+
+  // ── Online/Offline detection ──────────────────────────────────────────────
+  useEffect(() => {
+    const goOnline = () => {
+      setIsOnline(true);
+      // If we had queued edits, push them now
+      if (offlineQueue) {
+        pushToRedis(content, true);
+        setOfflineQueue(false);
+      }
+    };
+    const goOffline = () => {
+      setIsOnline(false);
+      setSyncStatusMsg('Offline — edits saved locally');
+    };
+    setIsOnline(navigator.onLine);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, [offlineQueue, content]);
+
+  // ── Load file from local storage ──────────────────────────────────────────
   useEffect(() => {
     const stored = uGet('files');
     if (!stored) return;
@@ -58,136 +79,188 @@ export default function EditorPage() {
     if (savedNodeId) localNodeIdRef.current = savedNodeId;
   }, [fileId]);
 
-  // Connect to Matchmaker /doc polling and pushing
-  useEffect(() => {
-    const storedRoomStr = uGet('current_room');
-    if (!storedRoomStr) return;
+  // ── Get room OTP ──────────────────────────────────────────────────────────
+  const getRoomOtp = useCallback((): string | null => {
     try {
+      const storedRoomStr = uGet('current_room');
+      if (!storedRoomStr) return null;
       const room = JSON.parse(storedRoomStr);
-      if (room && (room.otp || room.id)) {
-        const roomOtp = room.otp || room.id;
-        const MATCHMAKER_URL = process.env.NODE_ENV === 'development'
-          ? '/api/lobby'
-          : 'https://docusync-pnc.vercel.app/api/lobby';
+      return room?.otp || room?.id || null;
+    } catch { return null; }
+  }, []);
 
-        // Polling interval
-        const pollDoc = async () => {
+  // ── Push content to Redis (Matchmaker /api/lobby/doc) ─────────────────────
+  const pushToRedis = useCallback(async (contentToSave: string, explicit = false) => {
+    const otp = getRoomOtp();
+    if (!otp) return;
+
+    if (!navigator.onLine) {
+      setSyncStatusMsg('Offline — queued for sync');
+      setOfflineQueue(true);
+      return;
+    }
+
+    setSyncing(true);
+    setSyncStatusMsg('Syncing...');
+
+    try {
+      const deltaSize = new Blob([contentToSave]).size;
+      const now = Date.now();
+      lastSyncedAt.current = now;
+
+      const res = await fetch(`${MATCHMAKER_URL}/doc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          otp,
+          fileId,
+          authorNodeId: localNodeIdRef.current,
+          authorName: localNodeIdRef.current.slice(0, 8),
+          content: contentToSave,
+          vectorClock: {},
+          deltaSize,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.conflict) {
+          setEscalated(true);
+          setSyncStatusMsg('Conflict — sent to owner for review');
+          setTimeout(() => setEscalated(false), 5000);
+        } else {
+          setSyncStatusMsg(`Synced ✓ (v${data.seq || '?'}) at ${new Date().toLocaleTimeString()}`);
+          setOfflineQueue(false);
+        }
+      } else {
+        setSyncStatusMsg('Sync failed — queued for retry');
+        setOfflineQueue(true);
+      }
+    } catch (e) {
+      console.error('[Web Sync] Push failed:', e);
+      setSyncStatusMsg('Offline — queued for sync');
+      setOfflineQueue(true);
+    } finally {
+      setSyncing(false);
+    }
+  }, [fileId, getRoomOtp]);
+
+  // ── Poll Redis for remote updates ─────────────────────────────────────────
+  useEffect(() => {
+    const otp = getRoomOtp();
+    if (!otp) return;
+
+    const pollDoc = async () => {
+      if (!navigator.onLine) return;
+      try {
+        const url = `${MATCHMAKER_URL}/doc?otp=${otp}&fileId=${fileId}&since=${lastSyncedAt.current}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.unchanged || !data.snapshot) {
+          // No update — just refresh the timestamp display
+          if (lastSyncedAt.current > 0) {
+            setSyncStatusMsg(`Last synced ${new Date().toLocaleTimeString()}`);
+          }
+          return;
+        }
+
+        const snap = data.snapshot;
+        // Only apply if it's genuinely newer AND not written by us
+        if (snap.committedAt > lastSyncedAt.current && snap.authorNodeId !== localNodeIdRef.current) {
+          lastSyncedAt.current = snap.committedAt;
+          setContent(snap.content);
+          lastSave.current = snap.content;
+          setSaved(true);
+          setSyncStatusMsg(`↓ Synced from ${snap.authorName || 'peer'} at ${new Date().toLocaleTimeString()}`);
+
+          // Also update local storage so the file list shows latest content
           try {
-            const url = `${MATCHMAKER_URL}/doc?otp=${roomOtp}&fileId=${fileId}&since=${lastSyncedAt.current || 0}`;
-            const res = await fetch(url);
-            if (!res.ok) return;
-            const data = await res.json();
-            if (data.unchanged || !data.snapshot) return;
-            const snap = data.snapshot;
-            if (snap.committedAt > (lastSyncedAt.current || 0) && snap.authorNodeId !== localNodeIdRef.current) {
-              lastSyncedAt.current = snap.committedAt;
-              setContent(snap.content);
-              lastSave.current = snap.content;
-              setSaved(true);
+            const stored = uGet('files');
+            if (stored) {
+              const files: FileRecord[] = JSON.parse(stored);
+              const idx = files.findIndex(f => f.id === fileId);
+              if (idx >= 0) {
+                files[idx].content = snap.content;
+                files[idx].updatedAt = new Date().toISOString();
+                files[idx].size = new Blob([snap.content]).size;
+                uSet('files', JSON.stringify(files));
+              }
             }
           } catch {}
-        };
-        pollDoc();
-        channelRef.current = setInterval(pollDoc, 1500); // reuse ref for polling interval
-
-        const pollCursors = async () => {
-          try {
-            const res = await fetch(`${MATCHMAKER_URL}/cursors?otp=${roomOtp}&nodeId=${encodeURIComponent(localNodeIdRef.current)}&fileId=${fileId}`);
-            if (!res.ok) return;
-            const data = await res.json();
-            setRemoteCursors(data.cursors || []);
-          } catch {}
-        };
-        pollCursors();
-        cursorPollRef.current = setInterval(pollCursors, 1000);
+        }
+      } catch {
+        // Polling failure is silent — we'll retry next interval
       }
-    } catch {}
-    
-    return () => {
-      if (channelRef.current) clearInterval(channelRef.current);
-      if (cursorPollRef.current) clearInterval(cursorPollRef.current);
-      if (cursorBroadcastRef.current) clearTimeout(cursorBroadcastRef.current);
     };
-  }, [fileId]);
 
-  // Auto-save every 500ms
+    pollDoc();
+    channelRef.current = setInterval(pollDoc, 3000);
+    return () => { if (channelRef.current) clearInterval(channelRef.current); };
+  }, [fileId, getRoomOtp]);
+
+  // ── Save locally + push to Redis (debounced) ─────────────────────────────
+  const saveFile = useCallback(async (contentToSave: string, forcePush = false) => {
+    if (contentToSave === lastSave.current && !forcePush) return;
+
+    // Step 1: Save locally
+    const stored = uGet('files');
+    if (!stored) return;
+    const files: FileRecord[] = JSON.parse(stored);
+    const idx = files.findIndex(f => f.id === fileId);
+    if (idx >= 0) {
+      files[idx].content = contentToSave;
+      files[idx].updatedAt = new Date().toISOString();
+      files[idx].size = new Blob([contentToSave]).size;
+      uSet('files', JSON.stringify(files));
+    }
+
+    // Log to local event history
+    const events = JSON.parse(localStorage.getItem(`docusync_events_${fileId}`) || '[]');
+    events.push({
+      id: events.length + 1,
+      eventId: crypto.randomUUID(),
+      fileId, nodeId: localNodeIdRef.current,
+      eventType: 'edit',
+      logicalTimestamp: events.length + 1,
+      payload: contentToSave.slice(0, 200),
+      createdAt: new Date().toISOString(),
+    });
+    localStorage.setItem(`docusync_events_${fileId}`, JSON.stringify(events));
+
+    lastSave.current = contentToSave;
+    setSaved(true);
+
+    // Step 2: Push to Redis (debounced — 2s after last edit, or immediate if forcePush)
+    if (syncDebounce.current) clearTimeout(syncDebounce.current);
+    if (forcePush) {
+      await pushToRedis(contentToSave, true);
+    } else {
+      syncDebounce.current = setTimeout(() => {
+        pushToRedis(contentToSave);
+      }, 2000);
+    }
+  }, [fileId, pushToRedis]);
+
+  // ── Auto-save on content change ───────────────────────────────────────────
   useEffect(() => {
     if (!file) return;
-    const iv = setInterval(async () => {
-      if (content !== lastSave.current) {
-        const stored = uGet('files');
-        if (!stored) return;
-        const files: FileRecord[] = JSON.parse(stored);
-        const idx = files.findIndex(f => f.id === fileId);
-        if (idx >= 0) {
-          files[idx].content = content;
-          files[idx].updatedAt = new Date().toISOString();
-          files[idx].size = new Blob([content]).size;
-          uSet('files', JSON.stringify(files));
-
-          // Increment VC
-          let currentVc = [0, 0, 0];
-          setVcState(v => {
-            const n = [...v];
-            n[0] = n[0] + 1;
-            currentVc = n;
-            return n;
-          });
-
-          // Push to Matchmaker
-          const storedRoomStr = uGet('current_room');
-          if (storedRoomStr) {
-            try {
-              const room = JSON.parse(storedRoomStr);
-              const roomOtp = room.otp || room.id;
-              const MATCHMAKER_URL = process.env.NODE_ENV === 'development'
-                ? '/api/lobby'
-                : 'https://docusync-pnc.vercel.app/api/lobby';
-              const now = Date.now();
-              lastSyncedAt.current = now;
-              await fetch(`${MATCHMAKER_URL}/doc`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  otp: roomOtp,
-                  fileId,
-                  authorNodeId: localNodeIdRef.current,
-                  authorName: localNodeIdRef.current.slice(0, 8),
-                  content,
-                  vectorClock: { nodeCount: 3, nodeIndex: 0, root: { children: [] }, counters: currentVc },
-                  deltaSize: Math.abs(content.length - lastSave.current.length),
-                }),
-              });
-            } catch (e) {
-              console.error('[Web Sync] Push failed:', e);
-            }
-          }
-
-          // Log event
-          const events = JSON.parse(localStorage.getItem(`docusync_events_${fileId}`) || '[]');
-          events.push({
-            id: events.length + 1,
-            eventId: crypto.randomUUID(),
-            fileId, nodeId: localNodeIdRef.current,
-            eventType: 'edit',
-            logicalTimestamp: currentVc[0],
-            payload: content.slice(0, 200),
-            createdAt: new Date().toISOString(),
-          });
-          localStorage.setItem(`docusync_events_${fileId}`, JSON.stringify(events));
-
-          lastSave.current = content;
-          setSaved(true);
-        }
-      }
-    }, 500);
-    return () => clearInterval(iv);
-  }, [content, file, fileId]);
+    const timer = setTimeout(() => { saveFile(content); }, 500);
+    return () => clearTimeout(timer);
+  }, [content, file, saveFile]);
 
   const handleContentChange = useCallback((newContent: string) => {
     setContent(newContent);
     setSaved(false);
   }, []);
+
+  // ── Explicit Sync Now ─────────────────────────────────────────────────────
+  const handleSyncNow = useCallback(async () => {
+    await saveFile(content, true);
+  }, [content, saveFile]);
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   if (!file) {
     return (
@@ -201,25 +274,34 @@ export default function EditorPage() {
 
   return (
     <PageShell>
+      {escalated && (
+        <div style={{ background: 'var(--bg-warn)', color: '#d97706', padding: '10px 16px', borderRadius: 8, marginBottom: 16 }}>
+          Change escalated to room owner for conflict resolution.
+        </div>
+      )}
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button className="ds-btn" onClick={() => router.push('/app/files')}>
+          <button className="ds-btn" onClick={async () => { await saveFile(content, true); router.push('/app/files'); }}>
             <ArrowLeft size={14} /> Back
           </button>
           <div>
             <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>{file.name}</h1>
-            <p style={{ fontSize: 11, color: 'var(--t3)', margin: '2px 0 0' }}>
-              {saved ? '✓ Saved' : '● Unsaved'} • Last: {new Date(file.updatedAt).toLocaleTimeString()}
+            <p style={{ fontSize: 11, color: 'var(--t3)', margin: '2px 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {saved ? '✓ Saved' : '● Unsaved'} • 
+              {isOnline
+                ? <><Wifi size={10} style={{ color: 'var(--green, #22c55e)' }} /> {syncStatusMsg}</>
+                : <><WifiOff size={10} style={{ color: '#ef4444' }} /> Offline — edits saved locally</>
+              }
             </p>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="ds-btn" onClick={() => setSaved(true)}>
+          <button className="ds-btn" onClick={() => saveFile(content, false)}>
             <Save size={14} /> Save
           </button>
-          <button className="ds-btn ds-btn-primary">
-            <RefreshCw size={14} /> Sync Now
+          <button className="ds-btn ds-btn-primary" onClick={handleSyncNow} disabled={syncing}>
+            <RefreshCw size={14} className={syncing ? 'ds-spin' : ''} /> {syncing ? 'Syncing…' : 'Sync Now'}
           </button>
         </div>
       </div>
@@ -229,34 +311,7 @@ export default function EditorPage() {
         <TipTapEditor 
           content={content} 
           onChange={handleContentChange} 
-          cursors={remoteCursors}
-          onSelectionUpdate={(from, to) => {
-            if (cursorBroadcastRef.current) clearTimeout(cursorBroadcastRef.current);
-            cursorBroadcastRef.current = setTimeout(() => {
-              const storedRoomStr = uGet('current_room');
-              if (!storedRoomStr) return;
-              try {
-                const room = JSON.parse(storedRoomStr);
-                const roomOtp = room.otp || room.id;
-                const MATCHMAKER_URL = process.env.NODE_ENV === 'development'
-                  ? '/api/lobby'
-                  : 'https://docusync-pnc.vercel.app/api/lobby';
-                fetch(`${MATCHMAKER_URL}/cursors`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    otp: roomOtp,
-                    nodeId: localNodeIdRef.current,
-                    displayName: localNodeIdRef.current.slice(0, 8),
-                    color: colorForNode(localNodeIdRef.current),
-                    from,
-                    to,
-                    fileId,
-                  }),
-                }).catch(() => {});
-              } catch {}
-            }, 100);
-          }}
+          cursors={[]}
         />
       </div>
 
@@ -268,10 +323,11 @@ export default function EditorPage() {
         fontSize: 11, color: 'var(--t3)', fontFamily: 'monospace',
       }}>
         <div style={{ display: 'flex', gap: 16 }}>
-          <span><Clock size={10} style={{ marginRight: 4 }} />vc [{vcState.join(', ')}]</span>
-          <span>Δ {deltaSize} B</span>
+          <span><Clock size={10} style={{ marginRight: 4 }} />file: {file.name}</span>
+          <span>Δ {new Blob([content]).size} B</span>
+          {offlineQueue && <span style={{ color: '#ef4444' }}>⏳ Queued offline</span>}
         </div>
-        <span>0 peers connected</span>
+        <span>{connectedPeersCount} peers connected</span>
       </div>
     </PageShell>
   );

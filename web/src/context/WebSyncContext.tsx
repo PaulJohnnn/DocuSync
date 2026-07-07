@@ -39,23 +39,35 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
 
-  // Load existing peers from localStorage on mount
+  // Load existing peers from localStorage on mount and when room changes
   useEffect(() => {
-    const stored = uGet('peers');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // Only keep connected/connecting, but mark as disconnected initially until reconnected
-        const initial = parsed.map((p: any) => ({ ...p, status: 'disconnected' }));
-        setPeers(initial);
-        // Try to auto-connect to the first one (assuming 1 host for the web app usually)
-        if (initial.length > 0) {
-          connectToPeer(initial[0].address, initial[0].port);
+    const checkRoom = () => {
+      const s = uGet('current_room');
+      if (s) {
+        try {
+          const room = JSON.parse(s);
+          if (room.hostIp && room.hostPort) {
+            connectToPeer(room.hostIp, room.hostPort);
+          }
+        } catch (e) {
+          console.error('Failed to parse current_room', e);
         }
-      } catch (e) {
-        console.error('Failed to parse peers from local storage', e);
       }
-    }
+    };
+    
+    checkRoom();
+    
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'docusync_user_current_room') checkRoom();
+    };
+    window.addEventListener('storage', handleStorage);
+    // Custom event just in case
+    window.addEventListener('docusync_rooms_update', checkRoom);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('docusync_rooms_update', checkRoom);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -73,6 +85,8 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
       return; // Already connected
     }
 
+    console.log(`[WebSync] 🌐 Attempting WebSocket connection to: ${wsUrl}`);
+
     setPeers((prev) => {
       const exists = prev.find((p) => p.id === peerId);
       if (exists) {
@@ -85,31 +99,41 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
 
+      // Expose to window for EditorPage DELTA_PUSH
+      (window as any).docusync_socket = ws;
+
       ws.onopen = () => {
-        ws.send(JSON.stringify({ type: 'PEER_HELLO', nodeId: `web-client`, displayName: 'DocuSync Web' }));
+        console.log(`[WebSync] ✅ WS connection established to ${wsUrl}! Sending PEER_HELLO...`);
+        ws.send(JSON.stringify({ type: 'PEER_HELLO', nodeId: `web-client-${Date.now()}`, displayName: 'DocuSync Web', nodeCount: 3, nodeIndex: 1, timestamp: new Date().toISOString() }));
         
         setPeers((prev) => {
           const updated = prev.map((p) => (p.id === peerId ? { ...p, status: 'connected' as const, latency: 0 } : p));
           localStorage.setItem('docusync_peers', JSON.stringify(updated));
           return updated;
         });
-        console.log('[WebSync] ✅ WS connected to', wsUrl);
       };
 
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          if (msg.type === 'MERGE_ACCEPT') {
-            const resolvedBy = msg.resolvedBy || 'Owner';
-            toast.success(`Conflict resolved by ${resolvedBy.slice(0, 8)}. File synced.`, { icon: '✅' });
+          if (msg.type === 'MERGE_ACCEPT' || msg.type === 'MERGE_REJECT' || msg.type === 'MERGE_RESOLVED') {
+            const resolvedBy = msg.resolvedBy || msg.rejectedBy || 'Owner';
+            const action = msg.type === 'MERGE_REJECT' || msg.winner === 'A' ? 'rejected' : 'resolved';
+            toast.success(`Conflict ${action} by ${resolvedBy.slice(0, 8)}. File synced.`, { icon: '✅' });
+            window.dispatchEvent(new CustomEvent('docusync_ws_merge_accept', { detail: msg }));
+            window.dispatchEvent(new CustomEvent('docusync_ws_merge_reject', { detail: msg }));
+          }
+          if (msg.type === 'DELTA_PUSH') {
+            console.log('[WebSync] 📥 Received DELTA_PUSH from', msg.nodeId);
+            window.dispatchEvent(new CustomEvent('docusync_ws_delta', { detail: msg }));
           }
         } catch (e) {
           console.error('[WebSync] Failed to parse WS message', e);
         }
       };
 
-      ws.onerror = () => {
-        console.warn('[WebSync] WS connection failed');
+      ws.onerror = (err) => {
+        console.warn(`[WebSync] ❌ WS connection failed to ${wsUrl}`, err);
         setPeers((prev) => {
           const updated = prev.map((p) => (p.id === peerId ? { ...p, status: 'disconnected' as const } : p));
           localStorage.setItem('docusync_peers', JSON.stringify(updated));

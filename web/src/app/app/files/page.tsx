@@ -107,7 +107,7 @@ export default function FilesPage() {
     return () => clearInterval(iv);
   }, []);
 
-  const [currentRoom, setCurrentRoom] = useState<{ id: string; name: string; hostIp?: string; hostPort?: number } | null>(null);
+  const [currentRoom, setCurrentRoom] = useState<{ id: string; name: string; otp?: string; hostIp?: string; hostPort?: number } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -233,7 +233,7 @@ export default function FilesPage() {
       <PageShell>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Files</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Room Workspace</h1>
             <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>No room selected</p>
           </div>
         </div>
@@ -248,7 +248,7 @@ export default function FilesPage() {
             No room selected
           </h2>
           <p style={{ color: 'var(--t3)', fontSize: 14, maxWidth: 400, lineHeight: 1.7, textAlign: 'center', marginBottom: 24 }}>
-            Go to <strong>Peers</strong> and enter a room to see and collaborate on files.
+            Go to <strong>Peers</strong> and enter a room to see and collaborate in your workspace.
           </p>
           <button
             className="ds-btn ds-btn-primary"
@@ -293,9 +293,9 @@ export default function FilesPage() {
                 style={{ background: '#ef4444', color: 'white', border: 'none', opacity: isLeaving ? 0.7 : 1 }}
                 disabled={isLeaving}
                 onClick={async () => {
-                  setIsLeaving(true);
-                  await new Promise(r => setTimeout(r, 600));
                   uRemove('current_room');
+                  uRemove('files');
+                  setLocalFiles([]);
                   setIsLeaving(false);
                   setShowLeaveConfirm(false);
                   setRoomTick(t => t + 1);

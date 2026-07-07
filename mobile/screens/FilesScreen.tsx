@@ -56,7 +56,7 @@ export default function FilesScreen({ navigation }: any) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const [currentRoom, setCurrentRoom] = useState<{ id: string; name: string } | null>(null);
+  const [currentRoom, setCurrentRoom] = useState<{ id: string; name: string; otp?: string; hostIp?: string; hostPort?: number } | null>(null);
   const [peerCount, setPeerCount] = useState<number>(0);
   const [roomFiles, setRoomFiles] = useState<any[]>([]);
   const [isSharing, setIsSharing] = useState(false);
@@ -78,7 +78,7 @@ export default function FilesScreen({ navigation }: any) {
         if (!parsedRoom.id.startsWith('direct-')) {
           try {
             const code = (parsedRoom as any).otp || parsedRoom.id;
-            const res = await fetch(`http://192.168.68.100:3000/api/lobby/files?otp=${code}`);
+            const res = await fetch(`http://192.168.68.101:3000/api/lobby/files?otp=${code}`);
             if (res.ok) {
               const data = await res.json();
               setRoomFiles(data.files || []);
@@ -115,13 +115,13 @@ export default function FilesScreen({ navigation }: any) {
       let contentString = '';
       try {
         contentString = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: FileSystem.EncodingType.UTF8,
+          encoding: (FileSystem as any).EncodingType.UTF8,
         });
       } catch {
         // binary file – skip content
       }
 
-      const res = await fetch('http://192.168.68.100:3000/api/lobby/files', {
+      const res = await fetch('http://192.168.68.101:3000/api/lobby/files', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -174,9 +174,9 @@ export default function FilesScreen({ navigation }: any) {
     }
     try {
       const fileName = f.fileName || f.name || 'SharedFile.txt';
-      const fileUri = FileSystem.cacheDirectory + fileName;
+      const fileUri = (FileSystem as any).cacheDirectory + fileName;
       await FileSystem.writeAsStringAsync(fileUri, f.content, {
-        encoding: FileSystem.EncodingType.UTF8,
+        encoding: (FileSystem as any).EncodingType.UTF8,
       });
 
       // Save locally so editor can open it
@@ -208,9 +208,9 @@ export default function FilesScreen({ navigation }: any) {
     if (!f.content) { Alert.alert('Error', 'File has no content.'); return; }
     try {
       const fileName = f.fileName || f.name || 'SharedFile.txt';
-      const fileUri = FileSystem.cacheDirectory + fileName;
+      const fileUri = (FileSystem as any).cacheDirectory + fileName;
       await FileSystem.writeAsStringAsync(fileUri, f.content, {
-        encoding: FileSystem.EncodingType.UTF8,
+        encoding: (FileSystem as any).EncodingType.UTF8,
       });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri);
@@ -242,7 +242,7 @@ export default function FilesScreen({ navigation }: any) {
           <Ionicons name="folder-open-outline" size={64} color={colors.textMuted} style={{ marginBottom: 16, opacity: 0.4 }} />
           <Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No room selected</Text>
           <Text style={[styles.emptySubtext, { color: colors.textMuted, marginBottom: 24 }]}>
-            Go to Peers and enter a room to view and collaborate on files.
+            Go to Peers and enter a room to view and collaborate in your workspace.
           </Text>
           <AnimatedButton
             onPress={() => navigation.navigate('Peers')}
@@ -415,6 +415,7 @@ export default function FilesScreen({ navigation }: any) {
         cancelText="Cancel"
         onCancel={() => setLeaveModal(false)}
         onConfirm={async () => {
+          await uRemove('files');
           await uRemove('current_room');
           setCurrentRoom(null);
           setLeaveModal(false);

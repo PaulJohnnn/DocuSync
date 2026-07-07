@@ -2,10 +2,9 @@
 import Sidebar from './Sidebar';
 import RightPanel from './RightPanel';
 import OfflineBanner from './OfflineBanner';
-import ConflictModal from './ConflictModal';
 import DevSyncToggle from './DevSyncToggle';
 
-export default function PageShell({ children }: { children: React.ReactNode }) {
+export default function PageShell({ children }: { children: React.ReactNode; title?: string }) {
   return (
     <>
       <Sidebar />
@@ -20,7 +19,6 @@ export default function PageShell({ children }: { children: React.ReactNode }) {
         </div>
       </main>
       <RightPanel />
-      <ConflictModal />
       <DevSyncToggle />
     </>
   );

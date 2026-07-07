@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import mockRoomService, { type Room } from '../services/mockRoomService';
-import { uSet } from '../utils/userStorage';
+import { uSet, uRemove } from '../utils/userStorage';
 import { Ionicons } from '@expo/vector-icons';
 
 type ViewState = 'list' | 'create_name' | 'create_generating' | 'create_success' | 'join_otp' | 'join_loading' | 'join_success' | 'join_error';
@@ -67,6 +67,8 @@ export default function PeersScreen({ navigation }: any) {
   const handleDelete = async (roomId: string) => {
     await mockRoomService.deleteRoom(roomId);
     setRooms(prev => prev.filter(r => r.id !== roomId));
+    await uRemove('current_room');
+    await uRemove('files');
   };
 
   const handleEnterWorkspace = async (room: Room) => {

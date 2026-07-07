@@ -14,19 +14,33 @@ import { Redis } from '@upstash/redis';
  */
 
 let _redis: Redis | null = null;
+let _mockRedis: any = null;
 
-function getRedis(): Redis {
+function getMockRedis() {
+  if (_mockRedis) return _mockRedis;
+  
+  // A simple in-memory Map to act as Redis for local dev
+  const store = new Map<string, any>();
+  console.warn('[DocuSync] Upstash Redis not configured. Using in-memory fallback for Matchmaker.');
+  
+  _mockRedis = {
+    get: async (key: string) => store.get(key) || null,
+    set: async (key: string, value: any, options?: any) => { store.set(key, value); return 'OK'; },
+    del: async (key: string) => { store.delete(key); return 1; },
+    keys: async (pattern: string) => Array.from(store.keys()).filter(k => k.includes(pattern.replace('*', ''))),
+  };
+  return _mockRedis;
+}
+
+function getRedis(): any {
   if (_redis) return _redis;
+  if (_mockRedis) return _mockRedis;
 
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!url || !token || url.startsWith('PASTE_')) {
-    throw new Error(
-      '[DocuSync] Upstash Redis is not configured.\n' +
-      'Open web/.env.local and set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.\n' +
-      'Get these values from https://console.upstash.com → your database → REST API tab.'
-    );
+    return getMockRedis();
   }
 
   _redis = new Redis({ url, token });
@@ -37,7 +51,7 @@ function getRedis(): Redis {
  * Proxy object — transparently forwards every method call to the lazy client.
  * Import this just like before: `import { redis } from '@/lib/redis'`
  */
-export const redis = new Proxy({} as Redis, {
+export const redis = new Proxy({} as any, {
   get(_target, prop) {
     const client = getRedis();
     const value = (client as unknown as Record<string | symbol, unknown>)[prop];

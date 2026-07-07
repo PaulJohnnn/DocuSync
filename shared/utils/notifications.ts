@@ -18,9 +18,9 @@ export const notify = {
 
   /** Specific Check-In (Save & Sync) confirmation */
   saved: (deltaSize: number, peers: number) =>
-    toast.success('Checked In — Synced', {
+    toast.success('Local workspace purged — version checked in cleanly', {
       description: `Δ ${formatBytes(deltaSize)} · ${peers} peer${peers !== 1 ? 's' : ''} notified`,
-      duration: 2500,
+      duration: 3000,
     }),
 
   /** Offline queue notification */

@@ -54,20 +54,20 @@ function saveRooms(rooms: Room[]): void {
   window.dispatchEvent(new Event('docusync_rooms_update'));
 }
 
-function registerGlobalOTP(otp: string, roomName: string, roomId: string): void {
+function registerGlobalOTP(otp: string, roomName: string, roomId: string, hostIp = '127.0.0.1', hostPort = 9000): void {
   try {
     const raw = uGet(GLOBAL_OTP_KEY);
-    const registry: Record<string, { name: string; id: string; createdAt: string }> = raw ? JSON.parse(raw) : {};
-    registry[otp] = { name: roomName, id: roomId, createdAt: new Date().toISOString() };
+    const registry: Record<string, any> = raw ? JSON.parse(raw) : {};
+    registry[otp] = { name: roomName, id: roomId, hostIp, hostPort, createdAt: new Date().toISOString() };
     uSet(GLOBAL_OTP_KEY, JSON.stringify(registry));
   } catch { /* ignore */ }
 }
 
-function lookupGlobalOTP(otp: string): { name: string; id: string } | null {
+function lookupGlobalOTP(otp: string): { name: string; id: string; hostIp?: string; hostPort?: number } | null {
   try {
     const raw = uGet(GLOBAL_OTP_KEY);
     if (!raw) return null;
-    const registry: Record<string, { name: string; id: string }> = JSON.parse(raw);
+    const registry: Record<string, any> = JSON.parse(raw);
     return registry[otp.toUpperCase()] ?? null;
   } catch {
     return null;
@@ -110,6 +110,20 @@ class RoomService {
     if (!name.trim()) throw new Error('Room name cannot be empty.');
     let otp = genOTP();
     let isMatchmakerSuccess = false;
+    
+    let hostIp = '127.0.0.1';
+    if (typeof window !== 'undefined' && (window as any).docuSync && (window as any).docuSync.getLanIp) {
+      try {
+        const res = await (window as any).docuSync.getLanIp();
+        if (res && res.success === true && typeof res.data === 'string') {
+          hostIp = res.data;
+        } else if (res && typeof res === 'string') { // Fallback if it directly returns string
+          hostIp = res;
+        }
+      } catch (e) {
+        console.warn('Failed to fetch LAN IP via IPC, defaulting to 127.0.0.1', e);
+      }
+    }
 
     try {
       const MATCHMAKER = getMatchmakerUrl();
@@ -119,7 +133,7 @@ class RoomService {
         body: JSON.stringify({
           roomName: name.trim(),
           hostNodeId: `desktop-${Date.now()}`,
-          hostIp: '127.0.0.1',
+          hostIp: hostIp,
           hostPort: 9000,
           hostType: 'desktop'
         }),
@@ -147,12 +161,12 @@ class RoomService {
       lastActivity: new Date().toISOString(),
       fileCount: 0,
       hostType: 'desktop',
+      hostIp: hostIp || '127.0.0.1',
+      hostPort: 9000,
     };
     const rooms = loadRooms();
     saveRooms([...rooms, room]);
-    if (!isMatchmakerSuccess) {
-      registerGlobalOTP(otp, room.name, room.id);
-    }
+    registerGlobalOTP(otp, room.name, room.id, room.hostIp, room.hostPort);
     return room;
   }
 
@@ -217,15 +231,27 @@ class RoomService {
     // ── Step 2: Resolve the room name (API > global OTP > fallback) ──────
     const globalEntry = lookupGlobalOTP(upperOtp);
     const roomName = apiRoomName ?? (globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`);
+    const targetIp = apiHostIp || globalEntry?.hostIp || '127.0.0.1';
+    const targetPort = apiHostPort || globalEntry?.hostPort || 9000;
 
     // ── Step 3: If already stored locally, update its name and return ─────
     const existing = rooms.find(r => r.otp === upperOtp || r.id === otp);
     if (existing) {
+      let changed = false;
       if (existing.name !== roomName) {
         existing.name = roomName;
         existing.roomName = roomName;
-        saveRooms(rooms);
+        changed = true;
       }
+      if (!existing.hostIp || existing.hostIp !== targetIp) {
+        existing.hostIp = targetIp;
+        changed = true;
+      }
+      if (!existing.hostPort || existing.hostPort !== targetPort) {
+        existing.hostPort = targetPort;
+        changed = true;
+      }
+      if (changed) saveRooms(rooms);
       return existing;
     }
 
@@ -241,8 +267,8 @@ class RoomService {
       status: 'active',
       lastActivity: new Date().toISOString(),
       fileCount: 0,
-      hostIp: apiHostIp,
-      hostPort: apiHostPort,
+      hostIp: targetIp,
+      hostPort: targetPort,
       hostType: apiHostType,
     };
     saveRooms([...rooms, joined]);

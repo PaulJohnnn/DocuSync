@@ -132,18 +132,23 @@ export default function ConflictsPage() {
                 </div>
               </div>
 
-              {/* Resolution buttons */}
+              {/* Escalated status for non-owner collaborator */}
               {c.status === 'pending' && (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="ds-btn" onClick={() => resolve(c.id, 'A')} style={{ color: 'var(--acc)' }}>
-                    <CheckCircle size={14} /> Keep A
-                  </button>
-                  <button className="ds-btn" onClick={() => resolve(c.id, 'B')} style={{ color: 'var(--pur)' }}>
-                    <CheckCircle size={14} /> Keep B
-                  </button>
-                  <button className="ds-btn" onClick={() => resolve(c.id, 'A')} style={{ color: 'var(--amb)' }}>
-                    <Scale size={14} /> LWW Auto
-                  </button>
+                <div style={{
+                  padding: '12px 16px',
+                  background: 'rgba(245,158,11,0.12)',
+                  border: '1px solid rgba(245,158,11,0.3)',
+                  borderRadius: 8,
+                  color: 'var(--amb)',
+                  fontSize: 13,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  marginTop: 4,
+                  fontWeight: 500,
+                }}>
+                  <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+                  <span>Change escalated to host for conflict resolution. Waiting for room owner to accept or reject.</span>
                 </div>
               )}
 
