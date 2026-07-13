@@ -11,6 +11,7 @@ import React, {
 } from 'react';
 import { toast } from 'sonner';
 import { uGet, uSet } from '@/lib/userStorage';
+import * as mockAuthService from '@/lib/mockAuthService';
 
 export interface PeerInfo {
   id: string;
@@ -19,12 +20,14 @@ export interface PeerInfo {
   status: 'connected' | 'connecting' | 'disconnected';
   latency: number;
   connectedAt?: string;
+  displayName?: string;
 }
 
 interface WebSyncContextValue {
   peers: PeerInfo[];
   connectToPeer: (address: string, port: number) => void;
   disconnectPeer: (id: string) => void;
+  pushCursor: (fileId: string, position: number, nodeIndex: number) => void;
   socket: WebSocket | null;
 }
 
@@ -32,12 +35,14 @@ const WebSyncContext = createContext<WebSyncContextValue>({
   peers: [],
   connectToPeer: () => {},
   disconnectPeer: () => {},
+  pushCursor: () => {},
   socket: null,
 });
 
 export function WebSyncProvider({ children }: { children: ReactNode }) {
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
+  const localNodeId = useRef(`web-client-${Math.random().toString(36).substring(2, 9)}`).current;
 
   // Load existing peers from localStorage on mount and when room changes
   useEffect(() => {
@@ -77,7 +82,8 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
     uSet('peers', JSON.stringify(newPeers));
   };
 
-  const connectToPeer = useCallback((address: string, port: number) => {
+  const connectToPeer = useCallback((address: string, rawPort: number) => {
+    const port = (!rawPort || rawPort === 3000) ? 9000 : rawPort;
     const wsUrl = `ws://${address}:${port}`;
     const peerId = `${address}:${port}`;
 
@@ -103,8 +109,10 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
       (window as any).docusync_socket = ws;
 
       ws.onopen = () => {
-        console.log(`[WebSync] ✅ WS connection established to ${wsUrl}! Sending PEER_HELLO...`);
-        ws.send(JSON.stringify({ type: 'PEER_HELLO', nodeId: `web-client-${Date.now()}`, displayName: 'DocuSync Web', nodeCount: 3, nodeIndex: 1, timestamp: new Date().toISOString() }));
+        console.log(`[WebSync] 🔌 WS connection established to ${wsUrl}! Sending PEER_HELLO...`);
+        const session = mockAuthService.getCurrentUser();
+        const displayName = mockAuthService.getDisplayName(session);
+        ws.send(JSON.stringify({ type: 'PEER_HELLO', nodeId: localNodeId, displayName, nodeCount: 3, nodeIndex: 1, timestamp: new Date().toISOString() }));
         
         setPeers((prev) => {
           const updated = prev.map((p) => (p.id === peerId ? { ...p, status: 'connected' as const, latency: 0 } : p));
@@ -126,6 +134,24 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
           if (msg.type === 'DELTA_PUSH') {
             console.log('[WebSync] 📥 Received DELTA_PUSH from', msg.nodeId);
             window.dispatchEvent(new CustomEvent('docusync_ws_delta', { detail: msg }));
+          }
+          if (msg.type === 'CURSOR_UPDATE') {
+            window.dispatchEvent(new CustomEvent('docusync_ws_cursor', { detail: msg }));
+          }
+          if (msg.type === 'PEER_LIST') {
+            setPeers((prev) => {
+              const connected = msg.peers.map((p: any) => ({
+                id: p.nodeId,
+                address: p.address,
+                port: p.port,
+                status: 'connected' as const,
+                latency: 0,
+                connectedAt: new Date().toISOString(),
+                displayName: p.displayName
+              }));
+              localStorage.setItem('docusync_peers', JSON.stringify(connected));
+              return connected;
+            });
           }
         } catch (e) {
           console.error('[WebSync] Failed to parse WS message', e);
@@ -153,7 +179,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
     } catch {
       console.warn('[WebSync] WS not supported in this context');
     }
-  }, []);
+  }, [localNodeId]);
 
   const disconnectPeer = useCallback((id: string) => {
     if (socketRef.current) {
@@ -167,8 +193,21 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const pushCursor = useCallback((fileId: string | number, position: number, nodeIndex: number) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: 'CURSOR_UPDATE',
+        nodeId: localNodeId,
+        nodeIndex,
+        fileId: Number(fileId),
+        position,
+        timestamp: new Date().toISOString()
+      }));
+    }
+  }, [localNodeId]);
+
   return (
-    <WebSyncContext.Provider value={{ peers, connectToPeer, disconnectPeer, socket: socketRef.current }}>
+    <WebSyncContext.Provider value={{ peers, connectToPeer, disconnectPeer, pushCursor, socket: socketRef.current }}>
       {children}
     </WebSyncContext.Provider>
   );

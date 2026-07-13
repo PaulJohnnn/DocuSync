@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  FolderOpen, AlertTriangle, Clock, Users, Wifi, Settings
+  FolderOpen, AlertTriangle, Clock, Users, Wifi, Settings, BarChart2
 } from 'lucide-react';
 import OnlineStatusPill from './OnlineStatusPill';
 
@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: '/app/conflicts', label: 'Conflicts', icon: AlertTriangle },
   { href: '/app/history/all', label: 'History', icon: Clock },
   { href: '/app/peers', label: 'Peers', icon: Users },
+  { href: '/app/metrics', label: 'Metrics', icon: BarChart2 },
   { href: '/app/settings', label: 'Settings', icon: Settings },
 ];
 

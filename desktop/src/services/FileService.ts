@@ -67,7 +67,7 @@ class FileService {
    */
   static async sync(fileId: number, content: string): Promise<FileSaveResult> {
     if (!window.docuSync) throw new ServiceError('FileService.sync', 'IPC bridge not available.');
-    const result = await window.docuSync.saveFile(fileId, content);
+    const result = await window.docuSync.saveFile(fileId, content, {});
     if (!result.success) throw new ServiceError('FileService.sync', result.error ?? 'Save failed.');
     return result.data as FileSaveResult;
   }

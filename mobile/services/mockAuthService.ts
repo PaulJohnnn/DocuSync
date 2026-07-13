@@ -21,7 +21,7 @@ const SESSION_KEY = '@docusync/auth_user';
 // Next.js web server runs on port 3000 (not 3001).
 const API_BASE = Platform.OS === 'web' 
   ? 'http://localhost:3000/api/auth' 
-  : 'http://192.168.68.101:3000/api/auth';
+  : 'http://192.168.68.102:3000/api/auth';
 
 // ── Auth methods ───────────────────────────────────────────────────────────
 

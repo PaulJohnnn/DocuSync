@@ -20,7 +20,7 @@ import { Colors } from '../constants/Colors';
 import { useMobileSync } from '../context/MobileSyncContext';
 
 // ── Matchmaker URL ─────────────────────────────────────────────────────────
-const MATCHMAKER_URL = 'https://docusync-pnc.vercel.app/api/lobby';
+const MATCHMAKER_URL = 'http://192.168.68.100:3000/api/lobby';
 
 interface FileRecord {
   id: string; name: string; type: string; size: number;
@@ -30,7 +30,7 @@ interface FileRecord {
 export default function EditorScreen({ route, navigation }: any) {
   const { fileId } = route.params;
   const { colors } = useTheme();
-  const { peers } = useMobileSync();
+  const { peers, pushCursor } = useMobileSync();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [file, setFile]               = useState<FileRecord | null>(null);
@@ -47,6 +47,9 @@ export default function EditorScreen({ route, navigation }: any) {
   const localNodeIdRef   = useRef(`mobile-${Math.floor(Math.random() * 10000)}`);
   const syncDebounce     = useRef<NodeJS.Timeout | null>(null);
   const pollInterval     = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeout    = useRef<NodeJS.Timeout | null>(null);
+  const cursorThrottle   = useRef<NodeJS.Timeout | null>(null);
+  const isTypingRef      = useRef(false);
 
   // ── Online/Offline detection ────────────────────────────────────────────
   useEffect(() => {
@@ -73,11 +76,11 @@ export default function EditorScreen({ route, navigation }: any) {
     const stored = await uGet('files');
     if (!stored) return;
     const files: FileRecord[] = JSON.parse(stored);
-    const found = files.find(f => f.id === fileId);
+    const found = files.find(f => String(f.id) === String(fileId));
     if (found) {
       setFile(found);
-      setContent(found.content);
-      lastSave.current = found.content;
+      setContent(found.content ?? '');
+      lastSave.current = found.content ?? '';
     }
     // Load node ID
     const nid = await AsyncStorage.getItem('docusync_node_id');
@@ -140,12 +143,12 @@ export default function EditorScreen({ route, navigation }: any) {
           setOfflineQueue(false);
         }
       } else {
-        setSyncStatusMsg('Sync failed — queued for retry');
+        setSyncStatusMsg('Host unavailable — edits saving locally');
         setOfflineQueue(true);
       }
     } catch (e) {
       console.error('[Mobile Sync] Push failed:', e);
-      setSyncStatusMsg('Offline — queued for sync');
+      setSyncStatusMsg('Host unavailable — edits saving locally');
       setOfflineQueue(true);
     } finally {
       setSyncing(false);
@@ -175,6 +178,8 @@ export default function EditorScreen({ route, navigation }: any) {
         }
 
         const snap = data.snapshot;
+        if (isTypingRef.current) return; // Skip if actively typing
+
         if (snap.committedAt > lastSyncedAt.current && snap.authorNodeId !== localNodeIdRef.current) {
           lastSyncedAt.current = snap.committedAt;
           setContent(snap.content);
@@ -198,7 +203,8 @@ export default function EditorScreen({ route, navigation }: any) {
           } catch {}
         }
       } catch {
-        // Polling failure is silent — retry next interval
+        // Fetch failed — host is unreachable or down
+        setSyncStatusMsg('Host unavailable — edits saving locally');
       }
     };
 
@@ -247,6 +253,22 @@ export default function EditorScreen({ route, navigation }: any) {
       syncDebounce.current = setTimeout(() => { pushToRedis(contentToSave); }, 2000);
     }
   }, [fileId, pushToRedis]);
+
+  const handleContentChange = (text: string) => {
+    setContent(text);
+    setSaved(false);
+
+    isTypingRef.current = true;
+    if (typingTimeout.current) clearTimeout(typingTimeout.current);
+    typingTimeout.current = setTimeout(() => {
+      isTypingRef.current = false;
+    }, 2000);
+
+    if (syncDebounce.current) clearTimeout(syncDebounce.current);
+    syncDebounce.current = setTimeout(() => {
+      pushToRedis(text);
+    }, 2000);
+  };
 
   // ── Auto-save on content change (500ms debounce) ─────────────────────────
   useEffect(() => {
@@ -304,7 +326,11 @@ export default function EditorScreen({ route, navigation }: any) {
           <Ionicons
             name={isOnline ? 'wifi' : 'wifi-outline'}
             size={12}
-            color={isOnline ? colors.green : colors.textMuted}
+            color={
+              !isOnline ? colors.textMuted : 
+              (offlineQueue || syncStatusMsg.includes('unavailable') || syncStatusMsg.includes('failed')) ? colors.amber : 
+              colors.green
+            }
           />
           <Text style={{ fontSize: 10, color: colors.textDim }} numberOfLines={1}>
             {syncStatusMsg}
@@ -337,6 +363,12 @@ export default function EditorScreen({ route, navigation }: any) {
             multiline
             value={content}
             onChangeText={t => { setContent(t); setSaved(false); }}
+            onSelectionChange={(e) => {
+              if (cursorThrottle.current) return;
+              cursorThrottle.current = setTimeout(() => { cursorThrottle.current = null; }, 200);
+              const pos = e.nativeEvent.selection.start;
+              pushCursor(fileId, pos, 2);
+            }}
             placeholder="Start typing…"
             placeholderTextColor={colors.textMuted}
             textAlignVertical="top"

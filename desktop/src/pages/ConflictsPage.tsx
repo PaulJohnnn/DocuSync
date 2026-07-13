@@ -167,7 +167,7 @@ const ConflictCard: React.FC<{
 
 const ConflictsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { conflictQueue, pendingConflicts, markConflictResolved, refreshStatus } = useElectronSync();
+  const { conflictQueue, pendingConflicts, markConflictResolved, refreshStatus, currentRoom, localNodeId } = useElectronSync();
   const [details, setDetails] = useState<Map<string, ConflictDetail>>(new Map());
 
   const buildFallbackDetail = useCallback((conflict: PendingConflict): ConflictDetail => ({

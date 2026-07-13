@@ -18,13 +18,76 @@ import { formatBytes, basename } from '@docusync/shared/utils/formatters';
 import { notify } from '@docusync/shared/utils/notifications';
 import SyncService from '@/services/SyncService';
 
+import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
+
+export interface RemoteCursor {
+  nodeId: string;
+  displayName: string;
+  color: string;
+  from: number;
+  to: number;
+}
+
+const RemoteCursorsExtension = Extension.create({
+  name: 'remoteCursors',
+  addOptions() {
+    return { cursors: [] as RemoteCursor[] };
+  },
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('remoteCursors'),
+        state: {
+          init: () => DecorationSet.empty,
+          apply: (tr, oldState) => {
+            const cursors = this.options.cursors;
+            const decorations: Decoration[] = [];
+            const docSize = tr.doc.nodeSize;
+
+            cursors.forEach((c: RemoteCursor) => {
+              const from = Math.max(0, Math.min(c.from, docSize - 2));
+              const to = Math.max(0, Math.min(c.to, docSize - 2));
+
+              if (from === to) {
+                const cursorElement = document.createElement('span');
+                cursorElement.classList.add('collaboration-cursor__caret');
+                cursorElement.style.borderLeftColor = c.color;
+
+                const labelElement = document.createElement('div');
+                labelElement.classList.add('collaboration-cursor__label');
+                labelElement.style.backgroundColor = c.color;
+                labelElement.textContent = c.displayName;
+                cursorElement.appendChild(labelElement);
+
+                decorations.push(Decoration.widget(from, cursorElement, { side: 1 }));
+              } else {
+                decorations.push(
+                  Decoration.inline(Math.min(from, to), Math.max(from, to), {
+                    class: 'collaboration-cursor__selection',
+                    style: `background-color: ${c.color}33`,
+                  })
+                );
+              }
+            });
+            return DecorationSet.create(tr.doc, decorations);
+          },
+        },
+        props: {
+          decorations(state) { return this.getState(state); },
+        },
+      }),
+    ];
+  },
+});
+
 // ── Matchmaker URL (Vercel in production, localhost in dev) ──────────────────
 // The env var VITE_MATCHMAKER is set in .env.local / Vercel env settings.
 // Falls back to the live Vercel deployment so desktop dev still works.
-const MATCHMAKER = (
-  (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MATCHMAKER) ||
-  'https://docu-sync-chi.vercel.app/api/lobby'
-);
+const MATCHMAKER = (typeof import.meta !== 'undefined' && import.meta.env.DEV)
+  ? 'http://localhost:3000/api/lobby'
+  : 'https://docusync-pnc.vercel.app/api/lobby';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -34,6 +97,7 @@ interface FileOpenData {
   content: string;
   contentLength: number;
   extension: string;
+  vectorClock?: any;
 }
 
 interface FileSaveData {
@@ -92,11 +156,56 @@ const EditorPage: React.FC = () => {
   const [conflictBannerDismissed, setConflictBannerDismissed] = useState(false);
   const [incomingBanner, setIncomingBanner] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef<boolean>(false);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevConflictCount = useRef(pendingConflicts);
   // lastSyncedAt tracks which remote version we've already applied (LWW guard)
   const lastSyncedAt = useRef<number>(0);
   const myNodeId = localNodeId || `anon-${Math.random().toString(36).slice(2, 8)}`;
   const roomOtp = currentRoom?.id;
+
+  // ── Remote Cursors ─────────────────────────────────────────────────────────
+  const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor & { lastUpdate: number }>>({});
+  const cursorThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!window.docuSync?.onCursorUpdate) return;
+    const unsub = window.docuSync.onCursorUpdate((msg: any) => {
+      if (msg.fileId !== fileId) return;
+      const color = msg.nodeIndex === 0 ? '#3b82f6' : msg.nodeIndex === 1 ? '#10b981' : '#f59e0b';
+      const displayName = msg.nodeIndex === 0 ? 'Desktop' : msg.nodeIndex === 1 ? 'Web' : 'Mobile';
+      setRemoteCursors(prev => ({
+        ...prev,
+        [msg.nodeId]: {
+          nodeId: msg.nodeId,
+          displayName,
+          color,
+          from: msg.position,
+          to: msg.position,
+          lastUpdate: Date.now()
+        }
+      }));
+    });
+    return unsub;
+  }, [fileId]);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const now = Date.now();
+      setRemoteCursors(prev => {
+        const next = { ...prev };
+        let changed = false;
+        for (const [id, c] of Object.entries(next)) {
+          if (now - c.lastUpdate > 5000) {
+            delete next[id];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, []);
 
   useEffect(() => {
     if (pendingConflicts > prevConflictCount.current) setConflictBannerDismissed(false);
@@ -109,68 +218,102 @@ const EditorPage: React.FC = () => {
     extensions: [
       StarterKit,
       Placeholder.configure({ placeholder: 'Start writing… (auto-saves every 500 ms)' }),
+      RemoteCursorsExtension.configure({ cursors: Object.values(remoteCursors) }),
     ],
     content: '',
     editorProps: { attributes: { class: 'ProseMirror', 'data-testid': 'tiptap-editor' } },
   });
 
+  // Re-configure cursors when remoteCursors changes
+  useEffect(() => {
+    if (editor) {
+      const ext = editor.extensionManager.extensions.find(e => e.name === 'remoteCursors');
+      if (ext) {
+        ext.options.cursors = Object.values(remoteCursors);
+        editor.view.dispatch(editor.state.tr.setMeta('remoteCursorsUpdate', true));
+      }
+    }
+  }, [remoteCursors, editor]);
+
   // Cleanup debounce on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, []);
 
-  const performSaveRef = useRef<typeof performSave | null>(null);
-  useEffect(() => {
-    performSaveRef.current = performSave;
-  }, [performSave]);
+  const performSaveRef = useRef<((html: string, explicit?: boolean) => Promise<void>) | null>(null);
 
   useEffect(() => {
     if (!editor) return;
     const handleUpdate = () => {
+      isTypingRef.current = true;
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        isTypingRef.current = false;
+      }, 2000);
+
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         if (performSaveRef.current) performSaveRef.current(editor.getHTML(), false);
       }, 500);
     };
-    editor.on('update', handleUpdate);
-    return () => { editor.off('update', handleUpdate); };
-  }, [editor]);
 
-  // ── Poll remote document (Phase 4 — Live Sync) ────────────────────────────
+    const handleSelectionUpdate = () => {
+      if (cursorThrottleRef.current || !window.docuSync?.pushCursor) return;
+      cursorThrottleRef.current = setTimeout(() => { cursorThrottleRef.current = null; }, 200);
+      const { from } = editor.state.selection;
+      window.docuSync.pushCursor({
+        type: 'CURSOR_UPDATE',
+        nodeId: myNodeId,
+        nodeIndex: 0,
+        fileId: String(fileId),
+        position: from,
+        timestamp: new Date().toISOString()
+      });
+    };
+
+    editor.on('update', handleUpdate);
+    editor.on('selectionUpdate', handleSelectionUpdate);
+    return () => { 
+      editor.off('update', handleUpdate); 
+      editor.off('selectionUpdate', handleSelectionUpdate);
+    };
+  }, [editor, fileId, myNodeId]);
+
+  // ── Real-time presence (dummy cursors for now) ────────────────────────────
   // Every 3 seconds, ask the matchmaker for the latest committed version.
   // If the remote version is newer than what we last applied (LWW), apply it.
   useEffect(() => {
-    if (!roomOtp || !fileId) return;
+    if (!fileId || !window.docuSync) return;
     const pollDoc = async () => {
       try {
-        const url = `${MATCHMAKER}/doc?otp=${roomOtp}&fileId=${fileId}&since=${lastSyncedAt.current}`;
-        const res = await fetch(url);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.unchanged || !data.snapshot) return;
-        const snap = data.snapshot;
-        // LWW: only apply if it's genuinely newer and not written by us
-        if (snap.committedAt > lastSyncedAt.current && snap.authorNodeId !== myNodeId) {
-          lastSyncedAt.current = snap.committedAt;
-          if (editor && snap.content) {
-            // Preserve local cursor position
+        const res = await window.docuSync.openFile(fileId);
+        if (!res.success || !res.data) return;
+        const data = res.data as FileOpenData;
+        const snap = {
+          content: data.content,
+          seq: data.vectorClock?.root?.children?.[0]?.counter || 0,
+        };
+        // Skip applying remote updates if actively typing
+        if (isTypingRef.current) return;
+        
+        // This is a simplified check since we are using IPC. We rely on the local SQLite DB having the latest merged state.
+        if (editor && snap.content && snap.content !== editor.getHTML()) {
             const { from } = editor.state.selection;
             editor.commands.setContent(snap.content, { emitUpdate: false });
-            // Restore cursor position (clamped to new doc size)
             const maxPos = editor.state.doc.content.size;
             editor.commands.setTextSelection(Math.min(from, maxPos - 1));
-          }
-          setIncomingBanner(`↓ Synced from ${snap.authorName} (v${snap.seq})`);
-          setTimeout(() => setIncomingBanner(null), 4000);
+            setIncomingBanner(`↓ Synced from local replica`);
+            setTimeout(() => setIncomingBanner(null), 4000);
         }
-      } catch { /* matchmaker unreachable — offline mode */ }
+      } catch { /* offline mode */ }
     };
     pollDoc();
     const iv = setInterval(pollDoc, 3000);
     return () => clearInterval(iv);
-  }, [roomOtp, fileId, myNodeId, editor]);
+  }, [roomOtp, fileId, editor]);
 
 
   // ── File load ─────────────────────────────────────────────────────────────
@@ -255,8 +398,16 @@ const EditorPage: React.FC = () => {
 
       // ── Step 1: Save to local SQLite via IPC (Desktop only) ──────────────
       if (fileId !== null && window.docuSync) {
-        const res = await window.docuSync.saveFile(fileId, html);
-        if (!res.success) throw new Error(res.error ?? 'Save error.');
+        console.log(`[Desktop Test] Editing on Desktop. Local vector clock:`, JSON.stringify(vectorClock));
+        const res = await window.docuSync.saveFile(fileId, html, vectorClock);
+        if (!res.success) {
+           if (res.error?.includes('escalated') || (res.data as any)?.escalated) {
+              setSaving(false);
+              notify.error('Conflict detected! Resolving in arbiter...');
+              return;
+           }
+           throw new Error(res.error ?? 'Save error.');
+        }
         const data = res.data as FileSaveData;
         savedDeltaSize = data.deltaSize ?? data.bytesSaved;
         savedPeersNotified = data.peersNotified ?? 0;
@@ -264,33 +415,15 @@ const EditorPage: React.FC = () => {
         setPeersNotified(savedPeersNotified);
       }
 
-      // ── Step 2: Push to Redis doc store (Phase 4 Check-In) ───────────────
-      // This is the cross-device sync step. Any device in the same room
-      // will pick this up within 3 seconds via the polling loop above.
-      if (roomOtp && fileId !== null) {
-        const deltaSize = savedDeltaSize || new Blob([html]).size;
-        const now = Date.now();
-        lastSyncedAt.current = now; // Mark this as our own commit to avoid re-applying
-        await fetch(`${MATCHMAKER}/doc`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            otp: roomOtp,
-            fileId,
-            authorNodeId: myNodeId,
-            authorName: myNodeId.slice(0, 8),
-            content: html,
-            vectorClock: vectorClock ?? {},
-            deltaSize,
-          }),
-        });
-      }
-
       if (explicit) notify.saved(savedDeltaSize, savedPeersNotified);
     } catch (err) {
       if (explicit) notify.error(`Check-In failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally { setSaving(false); }
   }, [fileId, roomOtp, myNodeId, vectorClock]);
+
+  useEffect(() => {
+    performSaveRef.current = performSave;
+  }, [performSave]);
 
   const handleExplicitSave = useCallback(async () => { if (editor) await performSave(editor.getHTML(), true); }, [editor, performSave]);
 

@@ -40,6 +40,7 @@ import type { VectorClockJSON } from '../vector-clock/vector-clock';
 export type MessageType =
   | 'PEER_HELLO'
   | 'PEER_BYE'
+  | 'PEER_LIST'
   | 'DELTA_PUSH'
   | 'DELTA_ACK'
   | 'SYNC_REQUEST'
@@ -47,7 +48,9 @@ export type MessageType =
   | 'MERGE_ACCEPT'
   | 'MERGE_REJECT'
   | 'USER_VERIFY'
-  | 'USER_VERIFY_RESPONSE';
+  | 'USER_VERIFY_RESPONSE'
+  | 'CURSOR_UPDATE'
+  | 'SESSION_TERMINATED';
 
 /**
  * Set of all recognised message types for O(1) validation.
@@ -56,6 +59,7 @@ export type MessageType =
 const VALID_MESSAGE_TYPES: ReadonlySet<string> = new Set<MessageType>([
   'PEER_HELLO',
   'PEER_BYE',
+  'PEER_LIST',
   'DELTA_PUSH',
   'DELTA_ACK',
   'SYNC_REQUEST',
@@ -64,6 +68,8 @@ const VALID_MESSAGE_TYPES: ReadonlySet<string> = new Set<MessageType>([
   'MERGE_REJECT',
   'USER_VERIFY',
   'USER_VERIFY_RESPONSE',
+  'SESSION_TERMINATED',
+  'CURSOR_UPDATE',
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,12 +107,26 @@ export interface PeerByeMessage {
   type: 'PEER_BYE';
   /** UUID of the disconnecting peer. */
   nodeId: string;
-  /** ISO 8601 timestamp of the bye. */
+  /** ISO 8601 timestamp of the goodbye. */
   timestamp: string;
 }
 
 /**
- * Pushes a delta (or full content) to all connected peers.
+ * Broadcasted by the Host when the room's peer list changes.
+ */
+export interface PeerListMessage {
+  type: 'PEER_LIST';
+  peers: Array<{
+    nodeId: string;
+    displayName: string;
+    address: string;
+    port: number;
+  }>;
+  timestamp: string;
+}
+
+/**
+ * Pushes a new document delta (operation) to a peer.
  *
  * On receipt, the peer validates the delta, decodes it, applies it
  * to the local file, and appends an event to the EventLog.
@@ -282,6 +302,18 @@ export interface SessionTerminatedMessage {
   timestamp: string;
 }
 
+/**
+ * Sent to broadcast a remote cursor's position.
+ */
+export interface CursorUpdateMessage {
+  type: 'CURSOR_UPDATE';
+  nodeId: string;
+  nodeIndex: number;
+  fileId: string;
+  position: number;
+  timestamp: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tagged Union
 // ─────────────────────────────────────────────────────────────────────────────
@@ -295,14 +327,18 @@ export interface SessionTerminatedMessage {
  * ```ts
  * switch (msg.type) {
  *   case 'DELTA_PUSH': // msg is DeltaPushMessage
- *   case 'PEER_HELLO': // msg is PeerHelloMessage
- *   // ...
+ *   case 'USER_VERIFY_RESPONSE': // msg is UserVerifyResponseMessage
+ *     break;
+ *   case 'CURSOR_UPDATE': // msg is CursorUpdateMessage
+ *     break;
  * }
  * ```
  */
+
 export type PeerMessage =
   | PeerHelloMessage
   | PeerByeMessage
+  | PeerListMessage
   | DeltaPushMessage
   | DeltaAckMessage
   | SyncRequestMessage
@@ -311,7 +347,8 @@ export type PeerMessage =
   | MergeRejectMessage
   | UserVerifyMessage
   | UserVerifyResponseMessage
-  | SessionTerminatedMessage;
+  | SessionTerminatedMessage
+  | CursorUpdateMessage;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Validation
@@ -342,6 +379,10 @@ const MESSAGE_FIELD_SPECS: Record<MessageType, Record<string, string>> = {
   },
   PEER_BYE: {
     nodeId: 'string',
+    timestamp: 'string',
+  },
+  PEER_LIST: {
+    peers: 'object', // Array of objects
     timestamp: 'string',
   },
   DELTA_PUSH: {
@@ -400,6 +441,17 @@ const MESSAGE_FIELD_SPECS: Record<MessageType, Record<string, string>> = {
   USER_VERIFY_RESPONSE: {
     nodeId: 'string',
     allow: 'boolean',
+    timestamp: 'string',
+  },
+  SESSION_TERMINATED: {
+    reason: 'string',
+    timestamp: 'string',
+  },
+  CURSOR_UPDATE: {
+    nodeId: 'string',
+    nodeIndex: 'number',
+    fileId: 'string',
+    position: 'number',
     timestamp: 'string',
   },
 };

@@ -52,8 +52,8 @@ const CH_CONFLICT_DETAIL  = 'conflict:detail'  as const;
 const CH_CONFLICT_RESOLVE = 'conflict:resolve' as const;
 const CH_PEER_LIST       = 'peer:list'       as const;
 const CH_PEER_CONNECT    = 'peer:connect'    as const;
-const CH_SYNC_HANDLE_PEER_MESSAGE = 'sync:handle-peer-message' as const;
 const CH_PEER_CONNECT_SUPABASE = 'peer:connect-supabase' as const;
+const CH_SYNC_CURSOR_PUSH = 'sync:cursor-push' as const;
 const CH_VAULT_STATUS    = 'vault:get-status' as const;
 const CH_VAULT_GENESIS   = 'vault:genesis-init' as const;
 const CH_VAULT_UNLOCK    = 'vault:unlock'     as const;
@@ -73,7 +73,8 @@ const CH_EVT_SYNC_STATUS = 'evt:sync-status-changed' as const;
 const CH_EVT_AUTH_VERIFY_REQ = 'auth:verify-request' as const;
 const CH_AUTH_VERIFY_RESP = 'auth:verify-respond' as const;
 const CH_EVT_SESSION_TERMINATED = 'evt:session-terminated' as const;
-const CH_EVT_PEER_UPDATED = 'evt:peer-updated' as const;
+const EVT_PEER_UPDATED    = 'evt:peer-updated'   as const;
+const EVT_CURSOR_UPDATE   = 'evt:cursor-update'  as const;
 const CH_EVT_SEND_PEER_MESSAGE = 'evt:send-peer-message' as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +123,15 @@ export interface SyncStatusChangedPayload {
  * the named functions below.
  */
 export interface DocuSyncBridge {
+  // ── User Settings ────────────────────────────────────────────────────────
+
+  /**
+   * Updates the display name for the local peer.
+   *
+   * @param name - The new display name.
+   */
+  setDisplayName(name: string): Promise<IPCResponse>;
+
   // ── File Operations ────────────────────────────────────────────────────
 
   /**
@@ -150,7 +160,7 @@ export interface DocuSyncBridge {
    * @param newContent - The updated document content.
    * @returns IPCResponse containing `{ fileId, saved, synced, deltaSizeBytes, peersNotified }`.
    */
-  saveFile(fileId: number, newContent: string): Promise<IPCResponse>;
+  saveFile(fileId: number, newContent: string, vectorClockJson: any): Promise<IPCResponse>;
 
   /**
    * Returns the complete append-only EventLog history for a file.
@@ -245,6 +255,11 @@ export interface DocuSyncBridge {
    * @returns IPCResponse containing `{ connected, otp, connectedPeers }`.
    */
   connectToSupabase(otp: string): Promise<IPCResponse>;
+
+  /**
+   * Broadcasts the local cursor position.
+   */
+  pushCursor(msg: any): Promise<IPCResponse<void>>;
 
   // ── Vault & Network ──────────────────────────────────────────────────
 
@@ -368,6 +383,13 @@ export interface DocuSyncBridge {
   onPeerUpdated: (
     listener: () => void
   ) => () => void;
+
+  /**
+   * Called when a remote cursor update is received.
+   */
+  onCursorUpdate(
+    callback: (msg: any) => void
+  ): () => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -386,6 +408,11 @@ export interface DocuSyncBridge {
  * the renderer from ever holding a reference to an Electron API object.
  */
 const docuSyncBridge: DocuSyncBridge = {
+  // ── User Settings ──
+  setDisplayName(name: string): Promise<IPCResponse> {
+    return ipcRenderer.invoke('user:set-name', name);
+  },
+
   // ── File Operations ──────────────────────────────────────────────────
 
   openFile(filePathOrId?: string | number): Promise<IPCResponse> {
@@ -396,8 +423,8 @@ const docuSyncBridge: DocuSyncBridge = {
     return ipcRenderer.invoke('file:import-room-file', fileName, content, fileId);
   },
 
-  saveFile(fileId: number, newContent: string): Promise<IPCResponse> {
-    return ipcRenderer.invoke(CH_FILE_SAVE, fileId, newContent);
+  saveFile(fileId: number, newContent: string, vectorClockJson: any): Promise<IPCResponse> {
+    return ipcRenderer.invoke(CH_FILE_SAVE, fileId, newContent, vectorClockJson);
   },
 
   getHistory(fileId: number): Promise<IPCResponse> {
@@ -447,7 +474,11 @@ const docuSyncBridge: DocuSyncBridge = {
   },
 
   handlePeerMessage: async (peerId, msgStr) => {
-    return await ipcRenderer.invoke(CH_SYNC_HANDLE_PEER_MESSAGE, peerId, msgStr);
+    return await ipcRenderer.invoke('sync:handle-peer-message', peerId, msgStr);
+  },
+
+  pushCursor(msg: any): Promise<IPCResponse<void>> {
+    return ipcRenderer.invoke(CH_SYNC_CURSOR_PUSH, msg);
   },
 
   // ── Vault & Network ──────────────────────────────────────────────────
@@ -595,10 +626,22 @@ const docuSyncBridge: DocuSyncBridge = {
     const wrapped = () => {
       listener();
     };
-    ipcRenderer.on(CH_EVT_PEER_UPDATED, wrapped);
+    ipcRenderer.on(EVT_PEER_UPDATED, wrapped);
 
     return () => {
-      ipcRenderer.off(CH_EVT_PEER_UPDATED, wrapped);
+      ipcRenderer.off(EVT_PEER_UPDATED, wrapped);
+    };
+  },
+
+  onCursorUpdate(
+    callback: (msg: any) => void
+  ): () => void {
+    const wrapped = (_event: Electron.IpcRendererEvent, msg: any) => {
+      callback(msg);
+    };
+    ipcRenderer.on(EVT_CURSOR_UPDATE, wrapped);
+    return () => {
+      ipcRenderer.removeListener(EVT_CURSOR_UPDATE, wrapped);
     };
   },
 };

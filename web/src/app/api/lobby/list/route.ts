@@ -22,7 +22,7 @@ export async function GET() {
       return NextResponse.json({ success: true, rooms: [] }, { headers: corsHeaders });
     }
 
-    const lobbies = await redis.mget<LobbyEntry[]>(...keys);
+    const lobbies = (await redis.mget(...keys)) as LobbyEntry[];
     
     const rooms = lobbies
       .filter((lobby): lobby is LobbyEntry => lobby !== null)

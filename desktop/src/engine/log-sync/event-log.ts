@@ -155,6 +155,19 @@ export interface EventLogEntry {
  * @internal
  */
 function toEventLogEntry(row: PrismaEventLog): EventLogEntry {
+  let vcJson: VectorClockJSON;
+  try {
+    vcJson = typeof row.vectorClockJson === 'string'
+      ? JSON.parse(row.vectorClockJson)
+      : row.vectorClockJson;
+  } catch {
+    vcJson = {
+      nodeCount: 3,
+      nodeIndex: 0,
+      root: { counter: 0, children: [{ counter: 0, children: [] }, { counter: 0, children: [] }, { counter: 0, children: [] }] }
+    };
+  }
+
   return {
     id: row.id,
     eventId: row.eventId,
@@ -164,12 +177,13 @@ function toEventLogEntry(row: PrismaEventLog): EventLogEntry {
     nodeId: row.nodeId,
     eventType: row.eventType as EventType,
     logicalTimestamp: row.logicalTimestamp,
-    vectorClockJson: JSON.parse(row.vectorClockJson) as VectorClockJSON,
+    vectorClockJson: vcJson,
     payload: row.payload,
     createdAt: row.createdAt,
     isCompacted: row.isCompacted,
   };
 }
+
 
 /**
  * Validates that the given string is a recognised {@link EventType}.

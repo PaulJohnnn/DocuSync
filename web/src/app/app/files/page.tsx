@@ -200,7 +200,6 @@ export default function FilesPage() {
 
   // Download room file locally and open in editor
   const handleOpenRoomFile = async (f: any) => {
-    if (f.content === undefined || f.content === null) { alert('File content unavailable.'); return; }
     const newFile: FileRecord = {
       id: f.fileId?.toString() || crypto.randomUUID(),
       name: f.fileName || f.name || 'SharedFile.txt',
@@ -216,14 +215,30 @@ export default function FilesPage() {
   };
 
   const handleDownloadRoomFile = async (f: any) => {
-    if (f.content === undefined || f.content === null) { alert('File content unavailable.'); return; }
     try {
       const blob = new Blob([f.content || ''], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = f.fileName || 'file.txt';
+      a.href = url; a.download = f.fileName || f.name || 'file.txt';
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteRoomFile = async (f: any) => {
+    if (!currentRoom || !confirm(`Delete "${f.fileName || f.name}" from room?`)) return;
+    try {
+      const code = (currentRoom as any).otp || currentRoom.id;
+      const targetId = f.fileId || f.id || '';
+      const targetName = encodeURIComponent(f.fileName || f.name || '');
+      const res = await fetch(`/api/lobby/files?otp=${code}&fileId=${targetId}&fileName=${targetName}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setRoomTick(t => t + 1);
+      } else {
+        alert('Failed to delete file.');
+      }
     } catch (err) { console.error(err); }
   };
 
@@ -421,7 +436,7 @@ export default function FilesPage() {
             <div style={{ width: 36, marginRight: 12 }} />
             <div style={{ flex: 3, paddingRight: 16 }}>Name</div>
             <div style={{ flex: 1, paddingRight: 16 }}>Size</div>
-            <div style={{ width: 160, textAlign: 'right', paddingRight: 8 }}>Actions</div>
+            <div style={{ minWidth: 240, textAlign: 'right', paddingRight: 8 }}>Actions</div>
           </div>
 
           {roomFiles.map((f, i) => {
@@ -431,7 +446,7 @@ export default function FilesPage() {
               <div
                 key={i}
                 style={{
-                  display: 'flex', alignItems: 'center', padding: '10px 16px',
+                  display: 'flex', alignItems: 'center', padding: '12px 16px',
                   borderBottom: i < roomFiles.length - 1 ? '1px solid var(--b1)' : 'none',
                   transition: 'background 0.15s',
                 }}
@@ -439,7 +454,7 @@ export default function FilesPage() {
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
                 <div style={{
-                  width: 32, height: 32, borderRadius: 7, background: bg, color,
+                  width: 34, height: 34, borderRadius: 8, background: bg, color,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 12,
                 }}>
                   {icon}
@@ -453,13 +468,14 @@ export default function FilesPage() {
                 <div style={{ flex: 1, fontSize: 12, color: 'var(--t2)' }}>
                   {formatBytes(f.contentLength || f.content?.length || 0)}
                 </div>
-                <div style={{ width: 160, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <div style={{ minWidth: 240, display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
                   <button
                     onClick={() => handleOpenRoomFile(f)}
                     style={{
                       background: 'var(--acc)', color: '#fff', border: 'none',
-                      borderRadius: 6, padding: '5px 12px', fontSize: 12,
-                      fontWeight: 600, cursor: 'pointer',
+                      borderRadius: 7, padding: '0 14px', height: 32, fontSize: 12,
+                      fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                      display: 'inline-flex', alignItems: 'center',
                     }}
                   >
                     Open & Edit
@@ -468,11 +484,23 @@ export default function FilesPage() {
                     onClick={() => handleDownloadRoomFile(f)}
                     style={{
                       background: 'var(--s2)', color: 'var(--t1)', border: '1px solid var(--b1)',
-                      borderRadius: 6, padding: '5px 10px', fontSize: 12,
-                      fontWeight: 600, cursor: 'pointer',
+                      borderRadius: 7, padding: '0 12px', height: 32, fontSize: 12,
+                      fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                      display: 'inline-flex', alignItems: 'center',
                     }}
                   >
                     Download
+                  </button>
+                  <button
+                    onClick={() => handleDeleteRoomFile(f)}
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: 7, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', flexShrink: 0,
+                    }}
+                    title="Delete file from room"
+                  >
+                    <Trash2 size={15} />
                   </button>
                 </div>
               </div>

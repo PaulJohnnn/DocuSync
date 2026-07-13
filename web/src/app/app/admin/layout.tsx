@@ -50,6 +50,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             Logged in as <strong style={{ color: '#fff' }}>{user.email}</strong>
           </span>
           <button
+            onClick={() => router.push('/app/files')}
+            style={{
+              background: '#3b82f6', border: '1px solid #2563eb', color: '#ffffff',
+              padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', transition: 'all 0.2s'
+            }}
+          >
+            Open Workspace →
+          </button>
+          <button
             onClick={() => {
               mockAuthService.logout();
               router.push('/app/unlock');
@@ -58,6 +68,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               background: '#1e293b', border: '1px solid #334155', color: '#f1f5f9',
               padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600,
               cursor: 'pointer', transition: 'all 0.2s'
+
             }}
             onMouseEnter={e => e.currentTarget.style.background = '#334155'}
             onMouseLeave={e => e.currentTarget.style.background = '#1e293b'}

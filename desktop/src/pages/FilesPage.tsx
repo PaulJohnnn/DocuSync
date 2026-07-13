@@ -9,6 +9,7 @@ import { useElectronSync } from '@/context/ElectronSyncContext';
 import {
   FolderOpen, FileText, FileCode, FileJson, FileType, File,
   FileImage, FileSpreadsheet, FileArchive, LogOut, Loader2, ArrowLeft,
+  Trash2, Download,
 } from 'lucide-react';
 import FileService from '@/services/FileService';
 import RoomService from '@/services/RoomService';
@@ -94,10 +95,11 @@ const FilesPage: React.FC = () => {
   const handleOpenRoomFile = useCallback(async (file: any) => {
     setOpening(true);
     try {
+      const explicitId = file.fileId ?? file.id;
       const imported = await FileService.importRoomFile(
         file.fileName || file.name,
         file.content || '',
-        file.fileId,
+        explicitId ? Number(explicitId) : undefined,
       );
       notify.success(`Opened: ${basename(imported.filePath)}`);
       navigate(`/editor/${imported.fileId}`);
@@ -105,6 +107,44 @@ const FilesPage: React.FC = () => {
       if (error instanceof ServiceError) notify.error(error.message);
     } finally { setOpening(false); }
   }, [navigate]);
+
+  const handleDownloadRoomFile = useCallback((file: any) => {
+    try {
+      const blob = new Blob([file.content || ''], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.fileName || file.name || 'file.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  const handleDeleteRoomFile = useCallback(async (file: any) => {
+    if (!currentRoom || !confirm(`Delete "${file.fileName || file.name}" from room?`)) return;
+    try {
+      const code = currentRoom.otp || currentRoom.id;
+      const targetId = file.fileId || file.id || '';
+      const targetName = encodeURIComponent(file.fileName || file.name || '');
+      const res = await fetch(`http://127.0.0.1:3000/api/lobby/files?otp=${code}&fileId=${targetId}&fileName=${targetName}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setRoomFiles(prev => prev.filter(f => {
+          const idMatch = targetId && String(f.fileId ?? f.id) === String(targetId);
+          const nameMatch = (f.fileName || f.name) === decodeURIComponent(targetName);
+          return !idMatch && !nameMatch;
+        }));
+        notify.success('File deleted from room');
+      }
+    } catch {
+      notify.error('Failed to delete file');
+    }
+  }, [currentRoom]);
 
   // ── No room → prompt to go to Peers ──────────────────────────────────────
   if (!currentRoom) {
@@ -297,7 +337,7 @@ const FilesPage: React.FC = () => {
               <div style={{ width: 36, marginRight: 12 }} />
               <div style={{ flex: 3, paddingRight: 16 }}>Name</div>
               <div style={{ flex: 1, paddingRight: 16 }}>Size</div>
-              <div style={{ width: 100, textAlign: 'right', paddingRight: 8 }}>Action</div>
+              <div style={{ minWidth: 240, textAlign: 'right', paddingRight: 8 }}>Actions</div>
             </div>
 
             {roomFiles.map((f, i) => {
@@ -307,7 +347,7 @@ const FilesPage: React.FC = () => {
                 <div
                   key={i}
                   style={{
-                    display: 'flex', alignItems: 'center', padding: '10px 16px',
+                    display: 'flex', alignItems: 'center', padding: '12px 16px',
                     borderBottom: i < roomFiles.length - 1 ? '1px solid var(--border)' : 'none',
                     transition: 'background 0.15s',
                   }}
@@ -315,7 +355,7 @@ const FilesPage: React.FC = () => {
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
                   <div style={{
-                    width: 32, height: 32, borderRadius: 7, background: bg, color,
+                    width: 34, height: 34, borderRadius: 8, background: bg, color,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0, marginRight: 12,
                   }}>
@@ -335,17 +375,40 @@ const FilesPage: React.FC = () => {
                   <div style={{ flex: 1, fontSize: 12, color: 'var(--text-secondary)' }}>
                     {formatSize(f.contentLength || f.content?.length || 0)}
                   </div>
-                  <div style={{ width: 100, display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{ minWidth: 240, display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
                     <button
                       onClick={() => handleOpenRoomFile(f)}
                       disabled={opening}
                       style={{
                         background: 'var(--accent)', color: '#fff', border: 'none',
-                        borderRadius: 6, padding: '5px 14px', fontSize: 12,
-                        fontWeight: 600, cursor: opening ? 'wait' : 'pointer',
+                        borderRadius: 7, padding: '0 14px', height: 32, fontSize: 12,
+                        fontWeight: 600, cursor: opening ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+                        display: 'inline-flex', alignItems: 'center',
                       }}
                     >
                       {opening ? '...' : 'Open & Edit'}
+                    </button>
+                    <button
+                      onClick={() => handleDownloadRoomFile(f)}
+                      style={{
+                        background: 'var(--bg-card-hover)', color: 'var(--text-primary)', border: '1px solid var(--border)',
+                        borderRadius: 7, padding: '0 12px', height: 32, fontSize: 12,
+                        fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                        display: 'inline-flex', alignItems: 'center',
+                      }}
+                    >
+                      Download
+                    </button>
+                    <button
+                      onClick={() => handleDeleteRoomFile(f)}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)',
+                        borderRadius: 7, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer', flexShrink: 0,
+                      }}
+                      title="Delete file from room"
+                    >
+                      <Trash2 size={15} />
                     </button>
                   </div>
                 </div>

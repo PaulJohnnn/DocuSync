@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const lobby = await redis.get<LobbyEntry>(`lobby:${otp}`);
+    const lobby = (await redis.get(`lobby:${otp}`)) as LobbyEntry | null;
 
     if (!lobby) {
       return NextResponse.json(

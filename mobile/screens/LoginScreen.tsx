@@ -309,9 +309,7 @@ export default function LoginScreen() {
             </>
           )}
 
-          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 24, paddingBottom: 12 }}>
-            <Ionicons name="shield-checkmark" size={12} color="#a5b4fc" style={{ marginRight: 6 }} />
-            <Text style={{ fontSize: 11, color: '#94a3b8' }}>Private • Decentralized • Local-First</Text>
+          <View style={{ marginTop: 24, alignItems: 'center' }}>
           </View>
         </View>
 

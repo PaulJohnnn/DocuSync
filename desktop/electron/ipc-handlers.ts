@@ -420,6 +420,9 @@ export async function initEngine(
         win.webContents.send('evt:peer-updated');
       }
     },
+    onCursorUpdate: (msg) => {
+      BrowserWindow.getAllWindows()[0]?.webContents.send('evt:cursor-update', msg);
+    },
   });
 
   // Start WebSocket server with port fallback.
@@ -617,6 +620,89 @@ export function registerIPCHandlers(services: EngineServices): void {
         const result = await mammoth.extractRawText({ buffer });
         content = result.value;
         console.log(`[IPC] file:open (docx) → extracted ${content.length} chars from ${filePath}`);
+      } else if (ext === '.rtf') {
+        // Robust RTF parsing: properly strip structural groups by tracking brace depth
+        const rawRtf = await fs.promises.readFile(filePath, 'utf-8');
+        let extracted = '';
+        let i = 0;
+        let groupDepth = 0;
+        let ignoreDepth = -1;
+        const ignoreGroups = ['fonttbl', 'colortbl', 'stylesheet', 'info', 'generator', 'picw', 'pich'];
+
+        while (i < rawRtf.length) {
+          const c = rawRtf[i];
+          if (c === '{') {
+            groupDepth++;
+            i++;
+            continue;
+          }
+          if (c === '}') {
+            if (ignoreDepth !== -1 && groupDepth === ignoreDepth) {
+              ignoreDepth = -1;
+            }
+            groupDepth--;
+            i++;
+            continue;
+          }
+          if (ignoreDepth !== -1 && groupDepth >= ignoreDepth) {
+            i++;
+            continue;
+          }
+
+          if (c === '\\') {
+            const next = rawRtf[i + 1];
+            if (!next) { i++; continue; }
+            if (next === '\\' || next === '{' || next === '}' || next === '~' || next === '-' || next === '_') {
+              if (next === '~') extracted += ' ';
+              else if (next === '-' || next === '_') extracted += '-';
+              else extracted += next;
+              i += 2;
+              continue;
+            }
+            if (next === "'") {
+              const hex = rawRtf.substring(i + 2, i + 4);
+              extracted += String.fromCharCode(parseInt(hex, 16) || 32);
+              i += 4;
+              continue;
+            }
+            if (next === '*') {
+              if (ignoreDepth === -1) ignoreDepth = groupDepth;
+              i += 2;
+              continue;
+            }
+
+            i++;
+            let word = '';
+            while (i < rawRtf.length && /[a-zA-Z]/.test(rawRtf[i])) {
+              word += rawRtf[i];
+              i++;
+            }
+            while (i < rawRtf.length && /[-0-9]/.test(rawRtf[i])) {
+              i++;
+            }
+            if (i < rawRtf.length && rawRtf[i] === ' ') {
+              i++;
+            }
+
+            if (ignoreGroups.includes(word)) {
+              if (ignoreDepth === -1) ignoreDepth = groupDepth;
+            } else if (word === 'par' || word === 'line') {
+              extracted += '\n';
+            } else if (word === 'tab') {
+              extracted += '\t';
+            } else if (word === 'emdash' || word === 'endash') {
+              extracted += '-';
+            }
+            continue;
+          }
+
+          if (c !== '\r' && c !== '\n') {
+            extracted += c;
+          }
+          i++;
+        }
+        content = extracted.trim();
+        console.log(`[IPC] file:open (rtf) → extracted ${content.length} chars from ${filePath}`);
       } else {
         content = await fs.promises.readFile(filePath, 'utf-8');
       }
@@ -662,34 +748,34 @@ export function registerIPCHandlers(services: EngineServices): void {
         await fs.promises.mkdir(docuSyncDir, { recursive: true });
       }
 
-      // Handle duplicate names by appending a timestamp or UUID
-      const ext = path.extname(fileName);
-      const base = path.basename(fileName, ext);
-      const uniqueName = `${base}_${Date.now()}${ext}`;
-      const destPath = path.join(docuSyncDir, uniqueName);
+      const destPath = path.join(docuSyncDir, fileName);
 
-      // Write content to disk
-      await fs.promises.writeFile(destPath, content, 'utf-8');
-
-      // Now open it using the same logic as file:open
-      const extLower = ext.toLowerCase();
-      
       const newFileId = explicitFileId !== undefined ? explicitFileId : services.nextFileId++;
       if (explicitFileId !== undefined && explicitFileId >= services.nextFileId) {
         services.nextFileId = explicitFileId + 1;
       }
+
+      const existingContent = fileContents.get(newFileId);
+      const contentToWrite = content || existingContent || '';
+
+      // Write content to disk
+      await fs.promises.writeFile(destPath, contentToWrite, 'utf-8');
+
+      const ext = path.extname(fileName);
+      const extLower = ext.toLowerCase();
+
       openFiles.set(newFileId, destPath);
-      fileContents.set(newFileId, content);
+      fileContents.set(newFileId, contentToWrite);
 
       console.log(`[IPC] file:import-room-file → ${destPath} (fileId=${newFileId})`);
 
       return {
         fileId: newFileId,
         filePath: destPath,
-        fileName: uniqueName,
-        content,
+        fileName,
+        content: contentToWrite,
         extension: extLower.replace('.', ''),
-        contentLength: Buffer.byteLength(content, 'utf-8'),
+        contentLength: Buffer.byteLength(contentToWrite, 'utf-8'),
       };
     })
   );
@@ -709,6 +795,7 @@ export function registerIPCHandlers(services: EngineServices): void {
     safeHandler(async (...args: unknown[]) => {
       const fileId = args[0] as number;
       const newContent = args[1] as string;
+      const frontendVcJson = args[2] as any;
 
       if (typeof fileId !== 'number' || typeof newContent !== 'string') {
         throw new Error('file:save requires (fileId: number, newContent: string).');
@@ -720,18 +807,13 @@ export function registerIPCHandlers(services: EngineServices): void {
       }
 
       const previousContent = fileContents.get(fileId) ?? '';
-
-      // ── Write to disk ───────────────────────────────────────────
-      await fs.promises.writeFile(filePath, newContent, 'utf-8');
-
-      // ── Compute delta ───────────────────────────────────────────
       const fileName = path.basename(filePath);
 
-      // Validate text extension before encoding.
+      // Validate text extension before anything.
       try {
         validateTextFile(fileName);
       } catch {
-        // If the encoder rejects it, still save but skip delta sync.
+        await fs.promises.writeFile(filePath, newContent, 'utf-8');
         fileContents.set(fileId, newContent);
         return {
           fileId,
@@ -741,7 +823,53 @@ export function registerIPCHandlers(services: EngineServices): void {
         };
       }
 
+      const eventId = generateUUID();
       const encodeResult = encode(previousContent, newContent, fileName);
+      const payload = encodeResult.deltaBase64 ?? JSON.stringify(encodeResult.chunks);
+
+      // ── Arbiter: Vector Clock Comparison ───────────────────────
+      const frontendVc = frontendVcJson ? VectorClock.fromJSON(frontendVcJson) : null;
+      if (frontendVc) {
+        const relation = vectorClock.compare(frontendVc);
+        if (relation === 'dominated') {
+          // The engine has seen newer remote events than the frontend's clock.
+          // This is a concurrent edit.
+          const engineVc = VectorClock.fromJSON(vectorClock.toJSON());
+          
+          // Fetch the latest event for this file from the engine log
+          const history = await eventLog.getHistory(fileId);
+          const latestEvent = history[history.length - 1];
+          
+          if (latestEvent) {
+            const eventA = {
+              eventId,
+              fileId,
+              nodeId: localNodeId,
+              eventType: 'edit',
+              logicalTimestamp: frontendVc.counters[frontendVc.nodeIndex] || 1,
+              vectorClockJson: frontendVc.toJSON(),
+              payload
+            };
+
+            const resolveResult = await lwwResolver.resolve(eventA, latestEvent, frontendVc, engineVc);
+            
+            if (resolveResult.outcome === 'escalated') {
+              // Tell the frontend that it escalated
+              return {
+                fileId,
+                saved: false,
+                synced: false,
+                escalated: true,
+                conflictId: resolveResult.conflictId,
+              };
+            }
+          }
+        }
+      }
+
+      // If we won the resolution, or there was no conflict:
+      // ── Write to disk ───────────────────────────────────────────
+      await fs.promises.writeFile(filePath, newContent, 'utf-8');
 
       // ── Update in-memory cache ──────────────────────────────────
       fileContents.set(fileId, newContent);
@@ -752,9 +880,6 @@ export function registerIPCHandlers(services: EngineServices): void {
       const logicalTimestamp = vectorClock.counters[vectorClock.nodeIndex];
 
       // ── Append to EventLog ──────────────────────────────────────
-      const eventId = generateUUID();
-      const payload = encodeResult.deltaBase64 ?? JSON.stringify(encodeResult.chunks);
-
       await eventLog.appendEvent({
         eventId,
         fileId,
@@ -892,7 +1017,7 @@ export function registerIPCHandlers(services: EngineServices): void {
         if (event.eventId === targetEventId) break;
       }
 
-      // ── Write restored content to disk ──────────────────────────
+      // ── Write restored content to disk ───────────
       await fs.promises.writeFile(filePath, content, 'utf-8');
       fileContents.set(fileId, content);
 
@@ -1010,6 +1135,17 @@ export function registerIPCHandlers(services: EngineServices): void {
         peersContacted: connectedPeers.length,
         peerIds: connectedPeers,
       };
+    })
+  );
+
+  // ── sync:cursor-push ───────────────────────────────────────────────
+  /**
+   * Pushes a local cursor update to a specific peer.
+   */
+  ipcMain.handle(
+    'sync:cursor-push',
+    safeHandler(async (_, msg: any) => {
+      peerManager.sendCursorUpdate(msg);
     })
   );
 
@@ -1563,6 +1699,14 @@ export function registerIPCHandlers(services: EngineServices): void {
       return { rowCount: count };
     })
   );
+
+  ipcMain.handle('user:set-name', async (event, name: string) => {
+    (services.peerManager as any).config.localDisplayName = name;
+    // Broadcast the updated PEER_LIST to all peers
+    // Typescript might complain since it's private, but we can cast to any
+    (services.peerManager as any).broadcastPeerList();
+    return true;
+  });
 
   console.log('[IPC] All handlers registered.');
 }

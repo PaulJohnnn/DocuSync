@@ -78,7 +78,7 @@ export async function GET(request: Request) {
     }
 
     const key = `doc:${otp}:${fileId}`;
-    const snapshot = await redis.get<DocSnapshot>(key);
+    const snapshot = (await redis.get(key)) as DocSnapshot | null;
 
     if (!snapshot) {
       return NextResponse.json({ snapshot: null }, { headers: corsHeaders });
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
     const now = Date.now();
 
     // Read existing snapshot
-    const existing = await redis.get<DocSnapshot>(key);
+    const existing = (await redis.get(key)) as DocSnapshot | null;
     const nextSeq = existing ? (existing.seq || 0) + 1 : 1;
 
     // LWW check: only overwrite if newer

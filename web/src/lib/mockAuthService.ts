@@ -13,6 +13,17 @@ export interface AuthUser {
   status?: 'active' | 'pending' | 'revoked';
 }
 
+export function getDisplayName(user: AuthUser | null | undefined): string {
+  if (!user) return 'Guest';
+  if (user.name) return user.name;
+  if (user.email) {
+    const beforeAt = user.email.split('@')[0];
+    const noDigits = beforeAt.replace(/\d+$/, '');
+    return noDigits.charAt(0).toUpperCase() + noDigits.slice(1);
+  }
+  return 'Guest';
+}
+
 const SESSION_KEY = 'docusync_auth_user';
 const API_BASE = '/api/auth';
 

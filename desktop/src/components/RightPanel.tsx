@@ -109,6 +109,16 @@ const RightPanel: React.FC = () => {
       <div className="ds-right-content">
 
         {/* ENGINE */}
+        {activeTab === 'engine' && (
+          <div style={{
+            fontSize: 9, fontWeight: 700, color: 'var(--amber)',
+            background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)',
+            borderRadius: 5, padding: '4px 8px', marginBottom: 8,
+            textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'center',
+          }}>
+            ⚠ Illustrative counters — for live thesis metrics see Metrics page
+          </div>
+        )}
         {activeTab === 'engine' && algoCards.map((card) => (
           <div
             key={card.label}
@@ -233,6 +243,13 @@ const RightPanel: React.FC = () => {
 
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '8px 0 4px' }}>
               Performance
+            </div>
+            <div style={{
+              fontSize: 9, color: 'var(--amber)',
+              background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+              borderRadius: 4, padding: '3px 6px', marginBottom: 4, textAlign: 'center',
+            }}>
+              Illustrative — not live measurements
             </div>
             {[
               { label: 'Avg Latency',  value: '1.51ms',   color: 'var(--accent)' },

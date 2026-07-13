@@ -47,7 +47,7 @@ function saveRooms(rooms: Room[]): void {
   window.dispatchEvent(new Event('docusync_rooms_update'));
 }
 
-function registerGlobalOTP(otp: string, roomName: string, roomId: string, hostIp = '127.0.0.1', hostPort = 3000): void {
+function registerGlobalOTP(otp: string, roomName: string, roomId: string, hostIp = '127.0.0.1', hostPort = 9000): void {
   if (typeof window === 'undefined') return;
   try {
     const raw = uGet(GLOBAL_OTP_KEY);
@@ -127,7 +127,7 @@ export async function createRoom(name: string): Promise<Room> {
         roomName: name.trim(),
         hostNodeId: `web-${Date.now()}`,
         hostIp: '127.0.0.1',
-        hostPort: 3000,
+        hostPort: 9000,
         hostType: 'web'
       }),
     });
@@ -153,7 +153,7 @@ export async function createRoom(name: string): Promise<Room> {
     lastActivity: new Date().toISOString(),
     fileCount: 0,
     hostIp: '127.0.0.1',
-    hostPort: 3000,
+    hostPort: 9000,
   };
   const rooms = loadRooms();
   saveRooms([...rooms, room]);

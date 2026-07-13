@@ -183,6 +183,8 @@ export interface PeerManagerConfig {
   onSessionTerminated?: (reason: string) => void;
   /** Callback when the peer list changes. */
   onPeerListChanged?: () => void;
+  /** Callback when a remote cursor update is received. */
+  onCursorUpdate?: (msg: import('./message-schema').CursorUpdateMessage) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -209,6 +211,22 @@ export class PeerManager {
 
   /** Rate limiter cleanup interval handle. @internal */
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * In-memory session metrics — reset on server start.
+   * Exposed via GET /metrics for Web and Mobile clients.
+   */
+  private _metrics = {
+    pushCount: 0,
+    pushSuccessCount: 0,
+    pushTotalLatencyMs: 0,
+    conflictsDetectedThisSession: 0,
+    conflictsResolvedThisSession: 0,
+    conflictTotalResolveMs: 0,
+    /** Timestamp (ms) when a conflict was first escalated, keyed by conflictId. */
+    conflictEscalatedAt: new Map<string, number>(),
+    sessionStartMs: Date.now(),
+  };
 
   /**
    * @param config - The peer manager configuration.
@@ -248,6 +266,15 @@ export class PeerManager {
       this.httpServer = http.createServer((req, res) => {
         this.handleHttpRequest(req, res).catch(e => {
           console.error('[PeerManager] Uncaught HTTP error:', e);
+          if (!res.headersSent) {
+            res.writeHead(500, {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+              'Content-Type': 'application/json'
+            });
+            res.end(JSON.stringify({ error: e?.message || 'Internal error' }));
+          }
         });
       });
 
@@ -308,59 +335,109 @@ export class PeerManager {
     try {
       const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
       if (url.pathname === '/sync/status' && req.method === 'GET') {
-        const fileId = parseInt(url.searchParams.get('fileId') || '0', 10);
-        const sinceStr = url.searchParams.get('since');
-        if (!fileId) {
-          res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'fileId required' }));
-          return;
-        }
-
-        const history = await this.config.eventLog.getHistory(fileId);
-        if (history.length === 0) {
-          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ upToDate: true }));
-          return;
-        }
-
-        const latestEvent = history[history.length - 1];
-        const latestVc = VectorClock.fromJSON(latestEvent.vectorClockJson);
-        const latestContent = await this.config.getFileContent(fileId);
-
-        if (!sinceStr) {
-          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON() }));
-          return;
-        }
-
-        let clientVc: VectorClock;
         try {
-          clientVc = VectorClock.fromJSON(JSON.parse(decodeURIComponent(sinceStr)));
-        } catch {
-          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON() }));
+          const fileId = parseInt(url.searchParams.get('fileId') || '0', 10);
+          const sinceStr = url.searchParams.get('since');
+          if (!fileId) {
+            res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'fileId required' }));
+            return;
+          }
+
+          let history: any[] = [];
+          try {
+            history = await this.config.eventLog.getHistory(fileId);
+          } catch (e: any) {
+            console.warn('[PeerManager] getHistory failed in /sync/status:', e?.message);
+          }
+
+          let latestVc = this.config.vectorClock || new VectorClock(3, 0, { counter: 0, children: [{ counter: 0, children: [] }, { counter: 0, children: [] }, { counter: 0, children: [] }] });
+          if (history.length > 0) {
+            const latestEvent = history[history.length - 1];
+            try {
+              const rawVc = typeof latestEvent.vectorClockJson === 'string'
+                ? JSON.parse(latestEvent.vectorClockJson)
+                : latestEvent.vectorClockJson;
+              latestVc = VectorClock.fromJSON(rawVc);
+            } catch {}
+          }
+
+          let latestContent = '';
+          try {
+            latestContent = await this.config.getFileContent(fileId);
+          } catch {}
+
+          if (history.length === 0) {
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON() }));
+            return;
+          }
+
+          if (!sinceStr || sinceStr === '0') {
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON() }));
+            return;
+          }
+
+          let clientVc: VectorClock;
+          try {
+            clientVc = VectorClock.fromJSON(JSON.parse(decodeURIComponent(sinceStr)));
+          } catch {
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON() }));
+            return;
+          }
+
+          let relation = 'concurrent';
+          try {
+            relation = latestVc.compare(clientVc);
+          } catch {}
+
+          if (relation === 'dominated' || relation === 'equal') {
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ upToDate: true, vectorClock: latestVc.toJSON() }));
+          } else {
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON() }));
+          }
+          return;
+        } catch (statusError: any) {
+          console.error('[PeerManager] EXACT /sync/status ERROR:', statusError?.message);
+          console.error(statusError?.stack);
+          res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: statusError?.message || 'Internal Server Error' }));
           return;
         }
-
-        const relation = latestVc.compare(clientVc);
-
-        if (relation === 'dominated' || relation === 'equal') {
-          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ upToDate: true, vectorClock: latestVc.toJSON() }));
-        } else {
-          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON() }));
-        }
-        return;
       }
 
       if (url.pathname === '/sync/push' && req.method === 'POST') {
         let bodyStr = '';
         for await (const chunk of req) bodyStr += chunk;
-        const body = JSON.parse(bodyStr);
+        let body: any;
+        try {
+          body = JSON.parse(bodyStr);
+        } catch (err: any) {
+          res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Malformed JSON payload' }));
+          return;
+        }
 
         const fileId = parseInt(body.fileId, 10);
-        const incomingVc = VectorClock.fromJSON(body.vectorClock);
+        if (isNaN(fileId) || !fileId) {
+          res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Valid fileId required' }));
+          return;
+        }
+
+        let incomingVc: VectorClock;
+        try {
+          incomingVc = VectorClock.fromJSON(body.vectorClock);
+        } catch (err: any) {
+          res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Malformed vectorClock payload: ${err?.message || 'Invalid vector clock'}` }));
+          return;
+        }
+
         const delta = body.delta;
         const remoteContent = body.content || '';
         const nodeId = body.nodeId || `client-${Date.now()}`;
@@ -371,87 +448,189 @@ export class PeerManager {
           return;
         }
 
-        const relation = this.config.vectorClock.compare(incomingVc);
-        const localContent = await this.config.getFileContent(fileId);
+        const pushT0 = Date.now();
+        this._metrics.pushCount++;
+        try {
+          // ── Per-slot sender dedup guard ──────────────────────────────────
+          const senderNodeIndex = incomingVc.nodeIndex;
+          const serverCounters = this.config.vectorClock.counters;
+          const incomingCounters = incomingVc.counters;
+          const senderSlotOnServer   = serverCounters[senderNodeIndex]   ?? -1;
+          const senderSlotIncoming   = incomingCounters[senderNodeIndex] ?? 0;
 
-        if (relation === 'dominant') {
-          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ merged: true, upToDate: false, content: localContent, vectorClock: this.config.vectorClock.toJSON() }));
-          return;
-        } else if (relation === 'equal') {
-          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ merged: true, upToDate: true, vectorClock: this.config.vectorClock.toJSON() }));
-          return;
-        } else if (relation === 'dominated') {
-          this.config.vectorClock.merge(incomingVc);
-          
-          let newContent = remoteContent || localContent;
-          try {
-            if (delta) {
-              const decoded = decode(localContent, delta);
-              newContent = decoded.content;
-            }
-          } catch {}
-
-          const eventId = crypto.randomUUID();
-          await this.config.eventLog.appendEvent({
-            eventId,
-            fileId,
-            nodeId,
-            eventType: 'merge',
-            logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex],
-            vectorClockJson: this.config.vectorClock.toJSON(),
-            payload: delta || remoteContent || '',
-          });
-
-          if (this.config.onDeltaApplied) {
-            await this.config.onDeltaApplied(fileId, newContent, eventId, nodeId, this.config.vectorClock.toJSON());
-          }
-
-          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ merged: true, vectorClock: this.config.vectorClock.toJSON() }));
-          return;
-        } else {
-          // concurrent - escalate
-          const eventA = {
-            eventId: crypto.randomUUID(),
-            fileId,
-            nodeId: this.config.localNodeId,
-            payload: localContent,
-            logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
-            vectorClockJson: this.config.vectorClock.toJSON(),
-          };
-          const eventB = {
-            eventId: crypto.randomUUID(),
-            fileId,
-            nodeId,
-            payload: remoteContent || localContent,
-            logicalTimestamp: incomingVc.counters[incomingVc.nodeIndex] || 1,
-            vectorClockJson: incomingVc.toJSON(),
-          };
-
-          const resolveResult = await this.config.lwwResolver.resolve(eventA, eventB, this.config.vectorClock, incomingVc);
-          
-          if (resolveResult.outcome === 'escalated') {
-            if (this.config.onConflictNotified && resolveResult.conflictId) {
-              await this.config.onConflictNotified(
-                resolveResult.conflictId,
-                fileId,
-                `Concurrent edit detected between ${nodeId} and ${this.config.localNodeId}`
-              );
-            }
+          if (senderSlotIncoming <= senderSlotOnServer) {
+            // The server already has this edit or a later one from this sender.
+            // This is an idempotent duplicate resend — safely deduplicate.
+            console.log(
+              `[PeerManager] Dedup: sender slot [${senderNodeIndex}] incoming=${senderSlotIncoming} ` +
+              `<= server=${senderSlotOnServer}. Deduplicated resend, not a conflict.`
+            );
+            const localContent = await this.config.getFileContent(fileId);
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ escalated: true, conflictId: resolveResult.conflictId }));
+            res.end(JSON.stringify({ merged: true, upToDate: true, vectorClock: this.config.vectorClock.toJSON() }));
             return;
           }
-          
-          // Should not happen, but fallback
-          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ merged: true }));
+
+          // ── Full-vector comparison for genuine conflict/concurrency detection
+          let relation = 'concurrent';
+          try {
+            relation = this.config.vectorClock.compare(incomingVc);
+          } catch {}
+
+          const localContent = await this.config.getFileContent(fileId);
+
+          if (relation === 'dominant') {
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ merged: true, upToDate: false, content: localContent, vectorClock: this.config.vectorClock.toJSON() }));
+            return;
+          } else if (relation === 'equal') {
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ merged: true, upToDate: true, vectorClock: this.config.vectorClock.toJSON() }));
+            return;
+          } else if (relation === 'dominated') {
+            try {
+              this.config.vectorClock.merge(incomingVc);
+            } catch {}
+
+            let newContent = remoteContent || localContent;
+            try {
+              if (delta) {
+                const decoded = decode(localContent, delta);
+                newContent = decoded.content;
+              }
+            } catch {}
+
+            const eventId = crypto.randomUUID();
+            try {
+              await this.config.eventLog.appendEvent({
+                eventId,
+                fileId,
+                nodeId,
+                eventType: 'merge',
+                logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+                vectorClockJson: this.config.vectorClock.toJSON(),
+                payload: delta || remoteContent || '',
+              });
+            } catch (evErr: any) {
+              console.warn('[PeerManager] appendEvent failed in dominated push:', evErr?.message);
+            }
+
+            if (this.config.onDeltaApplied) {
+              await this.config.onDeltaApplied(fileId, newContent, eventId, nodeId, this.config.vectorClock.toJSON());
+            }
+
+            // Track successful merge latency
+            this._metrics.pushSuccessCount++;
+            this._metrics.pushTotalLatencyMs += Date.now() - pushT0;
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ merged: true, vectorClock: this.config.vectorClock.toJSON() }));
+            return;
+          } else {
+            // concurrent - escalate
+            const eventA = {
+              eventId: crypto.randomUUID(),
+              fileId,
+              nodeId: this.config.localNodeId,
+              payload: localContent,
+              logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+              vectorClockJson: this.config.vectorClock.toJSON(),
+            };
+            const eventB = {
+              eventId: crypto.randomUUID(),
+              fileId,
+              nodeId,
+              payload: remoteContent || localContent,
+              logicalTimestamp: incomingVc.counters[incomingVc.nodeIndex] || 1,
+              vectorClockJson: incomingVc.toJSON(),
+            };
+
+            try {
+              const resolveResult = await this.config.lwwResolver.resolve(eventA, eventB, this.config.vectorClock, incomingVc);
+
+              if (resolveResult.outcome === 'escalated') {
+                this._metrics.conflictsDetectedThisSession++;
+                if (resolveResult.conflictId) {
+                  this._metrics.conflictEscalatedAt.set(resolveResult.conflictId, Date.now());
+                }
+                if (this.config.onConflictNotified && resolveResult.conflictId) {
+                  await this.config.onConflictNotified(
+                    resolveResult.conflictId,
+                    fileId,
+                    `Concurrent edit detected between ${nodeId} and ${this.config.localNodeId}`
+                  );
+                }
+                res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ escalated: true, conflictId: resolveResult.conflictId }));
+                return;
+              }
+            } catch (resolveErr: any) {
+              console.warn('[PeerManager] lwwResolver failed in concurrent push:', resolveErr?.message);
+            }
+
+            // Non-escalated concurrent — count as success
+            this._metrics.pushSuccessCount++;
+            this._metrics.pushTotalLatencyMs += Date.now() - pushT0;
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ merged: true, vectorClock: this.config.vectorClock.toJSON() }));
+            return;
+          }
+        } catch (pushError: any) {
+          console.error('[PeerManager] EXACT /sync/push ERROR:', pushError?.message);
+          console.error(pushError?.stack);
+          res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: pushError?.message || 'Internal Server Error' }));
           return;
         }
       }
       
+      // ── GET /metrics ─────────────────────────────────────────────────────
+      if (url.pathname === '/metrics' && req.method === 'GET') {
+        try {
+          const m = this._metrics;
+          const sessionDurationMs = Date.now() - m.sessionStartMs;
+          const throughputPerMin = sessionDurationMs > 0
+            ? Math.round((m.pushCount / sessionDurationMs) * 60000 * 10) / 10
+            : 0;
+          const avgLatencyMs = m.pushSuccessCount > 0
+            ? Math.round((m.pushTotalLatencyMs / m.pushSuccessCount) * 10) / 10
+            : null;
+          const avgResolveMs = m.conflictsResolvedThisSession > 0
+            ? Math.round((m.conflictTotalResolveMs / m.conflictsResolvedThisSession) * 10) / 10
+            : null;
+
+          // EventLog row count for conflict detection rate denominator
+          let eventLogRows = 0;
+          try {
+            const history = await this.config.eventLog.getHistory(0);
+            eventLogRows = history.length;
+          } catch {}
+
+          const payload = {
+            // Session counters
+            pushCount: m.pushCount,
+            pushSuccessCount: m.pushSuccessCount,
+            avgPushLatencyMs: avgLatencyMs,
+            throughputPerMin,
+            conflictsDetectedThisSession: m.conflictsDetectedThisSession,
+            conflictsResolvedThisSession: m.conflictsResolvedThisSession,
+            avgConflictResolveMs: avgResolveMs,
+            eventLogRows,
+            // Live state
+            connectedPeerCount: this.peers.size,
+            pendingConflicts: this.config.vectorClock ? 0 : 0, // derived from host state
+            dataLossRate: 0,
+            sessionDurationMs,
+          };
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(payload));
+          return;
+        } catch (metricsErr: any) {
+          res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: metricsErr?.message || 'Metrics unavailable' }));
+          return;
+        }
+      }
+
       res.writeHead(404, corsHeaders);
       res.end();
     } catch (e: any) {
@@ -844,6 +1023,15 @@ export class PeerManager {
           `[PeerManager] MERGE_REJECT for conflict ${msg.conflictId}: ${msg.reason}`
         );
         break;
+
+      case 'CURSOR_UPDATE':
+        // Forward to other peers
+        this.broadcastToRoom(msg, socket);
+        // Forward to local UI
+        if (this.config.onCursorUpdate) {
+          this.config.onCursorUpdate(msg);
+        }
+        break;
     }
   }
 
@@ -942,6 +1130,7 @@ export class PeerManager {
     }
 
     this.config.onPeerListChanged?.();
+    this.broadcastPeerList();
   }
 
   // ── Internal: USER_VERIFY Handlers ──────────────────────────────────
@@ -1204,6 +1393,7 @@ export class PeerManager {
     this.rateLimiters.delete(socket);
 
     this.config.onPeerListChanged?.();
+    this.broadcastPeerList();
   }
 
   // ── Internal: PEER_HELLO Sender ─────────────────────────────────────
@@ -1228,6 +1418,61 @@ export class PeerManager {
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(serialiseMessage(hello));
     }
+  }
+
+  // ── Internal: Broadcast ─────────────────────────────────────────────
+
+  /**
+   * Broadcasts a message to all connected peers in the room.
+   * @param message The message to broadcast.
+   * @param excludeSocket Optional socket to exclude (e.g., the sender).
+   */
+  public broadcastToRoom(message: PeerMessage, excludeSocket?: WebSocket): void {
+    const raw = serialiseMessage(message);
+    for (const socket of this.peers.keys()) {
+      if (socket !== excludeSocket && socket.readyState === WebSocket.OPEN) {
+        socket.send(raw);
+      }
+    }
+  }
+
+  /**
+   * Pushes a local cursor update to the network.
+   */
+  public sendCursorUpdate(msg: import('./message-schema').CursorUpdateMessage): void {
+    this.broadcastToRoom(msg);
+  }
+
+  /**
+   * Broadcasts the current peer list to all connected peers.
+   */
+  private broadcastPeerList(): void {
+    const activePeers = [];
+    for (const [socket, peer] of this.peers) {
+      if (peer.isAuthenticated && peer.nodeId && socket.readyState === WebSocket.OPEN) {
+        activePeers.push({
+          nodeId: peer.nodeId,
+          displayName: peer.displayName || peer.nodeId.substring(0, 8),
+          address: peer.address,
+          port: peer.port,
+        });
+      }
+    }
+    
+    // Always include the local host explicitly
+    activePeers.push({
+      nodeId: this.config.localNodeId,
+      displayName: this.config.localDisplayName || 'Desktop',
+      address: '127.0.0.1',
+      port: 9000,
+    });
+
+    const msg: import('./message-schema').PeerListMessage = {
+      type: 'PEER_LIST',
+      peers: activePeers,
+      timestamp: new Date().toISOString(),
+    };
+    this.broadcastToRoom(msg);
   }
 
   // ── Internal: Timers ────────────────────────────────────────────────

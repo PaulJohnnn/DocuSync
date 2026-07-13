@@ -75,7 +75,7 @@ export async function GET(request: Request) {
     ts: number;
   };
 
-  const allCursors = await redis.mget<CursorEntry[]>(...keys);
+  const allCursors = (await redis.mget(...keys)) as CursorEntry[];
 
   const result = allCursors
     .filter((c): c is CursorEntry => c !== null)

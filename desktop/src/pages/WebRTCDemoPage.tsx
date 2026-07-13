@@ -3,7 +3,7 @@ import { useElectronSync } from '@/context/ElectronSyncContext';
 
 const WebRTCDemoPage: React.FC = () => {
   const { localNodeId, isAdmin } = useElectronSync();
-  const [otp, setOtp] = useState('DEMO123');
+  const [otp, setOtp] = useState('ROOM-01');
   const [targetNodeId, setTargetNodeId] = useState('');
   const [messages, setMessages] = useState<string[]>([]);
   const [status, setStatus] = useState('Disconnected');
@@ -126,38 +126,100 @@ const WebRTCDemoPage: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <h1>Isolated WebRTC DataChannel Demo</h1>
-      <p>My Node ID: <strong>{localNodeId}</strong></p>
+    <div style={{
+      padding: '32px 40px', background: '#0f172a', minHeight: '100vh', color: '#f8fafc',
+      fontFamily: 'system-ui, -apple-system, sans-serif'
+    }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+        <div style={{
+          background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
+          border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '24px 28px',
+          marginBottom: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: '#ffffff' }}>
+              Direct WebRTC P2P Protocol Diagnostics Channel
+            </h1>
+            <span style={{
+              fontSize: 11, background: 'rgba(99,102,241,0.15)', color: '#818cf8',
+              padding: '4px 10px', borderRadius: 20, fontWeight: 700, border: '1px solid rgba(99,102,241,0.3)'
+            }}>WEBRTC VERIFICATION</span>
+          </div>
+          <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>
+            Local Node ID: <strong style={{ color: '#38bdf8', fontFamily: 'monospace' }}>{localNodeId}</strong>
+          </p>
+        </div>
       
-      <div style={{ margin: '1rem 0', display: 'flex', gap: '0.5rem' }}>
-        <input 
-          placeholder="Room OTP" 
-          value={otp}
-          onChange={e => setOtp(e.target.value)}
-          style={{ padding: '0.5rem', width: '100px' }}
-        />
-        <input 
-          placeholder="Target Node ID" 
-          value={targetNodeId}
-          onChange={e => setTargetNodeId(e.target.value)}
-          style={{ padding: '0.5rem', width: '300px' }}
-        />
-        <button onClick={connect} disabled={!targetNodeId}>Connect</button>
-      </div>
+        <div style={{
+          background: '#1e293b', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14,
+          padding: '20px', marginBottom: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap'
+        }}>
+          <input 
+            placeholder="Room Code" 
+            value={otp}
+            onChange={e => setOtp(e.target.value)}
+            style={{
+              padding: '10px 14px', width: 120, borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)',
+              background: '#0f172a', color: '#fff', fontSize: 13, fontWeight: 600
+            }}
+          />
+          <input 
+            placeholder="Target Node ID" 
+            value={targetNodeId}
+            onChange={e => setTargetNodeId(e.target.value)}
+            style={{
+              padding: '10px 14px', flex: 1, minWidth: 240, borderRadius: 8, border: '1px solid rgba(255,255,255,0.15)',
+              background: '#0f172a', color: '#fff', fontSize: 13, fontFamily: 'monospace'
+            }}
+          />
+          <button
+            onClick={connect}
+            disabled={!targetNodeId}
+            style={{
+              padding: '10px 20px', borderRadius: 8, border: 'none',
+              background: '#4f46e5', color: '#fff', fontSize: 13, fontWeight: 700,
+              cursor: targetNodeId ? 'pointer' : 'not-allowed', opacity: targetNodeId ? 1 : 0.5
+            }}
+          >
+            Initiate P2P Link
+          </button>
+        </div>
 
-      <div style={{ marginBottom: '1rem' }}>
-        <strong>Status:</strong> <span style={{ color: status.includes('Connected') ? '#4caf50' : '#f44336' }}>{status}</span>
-      </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ fontSize: 14 }}>
+            <strong>Protocol Status:</strong>{' '}
+            <span style={{
+              color: status.includes('Connected') ? '#34d399' : '#f87171',
+              fontWeight: 700
+            }}>{status}</span>
+          </div>
+          <button
+            onClick={sendMessage}
+            disabled={status !== 'Connected via WebRTC'}
+            style={{
+              padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(56,189,248,0.3)',
+              background: 'rgba(56,189,248,0.15)', color: '#38bdf8', fontSize: 12, fontWeight: 600,
+              cursor: status === 'Connected via WebRTC' ? 'pointer' : 'not-allowed'
+            }}
+          >
+            Transmit Diagnostics Packet
+          </button>
+        </div>
 
-      <button onClick={sendMessage} disabled={status !== 'Connected via WebRTC'}>
-        Send Test Message
-      </button>
-
-      <div style={{ marginTop: '2rem', background: '#1e1e1e', padding: '1rem', height: '300px', overflowY: 'auto' }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{ marginBottom: '0.5rem', fontFamily: 'monospace' }}>{m}</div>
-        ))}
+        <div style={{
+          background: '#090d16', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12,
+          padding: '16px', height: '320px', overflowY: 'auto'
+        }}>
+          {messages.length === 0 ? (
+            <div style={{ color: '#64748b', fontSize: 13, textAlign: 'center', marginTop: 120 }}>
+              No transmission packets logged. Initiate a peer connection to begin stream.
+            </div>
+          ) : (
+            messages.map((m, i) => (
+              <div key={i} style={{ marginBottom: '8px', fontFamily: 'monospace', fontSize: 13, color: '#e2e8f0' }}>{m}</div>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

@@ -27,6 +27,7 @@ interface SyncStateContextValue {
   simulateGoOffline: () => void;
   simulateReconnect: () => void;
   simulateConflict: () => void;
+  simulateRapidFlicker: () => void;
   resolveConflict: (choice: 'accept' | 'reject') => void;
 }
 
@@ -38,6 +39,7 @@ const SyncStateContext = createContext<SyncStateContextValue>({
   simulateGoOffline: () => {},
   simulateReconnect: () => {},
   simulateConflict: () => {},
+  simulateRapidFlicker: () => {},
   resolveConflict: () => {},
 });
 
@@ -67,32 +69,54 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const simulateGoOffline = useCallback(() => {
+    if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = true;
     setSyncStateRaw('offline');
     setPendingEdits(0);
-    // Simulate edits accumulating
-    let count = 0;
     if (pendingTimer.current) clearInterval(pendingTimer.current);
+    let count = 0;
     pendingTimer.current = setInterval(() => {
-      count += Math.floor(Math.random() * 3) + 1;
+      count += 1;
       setPendingEdits(count);
     }, 1800);
   }, []);
 
   const simulateReconnect = useCallback(() => {
+    if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = false;
     if (pendingTimer.current) clearInterval(pendingTimer.current);
     setSyncStateRaw('syncing');
     setPendingEdits(0);
-    // After 2s decide: 70% auto-merge, 30% conflict
     setTimeout(() => {
-      const isConflict = Math.random() < 0.35;
-      if (isConflict) {
-        setConflict(MOCK_CONFLICT);
-        setSyncStateRaw('conflict');
-      } else {
-        setSyncStateRaw('synced');
-        setTimeout(() => setSyncStateRaw('online'), 4000);
-      }
-    }, 2200);
+      setSyncStateRaw('synced');
+      setTimeout(() => setSyncStateRaw('online'), 2500);
+    }, 1200);
+  }, []);
+
+  const simulateRapidFlicker = useCallback(() => {
+    if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = true;
+    setSyncStateRaw('offline');
+    setPendingEdits(1);
+    console.log('[Phase 5 Dev Tools] Rapid Flicker Test Step 1: OFFLINE (Type edit 1 now)');
+
+    setTimeout(() => {
+      if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = false;
+      setSyncStateRaw('syncing');
+      console.log('[Phase 5 Dev Tools] Rapid Flicker Test Step 2: BRIEF ONLINE PULSE');
+
+      setTimeout(() => {
+        if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = true;
+        setSyncStateRaw('offline');
+        setPendingEdits(2);
+        console.log('[Phase 5 Dev Tools] Rapid Flicker Test Step 3: OFFLINE AGAIN (Type edit 2 now)');
+
+        setTimeout(() => {
+          if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = false;
+          setSyncStateRaw('synced');
+          setPendingEdits(0);
+          console.log('[Phase 5 Dev Tools] Rapid Flicker Test Complete: FULLY RECONNECTED');
+          setTimeout(() => setSyncStateRaw('online'), 2500);
+        }, 4000);
+      }, 1000);
+    }, 4000);
   }, []);
 
   const simulateConflict = useCallback(() => {
@@ -110,7 +134,7 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
   return (
     <SyncStateContext.Provider value={{
       syncState, conflict, pendingEdits, setSyncState,
-      simulateGoOffline, simulateReconnect, simulateConflict, resolveConflict,
+      simulateGoOffline, simulateReconnect, simulateConflict, simulateRapidFlicker, resolveConflict,
     }}>
       {children}
     </SyncStateContext.Provider>

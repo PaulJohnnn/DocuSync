@@ -78,7 +78,7 @@ export default function FilesScreen({ navigation }: any) {
         if (!parsedRoom.id.startsWith('direct-')) {
           try {
             const code = (parsedRoom as any).otp || parsedRoom.id;
-            const res = await fetch(`http://192.168.68.101:3000/api/lobby/files?otp=${code}`);
+            const res = await fetch(`http://192.168.68.102:3000/api/lobby/files?otp=${code}`);
             if (res.ok) {
               const data = await res.json();
               setRoomFiles(data.files || []);
@@ -115,19 +115,20 @@ export default function FilesScreen({ navigation }: any) {
       let contentString = '';
       try {
         contentString = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: (FileSystem as any).EncodingType.UTF8,
+          encoding: 'utf8' as any,
         });
       } catch {
         // binary file – skip content
       }
 
-      const res = await fetch('http://192.168.68.101:3000/api/lobby/files', {
+      const fileId = Date.now();
+      const res = await fetch('http://192.168.68.102:3000/api/lobby/files', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           otp: (currentRoom as any).otp || currentRoom.id,
           file: {
-            fileId: Date.now(),
+            fileId,
             fileName: asset.name,
             contentLength: asset.size || contentString.length,
             content: contentString,
@@ -146,11 +147,11 @@ export default function FilesScreen({ navigation }: any) {
       const stored = await uGet('files');
       const localFiles = stored ? JSON.parse(stored) : [];
       const newLocal = {
-        id: Date.now().toString(),
+        id: String(fileId),
         name: asset.name,
         type: asset.mimeType || 'text/plain',
-        size: asset.size || 0,
-        content: asset.uri,
+        size: asset.size || contentString.length,
+        content: contentString,
         status: 'synced',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -159,8 +160,8 @@ export default function FilesScreen({ navigation }: any) {
 
       Alert.alert('Success', `"${asset.name}" shared to the room!`);
       loadRoomAndPeers();
-    } catch {
-      Alert.alert('Error', 'Failed to share file.');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to share file.');
     } finally {
       setIsSharing(false);
     }
@@ -168,59 +169,88 @@ export default function FilesScreen({ navigation }: any) {
 
   // ── Download / open a room file locally ──────────────────────────────────
   const handleOpenRoomFile = async (f: any) => {
-    if (!f.content) {
-      Alert.alert('Error', 'This file has no content.');
-      return;
-    }
     try {
       const fileName = f.fileName || f.name || 'SharedFile.txt';
       const fileUri = (FileSystem as any).cacheDirectory + fileName;
-      await FileSystem.writeAsStringAsync(fileUri, f.content, {
-        encoding: (FileSystem as any).EncodingType.UTF8,
+      let contentStr = typeof f.content === 'string' ? f.content : (f.content ? String(f.content) : '');
+
+      // If content is empty, attempt to fetch latest snapshot from server
+      if (!contentStr && currentRoom) {
+        try {
+          const code = (currentRoom as any).otp || currentRoom.id;
+          const targetFileId = f.fileId || f.id;
+          const res = await fetch(`http://192.168.68.102:3000/api/lobby/doc?otp=${code}&fileId=${targetFileId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.snapshot?.content) {
+              contentStr = data.snapshot.content;
+            }
+          }
+        } catch { /* ignore fetch error */ }
+      }
+
+      await FileSystem.writeAsStringAsync(fileUri, contentStr, {
+        encoding: 'utf8' as any,
       });
 
       // Save locally so editor can open it
       const stored = await uGet('files');
       const localFiles = stored ? JSON.parse(stored) : [];
-      const fileId = (f.fileId?.toString() || Date.now().toString());
+      const fileId = String(f.fileId ?? f.id ?? Date.now());
       const newLocal = {
         id: fileId,
         name: fileName,
         type: 'text/plain',
-        size: f.contentLength || f.content.length,
-        content: f.content,   // store text content for editor
+        size: f.contentLength || contentStr.length,
+        content: contentStr,   // store text content for editor
         status: 'synced',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       await uSet('files', JSON.stringify([
-        ...localFiles.filter((ex: any) => ex.id !== fileId),
+        ...localFiles.filter((ex: any) => String(ex.id) !== fileId),
         newLocal,
       ]));
 
       navigation.navigate('Editor', { fileId });
-    } catch {
-      Alert.alert('Error', 'Failed to open file.');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to open file.');
     }
   };
 
   const handleDownloadRoomFile = async (f: any) => {
-    if (!f.content) { Alert.alert('Error', 'File has no content.'); return; }
     try {
       const fileName = f.fileName || f.name || 'SharedFile.txt';
       const fileUri = (FileSystem as any).cacheDirectory + fileName;
-      await FileSystem.writeAsStringAsync(fileUri, f.content, {
-        encoding: (FileSystem as any).EncodingType.UTF8,
+      let contentStr = typeof f.content === 'string' ? f.content : (f.content ? String(f.content) : '');
+
+      if (!contentStr && currentRoom) {
+        try {
+          const code = (currentRoom as any).otp || currentRoom.id;
+          const targetFileId = f.fileId || f.id;
+          const res = await fetch(`http://192.168.68.102:3000/api/lobby/doc?otp=${code}&fileId=${targetFileId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.snapshot?.content) {
+              contentStr = data.snapshot.content;
+            }
+          }
+        } catch { /* ignore fetch error */ }
+      }
+
+      await FileSystem.writeAsStringAsync(fileUri, contentStr, {
+        encoding: 'utf8' as any,
       });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(fileUri);
       } else {
         Alert.alert('Saved', 'File saved to local storage.');
       }
-    } catch {
-      Alert.alert('Error', 'Failed to download file.');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to download file.');
     }
   };
+
 
   // ── No room joined ─────────────────────────────────────────────────────────
   if (!currentRoom) {
@@ -387,18 +417,24 @@ export default function FilesScreen({ navigation }: any) {
                   {item.sharedBy ? ` • ${item.sharedBy}` : ''}
                 </Text>
               </View>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <TouchableOpacity
                   onPress={() => handleOpenRoomFile(item)}
-                  style={{ backgroundColor: colors.accent, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 7 }}
+                  style={{ backgroundColor: colors.accent, paddingHorizontal: 14, height: 32, borderRadius: 7, justifyContent: 'center', alignItems: 'center' }}
                 >
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Open</Text>
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>Open & Edit</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => handleDownloadRoomFile(item)}
-                  style={{ backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 7 }}
+                  style={{ backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border, width: 32, height: 32, borderRadius: 7, justifyContent: 'center', alignItems: 'center' }}
                 >
                   <Ionicons name="download-outline" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleDeleteRoomFile(item)}
+                  style={{ backgroundColor: 'rgba(239, 68, 68, 0.12)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', width: 32, height: 32, borderRadius: 7, justifyContent: 'center', alignItems: 'center' }}
+                >
+                  <Ionicons name="trash-outline" size={16} color="#ef4444" />
                 </TouchableOpacity>
               </View>
             </View>

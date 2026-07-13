@@ -2,11 +2,12 @@
 import { useEffect, useState } from 'react';
 import PageShell from '@/components/PageShell';
 import { useTheme } from '@/components/ThemeProvider';
-import { Moon, Sun, Palette, Info, Settings as SettingsIcon, User, Trash } from 'lucide-react';
+import { Moon, Sun, Palette, Info, Settings as SettingsIcon, User, Trash, BarChart2 } from 'lucide-react';
+import WebMetricsDashboard from '@/components/WebMetricsDashboard';
 
 export default function SettingsPage() {
   const [nodeId, setNodeId] = useState<string>('Loading…');
-  const [activeTab, setActiveTab] = useState<'account' | 'about'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'about' | 'metrics'>('account');
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -65,6 +66,22 @@ export default function SettingsPage() {
               }}
             >
               <Info size={18} /> About DocuSync
+            </button>
+
+            <button
+              onClick={() => setActiveTab('metrics')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px',
+                borderRadius: '8px', border: 'none', cursor: 'pointer',
+                background: activeTab === 'metrics' ? 'var(--acb)' : 'transparent',
+                color: activeTab === 'metrics' ? 'var(--acc)' : 'var(--t2)',
+                fontWeight: activeTab === 'metrics' ? 600 : 500,
+                borderLeft: activeTab === 'metrics' ? '3px solid var(--acc)' : '3px solid transparent',
+                transition: 'all 0.2s',
+                textAlign: 'left'
+              }}
+            >
+              <BarChart2 size={18} /> Performance Metrics
             </button>
           </div>
 
@@ -165,10 +182,13 @@ export default function SettingsPage() {
                   </p>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', background: 'var(--s2)', borderRadius: 20, border: '1px solid var(--b1)' }}>
                     <span style={{ fontSize: 12, color: 'var(--t3)' }}>Local Node ID:</span>
-                    <span style={{ fontSize: 12, fontWeight: 600, fontFamily: 'monospace', color: 'var(--acc)' }}>{nodeId}</span>
                   </div>
                 </div>
               </section>
+            )}
+
+            {activeTab === 'metrics' && (
+              <WebMetricsDashboard />
             )}
 
           </div>

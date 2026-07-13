@@ -120,9 +120,18 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
   });
 
   useEffect(() => {
-    if (editor && !initialized.current && content) {
+    if (!editor || !content) return;
+    
+    if (!initialized.current) {
       editor.commands.setContent(content);
       initialized.current = true;
+      return;
+    }
+
+    if (content !== editor.getHTML()) {
+      const { from, to } = editor.state.selection;
+      editor.commands.setContent(content, { emitUpdate: false });
+      editor.commands.setTextSelection({ from, to });
     }
   }, [editor, content]);
 

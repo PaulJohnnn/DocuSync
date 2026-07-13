@@ -15,6 +15,7 @@ interface MobileSyncContextValue {
   peers: PeerInfo[];
   connectToPeer: (address: string, port: number) => Promise<boolean>;
   disconnectPeer: (id: string) => void;
+  pushCursor: (fileId: string, position: number, nodeIndex: number) => void;
   socket: WebSocket | null;
 }
 
@@ -22,6 +23,7 @@ const MobileSyncContext = createContext<MobileSyncContextValue>({
   peers: [],
   connectToPeer: async () => false,
   disconnectPeer: () => {},
+  pushCursor: () => {},
   socket: null,
 });
 
@@ -93,6 +95,21 @@ export function MobileSyncProvider({ children }: { children: ReactNode }) {
                 DeviceEventEmitter.emit('docusync_ws_merge_reject', msg);
               });
             }
+            if (msg.type === 'PEER_LIST') {
+              setPeers((prev) => {
+                const connected = msg.peers.map((p: any) => ({
+                  id: p.nodeId,
+                  address: p.address,
+                  port: p.port,
+                  status: 'connected' as const,
+                  latency: 0,
+                  connectedAt: new Date().toISOString(),
+                  displayName: p.displayName
+                }));
+                AsyncStorage.setItem(PEERS_KEY, JSON.stringify(connected));
+                return connected;
+              });
+            }
           } catch (e) {
             console.error('[MobileSync] Failed to parse WS message', e);
           }
@@ -140,8 +157,21 @@ export function MobileSyncProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const pushCursor = useCallback((fileId: string | number, position: number, nodeIndex: number) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: 'CURSOR_UPDATE',
+        nodeId: `mobile-client`,
+        nodeIndex,
+        fileId: Number(fileId),
+        position,
+        timestamp: new Date().toISOString()
+      }));
+    }
+  }, []);
+
   return (
-    <MobileSyncContext.Provider value={{ peers, connectToPeer, disconnectPeer, socket: socketRef.current }}>
+    <MobileSyncContext.Provider value={{ peers, connectToPeer, disconnectPeer, pushCursor, socket: socketRef.current }}>
       {children}
     </MobileSyncContext.Provider>
   );

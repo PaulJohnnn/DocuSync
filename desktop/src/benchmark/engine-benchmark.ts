@@ -139,7 +139,7 @@ export class SimulatedPeer {
   }
 }
 
-export async function runBenchmark(peerCount: number, scenario: 'sync-100' | 'sync-mixed' | 'offline', iterations: number = 5) {
+export async function runBenchmark(peerCount: number, scenario: 'sync-100' | 'sync-mixed' | 'offline' | 'sync-deletion' | 'sync-flicker', iterations: number = 5) {
   let avgResults = {
     peerCount,
     conflictDetectionRate: 0,
@@ -172,7 +172,7 @@ export async function runBenchmark(peerCount: number, scenario: 'sync-100' | 'sy
     let trueCollidingPairs = 0;
     let falsePositivePairs = 0;
 
-    if (scenario === 'sync-100' || scenario === 'sync-mixed') {
+    if (scenario === 'sync-100' || scenario === 'sync-mixed' || scenario === 'sync-deletion') {
       const editsMap = new Map();
       const edits = [];
       for (let i = 0; i < peerCount; i++) {
@@ -187,6 +187,16 @@ export async function runBenchmark(peerCount: number, scenario: 'sync-100' | 'sy
              editsMap.set(i, 3 + i); 
              const lineToEdit = `Line ${3 + i}`;
              newContent = INITIAL_CONTENT.replace(lineToEdit, `${lineToEdit} edited by peer ${i}`);
+          }
+        } else if (scenario === 'sync-deletion') {
+          if (i <= 1) {
+             editsMap.set(i, 2); 
+             // Pure deletion: they both try to remove the same line
+             newContent = INITIAL_CONTENT.replace("Let's test true conflicts.", "");
+          } else {
+             editsMap.set(i, 3 + i); 
+             const lineToEdit = `Line ${3 + i}`;
+             newContent = INITIAL_CONTENT.replace(lineToEdit, "");
           }
         } else {
           editsMap.set(i, 2); 
@@ -259,6 +269,47 @@ export async function runBenchmark(peerCount: number, scenario: 'sync-100' | 'sy
       if (resultFinal.outcome === 'escalated') {
         for (let k = 0; k < peerCount; k++) await peers[k].receiveMergeAccept(resultFinal.winnerContent!, resultFinal.mergedVcJson);
       }
+    } else if (scenario === 'sync-flicker') {
+      // PART 1 — Deterministic simulated test for rapid offline -> online -> offline cycling
+      trueCollidingPairs = 0;
+      falsePositivePairs = 0;
+
+      const hostPeer = peers[0];
+      const flickerPeer = peers[1];
+
+      // 1. Peer edits locally while offline (append to local log, don't push)
+      flickerPeer.isOffline = true;
+      const edit1 = await flickerPeer.edit(INITIAL_CONTENT + "\n[Flicker Edit 1: offline]", 1);
+
+      // 2. Peer comes online — send ONE push, but do NOT wait for/apply returned clock before going offline again
+      flickerPeer.isOffline = false;
+      const push1Result = await hostPeer.receivePush(flickerPeer.nodeId, edit1.eventId, 1, edit1.deltaBase64, edit1.logicalTimestamp, edit1.vcJson, edit1.newContent);
+      // NOTE: flickerPeer purposely does NOT call receiveMergeAccept or update its local VC!
+      flickerPeer.isOffline = true;
+
+      // 3. Peer goes offline again immediately, makes another local edit
+      const edit2 = await flickerPeer.edit(edit1.newContent + "\n[Flicker Edit 2: offline again]", 1);
+
+      // 4. Peer comes online for real this time, pushes again.
+      // First test resending late/duplicate edit1 vector clock:
+      flickerPeer.isOffline = false;
+      const resend1Result = await hostPeer.receivePush(flickerPeer.nodeId, edit1.eventId, 1, edit1.deltaBase64, edit1.logicalTimestamp, edit1.vcJson, edit1.newContent);
+      const push2Result = await hostPeer.receivePush(flickerPeer.nodeId, edit2.eventId, 1, edit2.deltaBase64, edit2.logicalTimestamp, edit2.vcJson, edit2.newContent);
+
+      // Synchronize host resolution to all peers
+      if (push2Result.outcome === 'escalated') {
+        for (let k = 0; k < peerCount; k++) await peers[k].receiveMergeAccept(push2Result.winnerContent!, push2Result.mergedVcJson);
+      } else {
+        for (let k = 0; k < peerCount; k++) await peers[k].receiveMergeAccept(hostPeer.content, hostPeer.vc.toJSON());
+      }
+
+      if (iter === 0) {
+        sampleScriptsUsed = [
+          { step: "1. Push Edit 1 (before flicker disconnect)", outcome: push1Result.outcome, hostClockAfter: JSON.stringify(hostPeer.vc.toJSON()) },
+          { step: "2. Late Resend of Edit 1 (duplicate check)", outcome: resend1Result.outcome, hostClockAfter: JSON.stringify(hostPeer.vc.toJSON()) },
+          { step: "3. Push Edit 2 (reconnected)", outcome: push2Result.outcome, hostClockAfter: JSON.stringify(hostPeer.vc.toJSON()) }
+        ];
+      }
     }
 
     const finalContents = peers.map(p => p.content);
@@ -311,6 +362,26 @@ if (require.main === module) {
       const res = await runBenchmark(count, 'offline', 5);
       console.log(`\n--- ${count} Peers ---`);
       console.table(res.results);
+    }
+
+    console.log("\n=== SCENARIO 4: Deletion Workload ===");
+    for (const count of [2, 5, 10, 15]) {
+      const res = await runBenchmark(count, 'sync-deletion', 5);
+      console.log(`\n--- ${count} Peers ---`);
+      console.table(res.results);
+      if (count === 5) {
+        console.log("\n[Verification] Sample Edit Scripts for 5-Peer Deletion Run:");
+        console.table(res.scriptsUsed);
+      }
+    }
+
+    console.log("\n=== SCENARIO 5: Rapid Offline -> Online -> Offline Flicker Workload ===");
+    for (const count of [2, 5]) {
+      const res = await runBenchmark(count, 'sync-flicker', 5);
+      console.log(`\n--- ${count} Peers ---`);
+      console.table(res.results);
+      console.log("\n[Verification] Flicker Steps & Duplicate Vector Clock Checks:");
+      console.table(res.scriptsUsed);
     }
   })();
 }

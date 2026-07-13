@@ -18,7 +18,7 @@ export async function GET() {
     const lobbyKeys = await redis.keys('lobby:*');
     let rooms: { otp: string; roomName: string; hostNodeId: string; memberCount: number; createdAt: number; expiresAt: number }[] = [];
     if (lobbyKeys.length > 0) {
-      const lobbies = await redis.mget<LobbyEntry[]>(...lobbyKeys);
+      const lobbies = (await redis.mget(...lobbyKeys)) as LobbyEntry[];
       rooms = lobbies
         .filter((r): r is LobbyEntry => r !== null)
         .map(r => ({
@@ -35,7 +35,7 @@ export async function GET() {
     const userKeys = await redis.keys('user:*');
     let users: { nodeId: string; lastActive: number; isOnline: boolean; ip: string | undefined }[] = [];
     if (userKeys.length > 0) {
-      const activeUsers = await redis.mget<UserPresence[]>(...userKeys);
+      const activeUsers = (await redis.mget(...userKeys)) as UserPresence[];
       const now = Date.now();
       const OFFLINE_THRESHOLD_MS = 60000; // 60 seconds
 

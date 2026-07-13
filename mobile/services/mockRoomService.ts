@@ -84,7 +84,7 @@ export async function createRoom(name: string): Promise<Room> {
   let isMatchmakerSuccess = false;
 
   try {
-    const MATCHMAKER = 'http://192.168.68.101:3000/api/lobby';
+    const MATCHMAKER = 'http://192.168.68.102:3000/api/lobby';
       
     const res = await fetch(`${MATCHMAKER}/create`, {
       method: 'POST',
@@ -138,7 +138,7 @@ export async function joinRoom(otp: string): Promise<Room> {
     throw err;
   }
 
-  const MATCHMAKER_URL = 'http://192.168.68.101:3000/api/lobby';
+  const MATCHMAKER_URL = 'http://192.168.68.102:3000/api/lobby';
 
   let apiRoomName: string | null = null;
   let apiHostIp: string | undefined;

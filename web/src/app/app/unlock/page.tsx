@@ -507,17 +507,6 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         </svg>
         Create Local Profile
       </button>
-
-      {/* Trust footer */}
-      <div style={{
-        marginTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-        fontSize: 11, color: '#94a3b8',
-      }}>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        </svg>
-        Private &bull; Decentralized &bull; Local-First
-      </div>
     </form>
   );
 }
@@ -617,36 +606,101 @@ export default function UnlockWorkspacePage() {
             </p>
           </div>
 
+          {/* ── Pristine Animated DNA / Network Mesh Background (No Text) ── */}
+          <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes spinRingSlow {
+              from { transform: translate(-50%, -50%) rotate(0deg); }
+              to { transform: translate(-50%, -50%) rotate(360deg); }
+            }
+            @keyframes spinRingReverse {
+              from { transform: translate(-50%, -50%) rotate(360deg); }
+              to { transform: translate(-50%, -50%) rotate(0deg); }
+            }
+            @keyframes floatWave {
+              0%, 100% { transform: translateY(0px) scale(1); }
+              50% { transform: translateY(-15px) scale(1.03); }
+            }
+            @keyframes pulseNode {
+              0%, 100% { opacity: 0.25; r: 4px; }
+              50% { opacity: 0.8; r: 6.5px; }
+            }
+          `}} />
+
+          {/* Glowing Ambient Backdrop */}
+          <div style={{
+            position: 'absolute', top: '-15%', right: '-15%',
+            width: 450, height: 450, borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(99,102,241,0.22) 0%, transparent 70%)',
+            filter: 'blur(50px)', zIndex: 0, pointerEvents: 'none'
+          }} />
+          <div style={{
+            position: 'absolute', bottom: '-10%', left: '-10%',
+            width: 500, height: 500, borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(168,85,247,0.18) 0%, transparent 70%)',
+            filter: 'blur(60px)', zIndex: 0, pointerEvents: 'none'
+          }} />
+
+          {/* Rotating Concentric Orbital Rings */}
+          <div style={{
+            position: 'absolute', top: '48%', left: '50%',
+            width: 440, height: 440, borderRadius: '50%',
+            border: '1.5px dashed rgba(99,102,241,0.15)',
+            pointerEvents: 'none', zIndex: 0,
+            animation: 'spinRingSlow 55s linear infinite'
+          }} />
+          <div style={{
+            position: 'absolute', top: '48%', left: '50%',
+            width: 600, height: 600, borderRadius: '50%',
+            border: '1px solid rgba(99,102,241,0.08)',
+            pointerEvents: 'none', zIndex: 0,
+            animation: 'spinRingReverse 75s linear infinite'
+          }} />
+
+          {/* Animated DNA Double-Helix / Network Mesh Art (Pure Graphic, No Text) */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            pointerEvents: 'none', zIndex: 1,
+            animation: 'floatWave 9s ease-in-out infinite'
+          }}>
+            <svg viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice" style={{ width: '100%', height: '100%', opacity: 0.75 }}>
+              <defs>
+                <linearGradient id="dnaGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.45" />
+                  <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.1" />
+                </linearGradient>
+                <linearGradient id="dnaGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#c084fc" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="#6366f1" stopOpacity="0.1" />
+                </linearGradient>
+              </defs>
+
+              {/* Intersecting DNA / Mesh Wave Strands */}
+              <path d="M -100 250 C 150 100, 350 450, 600 250 C 750 120, 850 300, 950 200" fill="none" stroke="url(#dnaGrad1)" strokeWidth="2.5" />
+              <path d="M -100 320 C 150 480, 350 150, 600 350 C 750 480, 850 250, 950 380" fill="none" stroke="url(#dnaGrad2)" strokeWidth="2" />
+              <path d="M 50 650 C 300 500, 500 750, 750 550" fill="none" stroke="url(#dnaGrad1)" strokeWidth="1.8" strokeDasharray="6 6" />
+
+              {/* Connecting Bridge Rungs (Like DNA Base Pairs) */}
+              <line x1="130" y1="205" x2="140" y2="355" stroke="rgba(129,140,248,0.22)" strokeWidth="1.5" />
+              <line x1="280" y1="260" x2="285" y2="310" stroke="rgba(168,85,247,0.25)" strokeWidth="1.5" />
+              <line x1="440" y1="330" x2="435" y2="240" stroke="rgba(56,189,248,0.25)" strokeWidth="1.5" />
+              <line x1="600" y1="250" x2="600" y2="350" stroke="rgba(129,140,248,0.25)" strokeWidth="1.5" />
+
+              {/* Glowing Constellation / DNA Nodes */}
+              <circle cx="135" cy="205" r="5" fill="#6366f1" style={{ animation: 'pulseNode 3s ease-in-out infinite' }} />
+              <circle cx="140" cy="355" r="4" fill="#a855f7" style={{ animation: 'pulseNode 4s ease-in-out infinite 0.7s' }} />
+              <circle cx="280" cy="260" r="6" fill="#38bdf8" style={{ animation: 'pulseNode 3.5s ease-in-out infinite 1.2s' }} />
+              <circle cx="440" cy="330" r="5" fill="#818cf8" style={{ animation: 'pulseNode 4.5s ease-in-out infinite 0.4s' }} />
+              <circle cx="600" cy="250" r="6" fill="#6366f1" style={{ animation: 'pulseNode 3.8s ease-in-out infinite 1.8s' }} />
+              <circle cx="600" cy="350" r="4.5" fill="#c084fc" style={{ animation: 'pulseNode 4.2s ease-in-out infinite 2.1s' }} />
+            </svg>
+          </div>
+
           {/* Bottom decorative wave */}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 120, zIndex: 1, opacity: 0.6 }}>
             <svg viewBox="0 0 500 120" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
               <path d="M0,40 C150,100 350,0 500,40 L500,120 L0,120 Z" fill="rgba(199,210,254,0.4)" />
               <path d="M0,60 C200,120 400,20 500,60 L500,120 L0,120 Z" fill="rgba(165,180,252,0.3)" />
             </svg>
-          </div>
-
-          {/* Bottom features row */}
-          <div style={{
-            position: 'absolute', bottom: 32, left: 48, right: 48,
-            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-            borderTop: '1px solid rgba(148,163,184,0.3)', paddingTop: 24,
-            zIndex: 10, gap: 16, flexWrap: 'wrap'
-          }}>
-            {[
-              { icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', title: 'Private', sub: 'Your data stays local', color: '#4f46e5' },
-              { icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75', title: 'Decentralized', sub: 'No central server', color: '#0284c7' },
-              { icon: 'M18 8A3 3 0 1 0 18 2a3 3 0 0 0 0 6zm-12 8A3 3 0 1 0 6 10a3 3 0 0 0 0 6zm12 8A3 3 0 1 0 18 16a3 3 0 0 0 0 6z M8.5 11.5l7-4 M8.5 14.5l7 4', title: 'Peer-to-Peer', sub: 'Direct device sync', color: '#4f46e5' },
-            ].map(f => (
-              <div key={f.title} style={{ display: 'flex', gap: 8, flex: 1 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={f.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}>
-                  <path d={f.icon} />
-                </svg>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{f.title}</div>
-                  <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.3 }}>{f.sub}</div>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
 

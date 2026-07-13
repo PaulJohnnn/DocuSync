@@ -4,7 +4,7 @@ import { LobbyEntry } from '../store';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Lobby not found' }, { status: 404, headers: corsHeaders });
   }
 
-  const lobby = await redis.get<LobbyEntry>(`lobby:${otp}`);
+  const lobby = (await redis.get(`lobby:${otp}`)) as LobbyEntry | null;
   if (!lobby) {
     return NextResponse.json({ error: 'Lobby not found' }, { status: 404, headers: corsHeaders });
   }
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing otp or file data' }, { status: 400, headers: corsHeaders });
     }
 
-    const lobby = await redis.get<LobbyEntry>(`lobby:${otp}`);
+    const lobby = (await redis.get(`lobby:${otp}`)) as LobbyEntry | null;
     if (!lobby) {
       return NextResponse.json({ error: 'Lobby not found' }, { status: 404, headers: corsHeaders });
     }
@@ -55,6 +55,36 @@ export async function POST(request: Request) {
     } else {
       lobby.files.push(file);
     }
+
+    await redis.set(`lobby:${otp}`, lobby, { ex: 60 * 60 });
+
+    return NextResponse.json({ success: true, files: lobby.files }, { headers: corsHeaders });
+  } catch {
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: corsHeaders });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const otp = searchParams.get('otp');
+    const fileId = searchParams.get('fileId');
+    const fileName = searchParams.get('fileName');
+
+    if (!otp || (!fileId && !fileName)) {
+      return NextResponse.json({ error: 'Missing otp or fileId/fileName' }, { status: 400, headers: corsHeaders });
+    }
+
+    const lobby = (await redis.get(`lobby:${otp}`)) as LobbyEntry | null;
+    if (!lobby || !lobby.files) {
+      return NextResponse.json({ error: 'Lobby not found' }, { status: 404, headers: corsHeaders });
+    }
+
+    lobby.files = lobby.files.filter((f) => {
+      const idMatch = fileId && String(f.fileId ?? f.id) === String(fileId);
+      const nameMatch = fileName && (f.fileName === fileName || f.name === fileName);
+      return !idMatch && !nameMatch;
+    });
 
     await redis.set(`lobby:${otp}`, lobby, { ex: 60 * 60 });
 

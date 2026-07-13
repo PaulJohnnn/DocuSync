@@ -13,7 +13,7 @@ import Sidebar from '@/components/Sidebar';
 import RightPanel from '@/components/RightPanel';
 import { ShieldAlert, Check, X } from 'lucide-react';
 import { useElectronSync } from '@/context/ElectronSyncContext';
-import mockAuthService from '@/services/mockAuthService';
+import mockAuthService, { getDisplayName } from '@/services/mockAuthService';
 
 /** Component to ping the Next.js matchmaker with heartbeat */
 const GlobalHeartbeat: React.FC = () => {
@@ -153,6 +153,9 @@ const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         // Replace real vault status check with centralized mock API check
         const user = mockAuthService.getCurrentUser();
         if (user) {
+          if (window.docuSync?.setDisplayName) {
+            window.docuSync.setDisplayName(getDisplayName(user));
+          }
           setIsUnlocked(true);
         } else {
           navigate('/vault-login');
