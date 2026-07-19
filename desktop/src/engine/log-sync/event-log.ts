@@ -171,9 +171,7 @@ function toEventLogEntry(row: PrismaEventLog): EventLogEntry {
   return {
     id: row.id,
     eventId: row.eventId,
-    // Prisma returns BigInt for BigInt columns; convert to number (safe for all
-    // values up to 2^53, well within Date.now() range of ~1.78 trillion).
-    fileId: Number(row.fileId),
+    fileId: row.fileId,
     nodeId: row.nodeId,
     eventType: row.eventType as EventType,
     logicalTimestamp: row.logicalTimestamp,
@@ -298,9 +296,7 @@ export class EventLogService {
     const row = await this.prisma.eventLog.create({
       data: {
         eventId: input.eventId,
-        // Convert to BigInt: Prisma requires BigInt values for BigInt columns.
-        // input.fileId is a JS number (safe up to 2^53); converting is lossless.
-        fileId: BigInt(input.fileId),
+        fileId: input.fileId,
         nodeId: input.nodeId,
         eventType: input.eventType,
         logicalTimestamp: input.logicalTimestamp,
@@ -345,7 +341,7 @@ export class EventLogService {
    */
   public async getHistory(fileId: number): Promise<EventLogEntry[]> {
     const rows = await this.prisma.eventLog.findMany({
-      where: { fileId: BigInt(fileId) },
+      where: { fileId },
       orderBy: [
         { logicalTimestamp: 'asc' },
         { id: 'asc' },
@@ -390,7 +386,7 @@ export class EventLogService {
   ): Promise<EventLogEntry[]> {
     const rows = await this.prisma.eventLog.findMany({
       where: {
-        fileId: BigInt(fileId),
+        fileId,
         logicalTimestamp: { gt: logicalTimestamp },
         isCompacted: false,
       },
@@ -448,7 +444,7 @@ export class EventLogService {
     // Step 1: Fetch all non-compacted events, ordered.
     const events = await this.prisma.eventLog.findMany({
       where: {
-        fileId: BigInt(fileId),
+        fileId,
         isCompacted: false,
       },
       orderBy: [

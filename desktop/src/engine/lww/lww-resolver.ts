@@ -243,7 +243,7 @@ function toConflictRecord(row: PrismaConflict): ConflictRecord {
   return {
     id: row.id,
     conflictId: row.conflictId,
-    fileId: Number(row.fileId), // BigInt in DB → number for app use
+    fileId: row.fileId,
     eventIdA: row.eventIdA,
     nodeIdA: row.nodeIdA,
     vectorClockJsonA: JSON.parse(row.vectorClockJsonA) as VectorClockJSON,
@@ -480,7 +480,7 @@ export class LWWResolver {
     await this.prisma.conflict.create({
       data: {
         conflictId,
-        fileId: BigInt(eventA.fileId), // convert number → BigInt for Prisma BigInt column
+        fileId: eventA.fileId,
         eventIdA: eventA.eventId,
         nodeIdA: eventA.nodeId,
         vectorClockJsonA: JSON.stringify(eventA.vectorClockJson),
@@ -601,7 +601,7 @@ export class LWWResolver {
 
     const eventLogEntry = await this.eventLog.appendEvent({
       eventId: resolutionEventId,
-      fileId: Number(row.fileId),
+      fileId: row.fileId,
       nodeId: resolvedBy,
       eventType: 'conflict-resolve',
       logicalTimestamp,
@@ -613,7 +613,7 @@ export class LWWResolver {
     const mergeAcceptMessage: MergeAcceptMessage = {
       type: 'MERGE_ACCEPT',
       conflictId,
-      fileId: Number(row.fileId),
+      fileId: row.fileId,
       winner,
       winnerPayload,
       resolutionEventId,
@@ -647,7 +647,7 @@ export class LWWResolver {
   public async getPendingConflicts(fileId: number): Promise<ConflictRecord[]> {
     const rows = await this.prisma.conflict.findMany({
       where: {
-        fileId: BigInt(fileId),
+        fileId,
         status: 'pending',
       },
       orderBy: { detectedAt: 'asc' },
@@ -686,7 +686,7 @@ export class LWWResolver {
   public async getResolvedConflicts(fileId: number): Promise<ConflictRecord[]> {
     const rows = await this.prisma.conflict.findMany({
       where: {
-        fileId: BigInt(fileId),
+        fileId,
         status: 'resolved',
       },
       orderBy: { resolvedAt: 'desc' },
