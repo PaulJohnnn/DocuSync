@@ -48,7 +48,7 @@ model EventLog {
   /// Foreign key to the file this event pertains to.
   /// Matches `files.id` in the Supabase cloud schema.
   /// BigInt to accommodate timestamp-based IDs (e.g., Date.now() ≈ 1.78 trillion).
-  fileId           BigInt
+  fileId           Float
 
   /// Identifier of the node that originated the event (UUID of peer).
   nodeId           String
@@ -110,7 +110,7 @@ model Conflict {
 
   /// The file where the conflict occurred.
   /// BigInt to accommodate timestamp-based IDs.
-  fileId           BigInt
+  fileId           Float
 
   /// Event ID of the first competing edit (side A).
   eventIdA         String
