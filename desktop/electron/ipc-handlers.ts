@@ -1647,24 +1647,7 @@ export function registerIPCHandlers(services: EngineServices): void {
     })
   );
 
-  // ── network:get-lan-ip ─────────────────────────────────────────────
-  ipcMain.handle(
-    'network:get-lan-ip',
-    safeHandler(async () => {
-      const os = require('os');
-      const nets = os.networkInterfaces();
-      for (const name of Object.keys(nets)) {
-        for (const net of nets[name]!) {
-          // Skip internal (i.e. 127.0.0.1) and non-IPv4 addresses
-          if (net.family === 'IPv4' && !net.internal) {
-            return net.address;
-          }
-        }
-      }
-      if (!app.isPackaged) return '127.0.0.1';
-      throw new Error('No network connection detected — connect to Wi-Fi or Ethernet to host a room.');
-    })
-  );
+
 
   // ── cache:auto-cleanup ─────────────────────────────────────────────
   /**
