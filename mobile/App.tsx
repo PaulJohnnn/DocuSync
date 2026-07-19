@@ -5,7 +5,7 @@ import { View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import FilesScreen     from './screens/FilesScreen';
-import ConflictsScreen from './screens/ConflictsScreen';
+// import ConflictsScreen from './screens/ConflictsScreen';
 import HistoryScreen   from './screens/HistoryScreen';
 import PeersScreen     from './screens/PeersScreen';
 import SettingsScreen  from './screens/SettingsScreen';
@@ -114,7 +114,6 @@ function MainApp() {
         })}
       >
         <Tab.Screen name="Files"     component={FilesScreen}     options={{ title: 'Room' }} />
-        <Tab.Screen name="Conflicts" component={ConflictsScreen} />
         <Tab.Screen name="History"   component={HistoryScreen}   />
         <Tab.Screen name="Peers"     component={PeersScreen}     />
         <Tab.Screen name="Settings"  component={SettingsScreen}  />

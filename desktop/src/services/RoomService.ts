@@ -54,7 +54,7 @@ function saveRooms(rooms: Room[]): void {
   window.dispatchEvent(new Event('docusync_rooms_update'));
 }
 
-function registerGlobalOTP(otp: string, roomName: string, roomId: string, hostIp = '127.0.0.1', hostPort = 9000): void {
+function registerGlobalOTP(otp: string, roomName: string, roomId: string, hostIp?: string, hostPort?: number): void {
   try {
     const raw = uGet(GLOBAL_OTP_KEY);
     const registry: Record<string, any> = raw ? JSON.parse(raw) : {};
@@ -111,7 +111,7 @@ class RoomService {
     let otp = genOTP();
     let isMatchmakerSuccess = false;
     
-    let hostIp = '127.0.0.1';
+    let hostIp: string | undefined;
     if (typeof window !== 'undefined' && (window as any).docuSync && (window as any).docuSync.getLanIp) {
       try {
         const res = await (window as any).docuSync.getLanIp();
@@ -119,9 +119,11 @@ class RoomService {
           hostIp = res.data;
         } else if (res && typeof res === 'string') { // Fallback if it directly returns string
           hostIp = res;
+        } else if (res && res.success === false && res.error) {
+          throw new Error(res.error);
         }
-      } catch (e) {
-        console.warn('Failed to fetch LAN IP via IPC, defaulting to 127.0.0.1', e);
+      } catch (e: any) {
+        throw new Error(e.message || 'No network connection detected — connect to Wi-Fi or Ethernet to host a room.');
       }
     }
 
@@ -161,7 +163,7 @@ class RoomService {
       lastActivity: new Date().toISOString(),
       fileCount: 0,
       hostType: 'desktop',
-      hostIp: hostIp || '127.0.0.1',
+      hostIp: hostIp,
       hostPort: 9000,
     };
     const rooms = loadRooms();
@@ -231,7 +233,7 @@ class RoomService {
     // ── Step 2: Resolve the room name (API > global OTP > fallback) ──────
     const globalEntry = lookupGlobalOTP(upperOtp);
     const roomName = apiRoomName ?? (globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`);
-    const targetIp = apiHostIp || globalEntry?.hostIp || '127.0.0.1';
+    const targetIp = apiHostIp || globalEntry?.hostIp;
     const targetPort = apiHostPort || globalEntry?.hostPort || 9000;
 
     // ── Step 3: If already stored locally, update its name and return ─────

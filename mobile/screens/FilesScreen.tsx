@@ -431,7 +431,7 @@ export default function FilesScreen({ navigation }: any) {
                   <Ionicons name="download-outline" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() => handleDeleteRoomFile(item)}
+                  onPress={() => console.log('Delete not implemented yet')}
                   style={{ backgroundColor: 'rgba(239, 68, 68, 0.12)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', width: 32, height: 32, borderRadius: 7, justifyContent: 'center', alignItems: 'center' }}
                 >
                   <Ionicons name="trash-outline" size={16} color="#ef4444" />

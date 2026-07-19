@@ -154,7 +154,11 @@ export default function WebMetricsDashboard() {
     try {
       const storedRoomStr = uGet('current_room');
       const room = storedRoomStr ? JSON.parse(storedRoomStr) : null;
-      const ip = room?.hostIp || '127.0.0.1';
+      const ip = room?.hostIp;
+      if (!ip) {
+        setHostError('Couldn\\'t find host address — try rejoining the room');
+        return;
+      }
       const rawPort = room?.hostPort;
       const port = (rawPort && rawPort !== 3000 && rawPort !== Number(window.location?.port)) ? rawPort : 9000;
       setHostAddr(`${ip}:${port}`);

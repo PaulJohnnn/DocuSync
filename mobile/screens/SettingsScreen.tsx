@@ -55,7 +55,11 @@ export default function SettingsScreen() {
         return;
       }
       const room = JSON.parse(roomStr);
-      const ip = room?.hostIp || '127.0.0.1';
+      const ip = room?.hostIp;
+      if (!ip) {
+        setHostError("Couldn't find host address — try rejoining the room");
+        return;
+      }
       const port = room?.hostPort || 9000;
       setHostAddr(`${ip}:${port}`);
 

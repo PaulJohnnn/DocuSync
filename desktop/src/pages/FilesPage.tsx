@@ -130,7 +130,8 @@ const FilesPage: React.FC = () => {
       const code = currentRoom.otp || currentRoom.id;
       const targetId = file.fileId || file.id || '';
       const targetName = encodeURIComponent(file.fileName || file.name || '');
-      const res = await fetch(`http://127.0.0.1:3000/api/lobby/files?otp=${code}&fileId=${targetId}&fileName=${targetName}`, {
+      const MATCHMAKER_URL = import.meta.env.DEV ? 'http://localhost:3000/api/lobby' : 'https://docusync-pnc.vercel.app/api/lobby';
+      const res = await fetch(`${MATCHMAKER_URL}/files?otp=${code}&fileId=${targetId}&fileName=${targetName}`, {
         method: 'DELETE',
       });
       if (res.ok) {

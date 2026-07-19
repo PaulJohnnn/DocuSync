@@ -170,7 +170,8 @@ export default function EditorPage() {
   }, []);
 
   const getSyncBaseUrl = useCallback((room: any): string => {
-    const ip = room?.hostIp || '127.0.0.1';
+    const ip = room?.hostIp;
+    if (!ip) throw new Error('Couldn\\'t find host address — try rejoining the room');
     const rawPort = room?.hostPort;
     const port = (rawPort && rawPort !== 3000 && rawPort !== Number(window.location?.port)) ? rawPort : 9000;
     return `http://${ip}:${port}`;
@@ -180,7 +181,7 @@ export default function EditorPage() {
   const pushToHost = useCallback(async (contentToSave: string, vectorClockSnapshot: Record<string, number>, explicit = false) => {
     const room = getRoomHostInfo();
     if (!room || !room.hostIp) {
-      setSyncStatusMsg('Host address missing');
+      setSyncStatusMsg('Couldn\\'t find host address — try rejoining the room');
       return;
     }
 
@@ -310,7 +311,7 @@ export default function EditorPage() {
     };
 
     pollDoc();
-    channelRef.current = setInterval(pollDoc, 3000);
+    channelRef.current = setInterval(pollDoc, 4000);
     return () => { if (channelRef.current) clearInterval(channelRef.current); };
   // NOTE: `content` intentionally NOT in deps — the poll must run on a stable
   // interval regardless of typing. currentContentRef.current is used instead

@@ -48,7 +48,7 @@ async function saveRooms(rooms: Room[]): Promise<void> {
   await uSet(ROOMS_KEY, JSON.stringify(rooms));
 }
 
-async function registerGlobalOTP(otp: string, roomName: string, roomId: string, hostIp = '127.0.0.1', hostPort = 8081): Promise<void> {
+async function registerGlobalOTP(otp: string, roomName: string, roomId: string, hostIp?: string, hostPort?: number): Promise<void> {
   try {
     const raw = await uGet(GLOBAL_OTP_KEY);
     const registry: Record<string, any> = raw ? JSON.parse(raw) : {};
@@ -84,7 +84,7 @@ export async function createRoom(name: string): Promise<Room> {
   let isMatchmakerSuccess = false;
 
   try {
-    const MATCHMAKER = 'http://192.168.68.102:3000/api/lobby';
+    const MATCHMAKER = process.env.EXPO_PUBLIC_MATCHMAKER_URL || 'https://docusync-pnc.vercel.app/api/lobby';
       
     const res = await fetch(`${MATCHMAKER}/create`, {
       method: 'POST',
@@ -92,8 +92,6 @@ export async function createRoom(name: string): Promise<Room> {
       body: JSON.stringify({
         roomName: name.trim(),
         hostNodeId: `mobile-${Date.now()}`,
-        hostIp: '127.0.0.1',
-        hostPort: 8081,
         hostType: 'mobile'
       }),
     });
@@ -118,13 +116,11 @@ export async function createRoom(name: string): Promise<Room> {
     status: 'active',
     lastActivity: new Date().toISOString(),
     fileCount: 0,
-    hostIp: '127.0.0.1',
-    hostPort: 8081,
   };
   const rooms = await loadRooms();
   await saveRooms([...rooms, room]);
   // Always register so peers can discover hostIp via the OTP registry
-  await registerGlobalOTP(otp, room.name, room.id, room.hostIp, room.hostPort);
+  await registerGlobalOTP(otp, room.name, room.id);
   return room;
 }
 
@@ -138,7 +134,7 @@ export async function joinRoom(otp: string): Promise<Room> {
     throw err;
   }
 
-  const MATCHMAKER_URL = 'http://192.168.68.102:3000/api/lobby';
+  const MATCHMAKER_URL = process.env.EXPO_PUBLIC_MATCHMAKER_URL || 'https://docusync-pnc.vercel.app/api/lobby';
 
   let apiRoomName: string | null = null;
   let apiHostIp: string | undefined;
@@ -166,7 +162,7 @@ export async function joinRoom(otp: string): Promise<Room> {
 
   const globalEntry = await lookupGlobalOTP(upperOtp);
   const roomName = apiRoomName ?? (globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`);
-  const targetIp = apiHostIp || globalEntry?.hostIp || '127.0.0.1';
+  const targetIp = apiHostIp || globalEntry?.hostIp;
   const targetPort = apiHostPort || globalEntry?.hostPort || 9000;
 
   const existing = rooms.find(r => r.otp === upperOtp || r.id === otp);

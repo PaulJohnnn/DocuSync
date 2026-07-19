@@ -311,7 +311,7 @@ const EditorPage: React.FC = () => {
       } catch { /* offline mode */ }
     };
     pollDoc();
-    const iv = setInterval(pollDoc, 3000);
+    const iv = setInterval(pollDoc, 4000);
     return () => clearInterval(iv);
   }, [roomOtp, fileId, editor]);
 

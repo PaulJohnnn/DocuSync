@@ -1525,7 +1525,8 @@ export function registerIPCHandlers(services: EngineServices): void {
           }
         }
       }
-      return '127.0.0.1';
+      if (!app.isPackaged) return '127.0.0.1';
+      throw new Error('No network connection detected — connect to Wi-Fi or Ethernet to host a room.');
     })
   );
 
@@ -1660,7 +1661,8 @@ export function registerIPCHandlers(services: EngineServices): void {
           }
         }
       }
-      return '127.0.0.1';
+      if (!app.isPackaged) return '127.0.0.1';
+      throw new Error('No network connection detected — connect to Wi-Fi or Ethernet to host a room.');
     })
   );
 

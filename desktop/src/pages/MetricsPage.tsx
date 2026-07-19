@@ -238,7 +238,11 @@ const MetricsPage: React.FC = () => {
       const room = (() => {
         try { const s = localStorage.getItem('docusync_user_current_room') || localStorage.getItem('current_room'); return s ? JSON.parse(s) : null; } catch { return null; }
       })();
-      const hostIp = room?.hostIp || '127.0.0.1';
+      const hostIp = room?.hostIp;
+      if (!hostIp) {
+        setHostError('No host IP found');
+        return;
+      }
       const hostPort = room?.hostPort || 9000;
       const res = await fetch(`http://${hostIp}:${hostPort}/metrics`, { signal: AbortSignal.timeout(2000) });
       if (res.ok) {

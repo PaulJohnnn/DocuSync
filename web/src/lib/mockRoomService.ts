@@ -47,7 +47,7 @@ function saveRooms(rooms: Room[]): void {
   window.dispatchEvent(new Event('docusync_rooms_update'));
 }
 
-function registerGlobalOTP(otp: string, roomName: string, roomId: string, hostIp = '127.0.0.1', hostPort = 9000): void {
+function registerGlobalOTP(otp: string, roomName: string, roomId: string, hostIp?: string, hostPort?: number): void {
   if (typeof window === 'undefined') return;
   try {
     const raw = uGet(GLOBAL_OTP_KEY);
@@ -203,7 +203,7 @@ export async function joinRoom(otp: string): Promise<Room> {
 
   const globalEntry = lookupGlobalOTP(upperOtp);
   const roomName = apiRoomName ?? (globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`);
-  const targetIp = apiHostIp || globalEntry?.hostIp || '127.0.0.1';
+  const targetIp = apiHostIp || globalEntry?.hostIp;
   const targetPort = apiHostPort || globalEntry?.hostPort || 9000;
 
   const existing = rooms.find(r => r.otp === upperOtp || r.id === otp);

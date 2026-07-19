@@ -19,9 +19,6 @@ import { useTheme } from '../context/ThemeContext';
 import { Colors } from '../constants/Colors';
 import { useMobileSync } from '../context/MobileSyncContext';
 
-// ── Matchmaker URL ─────────────────────────────────────────────────────────
-const MATCHMAKER_URL = 'http://192.168.68.100:3000/api/lobby';
-
 interface FileRecord {
   id: string; name: string; type: string; size: number;
   content: string; status: string; createdAt: string; updatedAt: string;
@@ -45,6 +42,7 @@ export default function EditorScreen({ route, navigation }: any) {
   const lastSave         = useRef('');
   const lastSyncedAt     = useRef(0);
   const localNodeIdRef   = useRef(`mobile-${Math.floor(Math.random() * 10000)}`);
+  const localVectorClockRef = useRef<Record<string, number>>({});
   const syncDebounce     = useRef<NodeJS.Timeout | null>(null);
   const pollInterval     = useRef<NodeJS.Timeout | null>(null);
   const typingTimeout    = useRef<NodeJS.Timeout | null>(null);
@@ -57,7 +55,7 @@ export default function EditorScreen({ route, navigation }: any) {
       const online = !!(state.isConnected && state.isInternetReachable);
       setIsOnline(online);
       if (online && offlineQueue) {
-        pushToRedis(content, true);
+        pushToHost(content, true);
         setOfflineQueue(false);
       } else if (!online) {
         setSyncStatusMsg('Offline — edits saved locally');
@@ -87,7 +85,7 @@ export default function EditorScreen({ route, navigation }: any) {
     if (nid) localNodeIdRef.current = nid;
   };
 
-  // ── Get room OTP ─────────────────────────────────────────────────────────
+  // ── Get room OTP \u0026 Base URL ─────────────────────────────────────────────
   const getRoomOtp = useCallback(async (): Promise<string | null> => {
     try {
       const storedRoomStr = await uGet('current_room');
@@ -97,8 +95,20 @@ export default function EditorScreen({ route, navigation }: any) {
     } catch { return null; }
   }, []);
 
-  // ── Push to Redis ─────────────────────────────────────────────────────────
-  const pushToRedis = useCallback(async (contentToSave: string, explicit = false) => {
+  const getSyncBaseUrl = useCallback(async (): Promise<string | null> => {
+    try {
+      const storedRoomStr = await uGet('current_room');
+      if (!storedRoomStr) return null;
+      const room = JSON.parse(storedRoomStr);
+      const ip = room?.hostIp;
+      if (!ip) throw new Error("Couldn't find host address — try rejoining the room");
+      const port = room?.hostPort || 9000;
+      return `http://${ip}:${port}`;
+    } catch { return null; }
+  }, []);
+
+  // ── Push to Host ──────────────────────────────────────────────────────────
+  const pushToHost = useCallback(async (contentToSave: string, explicit = false) => {
     const otp = await getRoomOtp();
     if (!otp) return;
 
@@ -113,27 +123,31 @@ export default function EditorScreen({ route, navigation }: any) {
     setSyncStatusMsg('Syncing...');
 
     try {
-      const deltaSize = contentToSave.length;
-      const now = Date.now();
-      lastSyncedAt.current = now;
+      const baseUrl = await getSyncBaseUrl();
+      if (!baseUrl) {
+        setSyncStatusMsg("Couldn't find host address — try rejoining the room");
+        return;
+      }
 
-      const res = await fetch(`${MATCHMAKER_URL}/doc`, {
+      const res = await fetch(`${baseUrl}/sync/push`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          otp,
           fileId,
           authorNodeId: localNodeIdRef.current,
           authorName: localNodeIdRef.current.slice(0, 8),
+          nodeId: localNodeIdRef.current,
           content: contentToSave,
-          vectorClock: {},
-          deltaSize,
+          vectorClock: localVectorClockRef.current,
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        if (data.conflict) {
+        if (data.vectorClock) {
+          localVectorClockRef.current = data.vectorClock;
+        }
+        if (data.escalated || data.conflict) {
           setEscalated(true);
           setSyncStatusMsg('Conflict — sent to owner for review');
           setTimeout(() => setEscalated(false), 5000);
@@ -155,7 +169,7 @@ export default function EditorScreen({ route, navigation }: any) {
     }
   }, [fileId, getRoomOtp]);
 
-  // ── Poll Redis for remote updates ─────────────────────────────────────────
+  // ── Poll Host for remote updates ──────────────────────────────────────────
   useEffect(() => {
     const poll = async () => {
       const netState = await NetInfo.fetch();
@@ -165,7 +179,13 @@ export default function EditorScreen({ route, navigation }: any) {
       if (!otp) return;
 
       try {
-        const url = `${MATCHMAKER_URL}/doc?otp=${otp}&fileId=${fileId}&since=${lastSyncedAt.current}`;
+        const baseUrl = await getSyncBaseUrl();
+        if (!baseUrl) {
+          setSyncStatusMsg("Couldn't find host address — try rejoining the room");
+          return;
+        }
+
+        const url = `${baseUrl}/sync/status?fileId=${fileId}`;
         const res = await fetch(url);
         if (!res.ok) return;
         const data = await res.json();
@@ -209,7 +229,7 @@ export default function EditorScreen({ route, navigation }: any) {
     };
 
     poll();
-    pollInterval.current = setInterval(poll, 3000);
+    pollInterval.current = setInterval(poll, 4000);
     return () => { if (pollInterval.current) clearInterval(pollInterval.current); };
   }, [fileId, getRoomOtp]);
 
@@ -245,14 +265,14 @@ export default function EditorScreen({ route, navigation }: any) {
     lastSave.current = contentToSave;
     setSaved(true);
 
-    // Step 2: Push to Redis (debounced 2s, or immediate)
+    // Step 2: Push to Host (debounced 2s, or immediate)
     if (syncDebounce.current) clearTimeout(syncDebounce.current);
     if (forcePush) {
-      await pushToRedis(contentToSave, true);
+      await pushToHost(contentToSave, true);
     } else {
-      syncDebounce.current = setTimeout(() => { pushToRedis(contentToSave); }, 2000);
+      syncDebounce.current = setTimeout(() => { pushToHost(contentToSave); }, 2000);
     }
-  }, [fileId, pushToRedis]);
+  }, [fileId, pushToHost]);
 
   const handleContentChange = (text: string) => {
     setContent(text);
@@ -266,7 +286,7 @@ export default function EditorScreen({ route, navigation }: any) {
 
     if (syncDebounce.current) clearTimeout(syncDebounce.current);
     syncDebounce.current = setTimeout(() => {
-      pushToRedis(text);
+      pushToHost(text);
     }, 2000);
   };
 
