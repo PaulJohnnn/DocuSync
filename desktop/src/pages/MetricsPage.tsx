@@ -223,7 +223,7 @@ const MetricsPage: React.FC = () => {
   const fetchData = useCallback(async () => {
     // 1. Real conflict records from ConflictService
     try {
-      const all = await ConflictService.getAll();
+      const all = await ConflictService.list();
       setConflicts(all);
     } catch { /* no DB yet — ok */ }
 
@@ -309,8 +309,7 @@ const MetricsPage: React.FC = () => {
 
   // RQ4 — Conflict & Consistency Metrics
   const totalConflicts = hostMetrics?.conflictsDetectedThisSession ?? conflictQueue.length;
-  const resolvedConflicts = hostMetrics?.conflictsResolvedThisSession ??
-    conflicts.filter(c => c.status === 'accepted' || c.status === 'rejected').length;
+  const resolvedConflicts = hostMetrics?.conflictsResolvedThisSession ?? 0;
   const totalSyncEvents = hostMetrics?.pushCount ?? eventLogRows;
 
   const conflictDetectionRate = totalSyncEvents > 0 && totalConflicts > 0

@@ -207,6 +207,18 @@ const EditorPage: React.FC = () => {
     return () => clearInterval(iv);
   }, []);
 
+  // ── TipTap ────────────────────────────────────────────────────────────────
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Placeholder.configure({ placeholder: 'Start writing… (auto-saves every 500 ms)' }),
+      RemoteCursorsExtension.configure({ cursors: Object.values(remoteCursors) }),
+    ],
+    content: '',
+    editorProps: { attributes: { class: 'ProseMirror', 'data-testid': 'tiptap-editor' } },
+  });
+
   // ── Live remote delta listener ────────────────────────────────────────────
   // The main process fires 'evt:file-updated' (via onDeltaApplied) the instant
   // a peer's edit is merged. We apply it to the TipTap editor immediately so
@@ -232,17 +244,7 @@ const EditorPage: React.FC = () => {
     prevConflictCount.current = pendingConflicts;
   }, [pendingConflicts]);
 
-  // ── TipTap ────────────────────────────────────────────────────────────────
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Placeholder.configure({ placeholder: 'Start writing… (auto-saves every 500 ms)' }),
-      RemoteCursorsExtension.configure({ cursors: Object.values(remoteCursors) }),
-    ],
-    content: '',
-    editorProps: { attributes: { class: 'ProseMirror', 'data-testid': 'tiptap-editor' } },
-  });
 
   // Re-configure cursors when remoteCursors changes
   useEffect(() => {
