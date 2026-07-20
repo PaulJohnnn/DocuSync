@@ -7,9 +7,10 @@ interface MetricsOverlayProps {
     deltaBytes: number;
     peerCount: number;
     vectorClock?: VectorClock;
+    syncStatus?: 'idle' | 'syncing' | 'conflict' | 'offline' | 'error';
 }
 
-export default function MetricsOverlay({ deltaBytes, peerCount, vectorClock }: MetricsOverlayProps) {
+export default function MetricsOverlay({ deltaBytes, peerCount, vectorClock, syncStatus }: MetricsOverlayProps) {
     const [ping, setPing] = useState(24);
     const [flashDelta, setFlashDelta] = useState(false);
     const [uptime, setUptime] = useState(0);
@@ -58,22 +59,26 @@ export default function MetricsOverlay({ deltaBytes, peerCount, vectorClock }: M
                 <MetricRow label="SYNC PROTOCOL" value="Log/LWW Hybrid Engine" valueClass="text-cyan-400" />
                 <MetricRow
                     label="NETWORK PING"
-                    value={`${ping} ms`}
+                    value={syncStatus === 'offline' ? 'OFFLINE' : `${ping} ms`}
                     valueClass="font-bold"
-                    valueStyle={{ color: pingColor }}
+                    valueStyle={{ color: syncStatus === 'offline' ? '#ef4444' : pingColor }}
                     extra={
-                        <div className="flex gap-0.5 items-center ml-2">
-                            {[...Array(5)].map((_, i) => (
-                                <div
-                                    key={i}
-                                    className="w-1 rounded-sm transition-all duration-300"
-                                    style={{
-                                        height: `${4 + i * 2}px`,
-                                        backgroundColor: i < Math.ceil((45 - ping) / 9) ? pingColor : '#27272a',
-                                    }}
-                                />
-                            ))}
-                        </div>
+                        syncStatus === 'offline' ? (
+                            <span className="ml-2 text-[8px] text-red-500 animate-pulse">DISCONNECTED</span>
+                        ) : (
+                            <div className="flex gap-0.5 items-center ml-2">
+                                {[...Array(5)].map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="w-1 rounded-sm transition-all duration-300"
+                                        style={{
+                                            height: `${4 + i * 2}px`,
+                                            backgroundColor: i < Math.ceil((45 - ping) / 9) ? pingColor : '#27272a',
+                                        }}
+                                    />
+                                ))}
+                            </div>
+                        )
                     }
                 />
                 <MetricRow

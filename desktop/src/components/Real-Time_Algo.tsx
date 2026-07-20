@@ -541,7 +541,7 @@ function InnerEditor({
 
             {/* Metrics Overlay */}
             {showMetrics && (
-                <MetricsOverlay deltaBytes={deltaBytes} peerCount={collaborators.length} vectorClock={vectorClock} />
+                <MetricsOverlay deltaBytes={deltaBytes} peerCount={collaborators.length} vectorClock={vectorClock} syncStatus={isOffline ? 'offline' : 'idle'} />
             )}
 
             {/* ════════════════════════════════════════════════════════════════════
