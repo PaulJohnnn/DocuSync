@@ -355,6 +355,16 @@ export async function initEngine(
         await fs.promises.writeFile(filePath, newContent, 'utf-8');
         console.log(`[IPC] Applied remote delta to ${filePath}`);
       }
+
+      // ── Push live update to the Desktop renderer ──────────────────
+      // Without this, the editor only picks up changes via the 4-second
+      // poll in EditorPage. Sending 'evt:file-updated' lets the editor
+      // react immediately as soon as a peer's edit arrives.
+      BrowserWindow.getAllWindows()[0]?.webContents.send(
+        'evt:file-updated',
+        fileId,
+        newContent
+      );
     },
     onConflictNotified: async (conflictId, fileId, summary) => {
       console.log(

@@ -207,6 +207,26 @@ const EditorPage: React.FC = () => {
     return () => clearInterval(iv);
   }, []);
 
+  // ── Live remote delta listener ────────────────────────────────────────────
+  // The main process fires 'evt:file-updated' (via onDeltaApplied) the instant
+  // a peer's edit is merged. We apply it to the TipTap editor immediately so
+  // collaborators see changes in real time instead of waiting for the 4s poll.
+  useEffect(() => {
+    if (!window.docuSync?.onFileUpdated) return;
+    const unsub = window.docuSync.onFileUpdated((updatedFileId: number, newContent: string) => {
+      if (updatedFileId !== fileId) return;
+      if (isTypingRef.current) return; // Don't stomp on local typing
+      if (!editor) return;
+      const { from } = editor.state.selection;
+      editor.commands.setContent(newContent, { emitUpdate: false });
+      const maxPos = editor.state.doc.content.size;
+      editor.commands.setTextSelection(Math.min(from, maxPos - 1));
+      setIncomingBanner('↓ Remote edit received');
+      setTimeout(() => setIncomingBanner(null), 4000);
+    });
+    return unsub;
+  }, [fileId, editor]);
+
   useEffect(() => {
     if (pendingConflicts > prevConflictCount.current) setConflictBannerDismissed(false);
     prevConflictCount.current = pendingConflicts;

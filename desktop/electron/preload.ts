@@ -76,6 +76,7 @@ const CH_EVT_SESSION_TERMINATED = 'evt:session-terminated' as const;
 const EVT_PEER_UPDATED    = 'evt:peer-updated'   as const;
 const EVT_CURSOR_UPDATE   = 'evt:cursor-update'  as const;
 const CH_EVT_SEND_PEER_MESSAGE = 'evt:send-peer-message' as const;
+const EVT_FILE_UPDATED    = 'evt:file-updated'   as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DocuSyncBridge Interface
@@ -390,6 +391,17 @@ export interface DocuSyncBridge {
   onCursorUpdate(
     callback: (msg: any) => void
   ): () => void;
+
+  /**
+   * Fired whenever the main process applies a remote delta to a file.
+   * The renderer should use this to update the editor instantly.
+   *
+   * @param listener - Receives the numeric fileId and the full new content string.
+   * @returns Unsubscribe function.
+   */
+  onFileUpdated(
+    listener: (fileId: number, newContent: string) => void
+  ): () => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -642,6 +654,18 @@ const docuSyncBridge: DocuSyncBridge = {
     ipcRenderer.on(EVT_CURSOR_UPDATE, wrapped);
     return () => {
       ipcRenderer.removeListener(EVT_CURSOR_UPDATE, wrapped);
+    };
+  },
+
+  onFileUpdated(
+    listener: (fileId: number, newContent: string) => void
+  ): () => void {
+    const wrapped = (_event: Electron.IpcRendererEvent, fileId: number, newContent: string) => {
+      listener(fileId, newContent);
+    };
+    ipcRenderer.on(EVT_FILE_UPDATED, wrapped);
+    return () => {
+      ipcRenderer.removeListener(EVT_FILE_UPDATED, wrapped);
     };
   },
 };
