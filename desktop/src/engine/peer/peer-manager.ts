@@ -280,8 +280,8 @@ export class PeerManager {
 
       this.server = new WebSocketServer({ server: this.httpServer });
 
-      this.httpServer.listen(port, () => {
-        console.log(`[PeerManager] Server listening on port ${port}`);
+      this.httpServer.listen(port, '0.0.0.0', () => {
+        console.log(`[PeerManager] Server listening on 0.0.0.0:${port}`);
 
         // Start heartbeat and cleanup timers.
         this.startTimers();
@@ -519,6 +519,20 @@ export class PeerManager {
               await this.config.onDeltaApplied(fileId, newContent, eventId, nodeId, this.config.vectorClock.toJSON());
             }
 
+            // Relay HTTP push to all connected WebSocket peers
+            if (delta) {
+              this.broadcast({
+                type: 'DELTA_PUSH',
+                eventId,
+                nodeId,
+                fileId,
+                deltaBase64: delta,
+                logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+                vectorClockJson: this.config.vectorClock.toJSON(),
+                timestamp: new Date().toISOString(),
+              });
+            }
+
             // Track successful merge latency
             this._metrics.pushSuccessCount++;
             this._metrics.pushTotalLatencyMs += Date.now() - pushT0;
@@ -570,6 +584,21 @@ export class PeerManager {
             // Non-escalated concurrent — count as success
             this._metrics.pushSuccessCount++;
             this._metrics.pushTotalLatencyMs += Date.now() - pushT0;
+
+            // Relay concurrent HTTP push to WebSocket peers if we have a delta
+            if (delta) {
+              this.broadcast({
+                type: 'DELTA_PUSH',
+                eventId: eventB.eventId,
+                nodeId,
+                fileId,
+                deltaBase64: delta,
+                logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+                vectorClockJson: this.config.vectorClock.toJSON(),
+                timestamp: new Date().toISOString(),
+              });
+            }
+
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ merged: true, vectorClock: this.config.vectorClock.toJSON() }));
             return;
@@ -709,7 +738,7 @@ export class PeerManager {
    * console.log(`Delta pushed to ${sentCount} peers`);
    * ```
    */
-  public broadcast(message: PeerMessage): number {
+  public broadcast(message: PeerMessage, excludeNodeId?: string): number {
     const data = serialiseMessage(message);
     let sentCount = 0;
 
@@ -718,6 +747,9 @@ export class PeerManager {
         continue;
       }
       if (!peer.isAuthenticated) {
+        continue;
+      }
+      if (excludeNodeId && peer.nodeId === excludeNodeId) {
         continue;
       }
 
@@ -1275,6 +1307,9 @@ export class PeerManager {
           msg.vectorClockJson
         );
       }
+
+      // Step 4.5: Relay the incoming delta to all OTHER connected peers (Star Topology Hub)
+      this.broadcast(msg, msg.nodeId);
 
       // Step 5: Send DELTA_ACK.
       const ack: PeerMessage = {
