@@ -156,7 +156,7 @@ export default function WebMetricsDashboard() {
       const room = storedRoomStr ? JSON.parse(storedRoomStr) : null;
       const ip = room?.hostIp;
       if (!ip) {
-        setHostError('Couldn\\'t find host address — try rejoining the room');
+        setHostError("Couldn't find host address — try rejoining the room");
         return;
       }
       const rawPort = room?.hostPort;
