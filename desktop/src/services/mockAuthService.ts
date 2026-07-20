@@ -103,7 +103,10 @@ export async function requestAccount(email: string): Promise<'verified'> {
   const res = await fetch(API_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'request', email })
+    body: JSON.stringify({ action: 'request', email }),
+    signal: AbortSignal.timeout(5000)
+  }).catch(() => {
+    throw new Error('Network timeout: Cannot connect to the Web App Admin. Make sure the laptop is running the Web App and the IP address is correct.');
   });
   const data = await res.json();
   if (!res.ok || !data.success) {
