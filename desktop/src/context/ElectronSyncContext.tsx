@@ -226,9 +226,9 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
     const roomOtp = currentRoom.otp || currentRoom.id;
     if (roomOtp.startsWith('direct-')) return;
 
-    const MATCHMAKER_SIGNAL = import.meta.env.DEV
-      ? 'http://localhost:3000/api/lobby/signal'
-      : 'https://docusync-pnc.vercel.app/api/lobby/signal';
+    const _WEB_BASE = import.meta.env.VITE_WEB_URL
+      || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+    const MATCHMAKER_SIGNAL = `${_WEB_BASE}/api/lobby/signal`;
 
     const manager = new WebRTCManager(MATCHMAKER_SIGNAL, roomOtp, localNodeId);
     
@@ -260,9 +260,9 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
 
   // ── Poll matchmaker for cross-device peer count and WebRTC mesh ──────────
   useEffect(() => {
-    const MATCHMAKER = import.meta.env.DEV
-      ? 'http://localhost:3000/api/lobby'
-      : 'https://docusync-pnc.vercel.app/api/lobby';
+    const _WEB_BASE = import.meta.env.VITE_WEB_URL
+      || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+    const MATCHMAKER = `${_WEB_BASE}/api/lobby`;
 
     const pollMatchmaker = async () => {
       const roomOtp = currentRoom?.otp || currentRoom?.id;

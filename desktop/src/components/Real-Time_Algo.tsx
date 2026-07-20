@@ -233,6 +233,36 @@ function InnerEditor({
         };
     }, [ydoc, provider, repoName, fileName, isOffline, vectorClock]);
 
+    // ── Offline queue drain: replay queued edits when reconnecting ────────────
+    useEffect(() => {
+        if (!ydoc) return;
+        const flush = async () => {
+            if (typeof navigator !== 'undefined' && navigator.onLine) {
+                try {
+                    const { dequeueAllEdits, clearQueue } = await import('../lib/offlineQueue');
+                    const pending = await dequeueAllEdits();
+                    if (pending.length === 0) return;
+                    // Apply all queued Yjs binary deltas in causal order (sorted by vector clock)
+                    for (const edit of pending) {
+                        Y.applyUpdate(ydoc, edit.delta);
+                    }
+                    await clearQueue();
+                    toast.success(`${pending.length} offline edit${pending.length > 1 ? 's' : ''} synced`, {
+                        description: 'Queued edits replayed in causal order · Vector clock reconciled',
+                        duration: 4000,
+                    });
+                } catch (err) {
+                    console.error('[offlineQueue] Flush error:', err);
+                }
+            }
+        };
+        // Flush on mount (covers case where device reconnected before component loaded)
+        flush();
+        // Flush whenever the browser fires an 'online' event
+        window.addEventListener('online', flush);
+        return () => window.removeEventListener('online', flush);
+    }, [ydoc]);
+
     // Push local clock to awareness state
     const lastClockRef = useRef<number>(0);
     useEffect(() => {

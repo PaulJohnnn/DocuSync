@@ -35,17 +35,33 @@ const TOOLS_NAV: NavItem[] = [
 const Sidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { syncStatus, connectedPeers, pendingConflicts, localNodeId, isAdmin } = useElectronSync();
+  const { syncStatus, connectedPeers, pendingConflicts, localNodeId, isAdmin, refreshStatus } = useElectronSync();
   const [hasInternet, setHasInternet] = useState(navigator.onLine);
 
   useEffect(() => {
-    const handleOnline = () => {
+    const handleOnline = async () => {
       setHasInternet(true);
-      toast.success('Internet reconnected. You are back online.');
+      toast.success('Back online — syncing with peers');
+      try {
+        await refreshStatus();
+      } catch {}
+      // Brief delay to let state propagate, then notify about conflicts
+      setTimeout(() => {
+        if (pendingConflicts > 0) {
+          toast.error(
+            `${pendingConflicts} conflict${pendingConflicts > 1 ? 's' : ''} need your review`,
+            {
+              description: 'Your offline edits may conflict with remote changes.',
+              action: { label: 'Review', onClick: () => navigate('/conflicts') },
+              duration: 10000,
+            }
+          );
+        }
+      }, 1500);
     };
     const handleOffline = () => {
       setHasInternet(false);
-      toast.error('Internet disconnected. You are now offline.');
+      toast.error('You are now offline — edits will be queued locally.');
     };
 
     window.addEventListener('online', handleOnline);
@@ -55,7 +71,7 @@ const Sidebar: React.FC = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [refreshStatus, pendingConflicts, navigate]);
 
   const handleLockVault = async () => {
     try {

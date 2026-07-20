@@ -20,9 +20,11 @@ function eventMeta(type: HistoryEntry['eventType']): { icon: React.ReactNode; la
     case 'merge':
       return { icon: <IconGitMerge size={16} />, label: 'Merge', color: 'var(--ds-purple)', bg: 'var(--ds-purple-bg)' };
     case 'conflict-resolve':
-      return { icon: <IconScale size={16} />, label: 'Conflict Resolve', color: 'var(--ds-amber)', bg: 'var(--ds-amber-bg)' };
+      return { icon: <IconScale size={16} />, label: 'Conflict Resolved', color: 'var(--ds-amber)', bg: 'var(--ds-amber-bg)' };
     case 'restore':
       return { icon: <IconFilePlus size={16} />, label: 'Restore', color: 'var(--ds-green)', bg: 'var(--ds-green-bg)' };
+    case 'delete':
+      return { icon: <span style={{ fontSize: 16 }}>🗑️</span>, label: 'File Deleted', color: '#ef4444', bg: 'rgba(239,68,68,0.1)' };
     default:
       return { icon: <IconRefresh size={16} />, label: type, color: 'var(--ds-text3)', bg: 'var(--ds-bg3)' };
   }
@@ -74,19 +76,30 @@ const TimelineItem: React.FC<{
         )}
 
         {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--ds-text3)' }}>
-            {formatRelativeTime(entry.createdAt)}
-          </span>
-          <button
-            className="ds-btn ds-btn-ghost"
-            disabled={restoring}
-            onClick={() => onRestore(entry.eventId)}
-            style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem' }}
-            title={`Restore to ts=${entry.logicalTimestamp}`}
-          >
-            {restoring ? '⏳ Restoring…' : '⏪ Restore'}
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: '0.65rem', color: 'var(--ds-text3)' }}>
+              {formatRelativeTime(entry.createdAt)}
+            </span>
+            <span style={{ fontSize: '0.6rem', color: 'var(--ds-text3)', fontFamily: 'monospace', opacity: 0.7 }}>
+              {new Date(entry.createdAt).toLocaleString()}
+            </span>
+          </div>
+          {entry.eventType === 'delete' ? (
+            <span style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: 600, padding: '0.2rem 0.5rem', background: 'rgba(239,68,68,0.1)', borderRadius: 4 }}>
+              🗑️ Deleted at {new Date(entry.createdAt).toLocaleTimeString()}
+            </span>
+          ) : (
+            <button
+              className="ds-btn ds-btn-ghost"
+              disabled={restoring}
+              onClick={() => onRestore(entry.eventId)}
+              style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem' }}
+              title={`Restore to ts=${entry.logicalTimestamp}`}
+            >
+              {restoring ? '⏳ Restoring…' : '⏪ Restore'}
+            </button>
+          )}
         </div>
       </article>
     </div>

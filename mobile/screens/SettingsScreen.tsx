@@ -23,7 +23,7 @@ interface HostMetrics {
 }
 
 const MATCHMAKER_KEY = '@docusync/matchmaker_url';
-const DEFAULT_MATCHMAKER = 'http://192.168.68.102:3000';
+const DEFAULT_MATCHMAKER = 'http://10.127.60.142:3000';
 
 export default function SettingsScreen() {
   const navigation = useNavigation();

@@ -20,47 +20,50 @@ interface ConflictDetail extends Omit<ConflictRecord, 'detectedAt'> {
   resolving: boolean;
 }
 
-interface DiffLine {
-  type: 'equal' | 'delete' | 'insert';
-  text: string;
-  lineNumA: number | null;
-  lineNumB: number | null;
+// ── Word-level diff engine ────────────────────────────────────────────────────
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ').trim();
 }
 
-// ── Diff Engine ───────────────────────────────────────────────────────────────
-
-function lcs(a: string[], b: string[]): string[] {
-  const m = a.length, n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+function computeWordDiff(htmlA: string, htmlB: string) {
+  const wordsA = stripHtml(htmlA).split(/\s+/).filter(Boolean);
+  const wordsB = stripHtml(htmlB).split(/\s+/).filter(Boolean);
+  const m = wordsA.length, n = wordsB.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
   for (let i = 1; i <= m; i++)
     for (let j = 1; j <= n; j++)
-      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j], dp[i][j-1]);
-  const result: string[] = [];
+      dp[i][j] = wordsA[i-1] === wordsB[j-1] ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j], dp[i][j-1]);
+  const delSet = new Set<number>(), addSet = new Set<number>();
   let i = m, j = n;
   while (i > 0 && j > 0) {
-    if (a[i-1] === b[j-1]) { result.unshift(a[i-1]); i--; j--; }
-    else if (dp[i-1][j] >= dp[i][j-1]) i--;
-    else j--;
+    if (wordsA[i-1] === wordsB[j-1]) { i--; j--; }
+    else if (dp[i-1][j] >= dp[i][j-1]) { delSet.add(--i); }
+    else { addSet.add(--j); }
   }
-  return result;
-}
+  while (i > 0) delSet.add(--i);
+  while (j > 0) addSet.add(--j);
 
-function lineDiff(textA: string, textB: string): DiffLine[] {
-  const linesA = textA.split('\n'), linesB = textB.split('\n');
-  const common = lcs(linesA, linesB);
-  const result: DiffLine[] = [];
-  let ci = 0, ai = 0, bi = 0, lnA = 1, lnB = 1;
-  while (ai < linesA.length || bi < linesB.length) {
-    const aLine = linesA[ai], bLine = linesB[bi], cLine = common[ci];
-    if (ai < linesA.length && aLine === cLine && bi < linesB.length && bLine === cLine) {
-      result.push({ type: 'equal', text: aLine, lineNumA: lnA++, lineNumB: lnB++ }); ai++; bi++; ci++;
-    } else if (ai < linesA.length && aLine !== cLine) {
-      result.push({ type: 'delete', text: aLine, lineNumA: lnA++, lineNumB: null }); ai++;
-    } else if (bi < linesB.length && bLine !== cLine) {
-      result.push({ type: 'insert', text: bLine, lineNumA: null, lineNumB: lnB++ }); bi++;
-    } else break;
-  }
-  return result;
+  const highlightedA = wordsA.length === 0
+    ? '<em style="color:var(--text-muted)">(empty)</em>'
+    : wordsA.map((w, idx) =>
+        delSet.has(idx)
+          ? `<mark style="background:rgba(239,68,68,0.18);color:#ef4444;border-radius:3px;padding:0 3px;text-decoration:line-through">${w}</mark>`
+          : w
+      ).join(' ');
+
+  const highlightedB = wordsB.length === 0
+    ? '<em style="color:var(--text-muted)">(empty)</em>'
+    : wordsB.map((w, idx) =>
+        addSet.has(idx)
+          ? `<mark style="background:rgba(34,197,94,0.18);color:#16a34a;border-radius:3px;padding:0 3px;font-weight:600">${w}</mark>`
+          : w
+      ).join(' ');
+
+  return { highlightedA, highlightedB, deletedCount: delSet.size, addedCount: addSet.size };
 }
 
 function extractNodeId(summary: string, side: 'A' | 'B'): string {
@@ -69,23 +72,70 @@ function extractNodeId(summary: string, side: 'A' | 'B'): string {
   return side === 'A' ? match[1] : match[2];
 }
 
-// ── DiffView ──────────────────────────────────────────────────────────────────
+// ── SplitHtmlDiff ─────────────────────────────────────────────────────────────
 
-const DiffView: React.FC<{ lines: DiffLine[] }> = ({ lines }) => {
-  if (lines.length === 0) return (
-    <div style={{ padding: '1rem', color: 'var(--ds-text3)', fontSize: '0.8rem', textAlign: 'center' }}>No differences — files are identical.</div>
+const SplitHtmlDiff: React.FC<{
+  htmlA: string; htmlB: string;
+  nodeIdA: string; nodeIdB: string;
+  tsA: number; tsB: number;
+}> = ({ htmlA, htmlB, nodeIdA, nodeIdB, tsA, tsB }) => {
+  const { highlightedA, highlightedB, deletedCount, addedCount } = useMemo(
+    () => computeWordDiff(htmlA, htmlB), [htmlA, htmlB]
   );
-  const sideA = lines.filter(l => l.type === 'equal' || l.type === 'delete');
-  const sideB = lines.filter(l => l.type === 'equal' || l.type === 'insert');
+  const isIdentical = deletedCount === 0 && addedCount === 0;
+  const panelStyle: React.CSSProperties = {
+    flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
+    border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden',
+  };
+  const headerStyle = (color: string, bg: string): React.CSSProperties => ({
+    padding: '7px 12px', fontSize: 11, fontWeight: 700,
+    color, background: bg, borderBottom: '1px solid var(--border)',
+    display: 'flex', flexDirection: 'column', gap: 2,
+  });
+  const bodyStyle: React.CSSProperties = {
+    padding: '12px 14px', flex: 1, overflowY: 'auto', maxHeight: 260,
+    fontSize: 12, lineHeight: 1.7, color: 'var(--text-primary)', background: 'var(--bg-card)',
+  };
+
+  if (isIdentical) return (
+    <div style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: 12, textAlign: 'center',
+      background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8 }}>
+      ✅ Files are identical — no differences detected.
+    </div>
+  );
+
   return (
-    <div className="ds-diff-container">
-      <div className="ds-diff-side">
-        <div className="ds-diff-header" style={{ color: 'var(--ds-red)', background: 'var(--ds-red-bg)' }}>Side A — Original</div>
-        {sideA.map((line, i) => <div key={i} className={`ds-diff-line ${line.type === 'delete' ? 'ds-diff-line-del' : ''}`}>{line.text || '\u00A0'}</div>)}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 8, fontSize: 11 }}>
+        <span style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
+          −{deletedCount} word{deletedCount !== 1 ? 's' : ''} removed (local)
+        </span>
+        <span style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
+          +{addedCount} word{addedCount !== 1 ? 's' : ''} added (updated)
+        </span>
       </div>
-      <div className="ds-diff-side">
-        <div className="ds-diff-header" style={{ color: 'var(--ds-green)', background: 'var(--ds-green-bg)' }}>Side B — Incoming</div>
-        {sideB.map((line, i) => <div key={i} className={`ds-diff-line ${line.type === 'insert' ? 'ds-diff-line-ins' : ''}`}>{line.text || '\u00A0'}</div>)}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={panelStyle}>
+          <div style={headerStyle('#ef4444', 'rgba(239,68,68,0.06)')}>
+            <span>📱 Your Local Version</span>
+            <span style={{ fontWeight: 400, opacity: 0.8 }}>Node: {nodeIdA.slice(0,12)}… · ts={tsA}</span>
+          </div>
+          <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedA }} />
+        </div>
+
+        <div style={panelStyle}>
+          <div style={headerStyle('#16a34a', 'rgba(34,197,94,0.06)')}>
+            <span>🌐 Updated Version</span>
+            <span style={{ fontWeight: 400, opacity: 0.8 }}>Node: {nodeIdB.slice(0,12)}… · ts={tsB}</span>
+          </div>
+          <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedB }} />
+        </div>
+      </div>
+
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+        🔴 Red strikethrough = words in your local version not in the updated file &nbsp;·&nbsp;
+        🟢 Green bold = words added in the updated version
       </div>
     </div>
   );
@@ -98,10 +148,7 @@ const ConflictCard: React.FC<{
   onAccept: (id: string) => Promise<void>;
   onReject: (id: string) => Promise<void>;
 }> = ({ conflict, onAccept, onReject }) => {
-  const diffLines = useMemo(() => lineDiff(conflict.payloadA, conflict.payloadB), [conflict.payloadA, conflict.payloadB]);
   const lwwWinner: 'A' | 'B' = conflict.logicalTimestampA >= conflict.logicalTimestampB ? 'A' : 'B';
-  const delCount = diffLines.filter(l => l.type === 'delete').length;
-  const insCount = diffLines.filter(l => l.type === 'insert').length;
 
   return (
     <article className="ds-card" style={{ overflow: 'hidden', opacity: conflict.resolving ? 0.6 : 1 }}>
@@ -120,23 +167,14 @@ const ConflictCard: React.FC<{
 
       {/* Content */}
       <div style={{ padding: '14px 16px' }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <span className="ds-badge ds-badge-red">−{delCount} deleted</span>
-          <span className="ds-badge ds-badge-green">+{insCount} added</span>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-          <div style={{ background: 'var(--red-light)', border: '1px solid var(--red-border)', borderRadius: 8, padding: '6px 10px' }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Original · Node A</div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conflict.nodeIdA}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>ts={conflict.logicalTimestampA}</div>
-          </div>
-          <div style={{ background: 'var(--green-light)', border: '1px solid var(--green-border)', borderRadius: 8, padding: '6px 10px' }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>Incoming · Node B</div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conflict.nodeIdB}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>ts={conflict.logicalTimestampB}</div>
-          </div>
-        </div>
-        <DiffView lines={diffLines} />
+        <SplitHtmlDiff
+          htmlA={conflict.payloadA}
+          htmlB={conflict.payloadB}
+          nodeIdA={conflict.nodeIdA}
+          nodeIdB={conflict.nodeIdB}
+          tsA={conflict.logicalTimestampA}
+          tsB={conflict.logicalTimestampB}
+        />
       </div>
 
       {/* Action bar — Accept / Reject (manuscript terminology) */}
@@ -235,10 +273,12 @@ const ConflictsPage: React.FC = () => {
     });
   };
 
-  const MATCHMAKER = (
-    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_MATCHMAKER) ||
-    'https://docusync-pnc.vercel.app/api/lobby'
-  );
+  const _WEB_BASE = (typeof import.meta !== 'undefined' && import.meta.env.VITE_WEB_URL)
+    ? import.meta.env.VITE_WEB_URL
+    : (typeof import.meta !== 'undefined' && import.meta.env.DEV)
+      ? 'http://localhost:3000'
+      : 'https://docusync-pnc.vercel.app';
+  const MATCHMAKER = `${_WEB_BASE}/api/lobby`;
 
   const pushResolutionToMatchmaker = async (conflictId: string, winner: 'A' | 'B') => {
     const detail = details.get(conflictId);

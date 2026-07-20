@@ -21,6 +21,18 @@ import LogoIcon from '../components/LogoIcon';
 import AnimatedButton from '../components/AnimatedButton';
 import ConfirmModal from '../components/ConfirmModal';
 import { uGet, uSet, uRemove } from '../utils/userStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const MATCHMAKER_KEY = '@docusync/matchmaker_url';
+const DEFAULT_MATCHMAKER = 'http://10.127.60.142:3000';
+async function getMatchmakerUrl(): Promise<string> {
+  try {
+    const saved = await AsyncStorage.getItem(MATCHMAKER_KEY);
+    return saved ? saved.replace(/\/$/, '') : DEFAULT_MATCHMAKER;
+  } catch {
+    return DEFAULT_MATCHMAKER;
+  }
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -78,7 +90,8 @@ export default function FilesScreen({ navigation }: any) {
         if (!parsedRoom.id.startsWith('direct-')) {
           try {
             const code = (parsedRoom as any).otp || parsedRoom.id;
-            const res = await fetch(`http://192.168.68.102:3000/api/lobby/files?otp=${code}`);
+            const mm = await getMatchmakerUrl();
+            const res = await fetch(`${mm}/api/lobby/files?otp=${code}`);
             if (res.ok) {
               const data = await res.json();
               setRoomFiles(data.files || []);
@@ -122,7 +135,8 @@ export default function FilesScreen({ navigation }: any) {
       }
 
       const fileId = Date.now();
-      const res = await fetch('http://192.168.68.102:3000/api/lobby/files', {
+      const mm = await getMatchmakerUrl();
+      const res = await fetch(`${mm}/api/lobby/files`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -179,7 +193,8 @@ export default function FilesScreen({ navigation }: any) {
         try {
           const code = (currentRoom as any).otp || currentRoom.id;
           const targetFileId = f.fileId || f.id;
-          const res = await fetch(`http://192.168.68.102:3000/api/lobby/doc?otp=${code}&fileId=${targetFileId}`);
+          const mm = await getMatchmakerUrl();
+          const res = await fetch(`${mm}/api/lobby/doc?otp=${code}&fileId=${targetFileId}`);
           if (res.ok) {
             const data = await res.json();
             if (data.snapshot?.content) {
@@ -228,7 +243,8 @@ export default function FilesScreen({ navigation }: any) {
         try {
           const code = (currentRoom as any).otp || currentRoom.id;
           const targetFileId = f.fileId || f.id;
-          const res = await fetch(`http://192.168.68.102:3000/api/lobby/doc?otp=${code}&fileId=${targetFileId}`);
+          const mm = await getMatchmakerUrl();
+          const res = await fetch(`${mm}/api/lobby/doc?otp=${code}&fileId=${targetFileId}`);
           if (res.ok) {
             const data = await res.json();
             if (data.snapshot?.content) {
