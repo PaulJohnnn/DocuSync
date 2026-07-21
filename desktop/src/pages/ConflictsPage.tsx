@@ -118,7 +118,7 @@ const SplitHtmlDiff: React.FC<{
       <div style={{ display: 'flex', gap: 8 }}>
         <div style={panelStyle}>
           <div style={headerStyle('#ef4444', 'rgba(239,68,68,0.06)')}>
-            <span>📱 Your Local Version</span>
+            <span>Your Local Version</span>
             <span style={{ fontWeight: 400, opacity: 0.8 }}>Node: {nodeIdA.slice(0,12)}… · ts={tsA}</span>
           </div>
           <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedA }} />
@@ -126,7 +126,7 @@ const SplitHtmlDiff: React.FC<{
 
         <div style={panelStyle}>
           <div style={headerStyle('#16a34a', 'rgba(34,197,94,0.06)')}>
-            <span>🌐 Updated Version</span>
+            <span>Updated Version</span>
             <span style={{ fontWeight: 400, opacity: 0.8 }}>Node: {nodeIdB.slice(0,12)}… · ts={tsB}</span>
           </div>
           <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedB }} />
@@ -134,8 +134,8 @@ const SplitHtmlDiff: React.FC<{
       </div>
 
       <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-        🔴 Red strikethrough = words in your local version not in the updated file &nbsp;·&nbsp;
-        🟢 Green bold = words added in the updated version
+        Red strikethrough = words in your local version not in the updated file &nbsp;·&nbsp;
+        Green bold = words added in the updated version
       </div>
     </div>
   );

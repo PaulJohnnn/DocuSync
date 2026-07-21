@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
 import { redis } from '@/lib/redis';
 
 const corsHeaders = {
@@ -21,13 +20,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'otp is required' }, { status: 400, headers: corsHeaders });
     }
 
-    // Try Supabase first
-    if (supabase) {
-      const { error } = await supabase.from('matchmaker_lobbies').delete().eq('otp', otp);
-      if (error) {
-        console.error('[Admin] Delete group error (Supabase):', error);
-      }
-    }
+
 
     // Remove from Redis store
     await redis.del(`lobby:${otp}`);

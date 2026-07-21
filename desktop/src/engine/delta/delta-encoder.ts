@@ -1,29 +1,20 @@
 /**
  * @module DeltaEncoder
  *
- * Byte-level delta encoder for the DocuSync hybrid sync engine.
+ * This file takes two versions of a document and finds the exact differences between them.
+ * Instead of sending the whole file to other peers over the internet, we only send these small 
+ * differences (called "deltas"). This makes the app run much faster and saves a lot of bandwidth, 
+ * especially for large thesis documents.
+ * 
+ * If a file is too large (over 4 MB), it is split into smaller chunks before finding differences
+ * so the app doesn't run out of memory.
+ * 
+ * Note: This only works for text files, not binary files like images.
  *
- * This module computes compact, base64-encoded deltas between two versions of
- * a text document using a **Myers diff algorithm** adapted for byte-level
- * differencing. Instead of transmitting the entire file on every save, only
- * the minimal set of insert/delete operations is sent over the WebSocket
- * channel, dramatically reducing bandwidth on large thesis documents.
- *
- * For files that exceed {@link MAX_CHUNK_SIZE_BYTES} (4 MB), the content is
- * split into content-defined chunks and each chunk is delta-encoded
- * independently. This prevents pathological memory usage when editing very
- * large documents.
- *
- * Binary files are explicitly rejected — only text-based formats recognised
- * by DocuSync are allowed through the encoder.
- *
- * **Thesis references:**
- * - [3]  Myers, E. W. (1986). An O(ND) difference algorithm and its
- *        variations. *Algorithmica*, 1(2), 251–266.
- * - [4]  Hunt, J. W., & McIlroy, M. D. (1976). An algorithm for differential
- *        file comparison. *Bell Laboratories CSTR #41*.
- * - [15] Tridgell, A. (1999). Efficient algorithms for sorting and
- *        synchronization. *PhD Thesis, Australian National University*.
+ * References for your thesis:
+ * - [3] Myers, E. W. (1986). An O(ND) difference algorithm and its variations.
+ * - [4] Hunt, J. W., & McIlroy, M. D. (1976). An algorithm for differential file comparison.
+ * - [15] Tridgell, A. (1999). Efficient algorithms for sorting and synchronization.
  *
  * @packageDocumentation
  */

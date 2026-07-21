@@ -511,18 +511,7 @@ const EditorPage: React.FC = () => {
           )}
         </div>
         
-        {/* Sync Status Indicator */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '4px 10px', borderRadius: 20,
-          background: syncStatus === 'offline' ? 'rgba(239,68,68,0.1)' : syncStatus === 'syncing' ? 'rgba(245,158,11,0.1)' : 'rgba(34,197,94,0.1)',
-          color: syncStatus === 'offline' ? '#ef4444' : syncStatus === 'syncing' ? '#f59e0b' : '#16a34a',
-          fontSize: 12, fontWeight: 600,
-        }}>
-          {syncStatus === 'offline' && <span title="Offline - Saving locally">🔴 Offline</span>}
-          {syncStatus === 'syncing' && <span className="ds-spin" title="Syncing with peers">🔄</span>}
-          {syncStatus === 'idle' && <span title="Online and synced">🟢 Online</span>}
-        </div>
+
         
         {currentRoom?.isHost && (
           <button

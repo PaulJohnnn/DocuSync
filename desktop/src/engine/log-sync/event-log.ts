@@ -1,28 +1,19 @@
 /**
  * @module EventLog
  *
- * Append-only event log for the DocuSync log-based synchronization engine.
+ * This file manages the "Event Log".
+ * 
+ * Instead of just saving the final document, DocuSync saves a history of every single edit
+ * made to the file in a local database (SQLite). This log is "append-only", meaning we never 
+ * delete or overwrite past edits.
+ * 
+ * This is very important for three reasons:
+ * 1. Offline Recovery: When a computer reconnects to the Wi-Fi, it doesn't need to download the
+ *    entire file again. It just asks the log for the few edits it missed.
+ * 2. Rollbacks: Because we have the full history, users can easily undo mistakes.
+ * 3. Auditing: We can perfectly track exactly who typed what and when.
  *
- * Every file mutation (edit, merge, conflict resolution, restore) is recorded
- * as an immutable {@link EventLogEntry} in the local SQLite database via Prisma.
- * The log is **strictly append-only**: existing records are never updated or
- * deleted. A compaction pass can mark obsolete intermediate entries as
- * `isCompacted = true`, but the rows themselves are retained for full
- * auditability.
- *
- * The event log serves three critical roles in the sync architecture:
- *
- * 1. **Causal ordering** — Each event carries a vector clock snapshot,
- *    enabling the sync engine to reconstruct the causal history of any file.
- *
- * 2. **Offline catch-up** — When a peer reconnects after being offline,
- *    {@link getEventsSince} returns only the events it missed, avoiding a
- *    full state transfer.
- *
- * 3. **Conflict evidence** — The complete, immutable history provides the
- *    evidence trail needed to audit how conflicts were detected and resolved.
- *
- * **Thesis references:**
+ * References for your thesis:
  * - [2]  Birman, K., Schiper, A., & Stephenson, P. (1991). Lightweight
  *        causal and atomic group multicast. *ACM Transactions on Computer
  *        Systems*, 9(3), 272–314.

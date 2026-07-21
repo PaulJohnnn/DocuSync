@@ -1,26 +1,20 @@
 /**
  * @module PeerManager
  *
- * Masterless P2P WebSocket manager for the DocuSync sync engine.
- *
- * This module handles all peer-to-peer communication over raw WebSocket
- * connections using the `ws` library. It is responsible for:
- *
- * - **Server mode:** Accepting inbound connections from peers.
- * - **Client mode:** Connecting outbound to known peers.
- * - **Message routing:** Dispatching validated messages to the correct
- *   engine handler (delta application, conflict escalation, etc.).
- * - **Rate limiting:** Rejecting any peer that sends more than
- *   {@link MAX_MESSAGES_PER_SECOND} messages per second.
- * - **Peer lifecycle:** Registering peers on PEER_HELLO, marking them
- *   offline on PEER_BYE or disconnect.
- *
- * **Architecture:** Every DocuSync node runs both a WebSocket server
- * (to accept connections) and WebSocket clients (to connect to known
- * peers). This forms a full-mesh topology for small groups — exactly
- * the target use case for thesis collaboration.
- *
- * @packageDocumentation
+ * This file is the Network Manager for DocuSync.
+ * 
+ * It runs a background WebSocket server to allow other computers and phones
+ * to connect directly to this machine without needing a central cloud server.
+ * 
+ * What it does:
+ * - Server: Listens for incoming connections from friends.
+ * - Client: Connects outwards to other friends.
+ * - Messenger: Receives text changes from peers and sends your changes to them.
+ * - Security: Kicks out any peer that tries to spam too many messages.
+ * 
+ * Architecture: By having every computer act as both a server and a client,
+ * they form a "full-mesh network". This is perfect for small groups collaborating
+ * on a thesis because if one person's internet drops, the others stay connected!
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
@@ -574,7 +568,11 @@ export class PeerManager {
                   );
                 }
                 res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ escalated: true, conflictId: resolveResult.conflictId }));
+                res.end(JSON.stringify({ 
+                  escalated: true, 
+                  conflictId: resolveResult.conflictId,
+                  serverContent: localContent
+                }));
                 return;
               }
             } catch (resolveErr: any) {

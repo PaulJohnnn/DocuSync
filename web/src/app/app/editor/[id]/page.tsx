@@ -133,7 +133,11 @@ export default function EditorPage() {
     };
     const goOffline = () => {
       setIsOnline(false);
-      setSyncStatusMsg('Offline — edits saved locally');
+      setSyncStatusMsg('Offline — edits saving locally');
+      // Force user to notice offline state
+      if (typeof window !== 'undefined') {
+        window.alert("You are offline. Your edits will be saved locally. When you reconnect, you may need to resolve conflicts if others edited this file.");
+      }
     };
     setIsOnline(navigator.onLine);
     window.addEventListener('online', goOnline);
@@ -228,8 +232,20 @@ export default function EditorPage() {
         }
         if (data.escalated) {
           setEscalated(true);
-          setSyncStatusMsg('Conflict — sent to owner for review');
-          setTimeout(() => setEscalated(false), 5000);
+          setSyncStatusMsg('Conflict detected! Resolving locally...');
+          
+          // Save conflict details to localStorage for the Conflicts page
+          const conflictData = {
+            conflictId: data.conflictId || `local-conflict-${Date.now()}`,
+            fileId,
+            localContent: contentToSave,
+            serverContent: data.serverContent || '',
+            localVectorClock: vectorClockSnapshot
+          };
+          localStorage.setItem('docusync_web_conflict', JSON.stringify(conflictData));
+          
+          // Redirect to the conflicts page
+          router.push('/app/conflicts');
         } else {
           setSyncStatusMsg(`Synced ✓ (v${data.seq || '?'}) at ${new Date().toLocaleTimeString()}`);
           setOfflineQueue(false);

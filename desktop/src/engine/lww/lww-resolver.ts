@@ -1,32 +1,20 @@
 /**
  * @module LWWResolver
  *
- * Last-Writer-Wins conflict resolver for the DocuSync hybrid sync engine.
+ * "Last-Write-Wins" (LWW) conflict resolver.
+ * 
+ * When two people edit the same file while offline, the system needs to decide
+ * whose edits to keep when they reconnect. This file looks at their Vector Clocks:
+ * 
+ * 1. If one edit clearly happened after the other, it keeps the newest one.
+ * 2. If both edits happened at the exact same time (a conflict), the system
+ *    saves both versions and asks the room owner to choose a winner.
+ * 
+ * Most importantly: no data is ever lost. Even the "losing" edits are saved
+ * in the Event Log history so they can always be recovered.
  *
- * When two peers independently edit the same file, their vector clocks will
- * diverge. The LWW resolver examines the clocks to determine causality:
- *
- * 1. **One clock dominates** → the dominating edit is the clear winner. The
- *    losing edit is already preserved in the {@link EventLogService}, so no
- *    data is lost. The winner's delta is dispatched to all peers.
- *
- * 2. **Clocks are concurrent** → neither edit causally precedes the other.
- *    This is a genuine write conflict. The resolver **escalates to the
- *    repository owner** by writing a pending {@link ConflictRecord} to the
- *    local SQLite `Conflict` table. The owner is notified via the UI and
- *    must choose a winner (side A or side B). Once accepted, the winning
- *    delta is applied and a `MERGE_ACCEPT` message is broadcast to all
- *    peers via WebSocket.
- *
- * **Critical invariant:** No edit is ever silently discarded. Both competing
- * events are always appended to the {@link EventLogService} before resolution
- * begins. The resolver only determines *which* version becomes the canonical
- * state going forward.
- *
- * **Thesis references:**
- * - [45] Johnson, P. R., & Thomas, R. H. (1975). The maintenance of
- *        duplicate databases. *RFC 677*. (Last-Writer-Wins register
- *        semantics and timestamp-based conflict resolution.)
+ * References for your thesis:
+ * - [45] Johnson, P. R., & Thomas, R. H. (1975). The maintenance of duplicate databases.
  * - [47] Saito, Y., & Shapiro, M. (2005). Optimistic replication.
  *        *ACM Computing Surveys*, 37(1), 42–81. (Owner-arbitrated
  *        conflict escalation in optimistic replication systems.)

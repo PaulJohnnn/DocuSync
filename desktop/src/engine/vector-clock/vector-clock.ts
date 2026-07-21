@@ -1,26 +1,18 @@
 /**
  * @module VectorClock
  *
- * Tree-structured Vector Clock for the DocuSync hybrid file synchronization engine.
+ * A Vector Clock is like a digital timestamp for a group of computers.
+ * Normal computer clocks can be out of sync (one might be 5 minutes fast), so we can't trust them.
+ * Instead, a Vector Clock counts how many edits each person has made.
+ * By comparing these counts, the system can mathematically prove who edited what first,
+ * or if two people edited at the exact same time (a conflict).
  *
- * A vector clock is a logical clock mechanism that captures the causal ordering
- * of events in a distributed system. Each node in the P2P network maintains its
- * own slot in the clock. By comparing two vector clocks we can determine whether
- * one event causally precedes another, or whether two events are concurrent
- * (i.e., a write conflict has occurred).
+ * This file organizes those counts in a "tree" shape, which makes it easier for new
+ * phones or laptops to join the room without breaking the system.
  *
- * This implementation uses a **tree clock** data structure rather than a flat
- * array. Each {@link TreeClockNode} stores a `counter` for its slot plus an
- * array of `children`, enabling efficient representation of hierarchical node
- * topologies and future support for dynamic node join/leave without resizing
- * a flat array.
- *
- * **Thesis references:**
- * - [8] Fidge, C. (1988). Timestamps in message-passing systems that preserve
- *       the partial ordering. *Proceedings of the 11th Australian Computer
- *       Science Conference*, 56–66.
- * - [11] Mattern, F. (1989). Virtual time and global states of distributed
- *        systems. *Parallel and Distributed Algorithms*, 215–226.
+ * References for your thesis:
+ * - [8] Fidge, C. (1988). Timestamps in message-passing systems.
+ * - [11] Mattern, F. (1989). Virtual time and global states of distributed systems.
  *
  * @packageDocumentation
  */
