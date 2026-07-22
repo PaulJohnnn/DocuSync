@@ -1713,16 +1713,36 @@ export function registerIPCHandlers(services: EngineServices): void {
     'network:get-lan-ip',
     safeHandler(async () => {
       const interfaces = os.networkInterfaces();
+      let bestIp: string | null = null;
+      let fallbackIp: string | null = null;
+
       for (const devName in interfaces) {
         const iface = interfaces[devName];
         if (!iface) continue;
+
+        const isVirtual = devName.toLowerCase().includes('vmware') || 
+                          devName.toLowerCase().includes('virtual') || 
+                          devName.toLowerCase().includes('vethernet') ||
+                          devName.toLowerCase().includes('wsl');
+                          
+        const isPreferred = devName.toLowerCase().includes('wi-fi') || 
+                            devName.toLowerCase().includes('wifi') || 
+                            devName.toLowerCase().includes('hotspot') ||
+                            devName.toLowerCase().includes('ethernet');
+
         for (const alias of iface) {
           if (alias.family === 'IPv4' && !alias.internal) {
-            return alias.address;
+            if (isPreferred && !isVirtual) {
+              bestIp = alias.address;
+              break; // Found an ideal adapter
+            } else if (!fallbackIp) {
+              fallbackIp = alias.address; // Save the first valid IPv4 as a fallback
+            }
           }
         }
+        if (bestIp) break;
       }
-      return '127.0.0.1';
+      return bestIp || fallbackIp || '127.0.0.1';
     })
   );
 
