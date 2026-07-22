@@ -73,6 +73,16 @@ function delay(ms = 600): Promise<void> {
   return new Promise(res => setTimeout(res, ms));
 }
 
+function getWebHostIp(): string {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      return hostname;
+    }
+  }
+  return '127.0.0.1';
+}
+
 // ── Service methods ────────────────────────────────────────────────────────
 
 /** List all rooms this device has joined or created, updating with live data from matchmaker. */
@@ -126,7 +136,7 @@ export async function createRoom(name: string): Promise<Room> {
       body: JSON.stringify({
         roomName: name.trim(),
         hostNodeId: `web-${Date.now()}`,
-        hostIp: '127.0.0.1',
+        hostIp: getWebHostIp(),
         hostPort: 9000,
         hostType: 'web'
       }),
@@ -152,7 +162,7 @@ export async function createRoom(name: string): Promise<Room> {
     status: 'active',
     lastActivity: new Date().toISOString(),
     fileCount: 0,
-    hostIp: '127.0.0.1',
+    hostIp: getWebHostIp(),
     hostPort: 9000,
   };
   const rooms = loadRooms();
@@ -187,7 +197,7 @@ export async function joinRoom(otp: string): Promise<Room> {
     const res = await fetch(`${MATCHMAKER_URL}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ otp: upperOtp, clientNodeId: `web-join-${Date.now()}` }),
+      body: JSON.stringify({ otp: upperOtp, memberNodeId: `web-join-${Date.now()}` }),
     });
     if (res.ok) {
       const data = await res.json();
@@ -226,7 +236,7 @@ export async function joinRoom(otp: string): Promise<Room> {
     status: 'active',
     lastActivity: new Date().toISOString(),
     fileCount: 0,
-    hostIp: targetIp,
+    hostIp: targetIp || getWebHostIp(),
     hostPort: targetPort,
   };
   saveRooms([...rooms, joined]);

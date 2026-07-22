@@ -211,46 +211,87 @@ export default function EditorPage() {
         setSyncing(false);
         return;
       }
-      const baseUrl = getSyncBaseUrl(room);
-      const res = await fetch(`${baseUrl}/sync/push`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileId,
-          authorNodeId: localNodeIdRef.current,
-          authorName: localNodeIdRef.current.slice(0, 8),
-          nodeId: localNodeIdRef.current,
-          content: contentToSave,
-          vectorClock: vectorClockSnapshot, // Fully formed VectorClockJSON
-        }),
-      });
+      const otp = room.otp || room.id;
+      let directSuccess = false;
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.vectorClock) {
-          localVectorClockRef.current = data.vectorClock;
+      if (room.hostIp && room.hostIp !== '127.0.0.1') {
+        try {
+          const baseUrl = getSyncBaseUrl(room);
+          const res = await fetch(`${baseUrl}/sync/push`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileId,
+              authorNodeId: localNodeIdRef.current,
+              authorName: localNodeIdRef.current.slice(0, 8),
+              nodeId: localNodeIdRef.current,
+              content: contentToSave,
+              vectorClock: vectorClockSnapshot,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            directSuccess = true;
+            if (data.vectorClock) localVectorClockRef.current = data.vectorClock;
+            if (data.escalated) {
+              setEscalated(true);
+              setSyncStatusMsg('Conflict detected! Resolving locally...');
+              const conflictData = {
+                conflictId: data.conflictId || `local-conflict-${Date.now()}`,
+                fileId,
+                localContent: contentToSave,
+                serverContent: data.serverContent || '',
+                localVectorClock: vectorClockSnapshot
+              };
+              localStorage.setItem('docusync_web_conflict', JSON.stringify(conflictData));
+              router.push('/app/conflicts');
+              return;
+            } else {
+              setSyncStatusMsg(`Synced ✓ (v${data.seq || '?'}) at ${new Date().toLocaleTimeString()}`);
+              setOfflineQueue(false);
+            }
+          }
+        } catch (e) {
+          console.warn('[Web Sync] Direct push failed, falling back to Matchmaker Doc API:', e);
         }
-        if (data.escalated) {
-          setEscalated(true);
-          setSyncStatusMsg('Conflict detected! Resolving locally...');
-          
-          // Save conflict details to localStorage for the Conflicts page
-          const conflictData = {
-            conflictId: data.conflictId || `local-conflict-${Date.now()}`,
-            fileId,
-            localContent: contentToSave,
-            serverContent: data.serverContent || '',
-            localVectorClock: vectorClockSnapshot
-          };
-          localStorage.setItem('docusync_web_conflict', JSON.stringify(conflictData));
-          
-          // Redirect to the conflicts page
-          router.push('/app/conflicts');
-        } else {
-          setSyncStatusMsg(`Synced ✓ (v${data.seq || '?'}) at ${new Date().toLocaleTimeString()}`);
-          setOfflineQueue(false);
+      }
+
+      if (!directSuccess && otp) {
+        try {
+          const res = await fetch('/api/lobby/doc', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              otp,
+              fileId,
+              authorNodeId: localNodeIdRef.current,
+              authorName: localNodeIdRef.current.slice(0, 8),
+              content: contentToSave,
+              vectorClock: vectorClockSnapshot,
+              deltaSize
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setSyncStatusMsg(`Synced ✓ (v${data.seq || '?'}) at ${new Date().toLocaleTimeString()}`);
+            setOfflineQueue(false);
+          } else if (res.status === 409) {
+            const data = await res.json();
+            setSyncStatusMsg('Conflict detected via LWW! Fetching latest version...');
+            if (data.currentVersion?.content) {
+              setContentAndRef(data.currentVersion.content);
+              lastSave.current = data.currentVersion.content;
+            }
+          } else {
+            setSyncStatusMsg('Sync failed — queued for retry');
+            setOfflineQueue(true);
+          }
+        } catch (err) {
+          console.error('[Web Redis Doc Push Failed]:', err);
+          setSyncStatusMsg('Host unavailable — edits saving locally');
+          setOfflineQueue(true);
         }
-      } else {
+      } else if (!directSuccess) {
         setSyncStatusMsg('Sync failed — queued for retry');
         setOfflineQueue(true);
       }
@@ -261,7 +302,7 @@ export default function EditorPage() {
     } finally {
       setSyncing(false);
     }
-  }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
+  }, [fileId, getRoomHostInfo, getSyncBaseUrl, router]);
 
   // ── Poll Host for remote updates ─────────────────────────────────────────
   useEffect(() => {
@@ -270,59 +311,92 @@ export default function EditorPage() {
 
     const pollDoc = async () => {
       if (!navigator.onLine || (typeof window !== 'undefined' && (window as any).__DOCUSYNC_DEV_OFFLINE__)) return;
-      try {
-        const baseUrl = getSyncBaseUrl(room);
-        const vcStr = encodeURIComponent(JSON.stringify(localVectorClockRef.current || {}));
-        const url = `${baseUrl}/sync/status?fileId=${fileId}&since=${vcStr}`;
-        const res = await fetch(url);
-        if (!res.ok) return;
-        const data = await res.json();
+      const otp = room.otp || room.id;
+      let polledDirect = false;
 
-        if (data.upToDate) {
-          if (lastSyncedAt.current > 0) {
-            setSyncStatusMsg(`Last synced ${new Date().toLocaleTimeString()}`);
-          }
-          if (data.vectorClock) localVectorClockRef.current = data.vectorClock;
-          return;
-        }
+      if (room.hostIp && room.hostIp !== '127.0.0.1') {
+        try {
+          const baseUrl = getSyncBaseUrl(room);
+          const vcStr = encodeURIComponent(JSON.stringify(localVectorClockRef.current || {}));
+          const url = `${baseUrl}/sync/status?fileId=${fileId}&since=${vcStr}`;
+          const res = await fetch(url);
+          if (res.ok) {
+            polledDirect = true;
+            const data = await res.json();
 
-        // If user is actively typing, skip applying remote updates to prevent cursor jumps
-        if (isTypingRef.current) return;
+            if (data.upToDate) {
+              if (lastSyncedAt.current > 0) {
+                setSyncStatusMsg(`Last synced ${new Date().toLocaleTimeString()}`);
+              }
+              if (data.vectorClock) localVectorClockRef.current = data.vectorClock;
+              return;
+            }
 
-        // The desktop host sends 'content' and 'vectorClock'
-        const newContent = data.content;
-        const newVc = data.vectorClock;
-        
-        if (newContent && newContent !== currentContentRef.current) {
-          // Initialize or update vector clock if Desktop gave us one
-          if (newVc) localVectorClockRef.current = newVc;
-          
-          lastSyncedAt.current = Date.now();
-          setContentAndRef(newContent);
-          lastSave.current = newContent;
-          setSaved(true);
-          setSyncStatusMsg(`↓ Synced from host at ${new Date().toLocaleTimeString()}`);
-
-          // Also update local storage so the file list shows latest content
-          try {
-            const stored = uGet('files');
-            if (stored) {
-              const files: FileRecord[] = JSON.parse(stored);
-              const idx = files.findIndex(f => f.id === fileId);
-              if (idx >= 0) {
-                files[idx].content = newContent;
-                files[idx].updatedAt = new Date().toISOString();
-                files[idx].size = new Blob([newContent]).size;
-                uSet('files', JSON.stringify(files));
+            if (!isTypingRef.current) {
+              const newContent = data.content;
+              const newVc = data.vectorClock;
+              if (newContent && newContent !== currentContentRef.current) {
+                if (newVc) localVectorClockRef.current = newVc;
+                lastSyncedAt.current = Date.now();
+                setContentAndRef(newContent);
+                lastSave.current = newContent;
+                setSaved(true);
+                setSyncStatusMsg(`↓ Synced from host at ${new Date().toLocaleTimeString()}`);
+                
+                try {
+                  const stored = uGet('files');
+                  if (stored) {
+                    const files: FileRecord[] = JSON.parse(stored);
+                    const idx = files.findIndex(f => f.id === fileId);
+                    if (idx >= 0) {
+                      files[idx].content = newContent;
+                      files[idx].updatedAt = new Date().toISOString();
+                      files[idx].size = new Blob([newContent]).size;
+                      uSet('files', JSON.stringify(files));
+                    }
+                  }
+                } catch {}
+                return;
               }
             }
-          } catch {}
+          }
+        } catch {
+          // Direct host poll failed, try fallback
         }
-      } catch {
-        // Fetch failed — host is unreachable or down
-        setSyncStatusMsg('Host unavailable — edits saving locally');
-        // We only set offlineQueue true here if we actually have unsynced edits,
-        // but for safety, setting the message gives the user the right visual feedback.
+      }
+
+      if (!polledDirect && otp) {
+        try {
+          const res = await fetch(`/api/lobby/doc?otp=${otp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.unchanged) return;
+            if (data.snapshot && data.snapshot.content) {
+              if (data.snapshot.authorNodeId === localNodeIdRef.current) return;
+              if (!isTypingRef.current && data.snapshot.content !== currentContentRef.current) {
+                lastSyncedAt.current = data.snapshot.committedAt || Date.now();
+                setContentAndRef(data.snapshot.content);
+                lastSave.current = data.snapshot.content;
+                setSaved(true);
+                setSyncStatusMsg(`↓ Synced from peer (${data.snapshot.authorName || 'Remote'}) at ${new Date().toLocaleTimeString()}`);
+                
+                try {
+                  const stored = uGet('files');
+                  if (stored) {
+                    const files: FileRecord[] = JSON.parse(stored);
+                    const idx = files.findIndex(f => f.id === fileId);
+                    if (idx >= 0) {
+                      files[idx].content = data.snapshot.content;
+                      files[idx].updatedAt = new Date().toISOString();
+                      files[idx].size = new Blob([data.snapshot.content]).size;
+                      uSet('files', JSON.stringify(files));
+                    }
+                  }
+                } catch {}
+              }
+            }
+          }
+        } catch {}
       }
     };
 

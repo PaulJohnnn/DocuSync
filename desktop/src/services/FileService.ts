@@ -27,7 +27,7 @@ export interface HistoryEntry {
   id: number;
   eventId: string;
   nodeId: string;
-  eventType: 'edit' | 'merge' | 'conflict-resolve' | 'restore' | 'offline-replay';
+  eventType: 'edit' | 'merge' | 'conflict-resolve' | 'restore' | 'offline-replay' | 'delete';
   logicalTimestamp: number;
   createdAt: string;
   isCompacted: boolean;

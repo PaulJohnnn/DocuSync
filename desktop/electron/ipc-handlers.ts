@@ -1708,6 +1708,24 @@ export function registerIPCHandlers(services: EngineServices): void {
     })
   );
 
+  // ── network:get-lan-ip ─────────────────────────────────────────────
+  ipcMain.handle(
+    'network:get-lan-ip',
+    safeHandler(async () => {
+      const interfaces = os.networkInterfaces();
+      for (const devName in interfaces) {
+        const iface = interfaces[devName];
+        if (!iface) continue;
+        for (const alias of iface) {
+          if (alias.family === 'IPv4' && !alias.internal) {
+            return alias.address;
+          }
+        }
+      }
+      return '127.0.0.1';
+    })
+  );
+
   ipcMain.handle('user:set-name', async (event, name: string) => {
     (services.peerManager as any).config.localDisplayName = name;
     // Broadcast the updated PEER_LIST to all peers

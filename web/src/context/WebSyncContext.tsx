@@ -82,7 +82,14 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
     uSet('peers', JSON.stringify(newPeers));
   };
 
-  const connectToPeer = useCallback((address: string, rawPort: number) => {
+  const connectToPeer = useCallback((rawAddress: string, rawPort: number) => {
+    let address = rawAddress;
+    if ((address === '127.0.0.1' || address === 'localhost') && typeof window !== 'undefined') {
+      const hn = window.location.hostname;
+      if (hn && hn !== 'localhost' && hn !== '127.0.0.1') {
+        address = hn;
+      }
+    }
     const port = (!rawPort || rawPort === 3000) ? 9000 : rawPort;
     const wsUrl = `ws://${address}:${port}`;
     const peerId = `${address}:${port}`;
