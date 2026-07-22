@@ -16,18 +16,56 @@ import { Redis } from '@upstash/redis';
 let _redis: Redis | null = null;
 let _mockRedis: any = null;
 
+import fs from 'fs';
+import path from 'path';
+
 function getMockRedis() {
   if (_mockRedis) return _mockRedis;
   
-  // A simple in-memory Map to act as Redis for local dev
-  const store = new Map<string, any>();
-  console.warn('[DocuSync] Upstash Redis not configured. Using in-memory fallback for Matchmaker.');
+  const mockFilePath = path.join(process.cwd(), '.docusync_redis_mock.json');
+  console.warn('[DocuSync] Upstash Redis not configured. Using file-backed fallback for Matchmaker.');
   
+  function readStore(): Record<string, any> {
+    try {
+      if (fs.existsSync(mockFilePath)) {
+        const data = fs.readFileSync(mockFilePath, 'utf8');
+        return JSON.parse(data);
+      }
+    } catch (e) {
+      console.warn('Failed to read mock redis file', e);
+    }
+    return {};
+  }
+
+  function writeStore(store: Record<string, any>) {
+    try {
+      fs.writeFileSync(mockFilePath, JSON.stringify(store, null, 2), 'utf8');
+    } catch (e) {
+      console.warn('Failed to write mock redis file', e);
+    }
+  }
+
   _mockRedis = {
-    get: async (key: string) => store.get(key) || null,
-    set: async (key: string, value: any, options?: any) => { store.set(key, value); return 'OK'; },
-    del: async (key: string) => { store.delete(key); return 1; },
-    keys: async (pattern: string) => Array.from(store.keys()).filter(k => k.includes(pattern.replace('*', ''))),
+    get: async (key: string) => {
+      const store = readStore();
+      return store[key] || null;
+    },
+    set: async (key: string, value: any, options?: any) => { 
+      const store = readStore();
+      store[key] = value;
+      writeStore(store);
+      return 'OK'; 
+    },
+    del: async (key: string) => { 
+      const store = readStore();
+      delete store[key];
+      writeStore(store);
+      return 1; 
+    },
+    keys: async (pattern: string) => {
+      const store = readStore();
+      return Object.keys(store).filter(k => k.includes(pattern.replace('*', '')));
+    },
   };
   return _mockRedis;
 }
