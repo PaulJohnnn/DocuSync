@@ -589,7 +589,7 @@ export function registerIPCHandlers(services: EngineServices): void {
 
       // If no path provided, open a file dialog.
       if (!filePath) {
-        const result = await dialog.showOpenDialog({
+        const options: Electron.OpenDialogOptions = {
           properties: ['openFile'],
           filters: [
             { name: 'Word Documents', extensions: ['docx', 'doc'] },
@@ -599,7 +599,11 @@ export function registerIPCHandlers(services: EngineServices): void {
             },
             { name: 'All Files', extensions: ['*'] },
           ],
-        });
+        };
+        const mainWindow = BrowserWindow.getFocusedWindow();
+        const result = mainWindow
+          ? await dialog.showOpenDialog(mainWindow, options)
+          : await dialog.showOpenDialog(options);
 
         if (result.canceled || result.filePaths.length === 0) {
           throw new Error('File open cancelled by user.');

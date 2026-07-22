@@ -135,6 +135,7 @@ export default function FilesPage() {
     else input.accept = '*/*';
 
     input.onchange = async (e) => {
+      document.body.removeChild(input);
       const selectedFiles = (e.target as HTMLInputElement).files;
       if (!selectedFiles || selectedFiles.length === 0) return;
 
@@ -195,6 +196,8 @@ export default function FilesPage() {
       }
       setRoomTick(t => t + 1);
     };
+    input.style.display = 'none';
+    document.body.appendChild(input);
     input.click();
   };
 
