@@ -109,6 +109,7 @@ export default function FilesPage() {
 
   const [currentRoom, setCurrentRoom] = useState<{ id: string; name: string; otp?: string; hostIp?: string; hostPort?: number } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [isPeersOpen, setIsPeersOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -374,27 +375,72 @@ export default function FilesPage() {
         </button>
       </div>
 
-      {/* Active Peers */}
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', letterSpacing: 1, marginBottom: 10 }}>
-        ACTIVE PEERS ({connectedPeers.length + 1})
-      </div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28 }}>
-        <div style={{
-          background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: 20, padding: '5px 14px',
-          display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--t1)'
-        }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--grn)' }} />
-          <strong>You</strong> (Web Node)
+      {/* Active Peers Dropdown */}
+      <div style={{ marginBottom: 28, position: 'relative' }}>
+        <div 
+          onClick={() => setIsPeersOpen(!isPeersOpen)}
+          style={{ 
+            display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+            background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: 8, padding: '8px 16px',
+            fontSize: 13, fontWeight: 600, color: 'var(--t1)', transition: 'background 0.2s',
+            userSelect: 'none'
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--s2)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'var(--s1)'}
+        >
+          ACTIVE PEERS ({connectedPeers.length + 1})
+          <span style={{ fontSize: 10, transform: isPeersOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
         </div>
-        {connectedPeers.map((p, i) => (
-          <div key={i} style={{
-            background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: 20, padding: '5px 14px',
-            display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--t1)'
+
+        {isPeersOpen && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, marginTop: 8,
+            background: 'var(--bg)', border: '1px solid var(--b1)', borderRadius: 12,
+            boxShadow: '0 10px 25px rgba(0,0,0,0.1)', padding: 8, minWidth: 260, zIndex: 50,
+            animation: 'slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: p.status === 'connected' ? 'var(--grn)' : 'var(--t3)' }} />
-            <strong>{p.id?.split(':')[0] ?? 'Peer'}</strong>
+            {/* You */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+              borderRadius: 8, background: 'var(--s1)'
+            }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>You (Web App)</div>
+                <div style={{ fontSize: 11, color: 'var(--t3)' }}>🌐 Web Node • Online</div>
+              </div>
+            </div>
+            
+            {/* Peers */}
+            {connectedPeers.map((p, i) => {
+              const isOnline = p.status === 'connected';
+              const idLower = (p.id || '').toLowerCase();
+              let appName = 'Desktop App';
+              let appIcon = '💻';
+              if (idLower.includes('web')) { appName = 'Web App'; appIcon = '🌐'; }
+              else if (idLower.includes('mobile')) { appName = 'Mobile App'; appIcon = '📱'; }
+
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                  borderRadius: 8, marginTop: 4, transition: 'background 0.15s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--grn)' : 'var(--t3)' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>
+                      {p.displayName || p.id?.split(':')[0] || 'Peer'}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--t3)' }}>
+                      {appIcon} {appName} • {isOnline ? 'Online' : 'Offline'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
+        )}
       </div>
 
       {/* Room Files Label + Share Button */}

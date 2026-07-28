@@ -619,7 +619,7 @@ const EditorPage: React.FC = () => {
                 disabled={saving}
                 style={{ height: 30, fontSize: 12, padding: '0 14px' }}
               >
-                {saving ? '↻ Checking In…' : '💾 Check-In'}
+                {saving ? '↻ Saving…' : '💾 Save'}
               </button>
             </div>
           </div>

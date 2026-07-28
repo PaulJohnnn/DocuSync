@@ -1,0 +1,44 @@
+{
+  "user:f173d9dc-44f1-40c6-be6f-2629cf1308d1": {
+    "nodeId": "f173d9dc-44f1-40c6-be6f-2629cf1308d1",
+    "lastActive": 1785205022890,
+    "ip": "172.22.83.55"
+  },
+  "lobby:URTR4Z": {
+    "otp": "URTR4Z",
+    "roomName": "pauljohn",
+    "hostNodeId": "desktop-1785204688061",
+    "hostIp": "172.22.83.55",
+    "hostPort": 9000,
+    "hostType": "desktop",
+    "createdAt": 1785204690297,
+    "expiresAt": 1785208290297,
+    "members": [
+      "web-join-1785204707916"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1,
+        "fileName": "This is sample file.docx",
+        "filePath": "D:\\new download folder (as of Jan 1, 2026)\\This is sample file.docx",
+        "contentLength": 21,
+        "content": "This is sample file\n\n"
+      }
+    ],
+    "ip": "172.22.83.55",
+    "port": 9000,
+    "nodeId": "desktop-1785204688061"
+  },
+  "doc:7a22ed2b-ba29-432c-a5b2-89a7b031c4a0:1": {
+    "otp": "7a22ed2b-ba29-432c-a5b2-89a7b031c4a0",
+    "fileId": 1,
+    "authorNodeId": "f173d9dc-44f1-40c6-be6f-2629cf1308d1",
+    "authorName": "Host (Auto-Merge)",
+    "content": "<p>paul john palamara i am currently typing here and the other device is sseeing this</p>",
+    "vectorClock": {},
+    "committedAt": 1785204803170,
+    "deltaSize": 89,
+    "seq": 1
+  }
+}
