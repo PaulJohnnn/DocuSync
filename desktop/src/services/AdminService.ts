@@ -17,7 +17,7 @@ export interface GenerateAccountResult {
   tempPin: string;
 }
 
-const LOCAL_ADMIN_API  = 'https://docusync-pnc.vercel.app/api/admin';
+const LOCAL_ADMIN_API  = 'http://localhost:3000/api/admin';
 const VERCEL_ADMIN_API = 'https://docusync-pnc.vercel.app/api/admin';
 
 async function adminFetch(path: string, options: RequestInit = {}): Promise<Response> {

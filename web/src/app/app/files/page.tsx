@@ -62,7 +62,9 @@ export default function FilesPage() {
   const [isLeaving, setIsLeaving] = useState(false);
   const [localFiles, setLocalFiles] = useState<FileRecord[]>([]);
 
-  const MATCHMAKER_URL = 'https://docusync-pnc.vercel.app/api/lobby';
+  const MATCHMAKER_URL = process.env.NODE_ENV === 'development'
+    ? '/api/lobby'
+    : 'https://docusync-pnc.vercel.app/api/lobby';
 
   // Load local files for editing
   useEffect(() => {

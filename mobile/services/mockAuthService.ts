@@ -19,7 +19,9 @@ const SESSION_KEY = '@docusync/auth_user';
 
 // On physical device or Android emulator, localhost might need to be specific.
 // Next.js web server runs on port 3000 (not 3001).
-const API_BASE = 'https://docusync-pnc.vercel.app/api/auth';
+const API_BASE = Platform.OS === 'web' 
+  ? 'http://localhost:3000/api/auth' 
+  : 'http://10.127.60.142:3000/api/auth';
 
 // ── Auth methods ───────────────────────────────────────────────────────────
 
