@@ -257,7 +257,7 @@
     "fileId": "1785212019168",
     "authorNodeId": "d9ccaad1-453d-496c-aeb0-13b5fab7f8cd",
     "authorName": "d9ccaad1",
-    "content": "<p>this should be saved</p>",
+    "content": "<p>sample hehe</p>",
     "vectorClock": {
       "nodeCount": 3,
       "nodeIndex": 1,
@@ -269,7 +269,7 @@
             "children": []
           },
           {
-            "counter": 8,
+            "counter": 2,
             "children": []
           },
           {
@@ -279,8 +279,69 @@
         ]
       }
     },
-    "committedAt": 1785213498918,
-    "deltaSize": 27,
-    "seq": 19
+    "committedAt": 1785214202409,
+    "deltaSize": 18,
+    "seq": 22
+  },
+  "user:f143683a-a491-40b0-b3ad-fe7238a2e17c": {
+    "nodeId": "f143683a-a491-40b0-b3ad-fe7238a2e17c",
+    "lastActive": 1785214720525,
+    "ip": "172.22.83.55"
+  },
+  "lobby:LZXLPV": {
+    "otp": "LZXLPV",
+    "roomName": "pol",
+    "hostNodeId": "web-1785214265211",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1785214265863,
+    "expiresAt": 1785217865863,
+    "members": [],
+    "peersJoined": 0,
+    "files": [
+      {
+        "fileId": 1785214277430,
+        "fileName": "sample.docx",
+        "content": "sample\n\n",
+        "contentLength": 8,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-07-28T04:51:17.435Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1785214265211"
+  },
+  "doc:LZXLPV:1785214277430": {
+    "otp": "LZXLPV",
+    "fileId": "1785214277430",
+    "authorNodeId": "d9ccaad1-453d-496c-aeb0-13b5fab7f8cd",
+    "authorName": "d9ccaad1",
+    "content": "sample\n\n",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 1,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785214311341,
+    "deltaSize": 8,
+    "seq": 6
   }
 }

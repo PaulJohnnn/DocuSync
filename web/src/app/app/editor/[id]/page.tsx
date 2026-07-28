@@ -383,7 +383,7 @@ export default function EditorPage() {
       }
     };
 
-    channelRef.current = setInterval(pollDoc, 4000);
+    channelRef.current = setInterval(pollDoc, 1000);
     return () => { if (channelRef.current) clearInterval(channelRef.current); };
   }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
 
@@ -418,7 +418,7 @@ export default function EditorPage() {
     } else {
       syncDebounce.current = setTimeout(() => {
         pushToHost(contentToSave, localVectorClockRef.current);
-      }, 2000);
+      }, 500);
     }
   }, [fileId, pushToHost]);
 
@@ -427,7 +427,7 @@ export default function EditorPage() {
     setSaved(false);
     isTypingRef.current = true;
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
-    typingTimeout.current = setTimeout(() => { isTypingRef.current = false; }, 2000);
+    typingTimeout.current = setTimeout(() => { isTypingRef.current = false; }, 500);
   }, []);
 
   useEffect(() => {

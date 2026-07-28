@@ -284,7 +284,7 @@ const EditorPage: React.FC = () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
         isTypingRef.current = false;
-      }, 2000);
+      }, 500);
 
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
