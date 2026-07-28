@@ -27,7 +27,7 @@ export function getDisplayName(user: AuthUser | null | undefined): string {
 const SESSION_KEY = 'docusync_auth_user';
 const API_BASE = import.meta.env.VITE_WEB_URL 
   ? `${import.meta.env.VITE_WEB_URL}/api/auth` 
-  : (import.meta.env.DEV ? 'http://localhost:3000/api/auth' : 'https://docusync-pnc.vercel.app/api/auth');
+  : 'https://docusync-pnc.vercel.app/api/auth';
 
 // ── Polling logic for reactivity ─────────────────────────────────────────
 let _usersHash = '';

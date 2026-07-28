@@ -23,7 +23,7 @@ const GlobalHeartbeat: React.FC = () => {
     if (!localNodeId || isAdmin) return; // Admins don't need to heartbeat
 
     const pingHeartbeat = async () => {
-      const _base = import.meta.env.VITE_WEB_URL || 'http://localhost:3000';
+      const _base = import.meta.env.VITE_WEB_URL || 'https://docusync-pnc.vercel.app';
       try {
         await fetch(`${_base}/api/lobby/heartbeat`, {
           method: 'POST',

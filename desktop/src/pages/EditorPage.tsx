@@ -85,10 +85,8 @@ const RemoteCursorsExtension = Extension.create({
 // ── Matchmaker URL (Vercel in production, localhost in dev) ──────────────────
 // The env var VITE_MATCHMAKER is set in .env.local / Vercel env settings.
 // Falls back to the live Vercel deployment so desktop dev still works.
-const _WEB_BASE = (typeof import.meta !== 'undefined' && import.meta.env.VITE_WEB_URL)
-  ? import.meta.env.VITE_WEB_URL
-  : (typeof import.meta !== 'undefined' && import.meta.env.DEV)
-    ? 'http://localhost:3000'
+const _WEB_BASE = import.meta.env.VITE_WEB_URL 
+    ? `${import.meta.env.VITE_WEB_URL}` 
     : 'https://docusync-pnc.vercel.app';
 const MATCHMAKER = `${_WEB_BASE}/api/lobby`;
 

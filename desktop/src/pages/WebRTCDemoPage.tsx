@@ -13,7 +13,8 @@ const WebRTCDemoPage: React.FC = () => {
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`http://localhost:3000/api/lobby/signal?otp=${otp}&nodeId=${localNodeId}`);
+        const _base = import.meta.env.VITE_WEB_URL || 'https://docusync-pnc.vercel.app';
+        const res = await fetch(`${_base}/api/lobby/signal?otp=${otp}&nodeId=${localNodeId}`);
         const json = await res.json();
         
         for (const signal of (json.signals || [])) {
@@ -62,7 +63,8 @@ const WebRTCDemoPage: React.FC = () => {
   };
 
   const sendSignal = async (toNodeId: string, type: string, data: any) => {
-    await fetch('http://localhost:3000/api/lobby/signal', {
+    const _base = import.meta.env.VITE_WEB_URL || 'https://docusync-pnc.vercel.app';
+    await fetch(`${_base}/api/lobby/signal`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

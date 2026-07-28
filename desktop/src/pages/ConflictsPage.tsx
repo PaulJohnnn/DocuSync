@@ -275,9 +275,9 @@ const ConflictsPage: React.FC = () => {
 
   const _WEB_BASE = (typeof import.meta !== 'undefined' && import.meta.env.VITE_WEB_URL)
     ? import.meta.env.VITE_WEB_URL
-    : (typeof import.meta !== 'undefined' && import.meta.env.DEV)
-      ? 'http://localhost:3000'
-      : 'https://docusync-pnc.vercel.app';
+      ? `${import.meta.env.VITE_WEB_URL}`
+      : 'https://docusync-pnc.vercel.app'
+    : 'https://docusync-pnc.vercel.app';
   const MATCHMAKER = `${_WEB_BASE}/api/lobby`;
 
   const pushResolutionToMatchmaker = async (conflictId: string, winner: 'A' | 'B') => {

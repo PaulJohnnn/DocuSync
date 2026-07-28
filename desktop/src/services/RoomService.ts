@@ -37,9 +37,6 @@ function getMatchmakerUrl(): string {
   if (import.meta.env.VITE_WEB_URL) {
     return `${import.meta.env.VITE_WEB_URL}/api/lobby`;
   }
-  if (import.meta.env.DEV) {
-    return 'http://localhost:3000/api/lobby';
-  }
   return 'https://docusync-pnc.vercel.app/api/lobby';
 }
 
