@@ -43,7 +43,6 @@ export default function EditorPage() {
   const [file, setFile] = useState<FileRecord | null>(null);
   const [content, setContent] = useState('');
   const [conflictData, setConflictData] = useState<{ local: string; remote: string } | null>(null);
-  const [editor, setEditor] = useState<any>(null);
   
   const setContentAndRef = (v: string) => { currentContentRef.current = v; setContent(v); };
   const [saved, setSaved] = useState(true);
@@ -280,10 +279,11 @@ export default function EditorPage() {
     return () => clearTimeout(timer);
   }, [content, file, saveFile]);
 
-  if (!file) return <PageShell><div style={{ padding: 60 }}>File not found.</div></PageShell>;
+  if (!file) return (<PageShell><div style={{ padding: 60 }}>File not found.</div></PageShell>);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+    <>
+      {/* Offline Banner outside PageShell if desired, or inside */}
       {!isOnline && (
         <div style={{ background: '#f59e0b', color: '#000', padding: '6px 16px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
           <WifiOff size={14} /> <span>You are currently offline. Edits saved locally.</span>
@@ -307,12 +307,12 @@ export default function EditorPage() {
           </div>
         </div>
 
-        <div style={{ flex: 1, background: 'var(--bg2)', borderRadius: 12, border: '1px solid var(--b1)', overflow: 'hidden' }}>
+        {/* Editor */}
+        <div style={{ flex: 1, background: 'var(--bg2)', borderRadius: 12, border: '1px solid var(--b1)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <TipTapEditor 
             content={content} 
             onChange={handleContentChange} 
             cursors={Object.values(remoteCursors)}
-            onEditorInstance={setEditor}
             onSelectionUpdate={(from, to) => {
               if (cursorThrottleRef.current) return;
               cursorThrottleRef.current = setTimeout(() => { cursorThrottleRef.current = null; }, 200);
@@ -320,40 +320,107 @@ export default function EditorPage() {
             }}
           />
         </div>
+
+        {/* Footer */}
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          marginTop: 12, padding: '8px 12px',
+          background: 'var(--bg2)', border: '1px solid var(--b1)', borderRadius: 8,
+          fontSize: 11, color: 'var(--t3)', fontFamily: 'monospace',
+        }}>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <span><Clock size={10} style={{ marginRight: 4 }} />file: {file.name}</span>
+            <span>Δ {new Blob([content]).size} B</span>
+            {offlineQueue && <span style={{ color: '#ef4444' }}>⏳ Queued offline</span>}
+          </div>
+          <span>{peers?.length || 0} peers connected</span>
+        </div>
       </PageShell>
-        </div>
-      </div>
 
-      {/* Editor */}
-      <div style={{ flex: 1, background: 'var(--bg2)', borderRadius: 12, border: '1px solid var(--b1)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <TipTapEditor 
-          content={content} 
-          onChange={handleContentChange} 
-          cursors={Object.values(remoteCursors)}
-          onSelectionUpdate={(from, to) => {
-            if (cursorThrottleRef.current) return;
-            cursorThrottleRef.current = setTimeout(() => {
-              cursorThrottleRef.current = null;
-            }, 200);
-            pushCursor(fileId, from, 1);
-          }}
-        />
-      </div>
-
-      {/* Footer */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        marginTop: 12, padding: '8px 12px',
-        background: 'var(--bg2)', border: '1px solid var(--b1)', borderRadius: 8,
-        fontSize: 11, color: 'var(--t3)', fontFamily: 'monospace',
-      }}>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <span><Clock size={10} style={{ marginRight: 4 }} />file: {file.name}</span>
-          <span>Δ {new Blob([content]).size} B</span>
-          {offlineQueue && <span style={{ color: '#ef4444' }}>⏳ Queued offline</span>}
+      {/* Conflict Modal */}
+      {conflictData && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+        }}>
+          <div style={{
+            background: 'var(--bg-base)', borderRadius: 12, width: '100%', maxWidth: 1000,
+            maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)'
+          }}>
+            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+              <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--amber)' }}>⚠️ Conflict Detected</h2>
+              <button onClick={() => setConflictData(null)} className="ds-btn ds-btn-ghost">Cancel</button>
+            </div>
+            
+            <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              {/* Local */}
+              <div style={{ flex: 1, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ padding: '8px 16px', background: 'var(--bg-sidebar)', fontSize: 13, fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
+                  Local edit (offline)
+                </div>
+                <div style={{ flex: 1, padding: 24, overflow: 'auto', background: '#fff', color: '#000', fontSize: 14 }}>
+                  {(() => {
+                    const strip = (s: string) => s.replace(/<[^>]*>?/gm, ' ');
+                    const diffs = diffWords(strip(conflictData.remote), strip(conflictData.local));
+                    return diffs.map((part, i) => {
+                      if (part.removed) return null;
+                      return (
+                      <span key={i} style={{ 
+                        background: part.added ? '#86efac' : 'transparent',
+                        color: 'inherit',
+                      }}>
+                        {part.value}
+                      </span>
+                    )});
+                  })()}
+                </div>
+                <div style={{ padding: 16, borderTop: '1px solid var(--border)', background: 'var(--bg-sidebar)' }}>
+                   <button className="ds-btn ds-btn-primary" style={{ width: '100%' }} onClick={() => {
+                     saveFile(conflictData.local, true);
+                     setConflictData(null);
+                   }}>
+                     Keep Local Edit
+                   </button>
+                </div>
+              </div>
+              
+              {/* Remote */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ padding: '8px 16px', background: 'var(--bg-sidebar)', fontSize: 13, fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
+                  Updated version file (online)
+                </div>
+                <div style={{ flex: 1, padding: 24, overflow: 'auto', background: '#fff', color: '#000', fontSize: 14 }}>
+                  {(() => {
+                    const strip = (s: string) => s.replace(/<[^>]*>?/gm, ' ');
+                    const diffs = diffWords(strip(conflictData.remote), strip(conflictData.local));
+                    return diffs.map((part, i) => {
+                      if (part.added) return null;
+                      return (
+                      <span key={i} style={{ 
+                        background: part.removed ? '#fca5a5' : 'transparent',
+                        textDecoration: part.removed ? 'line-through' : 'none',
+                      }}>
+                        {part.value}
+                      </span>
+                    )});
+                  })()}
+                </div>
+                <div style={{ padding: 16, borderTop: '1px solid var(--border)', background: 'var(--bg-sidebar)' }}>
+                   <button className="ds-btn" style={{ width: '100%' }} onClick={() => {
+                     setContentAndRef(conflictData.remote);
+                     saveFile(conflictData.remote, true);
+                     setConflictData(null);
+                   }}>
+                     Accept Online Version
+                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <span>{connectedPeersCount} peers connected</span>
-      </div>
-    </PageShell>
+      )}
+    </>
   );
 }
