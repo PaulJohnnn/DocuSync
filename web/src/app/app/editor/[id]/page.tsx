@@ -181,27 +181,89 @@ export default function EditorPage() {
     }
 
     setSyncing(true);
+    setSyncStatusMsg('Syncing...');
+
     try {
+      const deltaSize = new Blob([contentToSave]).size;
+      const now = Date.now();
+      lastSyncedAt.current = now;
+
       const otp = room.otp || room.id;
-      const res = await fetch('/api/lobby/doc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          otp,
-          fileId,
-          authorNodeId: localNodeIdRef.current,
-          content: contentToSave,
-          vectorClock: vectorClockSnapshot,
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.escalated) {
-          setConflictData({ local: contentToSave, remote: data.serverContent || '' });
-          setSyncStatusMsg('Conflict Detected!');
-        } else {
-          setSyncStatusMsg(`Synced ✓`);
+      let directSuccess = false;
+
+      if (room.hostIp && room.hostIp !== '127.0.0.1') {
+        try {
+          const baseUrl = getSyncBaseUrl(room);
+          const res = await fetch(`${baseUrl}/sync/push`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileId,
+              authorNodeId: localNodeIdRef.current,
+              authorName: localNodeIdRef.current.slice(0, 8),
+              nodeId: localNodeIdRef.current,
+              content: contentToSave,
+              vectorClock: vectorClockSnapshot,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            directSuccess = true;
+            if (data.vectorClock) localVectorClockRef.current = data.vectorClock;
+            if (data.escalated) {
+              setConflictData({ local: contentToSave, remote: data.serverContent || data.content || '' });
+              setSyncStatusMsg('Conflict Detected!');
+              return;
+            } else {
+              setSyncStatusMsg(`Synced ✓`);
+              setOfflineQueue(false);
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (!directSuccess && otp) {
+        try {
+          const res = await fetch('/api/lobby/doc', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              otp,
+              fileId,
+              authorNodeId: localNodeIdRef.current,
+              authorName: localNodeIdRef.current.slice(0, 8),
+              content: contentToSave,
+              vectorClock: vectorClockSnapshot,
+              deltaSize
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.escalated) {
+              setConflictData({ local: contentToSave, remote: data.serverContent || data.content || '' });
+              setSyncStatusMsg('Conflict Detected!');
+              return;
+            }
+            setSyncStatusMsg(`Synced ✓`);
+            setOfflineQueue(false);
+          } else if (res.status === 409) {
+            const data = await res.json();
+            setSyncStatusMsg('Conflict detected via LWW! Fetching latest...');
+            if (data.currentVersion?.content) {
+              setContentAndRef(data.currentVersion.content);
+              lastSave.current = data.currentVersion.content;
+            }
+          } else {
+            setSyncStatusMsg('Sync failed — queued for retry');
+            setOfflineQueue(true);
+          }
+        } catch (err) {
+          setSyncStatusMsg('Host unavailable');
+          setOfflineQueue(true);
         }
+      } else if (!directSuccess) {
+        setSyncStatusMsg('Sync failed — queued for retry');
+        setOfflineQueue(true);
       }
     } catch (e) {
       setSyncStatusMsg('Host unavailable');
@@ -209,7 +271,7 @@ export default function EditorPage() {
     } finally {
       setSyncing(false);
     }
-  }, [fileId, getRoomHostInfo]);
+  }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
 
   // ── Poll Host for remote updates ─────────────────────────────────────────
   useEffect(() => {
@@ -219,23 +281,90 @@ export default function EditorPage() {
     const pollDoc = async () => {
       if (!navigator.onLine) return;
       const otp = room.otp || room.id;
-      try {
-        const res = await fetch(`/api/lobby/doc?otp=${otp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.snapshot && data.snapshot.content && !isTypingRef.current && data.snapshot.content !== currentContentRef.current) {
-            setContentAndRef(data.snapshot.content);
-            lastSave.current = data.snapshot.content;
-            setSaved(true);
-            setSyncStatusMsg(`↓ Synced`);
+      let polledDirect = false;
+
+      if (room.hostIp && room.hostIp !== '127.0.0.1') {
+        try {
+          const baseUrl = getSyncBaseUrl(room);
+          const vcStr = encodeURIComponent(JSON.stringify(localVectorClockRef.current || {}));
+          const url = `${baseUrl}/sync/status?fileId=${fileId}&since=${vcStr}`;
+          const res = await fetch(url);
+          if (res.ok) {
+            polledDirect = true;
+            const data = await res.json();
+
+            if (data.upToDate) {
+              if (data.vectorClock) localVectorClockRef.current = data.vectorClock;
+              return;
+            }
+
+            if (!isTypingRef.current) {
+              const newContent = data.content;
+              const newVc = data.vectorClock;
+              if (newContent && newContent !== currentContentRef.current) {
+                if (newVc) localVectorClockRef.current = newVc;
+                lastSyncedAt.current = Date.now();
+                setContentAndRef(newContent);
+                lastSave.current = newContent;
+                setSaved(true);
+                setSyncStatusMsg(`↓ Synced from host`);
+                
+                try {
+                  const stored = uGet('files');
+                  if (stored) {
+                    const files: FileRecord[] = JSON.parse(stored);
+                    const idx = files.findIndex(f => f.id === fileId);
+                    if (idx >= 0) {
+                      files[idx].content = newContent;
+                      files[idx].updatedAt = new Date().toISOString();
+                      uSet('files', JSON.stringify(files));
+                    }
+                  }
+                } catch {}
+                return;
+              }
+            }
           }
-        }
-      } catch {}
+        } catch {}
+      }
+
+      if (!polledDirect && otp) {
+        try {
+          const res = await fetch(`/api/lobby/doc?otp=${otp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.unchanged) return;
+            if (data.snapshot && data.snapshot.content) {
+              if (data.snapshot.authorNodeId === localNodeIdRef.current) return;
+              if (!isTypingRef.current && data.snapshot.content !== currentContentRef.current) {
+                lastSyncedAt.current = data.snapshot.committedAt || Date.now();
+                setContentAndRef(data.snapshot.content);
+                lastSave.current = data.snapshot.content;
+                setSaved(true);
+                setSyncStatusMsg(`↓ Synced from peer`);
+                
+                try {
+                  const stored = uGet('files');
+                  if (stored) {
+                    const files: FileRecord[] = JSON.parse(stored);
+                    const idx = files.findIndex(f => f.id === fileId);
+                    if (idx >= 0) {
+                      files[idx].content = data.snapshot.content;
+                      files[idx].updatedAt = new Date().toISOString();
+                      uSet('files', JSON.stringify(files));
+                    }
+                  }
+                } catch {}
+              }
+            }
+          }
+        } catch {}
+      }
     };
 
     channelRef.current = setInterval(pollDoc, 4000);
     return () => { if (channelRef.current) clearInterval(channelRef.current); };
-  }, [fileId, getRoomHostInfo]);
+  }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
 
   const saveFile = useCallback(async (contentToSave: string, forcePush = false) => {
     if (contentToSave === lastSave.current && !forcePush) return;
