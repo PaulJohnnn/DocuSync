@@ -344,7 +344,8 @@ const EditorPage: React.FC = () => {
         // ── Poll Matchmaker for remote changes (fallback) ─────────
         if (roomOtp && !isTypingRef.current) {
           try {
-            const mmRes = await fetch(`https://docusync-pnc.vercel.app/api/lobby/doc?otp=${roomOtp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
+            const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+            const mmRes = await fetch(`${_WEB_BASE}/api/lobby/doc?otp=${roomOtp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
             if (mmRes.ok) {
               const mmData = await mmRes.json();
               if (mmData.snapshot && mmData.snapshot.content && mmData.snapshot.authorNodeId !== myNodeId) {
@@ -371,7 +372,7 @@ const EditorPage: React.FC = () => {
       } catch { /* offline mode */ }
     };
     pollDoc();
-    const iv = setInterval(pollDoc, 4000);
+    const iv = setInterval(pollDoc, 1000);
     return () => clearInterval(iv);
   }, [roomOtp, fileId, editor]);
 
@@ -492,7 +493,8 @@ const EditorPage: React.FC = () => {
       if (roomOtp && fileId !== null) {
         try {
           const deltaSize = new Blob([html]).size;
-          const url = 'https://docusync-pnc.vercel.app/api/lobby/doc';
+          const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+          const url = `${_WEB_BASE}/api/lobby/doc`;
           const mmRes = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
