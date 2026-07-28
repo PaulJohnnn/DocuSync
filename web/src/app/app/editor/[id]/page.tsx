@@ -46,6 +46,7 @@ export default function EditorPage() {
   
   const setContentAndRef = (v: string) => { currentContentRef.current = v; setContent(v); };
   const [saved, setSaved] = useState(true);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [syncStatusMsg, setSyncStatusMsg] = useState('Ready');
@@ -431,10 +432,34 @@ export default function EditorPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="ds-btn" onClick={() => saveFile(content, true)}>Save</button>
+            <button className="ds-btn" onClick={async () => { await saveFile(content, true); setShowSaveConfirm(true); }}>Save</button>
             <button className="ds-btn ds-btn-primary" onClick={() => saveFile(content, true)} disabled={syncing}>Sync Now</button>
           </div>
         </div>
+
+        {/* Save Confirm Modal */}
+        {showSaveConfirm && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+          }}>
+            <div style={{
+              background: 'var(--bg-base)', borderRadius: 12, width: '100%', maxWidth: 400,
+              padding: 24, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+              border: '1px solid var(--b1)'
+            }}>
+              <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 16px 0', color: 'var(--text-primary)' }}>Document Saved</h2>
+              <p style={{ fontSize: 14, color: 'var(--t3)', marginBottom: 24 }}>
+                Your changes have been saved and synchronized. What would you like to do next?
+              </p>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                <button className="ds-btn" onClick={() => setShowSaveConfirm(false)}>Continue Editing</button>
+                <button className="ds-btn ds-btn-primary" onClick={() => router.push('/app/files')}>Exit to Room</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Editor */}
         <div style={{ flex: 1, background: 'var(--bg2)', borderRadius: 12, border: '1px solid var(--b1)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

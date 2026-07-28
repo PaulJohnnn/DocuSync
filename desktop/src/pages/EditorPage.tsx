@@ -166,6 +166,7 @@ const EditorPage: React.FC = () => {
   const lastSyncedAt = useRef<number>(0);
   const myNodeId = localNodeId || `anon-${Math.random().toString(36).slice(2, 8)}`;
   const roomOtp = currentRoom?.id;
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 
   // ── Remote Cursors ─────────────────────────────────────────────────────────
   const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor & { lastUpdate: number }>>({});
@@ -337,6 +338,34 @@ const EditorPage: React.FC = () => {
             setIncomingBanner(`↓ Synced from local replica`);
             setTimeout(() => setIncomingBanner(null), 4000);
         }
+
+        // ── Poll Matchmaker for remote changes (fallback) ─────────
+        if (roomOtp && !isTypingRef.current) {
+          try {
+            const mmRes = await fetch(`https://docusync-pnc.vercel.app/api/lobby/doc?otp=${roomOtp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
+            if (mmRes.ok) {
+              const mmData = await mmRes.json();
+              if (mmData.snapshot && mmData.snapshot.content && mmData.snapshot.authorNodeId !== myNodeId) {
+                if (editor && mmData.snapshot.content !== editor.getHTML()) {
+                  lastSyncedAt.current = mmData.snapshot.committedAt || Date.now();
+                  const { from } = editor.state.selection;
+                  editor.commands.setContent(mmData.snapshot.content, { emitUpdate: false });
+                  const maxPos = editor.state.doc.content.size;
+                  editor.commands.setTextSelection(Math.min(from, maxPos - 1));
+                  setIncomingBanner(`↓ Synced from Matchmaker`);
+                  setTimeout(() => setIncomingBanner(null), 4000);
+                  
+                  // Persist remote change to local SQLite
+                  if (window.docuSync && vectorClock) {
+                    await window.docuSync.saveFile(fileId, mmData.snapshot.content, vectorClock);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error("Matchmaker poll error:", e);
+          }
+        }
       } catch { /* offline mode */ }
     };
     pollDoc();
@@ -444,6 +473,30 @@ const EditorPage: React.FC = () => {
         setPeersNotified(savedPeersNotified);
       }
 
+      // ── Step 2: Push to Matchmaker (fallback) ──────────────
+      if (roomOtp && fileId !== null) {
+        try {
+          const deltaSize = new Blob([html]).size;
+          const url = 'https://docusync-pnc.vercel.app/api/lobby/doc';
+          const mmRes = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              otp: roomOtp,
+              fileId: String(fileId),
+              authorNodeId: myNodeId,
+              authorName: myNodeId.slice(0, 8),
+              content: html,
+              vectorClock: vectorClock || {},
+              deltaSize
+            })
+          });
+          if (!mmRes.ok) console.warn('Matchmaker push failed:', await mmRes.text());
+        } catch (e) {
+          console.error("Matchmaker push error:", e);
+        }
+      }
+
       if (explicit) notify.saved(savedDeltaSize, savedPeersNotified);
     } catch (err) {
       if (explicit) notify.error(`Check-In failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -537,6 +590,9 @@ const EditorPage: React.FC = () => {
           <button className="ds-btn ds-btn-ghost" onClick={() => navigate(`/history/${fileId}`)} style={{ height: 30, padding: '0 10px', fontSize: 12 }}>
             <IconHistory size={13} /> History
           </button>
+          <button className="ds-btn ds-btn-primary" onClick={async () => { await performSave(editor?.getHTML() || '', true); setShowSaveConfirm(true); }} disabled={saving} style={{ height: 30, padding: '0 12px', fontSize: 12 }}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
           <button className="ds-btn ds-btn-primary" onClick={handleSyncNow} disabled={syncing} style={{ height: 30, padding: '0 12px', fontSize: 12 }}>
             <span className={syncing ? 'ds-spin' : ''} style={{ display: 'inline-flex' }}><IconRefresh size={13} /></span>
             {syncing ? 'Syncing…' : 'Sync Now'}
@@ -588,6 +644,30 @@ const EditorPage: React.FC = () => {
       {loading && (
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ds-text3)' }}>
           <span className="ds-pulse">⏳</span>&nbsp;Loading…
+        </div>
+      )}
+
+      {/* Save Confirm Modal */}
+      {showSaveConfirm && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+        }}>
+          <div style={{
+            background: 'var(--bg-app)', borderRadius: 12, width: '100%', maxWidth: 400,
+            padding: 24, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+            border: '1px solid var(--border)'
+          }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 16px 0', color: 'var(--text-primary)' }}>Document Saved</h2>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24 }}>
+              Your changes have been saved and synchronized. What would you like to do next?
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button className="ds-btn ds-btn-ghost" onClick={() => setShowSaveConfirm(false)}>Continue Editing</button>
+              <button className="ds-btn ds-btn-primary" onClick={() => navigate('/')}>Exit to Room</button>
+            </div>
+          </div>
         </div>
       )}
 
