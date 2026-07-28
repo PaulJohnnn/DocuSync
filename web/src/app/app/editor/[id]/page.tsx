@@ -53,13 +53,20 @@ export default function EditorPage() {
   const [offlineQueue, setOfflineQueue] = useState(false);
   
   const lastSave = useRef('');
-  const lastSyncedAt = useRef(0);
+  // Read save timestamp synchronously so the poll guard is active immediately,
+  // before any useEffect fires. useRef(fn) does NOT lazy-init like useState.
+  const _initSaveTs = typeof window !== 'undefined'
+    ? Number(localStorage.getItem(`docusync_save_ts_${fileId}`) || 0)
+    : 0;
+  const lastSyncedAt = useRef(_initSaveTs);
   const channelRef = useRef<any>(null);
   const currentContentRef = useRef('');
   const localNodeIdRef = useRef(`web-${Math.floor(Math.random()*10000)}`);
   const syncDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
+  // Same ts for lastLocalSaveTime — the poll guard uses this to block old snapshots
+  const lastLocalSaveTime = useRef<number>(_initSaveTs);
   const createInitialWebClock = () => ({
     nodeCount: 3,
     nodeIndex: 1,
@@ -145,6 +152,13 @@ export default function EditorPage() {
       setFile(found);
       setContentAndRef(found.content);
       lastSave.current = found.content;
+      // Restore the last save time so poll won't overwrite with older remote
+      const savedTs = localStorage.getItem(`docusync_save_ts_${fileId}`);
+      if (savedTs) {
+        const ts = Number(savedTs);
+        lastLocalSaveTime.current = ts;
+        lastSyncedAt.current = ts;
+      }
     }
 
     const savedNodeId = localStorage.getItem('docusync_node_id');
@@ -302,6 +316,9 @@ export default function EditorPage() {
             if (!isTypingRef.current) {
               const newContent = data.content;
               const newVc = data.vectorClock;
+              const remoteTs = data.committedAt || 0;
+              // Don't apply if our local save is newer
+              if (remoteTs > 0 && remoteTs <= lastLocalSaveTime.current) return;
               if (newContent && newContent !== currentContentRef.current) {
                 if (newVc) localVectorClockRef.current = newVc;
                 lastSyncedAt.current = Date.now();
@@ -337,6 +354,9 @@ export default function EditorPage() {
             if (data.unchanged) return;
             if (data.snapshot && data.snapshot.content) {
               if (data.snapshot.authorNodeId === localNodeIdRef.current) return;
+              // Don't apply if our local save is newer than this snapshot
+              const snapTs = data.snapshot.committedAt || 0;
+              if (snapTs > 0 && snapTs <= lastLocalSaveTime.current) return;
               if (!isTypingRef.current && data.snapshot.content !== currentContentRef.current) {
                 lastSyncedAt.current = data.snapshot.committedAt || Date.now();
                 setContentAndRef(data.snapshot.content);
@@ -384,6 +404,13 @@ export default function EditorPage() {
 
     lastSave.current = contentToSave;
     setSaved(true);
+    // Mark the exact time we saved locally so the poll loop won't overwrite
+    // with an older remote snapshot
+    const nowMs = Date.now();
+    lastLocalSaveTime.current = nowMs;
+    lastSyncedAt.current = nowMs;
+    // Persist so it survives navigation/reload
+    localStorage.setItem(`docusync_save_ts_${fileId}`, String(nowMs));
 
     if (syncDebounce.current) clearTimeout(syncDebounce.current);
     if (forcePush) {
@@ -432,7 +459,7 @@ export default function EditorPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="ds-btn" onClick={async () => { await saveFile(content, true); setShowSaveConfirm(true); }}>Save</button>
+            <button className="ds-btn" onClick={() => setShowSaveConfirm(true)}>Save</button>
             <button className="ds-btn ds-btn-primary" onClick={() => saveFile(content, true)} disabled={syncing}>Sync Now</button>
           </div>
         </div>
@@ -441,21 +468,56 @@ export default function EditorPage() {
         {showSaveConfirm && (
           <div style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.6)', zIndex: 1000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 9999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+            animation: 'fadeIn 0.2s ease-out'
           }}>
             <div style={{
-              background: 'var(--bg-base)', borderRadius: 12, width: '100%', maxWidth: 400,
-              padding: 24, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
-              border: '1px solid var(--b1)'
+              background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+              borderRadius: 16, width: '100%', maxWidth: 420,
+              padding: 32, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1)',
+              display: 'flex', flexDirection: 'column', gap: 20
             }}>
-              <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 16px 0', color: 'var(--text-primary)' }}>Document Saved</h2>
-              <p style={{ fontSize: 14, color: 'var(--t3)', marginBottom: 24 }}>
-                Your changes have been saved and synchronized. What would you like to do next?
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ background: 'rgba(56, 189, 248, 0.2)', padding: 10, borderRadius: 12 }}>
+                  <Save size={24} color="#38bdf8" />
+                </div>
+                <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#f8fafc', letterSpacing: '-0.02em' }}>Save Changes?</h2>
+              </div>
+              <p style={{ fontSize: 15, color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+                Do you want to save the current document state and sync with peers, or continue editing without saving?
               </p>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-                <button className="ds-btn" onClick={() => setShowSaveConfirm(false)}>Continue Editing</button>
-                <button className="ds-btn ds-btn-primary" onClick={() => router.push('/app/files')}>Exit to Room</button>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+                <button 
+                  onClick={() => setShowSaveConfirm(false)}
+                  style={{
+                    padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600,
+                    background: 'transparent', color: '#cbd5e1', border: '1px solid #334155', cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.background = '#334155'}
+                  onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  Continue Editing
+                </button>
+                <button 
+                  onClick={async () => {
+                    await saveFile(content, true);
+                    setShowSaveConfirm(false);
+                    router.push('/app/files');
+                  }}
+                  style={{
+                    padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600,
+                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(37,99,235,0.3)', transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  Save File
+                </button>
               </div>
             </div>
           </div>

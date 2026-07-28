@@ -40,5 +40,247 @@
     "committedAt": 1785204803170,
     "deltaSize": 89,
     "seq": 1
+  },
+  "user:ebb7874b-40d5-4289-944f-589c231f1690": {
+    "nodeId": "ebb7874b-40d5-4289-944f-589c231f1690",
+    "lastActive": 1785208301413,
+    "ip": "172.22.83.55"
+  },
+  "lobby:W7QHNK": {
+    "otp": "W7QHNK",
+    "roomName": "thesis2",
+    "hostNodeId": "desktop-1785208268839",
+    "hostIp": "172.22.83.55",
+    "hostPort": 9000,
+    "hostType": "desktop",
+    "createdAt": 1785208272068,
+    "expiresAt": 1785211872068,
+    "members": [
+      "web-join-1785208299578"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1,
+        "fileName": "This is sample file.docx",
+        "filePath": "D:\\new download folder (as of Jan 1, 2026)\\This is sample file.docx",
+        "contentLength": 21,
+        "content": "This is sample file\n\n"
+      }
+    ],
+    "ip": "172.22.83.55",
+    "port": 9000,
+    "nodeId": "desktop-1785208268839"
+  },
+  "user:02a72b7a-3d11-4092-b93d-abf3a5abfbf2": {
+    "nodeId": "02a72b7a-3d11-4092-b93d-abf3a5abfbf2",
+    "lastActive": 1785209235300,
+    "ip": "172.22.83.55"
+  },
+  "doc:W7QHNK:1": {
+    "otp": "W7QHNK",
+    "fileId": "1",
+    "authorNodeId": "d9ccaad1-453d-496c-aeb0-13b5fab7f8cd",
+    "authorName": "d9ccaad1",
+    "content": "This is sample file\n\n",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 1,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785208877975,
+    "deltaSize": 0,
+    "seq": 1
+  },
+  "lobby:2MD2MN": {
+    "otp": "2MD2MN",
+    "roomName": "thesis101",
+    "hostNodeId": "desktop-1785208940806",
+    "hostIp": "172.22.83.55",
+    "hostPort": 9000,
+    "hostType": "desktop",
+    "createdAt": 1785208944251,
+    "expiresAt": 1785212544251,
+    "members": [
+      "web-join-1785208956165"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1,
+        "fileName": "This is sample file.docx",
+        "filePath": "D:\\new download folder (as of Jan 1, 2026)\\This is sample file.docx",
+        "contentLength": 21,
+        "content": "This is sample file\n\n"
+      }
+    ],
+    "ip": "172.22.83.55",
+    "port": 9000,
+    "nodeId": "desktop-1785208940806"
+  },
+  "doc:2MD2MN:1": {
+    "otp": "2MD2MN",
+    "fileId": "1",
+    "authorNodeId": "d9ccaad1-453d-496c-aeb0-13b5fab7f8cd",
+    "authorName": "d9ccaad1",
+    "content": "<p>This is sample file hello po</p>",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 5,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785209001865,
+    "deltaSize": 0,
+    "seq": 3
+  },
+  "user:b0d2c035-e081-41ec-ae87-99591188a32d": {
+    "nodeId": "b0d2c035-e081-41ec-ae87-99591188a32d",
+    "lastActive": 1785210357718,
+    "ip": "172.22.83.55"
+  },
+  "lobby:FFK3NM": {
+    "otp": "FFK3NM",
+    "roomName": "Thesis2",
+    "hostNodeId": "desktop-1785209580855",
+    "hostIp": "172.22.83.55",
+    "hostPort": 9000,
+    "hostType": "desktop",
+    "createdAt": 1785209584374,
+    "expiresAt": 1785213184374,
+    "members": [
+      "web-join-1785209595482"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1,
+        "fileName": "This is sample file.docx",
+        "filePath": "D:\\new download folder (as of Jan 1, 2026)\\This is sample file.docx",
+        "contentLength": 21,
+        "content": "This is sample file\n\n"
+      }
+    ],
+    "ip": "172.22.83.55",
+    "port": 9000,
+    "nodeId": "desktop-1785209580855"
+  },
+  "user:5dffb976-aa28-49ac-9823-d69fab14b652": {
+    "nodeId": "5dffb976-aa28-49ac-9823-d69fab14b652",
+    "lastActive": 1785211260341,
+    "ip": "172.22.83.55"
+  },
+  "lobby:ARLH33": {
+    "otp": "ARLH33",
+    "roomName": "thesis2",
+    "hostNodeId": "desktop-1785211091421",
+    "hostIp": "172.22.83.55",
+    "hostPort": 9000,
+    "hostType": "desktop",
+    "createdAt": 1785211095924,
+    "expiresAt": 1785214695924,
+    "members": [
+      "web-join-1785211104253"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1,
+        "fileName": "This is sample file.docx",
+        "filePath": "D:\\new download folder (as of Jan 1, 2026)\\This is sample file.docx",
+        "contentLength": 21,
+        "content": "This is sample file\n\n"
+      }
+    ],
+    "ip": "172.22.83.55",
+    "port": 9000,
+    "nodeId": "desktop-1785211091421"
+  },
+  "lobby:FK93WC": {
+    "otp": "FK93WC",
+    "roomName": "thesis",
+    "hostNodeId": "web-1785211998647",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1785211999457,
+    "expiresAt": 1785215599457,
+    "members": [],
+    "peersJoined": 0,
+    "files": [
+      {
+        "fileId": 1785212019168,
+        "fileName": "sample.docx",
+        "content": "sample\n\n",
+        "contentLength": 8,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-07-28T04:13:39.170Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1785211998647"
+  },
+  "doc:FK93WC:1785212019168": {
+    "otp": "FK93WC",
+    "fileId": "1785212019168",
+    "authorNodeId": "d9ccaad1-453d-496c-aeb0-13b5fab7f8cd",
+    "authorName": "d9ccaad1",
+    "content": "<p>this should be saved</p>",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 8,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785213498918,
+    "deltaSize": 27,
+    "seq": 19
   }
 }

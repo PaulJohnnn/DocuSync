@@ -164,6 +164,8 @@ const EditorPage: React.FC = () => {
   const prevConflictCount = useRef(pendingConflicts);
   // lastSyncedAt tracks which remote version we've already applied (LWW guard)
   const lastSyncedAt = useRef<number>(0);
+  // lastContent tracks last saved HTML to avoid redundant saves
+  const lastContent = useRef<string>('');
   const myNodeId = localNodeId || `anon-${Math.random().toString(36).slice(2, 8)}`;
   const roomOtp = currentRoom?.id;
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
@@ -413,7 +415,10 @@ const EditorPage: React.FC = () => {
       const mock = mockMap[fileId];
       if (mock) {
         setFilePath(mock.path);
-        if (editor) editor.commands.setContent(mock.content);
+        const savedMockContent = localStorage.getItem(`docusync_mock_${fileId}`);
+        const finalContent = savedMockContent || mock.content;
+        if (editor) editor.commands.setContent(finalContent);
+        lastContent.current = finalContent;
         setLoading(false);
         return;
       }
@@ -426,7 +431,7 @@ const EditorPage: React.FC = () => {
       if (!res.success || !res.data) throw new Error(res.error ?? 'No data.');
       const data = res.data as FileOpenData;
       setFilePath(data.filePath);
-      if (editor && data.content) editor.commands.setContent(data.content);
+      if (editor && data.content) { editor.commands.setContent(data.content); lastContent.current = data.content; }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -448,11 +453,21 @@ const EditorPage: React.FC = () => {
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
-  const performSave = useCallback(async (html: string, explicit = false) => {
+  const performSave = useCallback(async (html: string, forceSync = false) => {
+    if (saving) return;
+    if (html === lastContent.current && !forceSync) return;
     setSaving(true);
+    setSyncing(true);
     try {
       let savedDeltaSize = 0;
       let savedPeersNotified = 0;
+      if (fileId !== null && fileId >= 101 && fileId <= 107) {
+        localStorage.setItem(`docusync_mock_${fileId}`, html);
+        lastContent.current = html;
+        setSyncing(false);
+        setSaving(false);
+        return;
+      }
 
       // ── Step 1: Save to local SQLite via IPC (Desktop only) ──────────────
       if (fileId !== null && window.docuSync) {
@@ -497,10 +512,11 @@ const EditorPage: React.FC = () => {
         }
       }
 
-      if (explicit) notify.saved(savedDeltaSize, savedPeersNotified);
+      lastContent.current = html;
+      if (forceSync) notify.saved(savedDeltaSize, savedPeersNotified);
     } catch (err) {
-      if (explicit) notify.error(`Check-In failed: ${err instanceof Error ? err.message : String(err)}`);
-    } finally { setSaving(false); }
+      if (forceSync) notify.error(`Check-In failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally { setSaving(false); setSyncing(false); }
   }, [fileId, roomOtp, myNodeId, vectorClock]);
 
   useEffect(() => {
@@ -590,9 +606,6 @@ const EditorPage: React.FC = () => {
           <button className="ds-btn ds-btn-ghost" onClick={() => navigate(`/history/${fileId}`)} style={{ height: 30, padding: '0 10px', fontSize: 12 }}>
             <IconHistory size={13} /> History
           </button>
-          <button className="ds-btn ds-btn-primary" onClick={async () => { await performSave(editor?.getHTML() || '', true); setShowSaveConfirm(true); }} disabled={saving} style={{ height: 30, padding: '0 12px', fontSize: 12 }}>
-            {saving ? 'Saving…' : 'Save'}
-          </button>
           <button className="ds-btn ds-btn-primary" onClick={handleSyncNow} disabled={syncing} style={{ height: 30, padding: '0 12px', fontSize: 12 }}>
             <span className={syncing ? 'ds-spin' : ''} style={{ display: 'inline-flex' }}><IconRefresh size={13} /></span>
             {syncing ? 'Syncing…' : 'Sync Now'}
@@ -651,21 +664,56 @@ const EditorPage: React.FC = () => {
       {showSaveConfirm && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.6)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
+          background: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 9999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+          animation: 'fadeIn 0.2s ease-out'
         }}>
           <div style={{
-            background: 'var(--bg-app)', borderRadius: 12, width: '100%', maxWidth: 400,
-            padding: 24, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
-            border: '1px solid var(--border)'
+            background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+            borderRadius: 16, width: '100%', maxWidth: 420,
+            padding: 32, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1)',
+            display: 'flex', flexDirection: 'column', gap: 20
           }}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, margin: '0 0 16px 0', color: 'var(--text-primary)' }}>Document Saved</h2>
-            <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24 }}>
-              Your changes have been saved and synchronized. What would you like to do next?
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ background: 'rgba(56, 189, 248, 0.2)', padding: 10, borderRadius: 12 }}>
+                <span style={{ fontSize: 24 }}>💾</span>
+              </div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#f8fafc', letterSpacing: '-0.02em' }}>Save Changes?</h2>
+            </div>
+            <p style={{ fontSize: 15, color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
+              Do you want to save the current document state and sync with peers, or continue editing without saving?
             </p>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button className="ds-btn ds-btn-ghost" onClick={() => setShowSaveConfirm(false)}>Continue Editing</button>
-              <button className="ds-btn ds-btn-primary" onClick={() => navigate('/')}>Exit to Room</button>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+              <button 
+                onClick={() => setShowSaveConfirm(false)}
+                style={{
+                  padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600,
+                  background: 'transparent', color: '#cbd5e1', border: '1px solid #334155', cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.background = '#334155'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                Continue Editing
+              </button>
+              <button 
+                onClick={async () => {
+                  setShowSaveConfirm(false);
+                  if (editor) await performSave(editor.getHTML(), true);
+                  navigate('/');
+                }}
+                style={{
+                  padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600,
+                  background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(37,99,235,0.3)', transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                Save File
+              </button>
             </div>
           </div>
         </div>
@@ -695,7 +743,7 @@ const EditorPage: React.FC = () => {
             <div style={{ marginLeft: 'auto' }}>
               <button
                 className="ds-btn ds-btn-primary"
-                onClick={handleExplicitSave}
+                onClick={() => setShowSaveConfirm(true)}
                 disabled={saving}
                 style={{ height: 30, fontSize: 12, padding: '0 14px' }}
               >
