@@ -304,6 +304,7 @@ export default function RoomsPage() {
     setJoinError('');
     setView('join_loading');
     try {
+      const MATCHMAKER_URL = 'https://docusync-pnc.vercel.app/api/lobby';
       const room = await mockRoomService.joinRoom(otpInput);
       setJoinedRoom(room);
       setRooms(prev => {
@@ -361,7 +362,6 @@ export default function RoomsPage() {
                   </svg>
                   Join Room
                 </button>
-                {/* Web App cannot act as a Host, so Create Room is hidden here. 
                 <button onClick={handleCreateStart} style={{
                   padding: '9px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700,
                   background: 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)', color: '#fff',
@@ -373,7 +373,6 @@ export default function RoomsPage() {
                   </svg>
                   Create Room
                 </button>
-                */}
               </div>
             </div>
 
@@ -398,17 +397,15 @@ export default function RoomsPage() {
                 <h3 style={{ fontSize: 16, fontWeight: 700, color: '#475569', marginBottom: 8 }}>No rooms yet</h3>
                 <p style={{ fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>
                   Join a room from another device to start syncing files.<br/>
-                  <span style={{ fontSize: 11, color: '#94a3b8' }}>(Rooms must be created from the Desktop App)</span>
+                  <span style={{ fontSize: 11, color: '#94a3b8' }}>(You can create a room below)</span>
                 </p>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
                   <button onClick={handleJoinStart} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
                     Join with code
                   </button>
-                  {/* 
                   <button onClick={handleCreateStart} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, background: 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)', color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 2px 10px rgba(79,70,229,0.3)' }}>
                     + Create Room
                   </button>
-                  */}
                 </div>
               </div>
             ) : (
