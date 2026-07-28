@@ -388,6 +388,7 @@ export default function EditorPage() {
   }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
 
   const saveFile = useCallback(async (contentToSave: string, forcePush = false) => {
+    isTypingRef.current = false;
     if (contentToSave === lastSave.current && !forcePush) return;
     localVectorClockRef.current = incrementVectorClock(localVectorClockRef.current, 1);
     
@@ -412,22 +413,13 @@ export default function EditorPage() {
     // Persist so it survives navigation/reload
     localStorage.setItem(`docusync_save_ts_${fileId}`, String(nowMs));
 
-    if (syncDebounce.current) clearTimeout(syncDebounce.current);
-    if (forcePush) {
-      await pushToHost(contentToSave, localVectorClockRef.current, true);
-    } else {
-      syncDebounce.current = setTimeout(() => {
-        pushToHost(contentToSave, localVectorClockRef.current);
-      }, 500);
-    }
+    await pushToHost(contentToSave, localVectorClockRef.current, forcePush);
   }, [fileId, pushToHost]);
 
   const handleContentChange = useCallback((newContent: string) => {
     setContentAndRef(newContent);
     setSaved(false);
     isTypingRef.current = true;
-    if (typingTimeout.current) clearTimeout(typingTimeout.current);
-    typingTimeout.current = setTimeout(() => { isTypingRef.current = false; }, 500);
   }, []);
 
   useEffect(() => {

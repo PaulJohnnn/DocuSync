@@ -346,7 +346,7 @@
   },
   "user:27475738-7776-4e76-b627-a445abca494f": {
     "nodeId": "27475738-7776-4e76-b627-a445abca494f",
-    "lastActive": 1785216005561,
+    "lastActive": 1785216125577,
     "ip": "172.22.83.55"
   },
   "lobby:JHLDFX": {
@@ -375,5 +375,37 @@
     "ip": "172.22.83.55",
     "port": 9000,
     "nodeId": "desktop-1785215644550"
+  },
+  "user:ff985233-71ce-4652-a770-fee49311e6fd": {
+    "nodeId": "ff985233-71ce-4652-a770-fee49311e6fd",
+    "lastActive": 1785217190423,
+    "ip": "172.22.83.55"
+  },
+  "lobby:YTJCRM": {
+    "otp": "YTJCRM",
+    "roomName": "THESIS2",
+    "hostNodeId": "desktop-1785216618683",
+    "hostIp": "172.22.83.55",
+    "hostPort": 9000,
+    "hostType": "desktop",
+    "createdAt": 1785216623777,
+    "expiresAt": 1785220223777,
+    "members": [
+      "web-join-1785216641023"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1785216652836,
+        "fileName": "sample.docx",
+        "content": "sample\n\n",
+        "contentLength": 8,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-07-28T05:30:52.837Z"
+      }
+    ],
+    "ip": "172.22.83.55",
+    "port": 9000,
+    "nodeId": "desktop-1785216618683"
   }
 }
