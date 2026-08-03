@@ -35,7 +35,7 @@ import {
   type SessionTerminatedMessage,
 } from './message-schema';
 import type { SyncEvent } from '../lww/lww-resolver';
-import { decode, encode } from '../delta/myers-diff';
+
 import { EventLogService } from '../log-sync/event-log';
 import { decode as decodeDelta } from '../delta/delta-decoder';
 import { VectorClock } from '../vector-clock/vector-clock';
@@ -512,7 +512,7 @@ export class PeerManager {
             let newContent = remoteContent || localContent;
             try {
               if (delta) {
-                const decoded = decode(localContent, delta);
+                const decoded = decodeDelta(localContent, delta);
                 newContent = decoded.content;
               }
             } catch {}
@@ -1303,7 +1303,7 @@ export class PeerManager {
       const currentContent = await this.config.getFileContent(msg.fileId);
 
       // Step 2: Decode the delta.
-      const decodeResult = decode(currentContent, msg.deltaBase64);
+      const decodeResult = decodeDelta(currentContent, msg.deltaBase64);
       const newContent = decodeResult.content;
 
       // Step 3: Append to EventLog.

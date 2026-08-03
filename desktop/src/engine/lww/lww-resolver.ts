@@ -29,9 +29,7 @@ import type { EventLogEntry, AppendEventInput } from '../log-sync/event-log';
 import { EventLogService } from '../log-sync/event-log';
 import * as crypto from 'crypto';
 
-function generateUUID() {
-  return crypto.randomUUID();
-}
+// Duplicate generateUUID removed
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
