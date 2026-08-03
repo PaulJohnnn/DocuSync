@@ -328,64 +328,42 @@ const EditorPage: React.FC = () => {
   // ── Real-time presence (dummy cursors for now) ────────────────────────────
   // Every 3 seconds, ask the matchmaker for the latest committed version.
   // If the remote version is newer than what we last applied (LWW), apply it.
+  const lastMatchmakerSeq = useRef<number>(0);
+
   useEffect(() => {
     if (!fileId || !window.docuSync) return;
     const pollDoc = async () => {
       try {
-        const res = await window.docuSync.openFile(fileId);
-        if (!res.success || !res.data) return;
-        const data = res.data as FileOpenData;
-        const snap = {
-          content: data.content,
-          seq: data.vectorClock?.root?.children?.[0]?.counter || 0,
-        };
         // Skip applying remote updates if actively typing
         if (isTypingRef.current) return;
-        
-        // This is a simplified check since we are using IPC. We rely on the local SQLite DB having the latest merged state.
-        if (editor && snap.content && snap.content !== editor.getHTML()) {
-            const { from } = editor.state.selection;
-            editor.commands.setContent(snap.content, { emitUpdate: false });
-            const maxPos = editor.state.doc.content.size;
-            editor.commands.setTextSelection(Math.min(from, maxPos - 1));
-            setIncomingBanner(`↓ Synced from local replica`);
-            setTimeout(() => setIncomingBanner(null), 4000);
-        }
 
-        // ── Poll Matchmaker for remote changes (fallback) ─────────
-        if (roomOtp && !isTypingRef.current) {
+        // ── Primary: Poll Matchmaker for changes from ALL peers ─────────
+        if (roomOtp) {
           try {
             const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
             const mmRes = await fetch(`${_WEB_BASE}/api/lobby/doc?otp=${roomOtp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
             if (mmRes.ok) {
               const mmData = await mmRes.json();
-              if (mmData.snapshot && mmData.snapshot.content && mmData.snapshot.authorNodeId !== myNodeId) {
-                if (editor && mmData.snapshot.content !== editor.getHTML()) {
-                  lastSyncedAt.current = mmData.snapshot.committedAt || Date.now();
-                  const { from } = editor.state.selection;
-                  
-                  // Smart merge
-                  let mergedContent = mmData.snapshot.content;
-                  if (lastContent.current && lastContent.current !== mmData.snapshot.content) {
-                    if (mmData.snapshot.content.length > lastContent.current.length + 10) {
-                      mergedContent = mmData.snapshot.content;
-                    } else if (isTypingRef.current) {
-                      mergedContent = lastContent.current;
-                    }
+              if (!mmData.unchanged && mmData.snapshot?.content && mmData.snapshot.authorNodeId !== myNodeId) {
+                const incoming = mmData.snapshot;
+                // Only apply if this is a genuinely newer version (newer seq or newer timestamp)
+                if (incoming.seq > lastMatchmakerSeq.current || incoming.committedAt > lastSyncedAt.current) {
+                  lastMatchmakerSeq.current = incoming.seq || 0;
+                  lastSyncedAt.current = incoming.committedAt || Date.now();
+                  if (editor && incoming.content !== editor.getHTML()) {
+                    const { from } = editor.state.selection;
+                    editor.commands.setContent(incoming.content, { emitUpdate: false });
+                    lastContent.current = incoming.content;
+                    const maxPos = editor.state.doc.content.size;
+                    editor.commands.setTextSelection(Math.min(from, maxPos - 1));
+                    setIncomingBanner(`↓ Synced from peer`);
+                    setTimeout(() => setIncomingBanner(null), 4000);
                   }
-
-                  editor.commands.setContent(mergedContent, { emitUpdate: false });
-                  lastContent.current = mergedContent;
-                  
-                  const maxPos = editor.state.doc.content.size;
-                  editor.commands.setTextSelection(Math.min(from, maxPos - 1));
-                  setIncomingBanner(`↓ Synced from Matchmaker`);
-                  setTimeout(() => setIncomingBanner(null), 4000);
                 }
               }
             }
           } catch (e) {
-            console.error("Matchmaker poll error:", e);
+            // Matchmaker unavailable — fall back to local replica below
           }
         }
       } catch { /* offline mode */ }
@@ -393,7 +371,8 @@ const EditorPage: React.FC = () => {
     pollDoc();
     const iv = setInterval(pollDoc, 500);
     return () => clearInterval(iv);
-  }, [roomOtp, fileId, editor]);
+  }, [roomOtp, fileId, editor, myNodeId]);
+
 
 
   // ── File load ─────────────────────────────────────────────────────────────

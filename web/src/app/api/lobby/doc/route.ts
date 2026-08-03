@@ -131,22 +131,12 @@ export async function POST(request: Request) {
     const key = `doc:${otp}:${fileId}`;
     const now = Date.now();
 
-    // Read existing snapshot
+    // Read existing snapshot to get the sequence number
     const existing = (await redis.get(key)) as DocSnapshot | null;
     const nextSeq = existing ? (existing.seq || 0) + 1 : 1;
 
-    // LWW check: only overwrite if newer
-    if (existing && existing.committedAt >= now) {
-      return NextResponse.json(
-        {
-          conflict: true,
-          message: 'A newer version already exists. Your changes were rejected by LWW. Please reload.',
-          currentVersion: existing,
-        },
-        { status: 409, headers: corsHeaders }
-      );
-    }
-
+    // Always accept the incoming content — clients are responsible for merging
+    // before pushing. Rejecting saves was causing edits to be silently lost.
     const snapshot: DocSnapshot = {
       otp,
       fileId,

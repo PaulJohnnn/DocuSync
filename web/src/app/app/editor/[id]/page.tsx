@@ -6,7 +6,6 @@ import { ArrowLeft, Save, RefreshCw, Clock, WifiOff, Wifi } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { uGet, uSet } from '@/lib/userStorage';
 import { useWebSync } from '@/context/WebSyncContext';
-import { diffWords } from 'diff';
 const TipTapEditor = dynamic(() => import('@/components/TipTapEditor'), { ssr: false });
 import type { RemoteCursor } from '@/components/TipTapEditor';
 
@@ -347,133 +346,90 @@ export default function EditorPage() {
     }
   }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
 
-  // ── Poll Host for remote updates ─────────────────────────────────────────
+  // ── Track last accepted seq to avoid re-applying same snapshot ───────────
+  const lastAcceptedSeq = useRef<number>(0);
+
+  // ── Poll Matchmaker for remote updates ───────────────────────────────────
   useEffect(() => {
     const room = getRoomHostInfo();
-    if (!room || !room.hostIp) return;
+    if (!room) return;
+
+    const otp = room.otp || room.id;
+    if (!otp) return;
 
     const pollDoc = async () => {
       if (!navigator.onLine) return;
-      const otp = room.otp || room.id;
-      let polledDirect = false;
+      if (isTypingRef.current) return; // Don't interrupt active typing
 
-      if (room.hostIp) {
-        try {
-          const baseUrl = getSyncBaseUrl(room);
-          const vcStr = encodeURIComponent(JSON.stringify(localVectorClockRef.current || {}));
-          const url = `${baseUrl}/sync/status?fileId=${fileId}&since=${vcStr}`;
-          const res = await fetch(url);
-          if (res.ok) {
-            polledDirect = true;
-            const data = await res.json();
-
-            if (data.upToDate) {
-              if (data.vectorClock) {
-                const myIdx = localVectorClockRef.current.nodeIndex;
-                localVectorClockRef.current = data.vectorClock;
-                localVectorClockRef.current.nodeIndex = myIdx;
-              }
-              return;
-            }
-
-            if (!isTypingRef.current && !hasPendingChangesRef.current) {
-              if (data.authorNodeId === localNodeIdRef.current) return;
-              const newContent = data.content;
-              const newVc = data.vectorClock;
-              const remoteTs = data.committedAt || 0;
-              // Don't apply if our local save is newer
-              if (remoteTs > 0 && remoteTs <= lastLocalSaveTime.current) return;
-              if (newContent && newContent !== currentContentRef.current) {
-                if (newVc) {
-                  const myIdx = localVectorClockRef.current.nodeIndex;
-                  localVectorClockRef.current = newVc;
-                  localVectorClockRef.current.nodeIndex = myIdx;
+      try {
+        // Step 1: Try direct Desktop host first (faster)
+        if (room.hostIp) {
+          try {
+            const baseUrl = getSyncBaseUrl(room);
+            const vcStr = encodeURIComponent(JSON.stringify(localVectorClockRef.current || {}));
+            const res = await fetch(`${baseUrl}/sync/status?fileId=${fileId}&since=${vcStr}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (!data.upToDate && data.content && data.authorNodeId !== localNodeIdRef.current) {
+                if (data.content !== currentContentRef.current) {
+                  setContentAndRef(data.content);
+                  lastSave.current = data.content;
+                  setSaved(true);
+                  setSyncStatusMsg('↓ Live synced from host');
+                  lastSyncedAt.current = Date.now();
                 }
-                lastSyncedAt.current = Date.now();
-                setContentAndRef(newContent);
-                lastSave.current = newContent;
-                setSaved(true);
-                setSyncStatusMsg(`↓ Synced from host`);
-                
-                try {
-                  const stored = uGet('files');
-                  if (stored) {
-                    const files: FileRecord[] = JSON.parse(stored);
-                    const idx = files.findIndex(f => f.id === fileId);
-                    if (idx >= 0) {
-                      files[idx].content = newContent;
-                      files[idx].updatedAt = new Date().toISOString();
-                      uSet('files', JSON.stringify(files));
-                    }
-                  }
-                } catch {}
-                return;
               }
+              return; // successfully polled direct host
+            }
+          } catch {
+            // fall through to Matchmaker
+          }
+        }
+
+        // Step 2: Poll Matchmaker (works when Desktop is on different network)
+        const res = await fetch(`/api/lobby/doc?otp=${otp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.unchanged || !data.snapshot?.content) return;
+        const snap = data.snapshot;
+
+        // Skip our own pushes
+        if (snap.authorNodeId === localNodeIdRef.current) return;
+
+        // Skip if we've already applied this snapshot version
+        if (snap.seq && snap.seq <= lastAcceptedSeq.current) return;
+
+        // Apply the remote snapshot
+        lastAcceptedSeq.current = snap.seq || 0;
+        lastSyncedAt.current = snap.committedAt || Date.now();
+
+        // Update editor content
+        setContentAndRef(snap.content);
+        lastSave.current = snap.content;
+        setSaved(true);
+        setSyncStatusMsg('↓ Synced from peer');
+
+        // Persist to local storage
+        try {
+          const stored = uGet('files');
+          if (stored) {
+            const files: FileRecord[] = JSON.parse(stored);
+            const idx = files.findIndex(f => f.id === fileId);
+            if (idx >= 0) {
+              files[idx].content = snap.content;
+              files[idx].updatedAt = new Date().toISOString();
+              uSet('files', JSON.stringify(files));
             }
           }
         } catch {}
-      }
-
-      if (!polledDirect && otp) {
-        try {
-          const res = await fetch(`/api/lobby/doc?otp=${otp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.unchanged) return;
-            if (data.snapshot && data.snapshot.content) {
-              if (data.snapshot.authorNodeId === localNodeIdRef.current) return;
-              // Don't apply if our local save is newer than this snapshot
-              const snapTs = data.snapshot.committedAt || 0;
-              if (snapTs > 0 && snapTs <= lastLocalSaveTime.current) return;
-              if (!isTypingRef.current && !hasPendingChangesRef.current && data.snapshot.content !== currentContentRef.current) {
-                lastSyncedAt.current = data.snapshot.committedAt || Date.now();
-                
-                // Smart merge if we have local changes
-                if (currentContentRef.current && currentContentRef.current !== lastSave.current) {
-                  let merged = currentContentRef.current;
-                  const diff = diffWords(lastSave.current, data.snapshot.content);
-                  let offset = 0;
-                  // Extremely basic merge strategy for plain text segments inside HTML
-                  // In a real app we'd use Yjs. For now, just accept the remote if it's significantly larger
-                  if (data.snapshot.content.length > currentContentRef.current.length + 10) {
-                    merged = data.snapshot.content;
-                  } else {
-                     // Otherwise if local is actively being typed, prefer local but append remote if it's not a subset
-                     if (!merged.includes(data.snapshot.content)) {
-                         // very naive fallback
-                     }
-                  }
-                  setContentAndRef(merged);
-                  lastSave.current = merged;
-                } else {
-                  setContentAndRef(data.snapshot.content);
-                  lastSave.current = data.snapshot.content;
-                }
-                setSaved(true);
-                setSyncStatusMsg(`↓ Synced from peer`);
-                
-                try {
-                  const stored = uGet('files');
-                  if (stored) {
-                    const files: FileRecord[] = JSON.parse(stored);
-                    const idx = files.findIndex(f => f.id === fileId);
-                    if (idx >= 0) {
-                      files[idx].content = data.snapshot.content;
-                      files[idx].updatedAt = new Date().toISOString();
-                      uSet('files', JSON.stringify(files));
-                    }
-                  }
-                } catch {}
-              }
-            }
-          }
-        } catch {}
-      }
+      } catch {}
     };
 
     channelRef.current = setInterval(pollDoc, 500);
     return () => { if (channelRef.current) clearInterval(channelRef.current); };
   }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
+
 
   const saveFile = useCallback(async (contentToSave: string, forcePush = false) => {
     if (contentToSave === lastSave.current && !forcePush) return;

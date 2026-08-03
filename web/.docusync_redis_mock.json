@@ -617,7 +617,68 @@
   },
   "user:66c3411f-052c-407f-a2fe-fc5d3ad076fb": {
     "nodeId": "66c3411f-052c-407f-a2fe-fc5d3ad076fb",
-    "lastActive": 1785734478176,
+    "lastActive": 1785734763543,
     "ip": "10.116.72.55"
+  },
+  "user:e3d8b6f5-e5f2-43eb-a609-98752d33e152": {
+    "nodeId": "e3d8b6f5-e5f2-43eb-a609-98752d33e152",
+    "lastActive": 1785736424815,
+    "ip": "10.116.72.55"
+  },
+  "lobby:KGN9NY": {
+    "otp": "KGN9NY",
+    "roomName": "pol",
+    "hostNodeId": "web-1785735760342",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1785735760883,
+    "expiresAt": 1785739360883,
+    "members": [],
+    "peersJoined": 0,
+    "files": [
+      {
+        "fileId": 1785735795617,
+        "fileName": "sample.docx",
+        "content": "sample\n\n",
+        "contentLength": 8,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-03T05:43:15.619Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1785735760342"
+  },
+  "doc:KGN9NY:1785735795617": {
+    "otp": "KGN9NY",
+    "fileId": "1785735795617",
+    "authorNodeId": "web-16117",
+    "authorName": "web-1611",
+    "content": "<p>sample damn please work both pf you</p>",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 8,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785735847965,
+    "deltaSize": 42,
+    "seq": 8
   }
 }
