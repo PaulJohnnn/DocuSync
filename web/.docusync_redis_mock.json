@@ -415,7 +415,7 @@
   },
   "user:be382656-bd34-4cf3-b556-29366cc474e4": {
     "nodeId": "be382656-bd34-4cf3-b556-29366cc474e4",
-    "lastActive": 1785729038926,
+    "lastActive": 1785729188939,
     "ip": "10.116.72.55"
   },
   "lobby:BBMBS9": {
@@ -450,7 +450,7 @@
     "fileId": "1785728682376",
     "authorNodeId": "web-30734",
     "authorName": "web-3073",
-    "content": "sample\n\n",
+    "content": "<p>sample asdasdasdasdasdasdasda</p>",
     "vectorClock": {
       "nodeCount": 3,
       "nodeIndex": 1,
@@ -472,8 +472,8 @@
         ]
       }
     },
-    "committedAt": 1785728829610,
-    "deltaSize": 8,
-    "seq": 8
+    "committedAt": 1785729127495,
+    "deltaSize": 36,
+    "seq": 10
   }
 }

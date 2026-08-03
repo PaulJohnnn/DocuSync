@@ -357,11 +357,6 @@ const EditorPage: React.FC = () => {
                   editor.commands.setTextSelection(Math.min(from, maxPos - 1));
                   setIncomingBanner(`↓ Synced from Matchmaker`);
                   setTimeout(() => setIncomingBanner(null), 4000);
-                  
-                  // Persist remote change to local SQLite
-                  if (window.docuSync && vectorClock) {
-                    await window.docuSync.saveFile(fileId, mmData.snapshot.content, vectorClock);
-                  }
                 }
               }
             }
