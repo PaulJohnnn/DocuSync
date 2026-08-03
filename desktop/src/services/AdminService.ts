@@ -21,9 +21,7 @@ const getAdminUrl = () => {
   if (import.meta.env.VITE_WEB_URL) {
     return `${import.meta.env.VITE_WEB_URL}/api/admin`;
   }
-  if (import.meta.env.DEV) {
-    return 'http://localhost:3000/api/admin';
-  }
+  // Default to the live admin API in all environments
   return 'https://docusync-pnc.vercel.app/api/admin';
 };
 
@@ -35,8 +33,8 @@ async function adminFetch(path: string, options: RequestInit = {}): Promise<Resp
     });
     if (res.ok || res.status < 500) return res;
   } catch { /* if local fails and we want to fallback, we can, but we shouldn't mix if they forced an IP */ }
-  // Only fallback to Vercel if we are in dev and VITE_WEB_URL was NOT explicitly set
-  if (import.meta.env.DEV && !import.meta.env.VITE_WEB_URL) {
+  // Only fallback to Vercel if VITE_WEB_URL was NOT explicitly set
+  if (!import.meta.env.VITE_WEB_URL) {
     return fetch(`https://docusync-pnc.vercel.app/api/admin${path}`, options);
   }
   throw new Error('Admin API request failed');
