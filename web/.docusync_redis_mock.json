@@ -450,7 +450,7 @@
     "fileId": "1785728682376",
     "authorNodeId": "web-30734",
     "authorName": "web-3073",
-    "content": "<p>sample asdasdasdasdasdasdasda</p>",
+    "content": "sample\n\n",
     "vectorClock": {
       "nodeCount": 3,
       "nodeIndex": 1,
@@ -458,11 +458,11 @@
         "counter": 0,
         "children": [
           {
-            "counter": 6,
+            "counter": 2,
             "children": []
           },
           {
-            "counter": 2,
+            "counter": 1,
             "children": []
           },
           {
@@ -472,13 +472,23 @@
         ]
       }
     },
-    "committedAt": 1785729127495,
-    "deltaSize": 36,
-    "seq": 10
+    "committedAt": 1785730771315,
+    "deltaSize": 8,
+    "seq": 16
   },
   "user:b6881fb0-3ead-48d6-bab8-25d143a73803": {
     "nodeId": "b6881fb0-3ead-48d6-bab8-25d143a73803",
     "lastActive": 1785729705951,
+    "ip": "10.116.72.55"
+  },
+  "user:9a30be2a-a6a5-4100-ac10-e80149ff6f8c": {
+    "nodeId": "9a30be2a-a6a5-4100-ac10-e80149ff6f8c",
+    "lastActive": 1785729874403,
+    "ip": "10.116.72.55"
+  },
+  "user:fb341fbc-c80b-42e2-91c2-9dc96c886e65": {
+    "nodeId": "fb341fbc-c80b-42e2-91c2-9dc96c886e65",
+    "lastActive": 1785731831014,
     "ip": "10.116.72.55"
   }
 }

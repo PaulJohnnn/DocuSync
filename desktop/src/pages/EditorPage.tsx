@@ -13,12 +13,14 @@ import { useElectronSync } from '@/context/ElectronSyncContext';
 import {
   IconArrowLeft, IconBold, IconItalic, IconStrikethrough,
   IconH1, IconH2, IconList, IconQuote, IconCode, IconRefresh, IconHistory,
+  IconH1, IconH2, IconList, IconQuote, IconCode, IconRefresh, IconHistory, IconDownload,
 } from '@/components/Icons';
 import { formatBytes, basename } from '@docusync/shared/utils/formatters';
 import { notify } from '@docusync/shared/utils/notifications';
 import SyncService from '@/services/SyncService';
 
 import { Extension } from '@tiptap/core';
+import { diffWords } from 'diff';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
@@ -275,6 +277,16 @@ const EditorPage: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (performSaveRef.current && editor) {
+        performSaveRef.current(editor.getHTML(), true);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [editor]);
+
   const performSaveRef = useRef<((html: string, explicit?: boolean) => Promise<void>) | null>(null);
 
   useEffect(() => {
@@ -289,7 +301,7 @@ const EditorPage: React.FC = () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         if (performSaveRef.current) performSaveRef.current(editor.getHTML(), false);
-      }, 500);
+      }, 300);
     };
 
     const handleSelectionUpdate = () => {
@@ -352,7 +364,20 @@ const EditorPage: React.FC = () => {
                 if (editor && mmData.snapshot.content !== editor.getHTML()) {
                   lastSyncedAt.current = mmData.snapshot.committedAt || Date.now();
                   const { from } = editor.state.selection;
-                  editor.commands.setContent(mmData.snapshot.content, { emitUpdate: false });
+                  
+                  // Smart merge
+                  let mergedContent = mmData.snapshot.content;
+                  if (lastContent.current && lastContent.current !== mmData.snapshot.content) {
+                    if (mmData.snapshot.content.length > lastContent.current.length + 10) {
+                      mergedContent = mmData.snapshot.content;
+                    } else if (isTypingRef.current) {
+                      mergedContent = lastContent.current;
+                    }
+                  }
+
+                  editor.commands.setContent(mergedContent, { emitUpdate: false });
+                  lastContent.current = mergedContent;
+                  
                   const maxPos = editor.state.doc.content.size;
                   editor.commands.setTextSelection(Math.min(from, maxPos - 1));
                   setIncomingBanner(`↓ Synced from Matchmaker`);
@@ -367,7 +392,7 @@ const EditorPage: React.FC = () => {
       } catch { /* offline mode */ }
     };
     pollDoc();
-    const iv = setInterval(pollDoc, 1000);
+    const iv = setInterval(pollDoc, 500);
     return () => clearInterval(iv);
   }, [roomOtp, fileId, editor]);
 
@@ -737,14 +762,36 @@ const EditorPage: React.FC = () => {
             <ToolbarBtn active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} title="Bullets"><IconList size={14} /></ToolbarBtn>
             <ToolbarBtn active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Quote"><IconQuote size={14} /></ToolbarBtn>
             <ToolbarBtn active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="Code"><IconCode size={14} /></ToolbarBtn>
-            <div style={{ marginLeft: 'auto' }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               <button
                 className="ds-btn ds-btn-primary"
-                onClick={() => setShowSaveConfirm(true)}
+                onClick={async () => {
+                  if (!editor) return;
+                  await performSave(editor.getHTML(), true);
+                  navigate(-1);
+                }}
                 disabled={saving}
                 style={{ height: 30, fontSize: 12, padding: '0 14px' }}
               >
-                {saving ? '↻ Saving…' : '💾 Save'}
+                {saving ? '↻ Saving…' : 'Done'}
+              </button>
+              <button
+                className="ds-btn"
+                onClick={() => {
+                  if (!editor) return;
+                  const blob = new Blob([editor.getHTML()], { type: 'text/html' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `document_${fileId}.html`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+                style={{ height: 30, fontSize: 12, padding: '0 14px' }}
+              >
+                Download
               </button>
             </div>
           </div>

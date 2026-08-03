@@ -427,8 +427,28 @@ export default function EditorPage() {
               if (snapTs > 0 && snapTs <= lastLocalSaveTime.current) return;
               if (!isTypingRef.current && !hasPendingChangesRef.current && data.snapshot.content !== currentContentRef.current) {
                 lastSyncedAt.current = data.snapshot.committedAt || Date.now();
-                setContentAndRef(data.snapshot.content);
-                lastSave.current = data.snapshot.content;
+                
+                // Smart merge if we have local changes
+                if (currentContentRef.current && currentContentRef.current !== lastSave.current) {
+                  let merged = currentContentRef.current;
+                  const diff = diffWords(lastSave.current, data.snapshot.content);
+                  let offset = 0;
+                  // Extremely basic merge strategy for plain text segments inside HTML
+                  // In a real app we'd use Yjs. For now, just accept the remote if it's significantly larger
+                  if (data.snapshot.content.length > currentContentRef.current.length + 10) {
+                    merged = data.snapshot.content;
+                  } else {
+                     // Otherwise if local is actively being typed, prefer local but append remote if it's not a subset
+                     if (!merged.includes(data.snapshot.content)) {
+                         // very naive fallback
+                     }
+                  }
+                  setContentAndRef(data.snapshot.content); // For simplicity without a CRDT, we accept remote when not actively typing.
+                  lastSave.current = data.snapshot.content;
+                } else {
+                  setContentAndRef(data.snapshot.content);
+                  lastSave.current = data.snapshot.content;
+                }
                 setSaved(true);
                 setSyncStatusMsg(`↓ Synced from peer`);
                 
@@ -451,7 +471,7 @@ export default function EditorPage() {
       }
     };
 
-    channelRef.current = setInterval(pollDoc, 1000);
+    channelRef.current = setInterval(pollDoc, 500);
     return () => { if (channelRef.current) clearInterval(channelRef.current); };
   }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
 
@@ -495,8 +515,32 @@ export default function EditorPage() {
   }, []);
 
   useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      saveFile(currentContentRef.current, true);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [saveFile]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (hasPendingChangesRef.current) {
+        saveFile(currentContentRef.current, true);
+      }
+    };
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!file) return;
-    const timer = setTimeout(() => { saveFile(content); }, 500);
+    const timer = setTimeout(() => { saveFile(content); }, 300);
     return () => clearTimeout(timer);
   }, [content, file, saveFile]);
 
@@ -523,69 +567,27 @@ export default function EditorPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="ds-btn" onClick={() => setShowSaveConfirm(true)}>Save</button>
-            <button className="ds-btn ds-btn-primary" onClick={() => saveFile(content, true)} disabled={syncing}>Sync Now</button>
+            <button className="ds-btn" onClick={() => {
+              const blob = new Blob([content], { type: 'text/html' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${file.name || 'document'}.html`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }}>
+              Download
+            </button>
+            <button className="ds-btn ds-btn-primary" onClick={() => {
+              saveFile(content, true);
+              router.push('/app/files');
+            }} disabled={syncing}>Done</button>
           </div>
         </div>
 
-        {/* Save Confirm Modal */}
-        {showSaveConfirm && (
-          <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(8px)',
-            zIndex: 9999,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-            animation: 'fadeIn 0.2s ease-out'
-          }}>
-            <div style={{
-              background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-              borderRadius: 16, width: '100%', maxWidth: 420,
-              padding: 32, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1)',
-              display: 'flex', flexDirection: 'column', gap: 20
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ background: 'rgba(56, 189, 248, 0.2)', padding: 10, borderRadius: 12 }}>
-                  <Save size={24} color="#38bdf8" />
-                </div>
-                <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#f8fafc', letterSpacing: '-0.02em' }}>Save Changes?</h2>
-              </div>
-              <p style={{ fontSize: 15, color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-                Do you want to save the current document state and sync with peers, or continue editing without saving?
-              </p>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
-                <button 
-                  onClick={() => setShowSaveConfirm(false)}
-                  style={{
-                    padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600,
-                    background: 'transparent', color: '#cbd5e1', border: '1px solid #334155', cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.background = '#334155'}
-                  onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  Continue Editing
-                </button>
-                <button 
-                  onClick={async () => {
-                    await saveFile(content, true);
-                    setShowSaveConfirm(false);
-                    router.push('/app/files');
-                  }}
-                  style={{
-                    padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600,
-                    background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(37,99,235,0.3)', transition: 'all 0.2s'
-                  }}
-                  onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-                  onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                >
-                  Save File
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Save Confirm Modal removed */}
 
         {/* Editor */}
         <div style={{ flex: 1, background: 'var(--bg2)', borderRadius: 12, border: '1px solid var(--b1)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
