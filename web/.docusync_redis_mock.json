@@ -415,7 +415,7 @@
   },
   "user:be382656-bd34-4cf3-b556-29366cc474e4": {
     "nodeId": "be382656-bd34-4cf3-b556-29366cc474e4",
-    "lastActive": 1785729188939,
+    "lastActive": 1785729595358,
     "ip": "10.116.72.55"
   },
   "lobby:BBMBS9": {
@@ -475,5 +475,10 @@
     "committedAt": 1785729127495,
     "deltaSize": 36,
     "seq": 10
+  },
+  "user:b6881fb0-3ead-48d6-bab8-25d143a73803": {
+    "nodeId": "b6881fb0-3ead-48d6-bab8-25d143a73803",
+    "lastActive": 1785729705951,
+    "ip": "10.116.72.55"
   }
 }

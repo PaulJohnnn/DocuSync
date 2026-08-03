@@ -66,6 +66,12 @@ function getMockRedis() {
       const store = readStore();
       return Object.keys(store).filter(k => k.includes(pattern.replace('*', '')));
     },
+    mget: async (...keys: string[]) => {
+      const store = readStore();
+      // Upstash mget accepts an array of keys, which might be passed as multiple arguments or an array in the first argument
+      const actualKeys = Array.isArray(keys[0]) ? keys[0] : keys;
+      return actualKeys.map(k => store[k] || null);
+    },
   };
   return _mockRedis;
 }
