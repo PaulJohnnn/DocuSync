@@ -451,13 +451,9 @@ export default function EditorPage() {
 
     lastSave.current = contentToSave;
     setSaved(true);
-    // Mark the exact time we saved locally so the poll loop won't overwrite
-    // with an older remote snapshot
-    const nowMs = Date.now();
-    lastLocalSaveTime.current = nowMs;
-    lastSyncedAt.current = nowMs;
-    // Persist so it survives navigation/reload
-    localStorage.setItem(`docusync_save_ts_${fileId}`, String(nowMs));
+    // NOTE: Do NOT update lastSyncedAt here — only update it when we receive
+    // content from the server. Updating it on save would cause the Matchmaker
+    // poll to return 'unchanged' for Desktop edits saved before our save time.
 
     await pushToHost(contentToSave, localVectorClockRef.current, forcePush);
   }, [fileId, pushToHost]);

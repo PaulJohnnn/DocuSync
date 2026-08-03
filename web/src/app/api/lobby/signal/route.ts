@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     }
 
     const key = `signals:${otp}:${targetNodeId}`;
-    const signal = { senderNodeId, type, data, ts: Date.now() };
+    const signal = JSON.stringify({ senderNodeId, type, data, ts: Date.now() });
 
     // Push the signal to the target's list
     await redis.rpush(key, signal);
@@ -56,12 +56,16 @@ export async function GET(request: Request) {
     const key = `signals:${otp}:${nodeId}`;
 
     // Use a transaction or just lrange then del
-    const signals = await redis.lrange(key, 0, -1);
-    if (signals && signals.length > 0) {
+    const rawSignals = await redis.lrange(key, 0, -1);
+    if (rawSignals && rawSignals.length > 0) {
       await redis.del(key);
     }
 
-    return NextResponse.json({ signals: signals || [] }, { headers: corsHeaders });
+    const signals = (rawSignals || []).map((s: any) => {
+      try { return typeof s === 'string' ? JSON.parse(s) : s; } catch { return s; }
+    });
+
+    return NextResponse.json({ signals }, { headers: corsHeaders });
   } catch (err) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: corsHeaders });
   }

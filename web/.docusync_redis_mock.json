@@ -622,7 +622,7 @@
   },
   "user:e3d8b6f5-e5f2-43eb-a609-98752d33e152": {
     "nodeId": "e3d8b6f5-e5f2-43eb-a609-98752d33e152",
-    "lastActive": 1785736424815,
+    "lastActive": 1785736484843,
     "ip": "10.116.72.55"
   },
   "lobby:KGN9NY": {
@@ -680,5 +680,128 @@
     "committedAt": 1785735847965,
     "deltaSize": 42,
     "seq": 8
+  },
+  "user:2f39ada3-31a0-4505-9cda-4837beccfe39": {
+    "nodeId": "2f39ada3-31a0-4505-9cda-4837beccfe39",
+    "lastActive": 1785737724059,
+    "ip": "10.116.72.55"
+  },
+  "lobby:HT62CU": {
+    "otp": "HT62CU",
+    "roomName": "thesis",
+    "hostNodeId": "web-1785736714294",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1785736715019,
+    "expiresAt": 1785740315019,
+    "members": [],
+    "peersJoined": 0,
+    "files": [
+      {
+        "fileId": 1,
+        "fileName": "This is sample file.docx",
+        "filePath": "D:\\new download folder (as of Jan 1, 2026)\\This is sample file.docx",
+        "contentLength": 21,
+        "content": "This is sample file\n\n"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1785736714294"
+  },
+  "doc:HT62CU:1": {
+    "otp": "HT62CU",
+    "fileId": "1",
+    "authorNodeId": "web-95468",
+    "authorName": "web-9546",
+    "content": "<p>This is sample file hello po can you make this henlo dangal greetings hello </p>",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 3,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785737099009,
+    "deltaSize": 83,
+    "seq": 28
+  },
+  "user:deac5aad-15af-42ff-98cd-fefaaf45bb36": {
+    "nodeId": "deac5aad-15af-42ff-98cd-fefaaf45bb36",
+    "lastActive": 1785738038657,
+    "ip": "10.116.72.55"
+  },
+  "lobby:8WUSP2": {
+    "otp": "8WUSP2",
+    "roomName": "thesis2",
+    "hostNodeId": "desktop-1785737815053",
+    "hostIp": "10.116.72.55",
+    "hostPort": 9000,
+    "hostType": "desktop",
+    "createdAt": 1785737819291,
+    "expiresAt": 1785741419291,
+    "members": [
+      "web-join-1785737849305"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1785737864038,
+        "fileName": "This is sample file.docx",
+        "content": "This is sample file\n\n",
+        "contentLength": 21,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-03T06:17:44.051Z"
+      }
+    ],
+    "ip": "10.116.72.55",
+    "port": 9000,
+    "nodeId": "desktop-1785737815053"
+  },
+  "doc:8WUSP2:1785737864038": {
+    "otp": "8WUSP2",
+    "fileId": "1785737864038",
+    "authorNodeId": "web-95468",
+    "authorName": "web-9546",
+    "content": "This is sample file hello d nagana yung file",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 7,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785737932943,
+    "deltaSize": 44,
+    "seq": 7
   }
 }
