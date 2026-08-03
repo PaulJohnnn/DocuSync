@@ -743,7 +743,7 @@
   },
   "user:deac5aad-15af-42ff-98cd-fefaaf45bb36": {
     "nodeId": "deac5aad-15af-42ff-98cd-fefaaf45bb36",
-    "lastActive": 1785738038657,
+    "lastActive": 1785738308666,
     "ip": "10.116.72.55"
   },
   "lobby:8WUSP2": {
@@ -778,7 +778,7 @@
     "fileId": "1785737864038",
     "authorNodeId": "web-95468",
     "authorName": "web-9546",
-    "content": "This is sample file hello d nagana yung file",
+    "content": "<p>This is sample file hala ka san ano na ok</p>",
     "vectorClock": {
       "nodeCount": 3,
       "nodeIndex": 1,
@@ -790,7 +790,7 @@
             "children": []
           },
           {
-            "counter": 7,
+            "counter": 1,
             "children": []
           },
           {
@@ -800,8 +800,8 @@
         ]
       }
     },
-    "committedAt": 1785737932943,
-    "deltaSize": 44,
-    "seq": 7
+    "committedAt": 1785738258079,
+    "deltaSize": 48,
+    "seq": 22
   }
 }

@@ -255,7 +255,7 @@ export default function EditorPage() {
       const now = Date.now();
       lastSyncedAt.current = now;
 
-      const otp = room.otp || room.id;
+      const otp = room.otp; // Always use the short OTP (e.g. "8WUSP2"), never room.id UUID
       let directSuccess = false;
 
       if (room.hostIp) {
@@ -351,18 +351,21 @@ export default function EditorPage() {
 
   // ── Poll Matchmaker for remote updates ───────────────────────────────────
   useEffect(() => {
-    const room = getRoomHostInfo();
-    if (!room) return;
-
-    const otp = room.otp || room.id;
-    if (!otp) return;
-
     const pollDoc = async () => {
       if (!navigator.onLine) return;
       if (isTypingRef.current) return; // Don't interrupt active typing
 
+      // Read room dynamically every tick — the room might be loaded after mount
+      const room = getRoomHostInfo();
+      if (!room) return;
+
+      // ALWAYS use room.otp (the short Desktop code like "8WUSP2")
+      // Do NOT fall back to room.id (which is a UUID, not the OTP)
+      const otp = room.otp;
+      if (!otp) return;
+
       try {
-        // Step 1: Try direct Desktop host first (faster)
+        // Step 1: Try direct Desktop host first (faster, real-time)
         if (room.hostIp) {
           try {
             const baseUrl = getSyncBaseUrl(room);
@@ -429,6 +432,7 @@ export default function EditorPage() {
     channelRef.current = setInterval(pollDoc, 500);
     return () => { if (channelRef.current) clearInterval(channelRef.current); };
   }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
+
 
 
   const saveFile = useCallback(async (contentToSave: string, forcePush = false) => {
