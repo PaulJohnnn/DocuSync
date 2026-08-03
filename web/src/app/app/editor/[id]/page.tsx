@@ -151,6 +151,9 @@ export default function EditorPage() {
       const msg = e.detail;
       const localFileId = Number(fileId);
       if (msg.fileId !== localFileId) return;
+      // Ignore reflections of our own edits that arrive late over WebSocket
+      if (msg.nodeId === localNodeIdRef.current) return;
+      if (msg.authorNodeId === localNodeIdRef.current) return;
       if (isTypingRef.current || hasPendingChangesRef.current) return; // Don't stomp on local typing or pending pushes
       if (msg.content && msg.content !== currentContentRef.current) {
         lastSyncedAt.current = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now();

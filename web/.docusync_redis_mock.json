@@ -407,5 +407,73 @@
     "ip": "172.22.83.55",
     "port": 9000,
     "nodeId": "desktop-1785216618683"
+  },
+  "user:8a973a3c-c325-4701-9847-81d195202a96": {
+    "nodeId": "8a973a3c-c325-4701-9847-81d195202a96",
+    "lastActive": 1785728529626,
+    "ip": "10.116.72.55"
+  },
+  "user:be382656-bd34-4cf3-b556-29366cc474e4": {
+    "nodeId": "be382656-bd34-4cf3-b556-29366cc474e4",
+    "lastActive": 1785729038926,
+    "ip": "10.116.72.55"
+  },
+  "lobby:BBMBS9": {
+    "otp": "BBMBS9",
+    "roomName": "thesis",
+    "hostNodeId": "desktop-1785728642752",
+    "hostIp": "10.116.72.55",
+    "hostPort": 9000,
+    "hostType": "desktop",
+    "createdAt": 1785728645956,
+    "expiresAt": 1785732245956,
+    "members": [
+      "web-join-1785728653319"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1785728682376,
+        "fileName": "sample.docx",
+        "content": "sample\n\n",
+        "contentLength": 8,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-03T03:44:42.377Z"
+      }
+    ],
+    "ip": "10.116.72.55",
+    "port": 9000,
+    "nodeId": "desktop-1785728642752"
+  },
+  "doc:BBMBS9:1785728682376": {
+    "otp": "BBMBS9",
+    "fileId": "1785728682376",
+    "authorNodeId": "web-30734",
+    "authorName": "web-3073",
+    "content": "sample\n\n",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 6,
+            "children": []
+          },
+          {
+            "counter": 2,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785728829610,
+    "deltaSize": 8,
+    "seq": 8
   }
 }
