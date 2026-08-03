@@ -34,8 +34,10 @@ import {
   type UserVerifyResponseMessage,
   type SessionTerminatedMessage,
 } from './message-schema';
+import type { SyncEvent } from '../lww/lww-resolver';
+import { decode, encode } from '../delta/myers-diff';
 import { EventLogService } from '../log-sync/event-log';
-import { decode } from '../delta/delta-decoder';
+import { decode as decodeDelta } from '../delta/delta-decoder';
 import { VectorClock } from '../vector-clock/vector-clock';
 import type { VectorClockJSON } from '../vector-clock/vector-clock';
 
@@ -346,8 +348,12 @@ export class PeerManager {
           }
 
           let latestVc = this.config.vectorClock || new VectorClock(3, 0, { counter: 0, children: [{ counter: 0, children: [] }, { counter: 0, children: [] }, { counter: 0, children: [] }] });
+          let committedAt = 0;
+          let authorNodeId = '';
           if (history.length > 0) {
             const latestEvent = history[history.length - 1];
+            committedAt = latestEvent.createdAt ? new Date(latestEvent.createdAt).getTime() : 0;
+            authorNodeId = latestEvent.nodeId || '';
             try {
               const rawVc = typeof latestEvent.vectorClockJson === 'string'
                 ? JSON.parse(latestEvent.vectorClockJson)
@@ -389,10 +395,10 @@ export class PeerManager {
 
           if (relation === 'dominated' || relation === 'equal') {
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ upToDate: true, vectorClock: latestVc.toJSON() }));
+            res.end(JSON.stringify({ upToDate: true, vectorClock: latestVc.toJSON(), committedAt, authorNodeId }));
           } else {
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON() }));
+            res.end(JSON.stringify({ upToDate: false, content: latestContent, vectorClock: latestVc.toJSON(), committedAt, authorNodeId }));
           }
           return;
         } catch (statusError: any) {
@@ -452,9 +458,13 @@ export class PeerManager {
           const senderSlotOnServer   = serverCounters[senderNodeIndex]   ?? -1;
           const senderSlotIncoming   = incomingCounters[senderNodeIndex] ?? 0;
 
-          if (senderSlotIncoming <= senderSlotOnServer) {
-            // The server already has this edit or a later one from this sender.
-            // This is an idempotent duplicate resend — safely deduplicate.
+          const latestEventEarly = await this.config.eventLog.getLatestEvent(fileId);
+          const authorNodeIdEarly = latestEventEarly ? latestEventEarly.nodeId : undefined;
+
+          // Only deduplicate if it's REALLY from the same node. If it's a different node,
+          // it's a slot collision (e.g. 2 web apps assigned nodeIndex=1). Let it through
+          // to be treated as a concurrent edit.
+          if (senderSlotIncoming <= senderSlotOnServer && (!authorNodeIdEarly || authorNodeIdEarly === nodeId)) {
             console.log(
               `[PeerManager] Dedup: sender slot [${senderNodeIndex}] incoming=${senderSlotIncoming} ` +
               `<= server=${senderSlotOnServer}. Deduplicated resend, not a conflict.`
@@ -470,6 +480,19 @@ export class PeerManager {
           try {
             relation = this.config.vectorClock.compare(incomingVc);
           } catch {}
+
+          const latestEvent = await this.config.eventLog.getLatestEvent(fileId);
+          const authorNodeId = latestEvent ? latestEvent.nodeId : undefined;
+
+          // HACK: If vector math thinks Server dominates or equals Incoming,
+          // but they come from entirely different physical nodes (different nodeIds),
+          // this means they accidentally shared the same nodeIndex slot (e.g. 2 web tabs).
+          // We MUST force them to be 'concurrent' so LWW resolves the text properly
+          // instead of mathematically dropping the edit.
+          if ((relation === 'dominant' || relation === 'equal') && authorNodeId && authorNodeId !== nodeId) {
+            console.log(`[PeerManager] Forcing concurrent due to nodeIndex collision: Server auth=${authorNodeId} vs Incoming auth=${nodeId}`);
+            relation = 'concurrent';
+          }
 
           const localContent = await this.config.getFileContent(fileId);
 
@@ -514,18 +537,17 @@ export class PeerManager {
             }
 
             // Relay HTTP push to all connected WebSocket peers
-            if (delta) {
-              this.broadcast({
-                type: 'DELTA_PUSH',
-                eventId,
-                nodeId,
-                fileId,
-                deltaBase64: delta,
-                logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
-                vectorClockJson: this.config.vectorClock.toJSON(),
-                timestamp: new Date().toISOString(),
-              });
-            }
+            this.broadcast({
+              type: 'DELTA_PUSH',
+              eventId,
+              nodeId,
+              fileId,
+              deltaBase64: delta,
+              content: newContent,
+              logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+              vectorClockJson: this.config.vectorClock.toJSON(),
+              timestamp: new Date().toISOString(),
+            });
 
             // Track successful merge latency
             this._metrics.pushSuccessCount++;

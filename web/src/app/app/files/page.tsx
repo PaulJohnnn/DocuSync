@@ -204,8 +204,15 @@ export default function FilesPage() {
 
   // Download room file locally and open in editor
   const handleOpenRoomFile = async (f: any) => {
+    const fileIdStr = f.fileId?.toString() || f.id?.toString();
+    const existing = localFiles.find(ex => ex.id === fileIdStr);
+    if (existing) {
+      router.push(`/app/editor/${existing.id}`);
+      return;
+    }
+    
     const newFile: FileRecord = {
-      id: f.fileId?.toString() || crypto.randomUUID(),
+      id: fileIdStr || crypto.randomUUID(),
       name: f.fileName || f.name || 'SharedFile.txt',
       type: 'text/plain',
       size: f.contentLength || f.content?.length || 0,
@@ -220,7 +227,11 @@ export default function FilesPage() {
 
   const handleDownloadRoomFile = async (f: any) => {
     try {
-      const blob = new Blob([f.content || ''], { type: 'text/plain;charset=utf-8' });
+      const fileIdStr = f.fileId?.toString() || f.id?.toString();
+      const existing = localFiles.find(ex => ex.id === fileIdStr);
+      const textContent = existing ? existing.content : (f.content || '');
+      
+      const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = f.fileName || f.name || 'file.txt';

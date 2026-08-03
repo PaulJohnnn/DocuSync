@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function WelcomePage() {
-  redirect('/app/unlock');
+  redirect('/app/login');
 }

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import mockRoomService, { type Room } from '@/lib/mockRoomService';
 import { uSet, uRemove } from '@/lib/userStorage';
+import { Crown, Link as LinkIcon, Key, Check, Lightbulb, Activity, Smartphone, ArrowRight, ArrowLeft } from 'lucide-react';
 
 // ── View state machine ────────────────────────────────────────────────────
 // list → create_name → create_generating → create_success → workspace
@@ -69,6 +70,7 @@ const OtpInput: React.FC<{
   onChange: (v: string) => void;
   error?: string;
 }> = ({ value, onChange, error }) => {
+  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const chars = value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 
@@ -86,7 +88,8 @@ const OtpInput: React.FC<{
             width: 48, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center',
             borderRadius: 10,
             background: i < chars.length ? 'rgba(79,70,229,0.07)' : '#f8fafc',
-            border: `2px solid ${error ? '#ef4444' : i < chars.length ? '#818cf8' : '#e2e8f0'}`,
+            border: `2px solid ${error ? '#ef4444' : isFocused && i === Math.min(chars.length, 5) ? '#4f46e5' : i < chars.length ? '#818cf8' : '#e2e8f0'}`,
+            boxShadow: isFocused && i === Math.min(chars.length, 5) && !error ? '0 0 0 3px rgba(79,70,229,0.15)' : 'none',
             fontSize: 20, fontWeight: 800, color: '#3730a3', fontFamily: 'monospace',
             transition: 'all 0.15s',
           }}>
@@ -100,6 +103,8 @@ const OtpInput: React.FC<{
         value={value}
         maxLength={6}
         onChange={e => onChange(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
         autoComplete="off"
         autoFocus
@@ -166,9 +171,13 @@ const RoomCard: React.FC<{
 
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>{room.name}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                {room.isOwner ? '👑 You created this' : '🔗 Joined via invite'}
-                {' · '}
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                {room.isOwner ? (
+                  <><Crown size={12} style={{ color: '#eab308' }} /> You created this</>
+                ) : (
+                  <><LinkIcon size={12} style={{ color: '#3b82f6' }} /> Joined via invite</>
+                )}
+                <span style={{ margin: '0 2px' }}>·</span>
                 {new Date(room.createdAt).toLocaleDateString()}
               </div>
             </div>
@@ -208,7 +217,11 @@ const RoomCard: React.FC<{
                 letterSpacing: showOtp ? '0.1em' : 0,
               }}
             >
-              {showOtp ? (copied ? '✓ Copied!' : room.otp) : '🔑 Show code'}
+              {showOtp ? (
+                copied ? <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Check size={12} /> Copied!</span> : room.otp
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Key size={12} /> Show code</span>
+              )}
             </button>
           </div>
         </div>
@@ -466,7 +479,7 @@ export default function RoomsPage() {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               boxShadow: '0 4px 16px rgba(79,70,229,0.35)',
             }}>
-              Generate Room →
+              <span>Generate Room</span> <ArrowRight size={16} />
             </button>
           </div>
         );
@@ -509,17 +522,20 @@ export default function RoomsPage() {
 
             {/* Info pills */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 24, flexWrap: 'wrap' }}>
-              <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, background: 'rgba(79,70,229,0.06)', color: '#4f46e5', fontWeight: 600 }}>
-                👑 You&apos;re the owner
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 12, background: 'rgba(79,70,229,0.06)', color: '#4f46e5', fontWeight: 600 }}>
+                <Crown size={14} /> You're the owner
               </span>
-              <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, background: 'rgba(34,197,94,0.06)', color: '#16a34a', fontWeight: 600 }}>
-                ● Active
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 12, background: 'rgba(34,197,94,0.06)', color: '#16a34a', fontWeight: 600 }}>
+                <Activity size={14} /> Active
               </span>
             </div>
 
             {/* Instructions */}
-            <div style={{ background: '#f8fafc', borderRadius: 10, padding: '12px 16px', marginBottom: 24, fontSize: 12, color: '#64748b', lineHeight: 1.7 }}>
-              📱 Share the 6-character code with peers on Desktop or Mobile. They enter it in <em>Join Room → Use OTP</em> to connect.
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: '#f8fafc', borderRadius: 10, padding: '12px 16px', marginBottom: 24, fontSize: 12, color: '#64748b', lineHeight: 1.7 }}>
+              <Smartphone size={18} style={{ color: '#4f46e5', flexShrink: 0, marginTop: 2 }} />
+              <div>
+                Share the 6-character code with peers on Desktop or Mobile. They enter it in <em>Join Room <ArrowRight size={12} style={{ display: 'inline', verticalAlign: 'middle', margin: '0 2px' }} /> Use OTP</em> to connect.
+              </div>
             </div>
 
             {/* CTA */}
@@ -529,7 +545,7 @@ export default function RoomsPage() {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               boxShadow: '0 4px 16px rgba(79,70,229,0.35)', marginBottom: 10,
             }}>
-              Enter Workspace →
+              <span>Enter Workspace</span> <ArrowRight size={16} />
             </button>
             <button onClick={() => setView('list')} style={{ width: '100%', padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 600, background: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
               Back to Room List
@@ -542,7 +558,7 @@ export default function RoomsPage() {
         return (
           <div style={cardStyle}>
             <button onClick={() => setView('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 13, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 4 }}>
-              ← Back
+              <ArrowLeft size={16} /> <span>Back</span>
             </button>
             <div style={{ textAlign: 'center', marginBottom: 28 }}>
               <div style={{ width: 56, height: 56, borderRadius: 14, background: 'rgba(79,70,229,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
@@ -556,8 +572,8 @@ export default function RoomsPage() {
             <div style={{ marginBottom: 20 }}>
               <OtpInput value={otpInput} onChange={setOtpInput} error={joinError} />
             </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 20 }}>
-              💡 Try <strong>FAIL01</strong> to simulate a &quot;Room Not Found&quot; error for demo.
+            <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+              <Lightbulb size={14} style={{ color: '#eab308' }} /> Try <strong>FAIL01</strong> to simulate a &quot;Room Not Found&quot; error for demo.
             </p>
             <button
               onClick={handleJoinSubmit}
@@ -601,7 +617,7 @@ export default function RoomsPage() {
               </p>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 24 }}>
-              <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, background: 'rgba(34,197,94,0.06)', color: '#16a34a', fontWeight: 600 }}>🔗 Member</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 12, background: 'rgba(34,197,94,0.06)', color: '#16a34a', fontWeight: 600 }}><LinkIcon size={14} /> Member</span>
               <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, background: 'rgba(34,197,94,0.06)', color: '#16a34a', fontWeight: 600 }}>● Connected</span>
             </div>
             <button onClick={() => joinedRoom && handleEnterWorkspace(joinedRoom)} style={{

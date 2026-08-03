@@ -137,7 +137,7 @@ export function clearRememberedEmail(): void {
 export function logout() {
   if (typeof window !== 'undefined') {
     sessionStorage.removeItem(SESSION_KEY);
-    window.location.href = '/app/unlock';
+    window.location.href = '/app/login';
   }
 }
 

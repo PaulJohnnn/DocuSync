@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { uGet } from '@/lib/userStorage';
 import { Activity, Clock, Zap, Shield, Hash, PanelRightClose, PanelRightOpen } from 'lucide-react';
 
 type Tab = 'engine' | 'clocks' | 'delta';
@@ -18,7 +19,34 @@ export default function RightPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
-    const iv = setInterval(() => {
+    const fetchCounters = async () => {
+      try {
+        const storedRoom = uGet('current_room');
+        if (storedRoom) {
+          const room = JSON.parse(storedRoom);
+          if (room.hostIp) {
+            const port = room.hostPort && room.hostPort !== 3000 ? room.hostPort : 9000;
+            const res = await fetch(`http://${room.hostIp}:${port}/metrics`, { signal: AbortSignal.timeout(2000) });
+            if (res.ok) {
+              const data = await res.json();
+              setCounters({
+                events: data.eventLogRows || 0,
+                merges: data.pushSuccessCount || 0,
+                deltas: data.pushCount || 0,
+                conflicts: data.conflictsDetectedThisSession || 0,
+              });
+              setVcState([
+                 data.pushSuccessCount || 0,
+                 data.conflictsDetectedThisSession || 0,
+                 data.pushCount || 0
+              ]);
+              return;
+            }
+          }
+        }
+      } catch {}
+      
+      // Fallback to demo animation if host is unreachable or not in a room
       setCounters(c => ({
         events: c.events + Math.floor(Math.random() * 3),
         merges: c.merges + (Math.random() > 0.7 ? 1 : 0),
@@ -26,7 +54,10 @@ export default function RightPanel() {
         conflicts: c.conflicts + (Math.random() > 0.95 ? 1 : 0),
       }));
       setVcState(v => v.map(x => x + (Math.random() > 0.6 ? 1 : 0)));
-    }, 2000);
+    };
+
+    fetchCounters();
+    const iv = setInterval(fetchCounters, 2000);
     return () => clearInterval(iv);
   }, []);
 

@@ -10,7 +10,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     const u = mockAuthService.getCurrentUser();
     if (!u || !u.isAdmin) {
-      router.push('/app/unlock');
+      router.push('/app/login');
     } else {
       setUser(u);
     }
@@ -62,7 +62,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <button
             onClick={() => {
               mockAuthService.logout();
-              router.push('/app/unlock');
+              router.push('/app/login');
             }}
             style={{
               background: '#1e293b', border: '1px solid #334155', color: '#f1f5f9',

@@ -3,17 +3,20 @@ import { useEffect, useState } from 'react';
 import PageShell from '@/components/PageShell';
 import { useTheme } from '@/components/ThemeProvider';
 import { Moon, Sun, Palette, Info, Settings as SettingsIcon, User, Trash, BarChart2 } from 'lucide-react';
-import WebMetricsDashboard from '@/components/WebMetricsDashboard';
+
 
 export default function SettingsPage() {
   const [nodeId, setNodeId] = useState<string>('Loading…');
-  const [activeTab, setActiveTab] = useState<'account' | 'about' | 'metrics'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'about'>('account');
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
   useEffect(() => {
-    let id = localStorage.getItem('docusync_node_id');
-    if (!id) id = 'unknown-node';
+    let id = sessionStorage.getItem('docusync_node_id');
+    if (!id) {
+      id = `web-${Math.floor(Math.random() * 100000)}`;
+      sessionStorage.setItem('docusync_node_id', id);
+    }
     setNodeId(id);
   }, []);
 
@@ -68,21 +71,7 @@ export default function SettingsPage() {
               <Info size={18} /> About DocuSync
             </button>
 
-            <button
-              onClick={() => setActiveTab('metrics')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px',
-                borderRadius: '8px', border: 'none', cursor: 'pointer',
-                background: activeTab === 'metrics' ? 'var(--acb)' : 'transparent',
-                color: activeTab === 'metrics' ? 'var(--acc)' : 'var(--t2)',
-                fontWeight: activeTab === 'metrics' ? 600 : 500,
-                borderLeft: activeTab === 'metrics' ? '3px solid var(--acc)' : '3px solid transparent',
-                transition: 'all 0.2s',
-                textAlign: 'left'
-              }}
-            >
-              <BarChart2 size={18} /> Performance Metrics
-            </button>
+
           </div>
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0, animation: 'fadeIn 0.3s ease' }}>
@@ -187,9 +176,7 @@ export default function SettingsPage() {
               </section>
             )}
 
-            {activeTab === 'metrics' && (
-              <WebMetricsDashboard />
-            )}
+
 
           </div>
         </div>

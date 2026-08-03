@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
-import { AlertTriangle, Shield, Check, ArrowLeft } from 'lucide-react';
+import { AlertTriangle, Shield, Check, ArrowLeft, CheckCircle } from 'lucide-react';
 import { uGet, uSet } from '@/lib/userStorage';
 
 // ── Word-level diff engine (Ported from Desktop) ──────────────────────────────
@@ -156,8 +156,17 @@ export default function ConflictsPage() {
         </div>
 
         {!conflict ? (
-          <div className="ds-empty" style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '3rem' }}>
-            <div style={{ fontSize: 52, marginBottom: 16 }}>✅</div>
+          <div className="ds-empty" style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ 
+              background: 'rgba(34, 197, 94, 0.1)', 
+              color: '#22c55e', 
+              padding: '16px', 
+              borderRadius: '50%', 
+              marginBottom: '20px',
+              boxShadow: '0 0 24px rgba(34, 197, 94, 0.2)'
+            }}>
+              <CheckCircle size={48} strokeWidth={1.5} />
+            </div>
             <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>All conflicts resolved</h2>
             <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
               You do not have any pending local offline conflicts.

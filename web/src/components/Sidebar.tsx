@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { href: '/app/files', label: 'Room', icon: FolderOpen },
   { href: '/app/conflicts', label: 'Conflicts', icon: AlertTriangle },
   { href: '/app/history/all', label: 'History', icon: Clock },
-  { href: '/app/peers', label: 'Peers', icon: Users },
+  { href: '/app/peers', label: 'Sync Rooms', icon: Users },
   { href: '/app/metrics', label: 'Metrics', icon: BarChart2 },
   { href: '/app/settings', label: 'Settings', icon: Settings },
 ];
@@ -21,10 +21,10 @@ export default function Sidebar() {
   const [nodeId, setNodeId] = useState('');
 
   useEffect(() => {
-    let id = localStorage.getItem('docusync_node_id');
+    let id = sessionStorage.getItem('docusync_node_id');
     if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem('docusync_node_id', id);
+      id = `web-${Math.floor(Math.random() * 100000)}`;
+      sessionStorage.setItem('docusync_node_id', id);
     }
     setNodeId(id);
   }, []);

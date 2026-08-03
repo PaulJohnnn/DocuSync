@@ -65,20 +65,36 @@ export default function EditorPage() {
   const syncDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
+  const hasPendingChangesRef = useRef(false);
   // Same ts for lastLocalSaveTime — the poll guard uses this to block old snapshots
   const lastLocalSaveTime = useRef<number>(_initSaveTs);
-  const createInitialWebClock = () => ({
-    nodeCount: 3,
-    nodeIndex: 1,
-    root: {
-      counter: 0,
-      children: [
-        { counter: 0, children: [] },
-        { counter: 0, children: [] },
-        { counter: 0, children: [] }
-      ]
+  const createInitialWebClock = () => {
+    let nodeIndex = 1;
+    try {
+      // Force alternating assignment between 1 and 2 to guarantee distinct slots for up to 2 tabs.
+      // Ignore sessionStorage to prevent old cached collisions from breaking the demo.
+      let lastAssigned = parseInt(localStorage.getItem('docusync_last_assigned_index') || '2', 10);
+      nodeIndex = lastAssigned === 1 ? 2 : 1;
+      localStorage.setItem('docusync_last_assigned_index', String(nodeIndex));
+    } catch {}
+    
+    // Safety fallback
+    if (isNaN(nodeIndex) || nodeIndex < 1 || nodeIndex > 2) {
+      nodeIndex = 1;
     }
-  });
+    return {
+      nodeCount: 3,
+      nodeIndex,
+      root: {
+        counter: 0,
+        children: [
+          { counter: 0, children: [] },
+          { counter: 0, children: [] },
+          { counter: 0, children: [] }
+        ]
+      }
+    };
+  };
   const localVectorClockRef = useRef<any>(createInitialWebClock());
 
   const { peers, pushCursor } = useWebSync();
@@ -129,6 +145,40 @@ export default function EditorPage() {
     return () => clearInterval(iv);
   }, []);
 
+  // ── Live remote delta listener (WebSockets) ──────────────────────────────
+  useEffect(() => {
+    const handleDelta = (e: any) => {
+      const msg = e.detail;
+      const localFileId = Number(fileId);
+      if (msg.fileId !== localFileId) return;
+      if (isTypingRef.current || hasPendingChangesRef.current) return; // Don't stomp on local typing or pending pushes
+      if (msg.content && msg.content !== currentContentRef.current) {
+        lastSyncedAt.current = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now();
+        setContentAndRef(msg.content);
+        lastSave.current = msg.content;
+        setSaved(true);
+        setSyncStatusMsg(`↓ Live Synced`);
+        if (msg.vectorClockJson) localVectorClockRef.current = msg.vectorClockJson;
+        
+        try {
+          const stored = uGet('files');
+          if (stored) {
+            const files: FileRecord[] = JSON.parse(stored);
+            const idx = files.findIndex(f => f.id === fileId);
+            if (idx >= 0) {
+              files[idx].content = msg.content;
+              files[idx].updatedAt = new Date().toISOString();
+              uSet('files', JSON.stringify(files));
+            }
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('docusync_ws_delta', handleDelta);
+    return () => window.removeEventListener('docusync_ws_delta', handleDelta);
+  }, [fileId]);
+
+
   // ── Online/Offline detection ──────────────────────────────────────────────
   useEffect(() => {
     const goOnline = () => setIsOnline(true);
@@ -161,7 +211,7 @@ export default function EditorPage() {
       }
     }
 
-    const savedNodeId = localStorage.getItem('docusync_node_id');
+    const savedNodeId = sessionStorage.getItem('docusync_node_id');
     if (savedNodeId) localNodeIdRef.current = savedNodeId;
   }, [fileId]);
 
@@ -206,7 +256,7 @@ export default function EditorPage() {
       const otp = room.otp || room.id;
       let directSuccess = false;
 
-      if (room.hostIp && room.hostIp !== '127.0.0.1') {
+      if (room.hostIp) {
         try {
           const baseUrl = getSyncBaseUrl(room);
           const res = await fetch(`${baseUrl}/sync/push`, {
@@ -224,7 +274,11 @@ export default function EditorPage() {
           if (res.ok) {
             const data = await res.json();
             directSuccess = true;
-            if (data.vectorClock) localVectorClockRef.current = data.vectorClock;
+            if (data.vectorClock) {
+              const myIdx = localVectorClockRef.current.nodeIndex;
+              localVectorClockRef.current = data.vectorClock;
+              localVectorClockRef.current.nodeIndex = myIdx;
+            }
             if (data.escalated) {
               setConflictData({ local: contentToSave, remote: data.serverContent || data.content || '' });
               setSyncStatusMsg('Conflict Detected!');
@@ -232,6 +286,7 @@ export default function EditorPage() {
             } else {
               setSyncStatusMsg(`Synced ✓`);
               setOfflineQueue(false);
+              hasPendingChangesRef.current = false;
             }
           }
         } catch (e) {}
@@ -261,6 +316,7 @@ export default function EditorPage() {
             }
             setSyncStatusMsg(`Synced ✓`);
             setOfflineQueue(false);
+            hasPendingChangesRef.current = false;
           } else if (res.status === 409) {
             const data = await res.json();
             setSyncStatusMsg('Conflict detected via LWW! Fetching latest...');
@@ -298,7 +354,7 @@ export default function EditorPage() {
       const otp = room.otp || room.id;
       let polledDirect = false;
 
-      if (room.hostIp && room.hostIp !== '127.0.0.1') {
+      if (room.hostIp) {
         try {
           const baseUrl = getSyncBaseUrl(room);
           const vcStr = encodeURIComponent(JSON.stringify(localVectorClockRef.current || {}));
@@ -309,18 +365,27 @@ export default function EditorPage() {
             const data = await res.json();
 
             if (data.upToDate) {
-              if (data.vectorClock) localVectorClockRef.current = data.vectorClock;
+              if (data.vectorClock) {
+                const myIdx = localVectorClockRef.current.nodeIndex;
+                localVectorClockRef.current = data.vectorClock;
+                localVectorClockRef.current.nodeIndex = myIdx;
+              }
               return;
             }
 
-            if (!isTypingRef.current) {
+            if (!isTypingRef.current && !hasPendingChangesRef.current) {
+              if (data.authorNodeId === localNodeIdRef.current) return;
               const newContent = data.content;
               const newVc = data.vectorClock;
               const remoteTs = data.committedAt || 0;
               // Don't apply if our local save is newer
               if (remoteTs > 0 && remoteTs <= lastLocalSaveTime.current) return;
               if (newContent && newContent !== currentContentRef.current) {
-                if (newVc) localVectorClockRef.current = newVc;
+                if (newVc) {
+                  const myIdx = localVectorClockRef.current.nodeIndex;
+                  localVectorClockRef.current = newVc;
+                  localVectorClockRef.current.nodeIndex = myIdx;
+                }
                 lastSyncedAt.current = Date.now();
                 setContentAndRef(newContent);
                 lastSave.current = newContent;
@@ -357,7 +422,7 @@ export default function EditorPage() {
               // Don't apply if our local save is newer than this snapshot
               const snapTs = data.snapshot.committedAt || 0;
               if (snapTs > 0 && snapTs <= lastLocalSaveTime.current) return;
-              if (!isTypingRef.current && data.snapshot.content !== currentContentRef.current) {
+              if (!isTypingRef.current && !hasPendingChangesRef.current && data.snapshot.content !== currentContentRef.current) {
                 lastSyncedAt.current = data.snapshot.committedAt || Date.now();
                 setContentAndRef(data.snapshot.content);
                 lastSave.current = data.snapshot.content;
@@ -390,7 +455,10 @@ export default function EditorPage() {
   const saveFile = useCallback(async (contentToSave: string, forcePush = false) => {
     isTypingRef.current = false;
     if (contentToSave === lastSave.current && !forcePush) return;
-    localVectorClockRef.current = incrementVectorClock(localVectorClockRef.current, 1);
+    localVectorClockRef.current = incrementVectorClock(
+      localVectorClockRef.current,
+      localVectorClockRef.current.nodeIndex
+    );
     
     const stored = uGet('files');
     if (stored) {
@@ -420,6 +488,7 @@ export default function EditorPage() {
     setContentAndRef(newContent);
     setSaved(false);
     isTypingRef.current = true;
+    hasPendingChangesRef.current = true;
   }, []);
 
   useEffect(() => {

@@ -27,6 +27,11 @@ import { VectorClock } from '../vector-clock/vector-clock';
 import type { VectorClockJSON, ClockRelation } from '../vector-clock/vector-clock';
 import type { EventLogEntry, AppendEventInput } from '../log-sync/event-log';
 import { EventLogService } from '../log-sync/event-log';
+import * as crypto from 'crypto';
+
+function generateUUID() {
+  return crypto.randomUUID();
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -45,7 +50,7 @@ export interface SyncEvent {
   eventId: string;
 
   /** ID of the file being edited. */
-  fileId: number;
+  fileId: number | string;
 
   /** UUID of the originating peer node. */
   nodeId: string;
@@ -117,7 +122,7 @@ export interface ConflictRecord {
   conflictId: string;
 
   /** File ID where the conflict occurred. */
-  fileId: number;
+  fileId: number | string;
 
   /** Event ID of side A. */
   eventIdA: string;
@@ -193,7 +198,7 @@ export interface MergeAcceptMessage {
   conflictId: string;
 
   /** The file this resolution applies to. */
-  fileId: number;
+  fileId: number | string;
 
   /** Which side won: 'A' or 'B'. */
   winner: 'A' | 'B';
@@ -468,7 +473,7 @@ export class LWWResolver {
     await this.prisma.conflict.create({
       data: {
         conflictId,
-        fileId: eventA.fileId,
+        fileId: eventA.fileId.toString(),
         eventIdA: eventA.eventId,
         nodeIdA: eventA.nodeId,
         vectorClockJsonA: JSON.stringify(eventA.vectorClockJson),
@@ -632,10 +637,10 @@ export class LWWResolver {
    *
    * @see Thesis citation [47] — conflict queue presentation
    */
-  public async getPendingConflicts(fileId: number): Promise<ConflictRecord[]> {
+  public async getPendingConflicts(fileId: number | string): Promise<ConflictRecord[]> {
     const rows = await this.prisma.conflict.findMany({
       where: {
-        fileId,
+        fileId: fileId.toString(),
         status: 'pending',
       },
       orderBy: { detectedAt: 'asc' },
@@ -671,10 +676,10 @@ export class LWWResolver {
    *
    * @see Thesis citation [45] — conflict resolution audit trail
    */
-  public async getResolvedConflicts(fileId: number): Promise<ConflictRecord[]> {
+  public async getResolvedConflicts(fileId: number | string): Promise<ConflictRecord[]> {
     const rows = await this.prisma.conflict.findMany({
       where: {
-        fileId,
+        fileId: fileId.toString(),
         status: 'resolved',
       },
       orderBy: { resolvedAt: 'desc' },

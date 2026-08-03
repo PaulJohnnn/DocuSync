@@ -4,7 +4,7 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 
 // Auth pages that are fullscreen (no navbar / sidebar / footer)
-const AUTH_ROUTES = ['/app/login', '/app/unlock', '/app/admin'];
+const AUTH_ROUTES = ['/app/login', '/app/admin'];
 
 export default function ClientLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

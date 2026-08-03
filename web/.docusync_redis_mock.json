@@ -378,7 +378,7 @@
   },
   "user:ff985233-71ce-4652-a770-fee49311e6fd": {
     "nodeId": "ff985233-71ce-4652-a770-fee49311e6fd",
-    "lastActive": 1785217250242,
+    "lastActive": 1785217190423,
     "ip": "172.22.83.55"
   },
   "lobby:YTJCRM": {
@@ -407,129 +407,5 @@
     "ip": "172.22.83.55",
     "port": 9000,
     "nodeId": "desktop-1785216618683"
-  },
-  "user:5ab17949-cf78-46c2-bd14-e1a9e67decf1": {
-    "nodeId": "5ab17949-cf78-46c2-bd14-e1a9e67decf1",
-    "lastActive": 1785217723965,
-    "ip": "172.22.83.55"
-  },
-  "lobby:W2BARR": {
-    "otp": "W2BARR",
-    "roomName": "THESIS102",
-    "hostNodeId": "desktop-1785217464562",
-    "hostIp": "172.22.83.55",
-    "hostPort": 9000,
-    "hostType": "desktop",
-    "createdAt": 1785217469763,
-    "expiresAt": 1785221069763,
-    "members": [
-      "web-join-1785217486081"
-    ],
-    "peersJoined": 1,
-    "files": [
-      {
-        "fileId": 1,
-        "fileName": "This is sample file.docx",
-        "filePath": "D:\\new download folder (as of Jan 1, 2026)\\This is sample file.docx",
-        "contentLength": 21,
-        "content": "This is sample file\n\n"
-      }
-    ],
-    "ip": "172.22.83.55",
-    "port": 9000,
-    "nodeId": "desktop-1785217464562"
-  },
-  "doc:6591293c-bdad-406b-969c-25805248351a:1": {
-    "otp": "6591293c-bdad-406b-969c-25805248351a",
-    "fileId": "1",
-    "authorNodeId": "5ab17949-cf78-46c2-bd14-e1a9e67decf1",
-    "authorName": "5ab17949",
-    "content": "<p>This is sample file hello HI</p>",
-    "vectorClock": {
-      "nodeCount": 3,
-      "nodeIndex": 0,
-      "root": {
-        "counter": 0,
-        "children": [
-          {
-            "counter": 0,
-            "children": []
-          },
-          {
-            "counter": 0,
-            "children": []
-          },
-          {
-            "counter": 0,
-            "children": []
-          }
-        ]
-      }
-    },
-    "committedAt": 1785217523897,
-    "deltaSize": 35,
-    "seq": 1
-  },
-  "user:4c1bcc4d-afab-4a39-aee9-ccd5817eaf17": {
-    "nodeId": "4c1bcc4d-afab-4a39-aee9-ccd5817eaf17",
-    "lastActive": 1785223186729,
-    "ip": "172.22.83.55"
-  },
-  "lobby:PESDR7": {
-    "otp": "PESDR7",
-    "roomName": "THESIS2",
-    "hostNodeId": "desktop-1785220369489",
-    "hostIp": "172.22.83.55",
-    "hostPort": 9000,
-    "hostType": "desktop",
-    "createdAt": 1785220379016,
-    "expiresAt": 1785223979016,
-    "members": [
-      "web-join-1785220389881"
-    ],
-    "peersJoined": 1,
-    "files": [
-      {
-        "fileId": 1,
-        "fileName": "This is sample file.docx",
-        "filePath": "D:\\new download folder (as of Jan 1, 2026)\\This is sample file.docx",
-        "contentLength": 21,
-        "content": "This is sample file\n\n"
-      }
-    ],
-    "ip": "172.22.83.55",
-    "port": 9000,
-    "nodeId": "desktop-1785220369489"
-  },
-  "doc:13a4b2a4-2cca-4a09-aa09-530f66a202b7:1": {
-    "otp": "13a4b2a4-2cca-4a09-aa09-530f66a202b7",
-    "fileId": "1",
-    "authorNodeId": "4c1bcc4d-afab-4a39-aee9-ccd5817eaf17",
-    "authorName": "4c1bcc4d",
-    "content": "<p>This is sample file&nbsp;</p>",
-    "vectorClock": {
-      "nodeCount": 3,
-      "nodeIndex": 0,
-      "root": {
-        "counter": 0,
-        "children": [
-          {
-            "counter": 28,
-            "children": []
-          },
-          {
-            "counter": 4,
-            "children": []
-          },
-          {
-            "counter": 0,
-            "children": []
-          }
-        ]
-      }
-    },
-    "committedAt": 1785220460145,
-    "deltaSize": 32,
-    "seq": 7
   }
 }

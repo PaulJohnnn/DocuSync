@@ -42,7 +42,17 @@ const WebSyncContext = createContext<WebSyncContextValue>({
 export function WebSyncProvider({ children }: { children: ReactNode }) {
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
-  const localNodeId = useRef(`web-client-${Math.random().toString(36).substring(2, 9)}`).current;
+  
+  const localNodeIdRef = useRef<string>('');
+  if (typeof window !== 'undefined' && !localNodeIdRef.current) {
+    let nid = uGet('node_id') || '';
+    if (!nid) {
+      nid = `web-${Math.random().toString(36).substring(2, 9)}-${Date.now()}`;
+      uSet('node_id', nid);
+    }
+    localNodeIdRef.current = nid;
+  }
+  const localNodeId = localNodeIdRef.current || 'fallback-id';
 
   // Load existing peers from localStorage on mount and when room changes
   useEffect(() => {
@@ -123,7 +133,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
         
         setPeers((prev) => {
           const updated = prev.map((p) => (p.id === peerId ? { ...p, status: 'connected' as const, latency: 0 } : p));
-          localStorage.setItem('docusync_peers', JSON.stringify(updated));
+          uSet('peers', JSON.stringify(updated));
           return updated;
         });
       };
@@ -156,7 +166,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
                 connectedAt: new Date().toISOString(),
                 displayName: p.displayName
               }));
-              localStorage.setItem('docusync_peers', JSON.stringify(connected));
+              uSet('peers', JSON.stringify(connected));
               return connected;
             });
           }
@@ -169,7 +179,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
         console.warn(`[WebSync] ❌ WS connection failed to ${wsUrl}`, err);
         setPeers((prev) => {
           const updated = prev.map((p) => (p.id === peerId ? { ...p, status: 'disconnected' as const } : p));
-          localStorage.setItem('docusync_peers', JSON.stringify(updated));
+          uSet('peers', JSON.stringify(updated));
           return updated;
         });
       };
@@ -178,7 +188,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
         console.warn('[WebSync] WS connection closed');
         setPeers((prev) => {
           const updated = prev.map((p) => (p.id === peerId ? { ...p, status: 'disconnected' as const } : p));
-          localStorage.setItem('docusync_peers', JSON.stringify(updated));
+          uSet('peers', JSON.stringify(updated));
           return updated;
         });
         socketRef.current = null;
@@ -195,7 +205,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
     }
     setPeers((prev) => {
       const updated = prev.map((p) => (p.id === id ? { ...p, status: 'disconnected' as const } : p));
-      localStorage.setItem('docusync_peers', JSON.stringify(updated));
+      uSet('peers', JSON.stringify(updated));
       return updated;
     });
   }, []);

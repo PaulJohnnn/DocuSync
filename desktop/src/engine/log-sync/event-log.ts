@@ -64,9 +64,9 @@ export interface AppendEventInput {
   eventId: string;
 
   /** The file this event pertains to (matches `files.id` in cloud schema).
-   * Stored as BigInt in SQLite to accommodate Date.now()-based IDs (~1.78 trillion).
-   * We accept `number` here and convert to BigInt for Prisma. */
-  fileId: number;
+   * Stored as String in SQLite to accommodate massive Date.now() IDs.
+   * We accept `number | string` here. */
+  fileId: number | string;
 
   /** UUID of the originating peer node. */
   nodeId: string;
@@ -287,7 +287,7 @@ export class EventLogService {
     const row = await this.prisma.eventLog.create({
       data: {
         eventId: input.eventId,
-        fileId: input.fileId,
+        fileId: input.fileId.toString(),
         nodeId: input.nodeId,
         eventType: input.eventType,
         logicalTimestamp: input.logicalTimestamp,
@@ -332,7 +332,7 @@ export class EventLogService {
    */
   public async getHistory(fileId: number): Promise<EventLogEntry[]> {
     const rows = await this.prisma.eventLog.findMany({
-      where: { fileId },
+      where: { fileId: fileId.toString() },
       orderBy: [
         { logicalTimestamp: 'asc' },
         { id: 'asc' },
@@ -377,7 +377,7 @@ export class EventLogService {
   ): Promise<EventLogEntry[]> {
     const rows = await this.prisma.eventLog.findMany({
       where: {
-        fileId,
+        fileId: fileId.toString(),
         logicalTimestamp: { gt: logicalTimestamp },
         isCompacted: false,
       },
@@ -388,6 +388,17 @@ export class EventLogService {
     });
 
     return rows.map(toEventLogEntry);
+  }
+
+  /**
+   * Retrieves the latest event for a given file.
+   */
+  public async getLatestEvent(fileId: number): Promise<EventLogEntry | null> {
+    const row = await this.prisma.eventLog.findFirst({
+      where: { fileId: fileId.toString() },
+      orderBy: { id: 'desc' },
+    });
+    return row ? toEventLogEntry(row) : null;
   }
 
   // ── Compaction ───────────────────────────────────────────────────────
@@ -435,7 +446,7 @@ export class EventLogService {
     // Step 1: Fetch all non-compacted events, ordered.
     const events = await this.prisma.eventLog.findMany({
       where: {
-        fileId,
+        fileId: fileId.toString(),
         isCompacted: false,
       },
       orderBy: [
