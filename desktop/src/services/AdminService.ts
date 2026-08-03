@@ -17,18 +17,29 @@ export interface GenerateAccountResult {
   tempPin: string;
 }
 
-const LOCAL_ADMIN_API  = 'http://localhost:3000/api/admin';
-const VERCEL_ADMIN_API = 'https://docusync-pnc.vercel.app/api/admin';
+const getAdminUrl = () => {
+  if (import.meta.env.VITE_WEB_URL) {
+    return `${import.meta.env.VITE_WEB_URL}/api/admin`;
+  }
+  if (import.meta.env.DEV) {
+    return 'http://localhost:3000/api/admin';
+  }
+  return 'https://docusync-pnc.vercel.app/api/admin';
+};
 
 async function adminFetch(path: string, options: RequestInit = {}): Promise<Response> {
   try {
-    const res = await fetch(`${LOCAL_ADMIN_API}${path}`, {
+    const res = await fetch(`${getAdminUrl()}${path}`, {
       ...options,
       signal: AbortSignal.timeout(2000),
     });
     if (res.ok || res.status < 500) return res;
-  } catch { /* local server not running — fall through to Vercel */ }
-  return fetch(`${VERCEL_ADMIN_API}${path}`, options);
+  } catch { /* if local fails and we want to fallback, we can, but we shouldn't mix if they forced an IP */ }
+  // Only fallback to Vercel if we are in dev and VITE_WEB_URL was NOT explicitly set
+  if (import.meta.env.DEV && !import.meta.env.VITE_WEB_URL) {
+    return fetch(`https://docusync-pnc.vercel.app/api/admin${path}`, options);
+  }
+  throw new Error('Admin API request failed');
 }
 
 class AdminService {
