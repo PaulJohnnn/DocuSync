@@ -543,7 +543,6 @@ export class PeerManager {
               nodeId,
               fileId,
               deltaBase64: delta,
-              content: newContent,
               logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
               vectorClockJson: this.config.vectorClock.toJSON(),
               timestamp: new Date().toISOString(),

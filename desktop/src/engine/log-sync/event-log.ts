@@ -162,7 +162,7 @@ function toEventLogEntry(row: PrismaEventLog): EventLogEntry {
   return {
     id: row.id,
     eventId: row.eventId,
-    fileId: row.fileId,
+    fileId: Number(row.fileId),
     nodeId: row.nodeId,
     eventType: row.eventType as EventType,
     logicalTimestamp: row.logicalTimestamp,

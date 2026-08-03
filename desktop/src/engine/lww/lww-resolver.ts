@@ -234,7 +234,7 @@ function toConflictRecord(row: PrismaConflict): ConflictRecord {
   return {
     id: row.id,
     conflictId: row.conflictId,
-    fileId: row.fileId,
+    fileId: Number(row.fileId),
     eventIdA: row.eventIdA,
     nodeIdA: row.nodeIdA,
     vectorClockJsonA: JSON.parse(row.vectorClockJsonA) as VectorClockJSON,

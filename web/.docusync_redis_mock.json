@@ -490,5 +490,66 @@
     "nodeId": "fb341fbc-c80b-42e2-91c2-9dc96c886e65",
     "lastActive": 1785731831014,
     "ip": "10.116.72.55"
+  },
+  "user:104dab27-e4f4-4eff-a7a2-b172fc576fe4": {
+    "nodeId": "104dab27-e4f4-4eff-a7a2-b172fc576fe4",
+    "lastActive": 1785732847461,
+    "ip": "10.116.72.55"
+  },
+  "lobby:GYC25B": {
+    "otp": "GYC25B",
+    "roomName": "mamamo",
+    "hostNodeId": "web-1785732826744",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1785732827204,
+    "expiresAt": 1785736427204,
+    "members": [],
+    "peersJoined": 0,
+    "files": [
+      {
+        "fileId": 1785732856607,
+        "fileName": "sample.docx",
+        "content": "sample\n\n",
+        "contentLength": 8,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-03T04:54:16.608Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1785732826744"
+  },
+  "doc:GYC25B:1785732856607": {
+    "otp": "GYC25B",
+    "fileId": "1785732856607",
+    "authorNodeId": "web-7538",
+    "authorName": "web-7538",
+    "content": "sample\n\n",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 1,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785732937214,
+    "deltaSize": 8,
+    "seq": 1
   }
 }

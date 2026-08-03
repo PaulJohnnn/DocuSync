@@ -1354,6 +1354,7 @@ export function registerIPCHandlers(services: EngineServices): void {
       // ── Broadcast MERGE_ACCEPT to all peers ─────────────────────
       const acceptMsg: PeerMessage = {
         ...result.mergeAcceptMessage,
+        fileId: Number(result.mergeAcceptMessage.fileId),
         timestamp: new Date().toISOString(),
       };
       const peersNotified = peerManager.broadcast(acceptMsg);
@@ -1362,7 +1363,7 @@ export function registerIPCHandlers(services: EngineServices): void {
         const rejectMsg: PeerMessage = {
           type: 'MERGE_REJECT',
           conflictId,
-          fileId: conflict.fileId,
+          fileId: Number(conflict.fileId),
           reason: 'Owner rejected peer changes and kept original content.',
           rejectedBy: localNodeId,
           timestamp: new Date().toISOString(),
@@ -1372,9 +1373,9 @@ export function registerIPCHandlers(services: EngineServices): void {
 
       // ── Update local file ───────────────────────────────────────
       const winnerPayload = winner === 'A' ? conflict.payloadA : conflict.payloadB;
-      fileContents.set(conflict.fileId, winnerPayload);
+      fileContents.set(Number(conflict.fileId), winnerPayload);
 
-      const filePath = openFiles.get(conflict.fileId);
+      const filePath = openFiles.get(Number(conflict.fileId));
       if (filePath) {
         await fs.promises.writeFile(filePath, winnerPayload, 'utf-8');
       }

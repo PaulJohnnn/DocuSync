@@ -12,8 +12,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import {
   IconArrowLeft, IconBold, IconItalic, IconStrikethrough,
-  IconH1, IconH2, IconList, IconQuote, IconCode, IconRefresh, IconHistory,
-  IconH1, IconH2, IconList, IconQuote, IconCode, IconRefresh, IconHistory, IconDownload,
+  IconH1, IconH2, IconList, IconQuote, IconCode, IconRefresh, IconHistory
 } from '@/components/Icons';
 import { formatBytes, basename } from '@docusync/shared/utils/formatters';
 import { notify } from '@docusync/shared/utils/notifications';
