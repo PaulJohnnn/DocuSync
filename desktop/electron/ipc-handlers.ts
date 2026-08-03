@@ -1527,35 +1527,7 @@ export function registerIPCHandlers(services: EngineServices): void {
     })
   );
 
-  ipcMain.handle(
-    'network:get-lan-ip',
-    safeHandler(async () => {
-      const nets = os.networkInterfaces();
-      let bestIp: string | null = null;
-      for (const name of Object.keys(nets)) {
-        // Skip obvious virtual/WSL adapters
-        if (name.toLowerCase().includes('veth') || 
-            name.toLowerCase().includes('wsl') || 
-            name.toLowerCase().includes('hyper') ||
-            name.toLowerCase().includes('vmware') ||
-            name.toLowerCase().includes('virtual')) {
-          continue;
-        }
-        for (const net of nets[name] || []) {
-          if (net.family === 'IPv4' && !net.internal) {
-            // Prefer 192.168.x.x or 10.x.x.x
-            if (net.address.startsWith('192.168.') || net.address.startsWith('10.')) {
-              return net.address;
-            }
-            if (!bestIp) bestIp = net.address;
-          }
-        }
-      }
-      if (bestIp) return bestIp;
-      if (!app.isPackaged) return '127.0.0.1';
-      throw new Error('No network connection detected — connect to Wi-Fi or Ethernet to host a room.');
-    })
-  );
+
 
   ipcMain.handle(
     'vault:lock',
