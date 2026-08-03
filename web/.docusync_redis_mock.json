@@ -551,5 +551,73 @@
     "committedAt": 1785732937214,
     "deltaSize": 8,
     "seq": 1
+  },
+  "user:e72f9901-b001-4b58-ba5d-445964eb1f5c": {
+    "nodeId": "e72f9901-b001-4b58-ba5d-445964eb1f5c",
+    "lastActive": 1785734290243,
+    "ip": "10.116.72.55"
+  },
+  "lobby:M4Z9HA": {
+    "otp": "M4Z9HA",
+    "roomName": "asd",
+    "hostNodeId": "desktop-1785734022737",
+    "hostIp": "10.116.72.55",
+    "hostPort": 9000,
+    "hostType": "desktop",
+    "createdAt": 1785734026294,
+    "expiresAt": 1785737626294,
+    "members": [
+      "web-join-1785734032477"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1785734047064,
+        "fileName": "This is sample file.docx",
+        "content": "This is sample file\n\n",
+        "contentLength": 21,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-03T05:14:07.064Z"
+      }
+    ],
+    "ip": "10.116.72.55",
+    "port": 9000,
+    "nodeId": "desktop-1785734022737"
+  },
+  "doc:M4Z9HA:1785734047064": {
+    "otp": "M4Z9HA",
+    "fileId": "1785734047064",
+    "authorNodeId": "web-16117",
+    "authorName": "web-1611",
+    "content": "This is sample file why this file is not saying\n",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 7,
+            "children": []
+          },
+          {
+            "counter": 2,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785734100831,
+    "deltaSize": 48,
+    "seq": 6
+  },
+  "user:66c3411f-052c-407f-a2fe-fc5d3ad076fb": {
+    "nodeId": "66c3411f-052c-407f-a2fe-fc5d3ad076fb",
+    "lastActive": 1785734478176,
+    "ip": "10.116.72.55"
   }
 }

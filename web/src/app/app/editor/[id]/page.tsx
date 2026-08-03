@@ -443,8 +443,8 @@ export default function EditorPage() {
                          // very naive fallback
                      }
                   }
-                  setContentAndRef(data.snapshot.content); // For simplicity without a CRDT, we accept remote when not actively typing.
-                  lastSave.current = data.snapshot.content;
+                  setContentAndRef(merged);
+                  lastSave.current = merged;
                 } else {
                   setContentAndRef(data.snapshot.content);
                   lastSave.current = data.snapshot.content;
@@ -476,7 +476,6 @@ export default function EditorPage() {
   }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
 
   const saveFile = useCallback(async (contentToSave: string, forcePush = false) => {
-    isTypingRef.current = false;
     if (contentToSave === lastSave.current && !forcePush) return;
     localVectorClockRef.current = incrementVectorClock(
       localVectorClockRef.current,
@@ -507,11 +506,18 @@ export default function EditorPage() {
     await pushToHost(contentToSave, localVectorClockRef.current, forcePush);
   }, [fileId, pushToHost]);
 
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const handleContentChange = useCallback((newContent: string) => {
     setContentAndRef(newContent);
     setSaved(false);
     isTypingRef.current = true;
     hasPendingChangesRef.current = true;
+    
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+    }, 2000);
   }, []);
 
   useEffect(() => {
