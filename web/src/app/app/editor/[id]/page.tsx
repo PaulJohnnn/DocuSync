@@ -530,11 +530,45 @@ export default function EditorPage() {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="ds-btn" onClick={() => {
-              const blob = new Blob([content], { type: 'text/html' });
+              const origName = file.name || 'document';
+              const ext = origName.split('.').pop()?.toLowerCase() || '';
+              // Block .docx downloads — content was extracted as plain text
+              if (ext === 'docx' || ext === 'doc') {
+                alert(
+                  'DOCX round-trip saving is not yet supported.\n' +
+                  'The file was converted to plain text when opened.\n' +
+                  'Please save as a .txt file instead, or open the original .docx in Word directly.'
+                );
+                return;
+              }
+              const isHtml = ext === 'html' || ext === 'htm';
+              let contentForDownload = content;
+              if (!isHtml) {
+                // Strip TipTap HTML tags so plain-text files don't contain markup
+                contentForDownload = content
+                  .replace(/<\/p>\s*<p[^>]*>/gi, '\n')
+                  .replace(/<br\s*\/?>/gi, '\n')
+                  .replace(/<\/h[1-6]>/gi, '\n')
+                  .replace(/<\/li>/gi, '\n')
+                  .replace(/<\/blockquote>/gi, '\n')
+                  .replace(/<\/div>/gi, '\n')
+                  .replace(/<\/pre>/gi, '\n')
+                  .replace(/<[^>]*>/g, '')
+                  .replace(/&amp;/g, '&')
+                  .replace(/&lt;/g, '<')
+                  .replace(/&gt;/g, '>')
+                  .replace(/&quot;/g, '"')
+                  .replace(/&#39;/g, "'")
+                  .replace(/&nbsp;/g, ' ')
+                  .replace(/\n{3,}/g, '\n\n')
+                  .trim();
+              }
+              const mimeType = isHtml ? 'text/html' : 'text/plain;charset=utf-8';
+              const blob = new Blob([contentForDownload], { type: mimeType });
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
-              a.download = `${file.name || 'document'}.html`;
+              a.download = origName;
               document.body.appendChild(a);
               a.click();
               document.body.removeChild(a);

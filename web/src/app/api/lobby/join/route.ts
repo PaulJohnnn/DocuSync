@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       lobby.members.push(memberNodeId);
       lobby.peersJoined++;
       // We must write it back if we mutate
-      await redis.set(`lobby:${otp}`, lobby, { ex: 60 * 60 });
+      await redis.set(`lobby:${otp}`, lobby, { ex: 60 * 60 * 24 });
     }
 
     return NextResponse.json(

@@ -757,11 +757,25 @@ const EditorPage: React.FC = () => {
                 className="ds-btn"
                 onClick={() => {
                   if (!editor) return;
-                  const blob = new Blob([editor.getHTML()], { type: 'text/html' });
+                  const origName = filePath ? filePath.split(/[\\/]/).pop() || `document_${fileId}` : `document_${fileId}`;
+                  const ext = origName.split('.').pop()?.toLowerCase() || '';
+                  // Block .docx downloads — content is plain text extracted by mammoth
+                  if (ext === 'docx' || ext === 'doc') {
+                    alert(
+                      'DOCX round-trip saving is not yet supported.\n' +
+                      'The file was converted to plain text when opened.\n' +
+                      'Please save as a .txt file instead, or open the original .docx in Word directly.'
+                    );
+                    return;
+                  }
+                  const isHtml = ext === 'html' || ext === 'htm';
+                  const contentForDownload = isHtml ? editor.getHTML() : editor.getText({ blockSeparator: '\n' });
+                  const mimeType = isHtml ? 'text/html' : 'text/plain;charset=utf-8';
+                  const blob = new Blob([contentForDownload], { type: mimeType });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `document_${fileId}.html`;
+                  a.download = origName;
                   document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);

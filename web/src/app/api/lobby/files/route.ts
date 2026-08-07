@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       lobby.files.push(file);
     }
 
-    await redis.set(`lobby:${otp}`, lobby, { ex: 60 * 60 });
+    await redis.set(`lobby:${otp}`, lobby, { ex: 60 * 60 * 24 });
 
     return NextResponse.json({ success: true, files: lobby.files }, { headers: corsHeaders });
   } catch {
@@ -86,7 +86,7 @@ export async function DELETE(request: Request) {
       return !idMatch && !nameMatch;
     });
 
-    await redis.set(`lobby:${otp}`, lobby, { ex: 60 * 60 });
+    await redis.set(`lobby:${otp}`, lobby, { ex: 60 * 60 * 24 });
 
     return NextResponse.json({ success: true, files: lobby.files }, { headers: corsHeaders });
   } catch {

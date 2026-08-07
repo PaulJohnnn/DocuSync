@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     const now = Date.now();
-    const TTL_SECONDS = 60 * 60; // 1 hour
+    const TTL_SECONDS = 60 * 60 * 24; // 24 hours
     const expiresAt = now + TTL_SECONDS * 1000;
 
     const newLobby: LobbyEntry = {

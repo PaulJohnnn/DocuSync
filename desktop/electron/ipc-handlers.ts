@@ -150,6 +150,53 @@ function validateExtension(filePath: string): string | null {
 }
 
 /**
+ * Converts TipTap HTML output to plain text, preserving paragraph and
+ * line-break structure. Used when saving non-HTML files so that raw
+ * `<p>` tags don't end up in `.txt`, `.csv`, `.json`, etc.
+ *
+ * @param html - The HTML string from TipTap's `editor.getHTML()`.
+ * @returns Plain text with block boundaries converted to newlines.
+ * @internal
+ */
+function stripHtmlToPlainText(html: string): string {
+  return html
+    .replace(/<\/p>\s*<p[^>]*>/gi, '\n')   // paragraph breaks → newline
+    .replace(/<br\s*\/?>/gi, '\n')           // <br> → newline
+    .replace(/<\/h[1-6]>/gi, '\n')           // heading closes → newline
+    .replace(/<\/li>/gi, '\n')               // list item closes → newline
+    .replace(/<\/blockquote>/gi, '\n')       // blockquote closes → newline
+    .replace(/<\/div>/gi, '\n')              // div closes → newline
+    .replace(/<\/pre>/gi, '\n')              // pre closes → newline
+    .replace(/<[^>]*>/g, '')                  // strip all remaining tags
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')              // collapse excessive newlines
+    .trim();
+}
+
+/**
+ * Returns true if the file extension is an HTML document type.
+ * @internal
+ */
+function isHtmlExtension(filePath: string): boolean {
+  const ext = path.extname(filePath).toLowerCase();
+  return ext === '.html' || ext === '.htm';
+}
+
+/**
+ * Returns true if the file extension is a Word document type.
+ * @internal
+ */
+function isDocxExtension(filePath: string): boolean {
+  const ext = path.extname(filePath).toLowerCase();
+  return ext === '.docx' || ext === '.doc';
+}
+
+/**
  * Wraps a handler function in try/catch, returning a structured
  * {@link IPCResponse} on both success and failure.
  *
@@ -827,7 +874,9 @@ export function registerIPCHandlers(services: EngineServices): void {
       try {
         validateTextFile(fileName);
       } catch {
-        await fs.promises.writeFile(filePath, newContent, 'utf-8');
+        // Strip HTML for non-HTML files to prevent TipTap markup corruption
+        const contentToWrite = isHtmlExtension(filePath) ? newContent : stripHtmlToPlainText(newContent);
+        await fs.promises.writeFile(filePath, contentToWrite, 'utf-8');
         fileContents.set(fileId, newContent);
         return {
           fileId,
@@ -883,9 +932,11 @@ export function registerIPCHandlers(services: EngineServices): void {
 
       // If we won the resolution, or there was no conflict:
       // ── Write to disk ───────────────────────────────────────────
-      await fs.promises.writeFile(filePath, newContent, 'utf-8');
+      // Strip HTML for non-HTML files to prevent TipTap markup corruption
+      const contentToWrite = isHtmlExtension(filePath) ? newContent : stripHtmlToPlainText(newContent);
+      await fs.promises.writeFile(filePath, contentToWrite, 'utf-8');
 
-      // ── Update in-memory cache ──────────────────────────────────
+      // ── Update in-memory cache (keep HTML for TipTap/delta engine) ──
       fileContents.set(fileId, newContent);
 
       // ── Increment vector clock ──────────────────────────────────
@@ -1614,6 +1665,17 @@ export function registerIPCHandlers(services: EngineServices): void {
       }
       const content = fileContents.get(fileId) ?? '';
       const defaultName = path.basename(filePath);
+
+      // Block .docx/.doc round-trip — content was extracted as plain text
+      // by mammoth on open; writing it back would produce a corrupted file.
+      if (isDocxExtension(filePath)) {
+        throw new Error(
+          'DOCX round-trip saving is not yet supported. ' +
+          'The file was converted to plain text when opened. ' +
+          'Please save as a .txt file instead, or open the original .docx in Word directly.'
+        );
+      }
+
       const win = BrowserWindow.getAllWindows()[0];
 
       const result = await dialog.showSaveDialog(win ?? undefined!, {
@@ -1626,7 +1688,9 @@ export function registerIPCHandlers(services: EngineServices): void {
         throw new Error('Save cancelled by user.');
       }
 
-      await fs.promises.writeFile(result.filePath, content, 'utf-8');
+      // Strip HTML for non-HTML files to prevent TipTap markup corruption
+      const contentToWrite = isHtmlExtension(result.filePath) ? content : stripHtmlToPlainText(content);
+      await fs.promises.writeFile(result.filePath, contentToWrite, 'utf-8');
 
       // Log a CHECK_OUT event
       vectorClock.increment();
