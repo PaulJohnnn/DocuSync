@@ -28,7 +28,6 @@ const WORKSPACE_NAV: NavItem[] = [
 
 const TOOLS_NAV: NavItem[] = [
   { to: '/metrics',     icon: <BarChart2 size={16} />, label: 'Metrics',     id: 'nav-metrics'     },
-  { to: '/webrtc-demo', icon: <Activity size={16} />,  label: 'WebRTC Demo', id: 'nav-webrtc-demo' },
   { to: '/settings',    icon: <Settings size={16} />,  label: 'Settings',    id: 'nav-settings'    },
 ];
 

@@ -8,7 +8,7 @@ import { uGet, uSet } from '@/lib/userStorage';
 import { useWebSync } from '@/context/WebSyncContext';
 const TipTapEditor = dynamic(() => import('@/components/TipTapEditor'), { ssr: false });
 import type { RemoteCursor } from '@/components/TipTapEditor';
-
+import { diffWords } from 'diff';
 // ── Matchmaker URL ─────────────────────────────────────────────────────────
 const MATCHMAKER_URL = process.env.NODE_ENV === 'development'
   ? '/api/lobby'
@@ -71,8 +71,7 @@ export default function EditorPage() {
     let nodeIndex = 1;
     try {
       // Force alternating assignment between 1 and 2 to guarantee distinct slots for up to 2 tabs.
-      // Ignore sessionStorage to prevent old cached collisions from breaking the demo.
-      let lastAssigned = parseInt(localStorage.getItem('docusync_last_assigned_index') || '2', 10);
+      const lastAssigned = parseInt(localStorage.getItem('docusync_last_assigned_index') || '2', 10);
       nodeIndex = lastAssigned === 1 ? 2 : 1;
       localStorage.setItem('docusync_last_assigned_index', String(nodeIndex));
     } catch {}

@@ -1,0 +1,105 @@
+SYSTEM ARCHITECTURE
+===================
+
+2.1 OVERVIEW
+------------
+DocuSync uses an Event Sourcing architecture with segregated read and write pathways, executed locally on each edge device — there is no central server that holds or processes document data. Desktop acts as the local host (running a listening server on port 9000); Web and Mobile connect to it as clients. The only cloud component, Upstash Redis, is scoped strictly to ephemeral room-code signaling and never touches document content.
+
+
+2.2 COMPONENTS
+--------------
+* DESKTOP HOST
+  Responsibility: Runs the local P2P listening server, hosts the primary SQLite database, and serves as the source of truth for the local network session.
+  Technology: Electron, Vite, React 18, Node.js
+  Interfaces With: Web Clients, Mobile Clients, Matchmaker API
+
+* WEB CLIENT
+  Responsibility: Lightweight web shell providing browser access to the local host's session.
+  Technology: Next.js 14, React 18, Tailwind CSS
+  Interfaces With: Desktop Host (via WebSocket/HTTP), Matchmaker API
+
+* MOBILE CLIENT
+  Responsibility: Cross-platform companion app for on-the-go access and editing.
+  Technology: React Native (Expo SDK 54)
+  Interfaces With: Desktop Host (via WebSocket/HTTP), Matchmaker API
+
+* MATCHMAKER API
+  Responsibility: Facilitates initial P2P handshakes via short-lived OTP room codes.
+  Technology: Next.js API Routes, Upstash Redis
+  Interfaces With: Desktop Host, Web/Mobile Clients
+
+* LOCAL DATABASE
+  Responsibility: Persistent, offline-first storage of the EventLog and document states.
+  Technology: SQLite, Prisma ORM
+  Interfaces With: Desktop Host only
+
+* SYNC ENGINE
+  Responsibility: Calculates deltas, resolves conflicts via LWW, and maintains causal ordering.
+  Technology: Custom TypeScript (Vector Clocks, Myers Diff)
+  Interfaces With: UI (TipTap), EventLog, PeerManager
+
+
+2.3 WRITE PATHWAY (COMMAND)
+---------------------------
+Step 1: UI (TipTap editor)
+        User edit fires an update event, debounced 500ms
+Step 2: IPC / HTTP bridge
+        Edit is passed to the local engine (window.docuSync.saveFile on Desktop, POST /sync/push from Web/Mobile)
+Step 3: VectorClock
+        Local causal clock is incremented for this node
+Step 4: DeltaEncoder
+        Myers diff computes a minimal byte-level change, not the full document
+Step 5: EventLogService
+        The delta is appended (never overwritten) to the local SQLite EventLog
+Step 6: PeerManager
+        The delta is broadcast to connected peers over the local network
+
+
+2.4 READ PATHWAY (QUERY)
+------------------------
+Step 1: Client poll
+        Web/Mobile call GET /sync/status on an interval; Desktop reads its own local EventLog directly
+Step 2: EventLogService
+        Returns any events with a vector clock newer than the client's last known state
+Step 3: VectorClock.compare()
+        Classifies the relationship: dominated (clean update), concurrent (conflict), or equal (no-op)
+Step 4: Client
+        Applies the resulting state to the local editor
+
+Note: This separation keeps conflict logic isolated to one path, and makes every historical state reconstructable by replaying the log. This enables both version rollback and offline recovery.
+
+
+2.5 LOCAL EXECUTION WITHOUT A CENTRAL SERVER
+--------------------------------------------
+Each device's document state lives in its own local SQLite database — nothing document-related is written to any cloud database. Desktop is the only platform capable of running a background listening server (browsers and mobile OS sandboxes block this), so it hosts locally; this is a local hosting model, not a centralized one — no cloud server is required for two devices on the same network to sync. Upstash Redis's only role is storing short-lived { otp, hostIp, hostPort } records so peers can find each other. This is verified directly against the actual API route code, which never writes document content to Redis at any point.
+
+
+3. TECHNOLOGY STACK JUSTIFICATION
+---------------------------------
+* MATCHMAKING / SIGNALING
+  Technology: Next.js (API routes) + Upstash Redis (v14)
+  Justification: Serverless, low-cost hosting for ephemeral OTP room codes only; Redis TTL-expires entries automatically, and never stores document content.
+
+* DESKTOP CLIENT (HOST)
+  Technology: Electron + Vite (React 18)
+  Justification: The only client runtime with Node.js access, required to run a local listening HTTP/WebSocket server (port 9000) — this makes local-first, no-central-server sync possible.
+
+* MOBILE CLIENT
+  Technology: React Native (Expo) (SDK 54)
+  Justification: Cross-platform companion client; connects to the Desktop host as a peer over the local network, consistent with the same host/client model as Web.
+
+* WEB SHELL (FRONTEND)
+  Technology: Next.js + React (14 / 18)
+  Justification: Provides a lightweight, stateless web client that connects to the Desktop host. It handles UI and signaling but does not permanently store document data.
+
+* SYNC ENGINE CORE
+  Technology: Custom TypeScript
+  Justification: Bespoke implementation of Vector Clocks, LWW, and Delta Encoding. Ensures offline-first capability and deterministic conflict resolution without needing a cloud server.
+
+* LOCAL STORAGE
+  Technology: SQLite
+  Justification: On-device, zero-configuration, no cloud dependency; stores the append-only EventLog, Conflicts, and local user profile — directly enables offline-first operation.
+
+* ORM
+  Technology: Prisma (5.x/6.x)
+  Justification: Type-safe local queries and schema migrations against the local SQLite database; used only for local data access, never for a remote/cloud database.

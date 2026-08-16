@@ -37,30 +37,12 @@
       "status": "active"
     },
     {
-      "id": "user-1785239463727",
-      "email": "Charles@gmail.com",
-      "name": "Charles",
-      "pin": "529850",
+      "id": "user-1786880660275",
+      "email": "POL",
+      "name": "POL",
+      "pin": "324149",
       "isAdmin": false,
-      "createdAt": "2026-07-28T11:51:03.727Z",
-      "status": "active"
-    },
-    {
-      "id": "user-1785736685669",
-      "email": "w",
-      "name": "w",
-      "pin": "337260",
-      "isAdmin": false,
-      "createdAt": "2026-08-03T05:58:05.669Z",
-      "status": "active"
-    },
-    {
-      "id": "user-1785737788556",
-      "email": "A",
-      "name": "A",
-      "pin": "174391",
-      "isAdmin": false,
-      "createdAt": "2026-08-03T06:16:28.556Z",
+      "createdAt": "2026-08-16T11:44:20.275Z",
       "status": "active"
     }
   ],

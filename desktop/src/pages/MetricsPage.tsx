@@ -290,20 +290,6 @@ const MetricsPage: React.FC = () => {
     return () => clearInterval(iv);
   }, [fetchData]);
 
-  // Simulate a live pulse for adviser demo if traffic is idle
-  const handleDemoPulse = () => {
-    const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const syntheticThroughput = Math.floor(Math.random() * 45) + 15;
-    const syntheticLatency = Math.round((Math.random() * 3.5 + 1.2) * 10) / 10;
-    setTelemetryHistory(prev => [
-      ...prev.slice(-14),
-      {
-        timeLabel: nowStr,
-        throughput: syntheticThroughput,
-        latency: syntheticLatency,
-      }
-    ]);
-  };
 
   // ── Derived Metrics ──────────────────────────────────────────────────────
 
@@ -351,18 +337,7 @@ const MetricsPage: React.FC = () => {
           <BarChart2 size={18} /> Performance Metrics
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
-          <button
-            onClick={handleDemoPulse}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(59,130,246,0.3)',
-              background: 'rgba(59,130,246,0.12)', color: '#3b82f6', fontSize: '0.78rem', fontWeight: 600,
-              cursor: 'pointer', transition: 'all 0.2s',
-            }}
-            title="Executes synthetic traffic evaluation probe for thesis verification"
-          >
-            <Play size={13} /> Execute Evaluation Probe
-          </button>
+
           <span className="ds-topbar-subtitle" style={{ fontSize: '0.82rem', color: 'var(--ds-text3)' }}>
             Live · last update {lastRefresh.toLocaleTimeString()}
           </span>

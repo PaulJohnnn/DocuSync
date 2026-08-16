@@ -525,9 +525,7 @@ export default function PeersPage() {
             <div style={{ marginBottom: 20 }}>
               <OtpInput value={otpInput} onChange={setOtpInput} error={joinError} />
             </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 20 }}>
-              💡 Try <strong>FAIL01</strong> to simulate a "Room Not Found" error for demo.
-            </p>
+
             <button
               onClick={handleJoinSubmit}
               disabled={otpInput.length < 6}

@@ -40,11 +40,6 @@ export default function SettingsScreen() {
   const [hostMetrics, setHostMetrics] = useState<HostMetrics | null>(null);
   const [hostError, setHostError] = useState<string | null>('Checking host...');
   const [hostAddr, setHostAddr] = useState<string>('No room joined');
-  const [demoBars, setDemoBars] = useState<number[]>([15, 28, 42, 65, 30, 85, 45, 60]);
-
-  const triggerDemoPulse = () => {
-    setDemoBars(Array.from({ length: 8 }, () => Math.floor(Math.random() * 75) + 20));
-  };
 
   const fetchHostStats = async () => {
     try {
@@ -340,37 +335,6 @@ export default function SettingsScreen() {
                   <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
                     Session: {Math.round(hostMetrics.sessionDurationMs / 60000)} min · {hostMetrics.pushCount} sync operations
                   </Text>
-                </View>
-
-                {/* Graphical Telemetry Activity Stream */}
-                <View style={{ padding: 12, backgroundColor: 'rgba(59,130,246,0.06)', borderRadius: 10, borderWidth: 1, borderColor: 'rgba(59,130,246,0.2)' }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#3b82f6' }}>Live P2P Telemetry Pulse</Text>
-                    <TouchableOpacity
-                      onPress={triggerDemoPulse}
-                      style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(59,130,246,0.15)' }}
-                    >
-                      <Text style={{ fontSize: 10, fontWeight: '700', color: '#3b82f6' }}>⚡ Demo Pulse</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 48, paddingHorizontal: 4 }}>
-                    {demoBars.map((val, idx) => (
-                      <View
-                        key={idx}
-                        style={{
-                          width: 18,
-                          height: `${val}%`,
-                          backgroundColor: idx % 2 === 0 ? '#3b82f6' : '#10b981',
-                          borderRadius: 4,
-                        }}
-                      />
-                    ))}
-                  </View>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-                    <Text style={{ fontSize: 10, color: colors.textMuted }}>-21s</Text>
-                    <Text style={{ fontSize: 10, color: colors.textMuted }}>Throughput / Latency Monitor</Text>
-                    <Text style={{ fontSize: 10, color: colors.green }}>NOW</Text>
-                  </View>
                 </View>
 
                 {/* RQ4 Group */}

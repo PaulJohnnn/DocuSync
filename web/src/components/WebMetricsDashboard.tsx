@@ -220,21 +220,6 @@ export default function WebMetricsDashboard() {
     return () => clearInterval(iv);
   }, [fetchHostMetrics]);
 
-  // Simulate a live pulse for adviser demo if traffic is idle
-  const handleDemoPulse = () => {
-    const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const syntheticThroughput = Math.floor(Math.random() * 45) + 15;
-    const syntheticLatency = Math.round((Math.random() * 3.5 + 1.2) * 10) / 10;
-    setTelemetryHistory(prev => [
-      ...prev.slice(-14),
-      {
-        timeLabel: nowStr,
-        throughput: syntheticThroughput,
-        latency: syntheticLatency,
-        conflicts: 0,
-      }
-    ]);
-  };
 
   // RQ4 calculations
   const totalConflicts = hostMetrics?.conflictsDetectedThisSession ?? 0;
@@ -277,18 +262,7 @@ export default function WebMetricsDashboard() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button
-            onClick={handleDemoPulse}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 14px', borderRadius: 8, border: '1px solid rgba(59,130,246,0.3)',
-              background: 'rgba(59,130,246,0.12)', color: '#3b82f6', fontSize: 12, fontWeight: 600,
-              cursor: 'pointer', transition: 'all 0.2s',
-            }}
-            title="Executes synthetic traffic evaluation probe for thesis verification"
-          >
-            <Play size={14} /> Execute Evaluation Probe
-          </button>
+
           <button
             onClick={fetchHostMetrics}
             style={{

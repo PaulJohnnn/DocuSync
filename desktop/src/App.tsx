@@ -131,7 +131,6 @@ const AdminPage     = lazy(() => import('@/pages/AdminPage'));
 const MetricsPage   = lazy(() => import('@/pages/MetricsPage'));
 const VaultLoginPage = lazy(() => import('@/pages/VaultLoginPage'));
 const WelcomePage    = lazy(() => import('@/pages/WelcomePage'));
-const WebRTCDemoPage = lazy(() => import('@/pages/WebRTCDemoPage'));
 
 /** Loading skeleton shown during lazy chunk loading. */
 const PageLoader: React.FC = () => (
@@ -265,13 +264,7 @@ const App: React.FC = () => (
               <WelcomePage />
             </Suspense>
           } />
-          
-          {/* Public WebRTC Demo Route */}
-          <Route path="/webrtc-demo" element={
-            <Suspense fallback={<PageLoader />}>
-              <WebRTCDemoPage />
-            </Suspense>
-          } />
+
           
           <Route path="/*" element={
             <AuthGuard>

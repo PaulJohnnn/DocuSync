@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import mockRoomService, { type Room } from '@/lib/mockRoomService';
 import { uSet, uRemove } from '@/lib/userStorage';
-import { Crown, Link as LinkIcon, Key, Check, Lightbulb, Activity, Smartphone, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Crown, Link as LinkIcon, Key, Check, Activity, Smartphone, ArrowRight, ArrowLeft } from 'lucide-react';
 
 // ── View state machine ────────────────────────────────────────────────────
 // list → create_name → create_generating → create_success → workspace
@@ -523,7 +523,7 @@ export default function RoomsPage() {
             {/* Info pills */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 24, flexWrap: 'wrap' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 12, background: 'rgba(79,70,229,0.06)', color: '#4f46e5', fontWeight: 600 }}>
-                <Crown size={14} /> You're the owner
+                <Crown size={14} /> You&apos;re the owner
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 12, background: 'rgba(34,197,94,0.06)', color: '#16a34a', fontWeight: 600 }}>
                 <Activity size={14} /> Active
@@ -572,9 +572,7 @@ export default function RoomsPage() {
             <div style={{ marginBottom: 20 }}>
               <OtpInput value={otpInput} onChange={setOtpInput} error={joinError} />
             </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-              <Lightbulb size={14} style={{ color: '#eab308' }} /> Try <strong>FAIL01</strong> to simulate a &quot;Room Not Found&quot; error for demo.
-            </p>
+
             <button
               onClick={handleJoinSubmit}
               disabled={otpInput.length < 6}
