@@ -44,13 +44,16 @@
       "isAdmin": false,
       "createdAt": "2026-08-16T11:44:20.275Z",
       "status": "active"
+    },
+    {
+      "id": "user-1786895191798",
+      "email": "maybe",
+      "name": "maybe",
+      "pin": "754020",
+      "isAdmin": false,
+      "createdAt": "2026-08-16T15:46:31.798Z",
+      "status": "active"
     }
   ],
-  "pending": [
-    {
-      "id": "req-1786152895776",
-      "email": "m",
-      "requestedAt": "2026-08-08T01:34:55.776Z"
-    }
-  ]
+  "pending": []
 }

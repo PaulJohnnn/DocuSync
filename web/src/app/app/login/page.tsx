@@ -35,6 +35,7 @@ const SixDigitPin: React.FC<{
   shake?: boolean;
 }> = ({ value, onChange, showPin, onToggleShow, error, shake }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   return (
     <div style={{ marginBottom: 6 }}>
@@ -67,7 +68,8 @@ const SixDigitPin: React.FC<{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: 7,
                 background: filled ? 'rgba(79,70,229,0.07)' : 'rgba(0,0,0,0.025)',
-                border: `1.5px solid ${filled ? 'rgba(79,70,229,0.3)' : 'rgba(0,0,0,0.08)'}`,
+                border: `1.5px solid ${(isFocused && (value.length === i || (value.length === 6 && i === 5))) ? '#4f46e5' : filled ? 'rgba(79,70,229,0.3)' : 'rgba(0,0,0,0.08)'}`,
+                boxShadow: (isFocused && (value.length === i || (value.length === 6 && i === 5))) ? '0 0 0 3px rgba(79,70,229,0.2)' : undefined,
                 transition: 'all 0.15s',
               }}>
                 {filled && (
@@ -111,6 +113,8 @@ const SixDigitPin: React.FC<{
           maxLength={6}
           value={value}
           onChange={e => onChange(e.target.value.slice(0, 6))}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
           autoComplete="one-time-code"
         />
@@ -185,9 +189,23 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
             </p>
             <div style={{
               background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px',
-              marginBottom: 24, fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '4px'
+              marginBottom: 24, fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '4px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12
             }}>
-              {approvedPin}
+              <span>{approvedPin}</span>
+              <button
+                onClick={() => navigator.clipboard.writeText(approvedPin)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', color: '#64748b'
+                }}
+                title="Copy PIN"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
             </div>
           </>
         ) : (

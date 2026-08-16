@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -34,6 +35,7 @@ const DocuSyncLogo = ({ size = 80 }) => (
 
 export default function LoginScreen() {
   const navigation = useNavigation<LoginScreenNavigationProp>();
+  const [pinFocused, setPinFocused] = useState(false);
   const [mode, setMode] = useState<'unlock' | 'signup'>('unlock');
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
@@ -180,7 +182,7 @@ export default function LoginScreen() {
                       <View key={i} style={{
                         width: 30, height: 32, borderRadius: 6,
                         backgroundColor: filled ? 'rgba(79,70,229,0.07)' : 'rgba(0,0,0,0.03)',
-                        borderWidth: 1.5, borderColor: filled ? 'rgba(79,70,229,0.3)' : 'rgba(0,0,0,0.05)',
+                        borderWidth: 1.5, borderColor: (pinFocused && (pin.length === i || (pin.length === 6 && i === 5))) ? '#4f46e5' : filled ? 'rgba(79,70,229,0.3)' : 'rgba(0,0,0,0.05)',
                         justifyContent: 'center', alignItems: 'center'
                       }}>
                         {filled && (
@@ -203,6 +205,8 @@ export default function LoginScreen() {
                   value={pin}
                   onChangeText={t => setPin(t.substring(0, 6))}
                   keyboardType="number-pad"
+                  onFocus={() => setPinFocused(true)}
+                  onBlur={() => setPinFocused(false)}
                 />
                 <TouchableOpacity 
                   style={StyleSheet.absoluteFillObject} 
@@ -263,8 +267,11 @@ export default function LoginScreen() {
                   <Text style={{ fontSize: 13, color: '#4b5563', textAlign: 'center', lineHeight: 20 }}>
                     Your profile for <Text style={{ fontWeight: '700' }}>{email}</Text> has been approved. Use this PIN to unlock:
                   </Text>
-                  <View style={{ marginTop: 16, backgroundColor: '#f0fdf4', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, borderWidth: 1, borderColor: '#bbf7d0' }}>
+                  <View style={{ marginTop: 16, backgroundColor: '#f0fdf4', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 12, borderWidth: 1, borderColor: '#bbf7d0', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
                     <Text style={{ fontSize: 28, fontWeight: '800', color: '#15803d', letterSpacing: 4 }}>{generatedPin}</Text>
+                    <TouchableOpacity onPress={() => Clipboard.setStringAsync(generatedPin)} style={{ padding: 4 }}>
+                      <Ionicons name="copy-outline" size={20} color="#15803d" />
+                    </TouchableOpacity>
                   </View>
                 </>
               ) : (
