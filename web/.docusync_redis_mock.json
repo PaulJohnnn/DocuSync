@@ -743,7 +743,7 @@
   },
   "user:deac5aad-15af-42ff-98cd-fefaaf45bb36": {
     "nodeId": "deac5aad-15af-42ff-98cd-fefaaf45bb36",
-    "lastActive": 1785738308666,
+    "lastActive": 1785745759363,
     "ip": "10.116.72.55"
   },
   "lobby:8WUSP2": {
@@ -778,7 +778,7 @@
     "fileId": "1785737864038",
     "authorNodeId": "web-95468",
     "authorName": "web-9546",
-    "content": "<p>This is sample file hala ka san ano na ok</p>",
+    "content": "This is sample file hala ka san ano na\n",
     "vectorClock": {
       "nodeCount": 3,
       "nodeIndex": 1,
@@ -790,7 +790,7 @@
             "children": []
           },
           {
-            "counter": 1,
+            "counter": 3,
             "children": []
           },
           {
@@ -800,8 +800,100 @@
         ]
       }
     },
-    "committedAt": 1785738258079,
-    "deltaSize": 48,
-    "seq": 22
+    "committedAt": 1785738616248,
+    "deltaSize": 39,
+    "seq": 24
+  },
+  "doc:XF89AQ:1785738834584": {
+    "otp": "XF89AQ",
+    "fileId": "1785738834584",
+    "authorNodeId": "web-89922",
+    "authorName": "web-8992",
+    "content": "<p>This is sample file omg why it is not working</p>",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 8,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785738860332,
+    "deltaSize": 52,
+    "seq": 8
+  },
+  "lobby:LUJQPG": {
+    "otp": "LUJQPG",
+    "roomName": "vards",
+    "hostNodeId": "web-1785745660002",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1785745661175,
+    "expiresAt": 1785749261175,
+    "members": [],
+    "peersJoined": 0,
+    "files": [
+      {
+        "fileId": 1785745691091,
+        "fileName": "sample.docx",
+        "content": "sample\n\n",
+        "contentLength": 8,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-03T08:28:11.091Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1785745660002"
+  },
+  "doc:LUJQPG:1785745691091": {
+    "otp": "LUJQPG",
+    "fileId": "1785745691091",
+    "authorNodeId": "web-16117",
+    "authorName": "web-1611",
+    "content": "<p></p><p></p>",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 11,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1785747922577,
+    "deltaSize": 14,
+    "seq": 8
+  },
+  "user:3deb2777-6fe8-4415-b8f1-0b54170e6dbe": {
+    "nodeId": "3deb2777-6fe8-4415-b8f1-0b54170e6dbe",
+    "lastActive": 1786106403536,
+    "ip": "192.168.68.107"
   }
 }
