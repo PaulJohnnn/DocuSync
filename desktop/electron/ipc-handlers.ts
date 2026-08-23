@@ -671,10 +671,18 @@ export function registerIPCHandlers(services: EngineServices): void {
             { name: 'All Files', extensions: ['*'] },
           ],
         };
-        const mainWindow = BrowserWindow.getFocusedWindow();
+        // Bring the main window to the foreground so the dialog appears on top
+        const mainWindow = BrowserWindow.getAllWindows()[0];
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+          mainWindow.moveTop();
+        }
+        console.log('[IPC] file:open → showing open dialog...');
         const result = mainWindow
           ? await dialog.showOpenDialog(mainWindow, options)
           : await dialog.showOpenDialog(options);
+        console.log('[IPC] file:open → dialog result:', result);
 
         if (result.canceled || result.filePaths.length === 0) {
           throw new Error('File open cancelled by user.');

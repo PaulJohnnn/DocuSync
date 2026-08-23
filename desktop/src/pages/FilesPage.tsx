@@ -98,8 +98,11 @@ const FilesPage: React.FC = () => {
       setRoomFiles(prev => [...prev, newFile]);
       notify.success('File shared to room!');
     } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      // Silently ignore cancellations — user deliberately closed the dialog
+      if (msg.includes('cancelled by user') || msg.includes('canceled by user')) return;
       if (error instanceof ServiceError) notify.error(error.message);
-      else notify.error('Failed to share file.');
+      else notify.error('Failed to share file. Check the console for details.');
     }
   };
 
