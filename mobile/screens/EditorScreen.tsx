@@ -33,6 +33,7 @@ export default function EditorScreen({ route, navigation }: any) {
   const [file, setFile]               = useState<FileRecord | null>(null);
   const [content, setContent]         = useState('');
   const [saved, setSaved]             = useState(true);
+  const [lwwToastVisible, setLwwToastVisible] = useState(false);
   const [syncing, setSyncing]         = useState(false);
   const [isOnline, setIsOnline]       = useState(true);
   const [syncStatusMsg, setSyncStatusMsg] = useState('Ready');
@@ -152,6 +153,10 @@ export default function EditorScreen({ route, navigation }: any) {
           setSyncStatusMsg('Conflict — sent to owner for review');
           setTimeout(() => setEscalated(false), 5000);
         } else {
+          if (data.lwwResolved) {
+            setLwwToastVisible(true);
+            setTimeout(() => setLwwToastVisible(false), 4000);
+          }
           const time = new Date().toLocaleTimeString();
           setSyncStatusMsg(`Synced ✓ (v${data.seq || '?'}) at ${time}`);
           setOfflineQueue(false);
@@ -322,6 +327,14 @@ export default function EditorScreen({ route, navigation }: any) {
         <View style={{ backgroundColor: colors.amber, padding: 12, marginHorizontal: 16, marginTop: 12, borderRadius: 8 }}>
           <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>
             Change sent to room owner for conflict review.
+          </Text>
+        </View>
+      )}
+
+      {lwwToastVisible && (
+        <View style={{ backgroundColor: colors.green, padding: 12, marginHorizontal: 16, marginTop: 12, borderRadius: 8 }}>
+          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>
+            Conflict resolved using Last-Write-Wins
           </Text>
         </View>
       )}

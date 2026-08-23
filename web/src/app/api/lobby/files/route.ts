@@ -80,10 +80,13 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Lobby not found' }, { status: 404, headers: corsHeaders });
     }
 
-    lobby.files = lobby.files.filter((f) => {
+    lobby.files = lobby.files.map((f) => {
       const idMatch = fileId && String(f.fileId ?? f.id) === String(fileId);
       const nameMatch = fileName && (f.fileName === fileName || f.name === fileName);
-      return !idMatch && !nameMatch;
+      if (idMatch || nameMatch) {
+        return { ...f, isDeleted: true, deletedAt: new Date().toISOString() };
+      }
+      return f;
     });
 
     await redis.set(`lobby:${otp}`, lobby, { ex: 60 * 60 * 24 });

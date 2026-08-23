@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import mockAuthService, { AuthUser } from '@/lib/mockAuthService';
 import { toast } from 'sonner';
 import { ShieldCheck, Clock, X, Check, UserX, Activity } from 'lucide-react';
@@ -8,6 +8,18 @@ export default function AdminDashboardPage() {
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [activeUsers, setActiveUsers] = useState<AuthUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [confirmModal, setConfirmModal] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void } | null>(null);
+
+  const showConfirm = useCallback((title: string, description: string, onConfirm: () => void) => {
+    setConfirmModal({ open: true, title, description, onConfirm });
+  }, []);
+
+  const closeConfirm = useCallback(() => setConfirmModal(null), []);
+  
+  // Delete Group State
+  const [deleteOtp, setDeleteOtp] = useState('');
+  const [deleting, setDeleting] = useState(false);
   
   // Track previous count to detect new requests
   const prevPendingCount = useRef(0);
@@ -70,8 +82,133 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleRevokeMultiple = () => {
+    showConfirm(
+      `Revoke ${selectedUserIds.size} Selected ${selectedUserIds.size === 1 ? 'User' : 'Users'}`,
+      `You are about to permanently revoke access for ${selectedUserIds.size} selected ${selectedUserIds.size === 1 ? 'profile' : 'profiles'}. They will need to re-request authorization to rejoin.`,
+      async () => {
+        try {
+          for (const id of Array.from(selectedUserIds)) {
+            await mockAuthService.revokeUser(id);
+          }
+          setSelectedUserIds(new Set());
+          await loadData();
+          toast.success(`Users revoked successfully`);
+        } catch (e) {
+          console.error(e);
+          toast.error('Failed to revoke some users');
+        }
+      }
+    );
+  };
+
+  const toggleUserSelection = (id: string) => {
+    setSelectedUserIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
     <div style={{ animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)', paddingBottom: 60, maxWidth: 1200, margin: '0 auto' }}>
+
+      {/* ── Premium Confirm Modal ───────────────────────────────────────────── */}
+      {confirmModal?.open && (
+        <div
+          onClick={closeConfirm}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10000,
+            background: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(12px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            animation: 'fadeIn 0.15s ease',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'linear-gradient(145deg, rgba(15,23,42,0.98) 0%, rgba(30,27,75,0.98) 100%)',
+              border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: 24,
+              padding: '32px 36px',
+              maxWidth: 460,
+              width: '90%',
+              boxShadow: '0 0 0 1px rgba(255,255,255,0.05), 0 40px 80px -20px rgba(0,0,0,0.8), 0 0 60px -20px rgba(239,68,68,0.15)',
+              animation: 'modalSlideUp 0.25s cubic-bezier(0.16,1,0.3,1)',
+            }}
+          >
+            {/* Icon */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(239,68,68,0.2) 0%, rgba(239,68,68,0.05) 70%)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 30px rgba(239,68,68,0.2)',
+              }}>
+                <UserX size={26} color="#f87171" />
+              </div>
+            </div>
+
+            {/* Title */}
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: '#fff', textAlign: 'center', margin: '0 0 10px' }}>
+              {confirmModal.title}
+            </h2>
+
+            {/* Description */}
+            <p style={{ fontSize: 14, color: '#94a3b8', textAlign: 'center', lineHeight: 1.7, margin: '0 0 28px' }}>
+              {confirmModal.description}
+            </p>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={closeConfirm}
+                style={{
+                  flex: 1, padding: '12px 0', borderRadius: 12, fontSize: 14, fontWeight: 600,
+                  background: 'rgba(255,255,255,0.05)',
+                  color: '#94a3b8',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = '#fff'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { confirmModal.onConfirm(); closeConfirm(); }}
+                style={{
+                  flex: 1, padding: '12px 0', borderRadius: 12, fontSize: 14, fontWeight: 700,
+                  background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                  color: '#fff',
+                  border: '1px solid rgba(239,68,68,0.4)',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 20px rgba(239,68,68,0.35)',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 28px rgba(239,68,68,0.55)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(239,68,68,0.35)'; e.currentTarget.style.transform = 'none'; }}
+              >
+                Confirm Revoke
+              </button>
+            </div>
+          </div>
+
+          <style>{`
+            @keyframes modalSlideUp {
+              from { opacity: 0; transform: scale(0.94) translateY(16px); }
+              to   { opacity: 1; transform: scale(1)   translateY(0); }
+            }
+            @keyframes fadeIn {
+              from { opacity: 0; } to { opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
       
       {/* Header Section */}
       <div style={{
@@ -105,6 +242,8 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </div>
+
+
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
         
@@ -213,6 +352,19 @@ export default function AdminDashboardPage() {
               </div>
               Active Profiles
             </h2>
+            {selectedUserIds.size > 0 && (
+              <button
+                onClick={handleRevokeMultiple}
+                style={{
+                  background: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', border: '1px solid rgba(34, 197, 94, 0.3)',
+                  padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s'
+                }}
+              >
+                <UserX size={14} />
+                Revoke Selected ({selectedUserIds.size})
+              </button>
+            )}
           </div>
 
           <div style={{
@@ -237,6 +389,16 @@ export default function AdminDashboardPage() {
                     transition: 'background 0.2s'
                   }} className="hover-row">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      {!u.isAdmin && (
+                        <div 
+                          className={`custom-checkbox ${selectedUserIds.has(u.id) ? 'checked' : ''}`}
+                          onClick={() => toggleUserSelection(u.id)}
+                        >
+                          <svg className="check-icon" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                        </div>
+                      )}
                       <div style={{
                         width: 44, height: 44, borderRadius: 12, 
                         background: u.isAdmin ? 'linear-gradient(135deg, #c084fc, #9333ea)' : 'linear-gradient(135deg, #60a5fa, #2563eb)',
@@ -299,6 +461,44 @@ export default function AdminDashboardPage() {
         .btn-revoke:hover {
           background: rgba(239,68,68,0.1) !important;
           color: #ef4444 !important;
+        }
+        .custom-checkbox {
+          width: 20px;
+          height: 20px;
+          border-radius: 6px;
+          border: 2px solid rgba(255, 255, 255, 0.2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          background: rgba(255, 255, 255, 0.05);
+        }
+        .custom-checkbox.checked {
+          background: #22c55e;
+          border-color: #22c55e;
+          transform: scale(1.1);
+          box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+        }
+        .custom-checkbox:hover {
+          border-color: rgba(255, 255, 255, 0.4);
+        }
+        .custom-checkbox.checked:hover {
+          background: #16a34a;
+          border-color: #16a34a;
+        }
+        .check-icon {
+          width: 12px;
+          height: 12px;
+          stroke: transparent;
+          stroke-width: 3.5;
+          stroke-dasharray: 24;
+          stroke-dashoffset: 24;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .custom-checkbox.checked .check-icon {
+          stroke: white;
+          stroke-dashoffset: 0;
         }
       `}} />
     </div>

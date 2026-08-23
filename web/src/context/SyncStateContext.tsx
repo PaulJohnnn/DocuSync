@@ -23,7 +23,16 @@ interface SyncStateContextValue {
   conflict: ConflictInfo | null;
   pendingEdits: number;           // # of edits queued while offline
   setSyncState: (s: SyncState) => void;
-  // Dev helpers
+  /**
+   * Register a real flush callback for the manual Reconnect button.
+   * The editor page calls this on mount so OfflineBanner can trigger the
+   * actual saveFile(content, true) flush rather than the dev-only simulator.
+   * Pass null to unregister (on editor unmount).
+   */
+  registerReconnectCallback: (fn: (() => Promise<void>) | null) => void;
+  /** Called by OfflineBanner's Reconnect button — real flush if registered, else no-op. */
+  reconnect: () => Promise<void>;
+  // Dev helpers — kept intact; DevSyncToggle still uses these
   simulateGoOffline: () => void;
   simulateReconnect: () => void;
   simulateConflict: () => void;
@@ -36,6 +45,8 @@ const SyncStateContext = createContext<SyncStateContextValue>({
   conflict: null,
   pendingEdits: 0,
   setSyncState: () => {},
+  registerReconnectCallback: () => {},
+  reconnect: async () => {},
   simulateGoOffline: () => {},
   simulateReconnect: () => {},
   simulateConflict: () => {},
@@ -60,6 +71,9 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
   const [pendingEdits, setPendingEdits] = useState(0);
   const pendingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Holds the real flush callback registered by the editor page.
+  const reconnectCallbackRef = useRef<(() => Promise<void>) | null>(null);
+
   const setSyncState = useCallback((s: SyncState) => {
     setSyncStateRaw(s);
     if (s !== 'offline') {
@@ -67,6 +81,36 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
       if (pendingTimer.current) clearInterval(pendingTimer.current);
     }
   }, []);
+
+  const registerReconnectCallback = useCallback((fn: (() => Promise<void>) | null) => {
+    reconnectCallbackRef.current = fn;
+  }, []);
+
+  /**
+   * Called by OfflineBanner's "Reconnect" button.
+   * If the editor has registered a real flush callback, call it (this triggers
+   * saveFile(currentContent, true) with isOfflineReconnect: true via pushToHost).
+   * Always clears the dev offline flag and transitions UI state to syncing/online.
+   */
+  const reconnect = useCallback(async () => {
+    if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = false;
+    if (pendingTimer.current) clearInterval(pendingTimer.current);
+    setSyncStateRaw('syncing');
+    setPendingEdits(0);
+
+    if (reconnectCallbackRef.current) {
+      try {
+        await reconnectCallbackRef.current();
+      } catch (e) {
+        console.error('[Reconnect] Flush callback threw:', e);
+      }
+    }
+
+    setSyncStateRaw('synced');
+    setTimeout(() => setSyncStateRaw('online'), 2500);
+  }, []);
+
+  // ── Dev-only helpers — unchanged, still used by DevSyncToggle ──────────────
 
   const simulateGoOffline = useCallback(() => {
     if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = true;
@@ -134,6 +178,7 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
   return (
     <SyncStateContext.Provider value={{
       syncState, conflict, pendingEdits, setSyncState,
+      registerReconnectCallback, reconnect,
       simulateGoOffline, simulateReconnect, simulateConflict, simulateRapidFlicker, resolveConflict,
     }}>
       {children}

@@ -32,14 +32,12 @@ const TitleBar: React.FC<TitleBarProps> = ({ isRightPanelOpen, onToggleRightPane
   const dotColor =
     !hasInternet              ? 'var(--text-muted)'   :
     syncStatus === 'syncing'  ? 'var(--amber)' :
-    syncStatus === 'conflict' ? 'var(--red)'   :
     syncStatus === 'error'    ? 'var(--red)'   :
     'var(--green)';
 
   const label =
     !hasInternet              ? 'Offline'  :
     syncStatus === 'syncing'  ? 'Syncing...'  :
-    syncStatus === 'conflict' ? 'Conflict' :
     syncStatus === 'error'    ? 'Error'    :
     'Online';
 

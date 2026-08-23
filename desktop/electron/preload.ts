@@ -31,7 +31,7 @@
  * @packageDocumentation
  */
 
-import { ipcRenderer, contextBridge } from 'electron';
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IPC Channel Constants
@@ -164,6 +164,11 @@ export interface DocuSyncBridge {
   saveFile(fileId: number, newContent: string, vectorClockJson: any): Promise<IPCResponse>;
 
   /**
+   * Deletes a file by appending a 'delete' event.
+   */
+  deleteFile(fileId: number): Promise<IPCResponse>;
+
+  /**
    * Returns the complete append-only EventLog history for a file.
    *
    * @param fileId - The file ID.
@@ -211,12 +216,22 @@ export interface DocuSyncBridge {
   resolveConflict(conflictId: string, winner: 'A' | 'B'): Promise<IPCResponse>;
 
   /**
+   * Resolves a conflict with a user-provided custom payload.
+   */
+  resolveConflictManual(conflictId: string, customPayload: string): Promise<IPCResponse>;
+
+  /**
    * Lists all pending (unresolved) conflicts with full detail records
    * including both competing payloads, node IDs, and timestamps.
    *
    * @returns IPCResponse containing `{ conflicts, totalPending }`.
    */
   listConflicts(): Promise<IPCResponse>;
+
+  /**
+   * Clears the local SQLite database. Useful for logging out and state isolation.
+   */
+  clearDatabase(): Promise<IPCResponse>;
 
   /**
    * Fetches a single conflict's full record by its UUID.
@@ -332,6 +347,13 @@ export interface DocuSyncBridge {
     listener: (conflictId: string, resolvedBy: string) => void
   ): () => void;
 
+  onConflictResolved(callback: (conflictId: string, winner: 'A' | 'B', resolutionEventId: string) => void): () => void;
+
+  /**
+   * Subscribes to file deletion events.
+   */
+  onFileDeleted(callback: (fileId: number) => void): () => void;
+
   /**
    * Registers a listener for sync-status-changed push events from the engine.
    *
@@ -400,7 +422,7 @@ export interface DocuSyncBridge {
    * @returns Unsubscribe function.
    */
   onFileUpdated(
-    listener: (fileId: number, newContent: string) => void
+    listener: (fileId: number, newContent: string, lwwResolved?: boolean) => void
   ): () => void;
 }
 
@@ -435,6 +457,10 @@ const docuSyncBridge: DocuSyncBridge = {
     return ipcRenderer.invoke('file:import-room-file', fileName, content, fileId);
   },
 
+  deleteFile(fileId: number): Promise<IPCResponse> {
+    return ipcRenderer.invoke('file:delete', fileId);
+  },
+
   saveFile(fileId: number, newContent: string, vectorClockJson: any): Promise<IPCResponse> {
     return ipcRenderer.invoke(CH_FILE_SAVE, fileId, newContent, vectorClockJson);
   },
@@ -463,8 +489,16 @@ const docuSyncBridge: DocuSyncBridge = {
     return ipcRenderer.invoke(CH_CONFLICT_RESOLVE, conflictId, winner);
   },
 
+  resolveConflictManual(conflictId: string, customPayload: string): Promise<IPCResponse> {
+    return ipcRenderer.invoke('conflict:resolve-manual', conflictId, customPayload);
+  },
+
   listConflicts(): Promise<IPCResponse> {
-    return ipcRenderer.invoke(CH_CONFLICT_LIST);
+    return ipcRenderer.invoke('conflict:list');
+  },
+
+  clearDatabase(): Promise<IPCResponse> {
+    return ipcRenderer.invoke('db:clear');
   },
 
   getConflictDetail(conflictId: string): Promise<IPCResponse> {
@@ -582,6 +616,22 @@ const docuSyncBridge: DocuSyncBridge = {
 
     return () => {
       ipcRenderer.off(CH_EVT_MERGE_ACCEPTED, wrapped);
+    };
+  },
+
+  onConflictResolved(callback: (conflictId: string, winner: 'A' | 'B', resolutionEventId: string) => void) {
+    const handler = (_event: IpcRendererEvent, conflictId: string, winner: 'A' | 'B', resolutionEventId: string) => callback(conflictId, winner, resolutionEventId);
+    ipcRenderer.on('conflict:resolved', handler);
+    return () => {
+      ipcRenderer.removeListener('conflict:resolved', handler);
+    };
+  },
+
+  onFileDeleted(callback: (fileId: number) => void) {
+    const handler = (_event: IpcRendererEvent, fileId: number) => callback(fileId);
+    ipcRenderer.on('file:deleted', handler);
+    return () => {
+      ipcRenderer.removeListener('file:deleted', handler);
     };
   },
 

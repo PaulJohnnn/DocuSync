@@ -123,7 +123,7 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
     if (!editor || !content) return;
     
     if (!initialized.current) {
-      editor.commands.setContent(content);
+      editor.commands.setContent(content, { emitUpdate: false });
       initialized.current = true;
       return;
     }

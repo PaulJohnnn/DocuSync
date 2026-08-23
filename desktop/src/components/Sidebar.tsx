@@ -9,7 +9,7 @@ import { useElectronSync } from '@/context/ElectronSyncContext';
 import { toast } from 'sonner';
 import {
   Files, FileEdit, AlertTriangle, Clock,
-  Network, BarChart2, Settings, Search, Lock, ShieldCheck, Activity
+  Network, BarChart2, Settings, Search, Lock, ShieldCheck, Activity, LogOut
 } from 'lucide-react';
 
 interface NavItem {
@@ -44,19 +44,6 @@ const Sidebar: React.FC = () => {
       try {
         await refreshStatus();
       } catch {}
-      // Brief delay to let state propagate, then notify about conflicts
-      setTimeout(() => {
-        if (pendingConflicts > 0) {
-          toast.error(
-            `${pendingConflicts} conflict${pendingConflicts > 1 ? 's' : ''} need your review`,
-            {
-              description: 'Your offline edits may conflict with remote changes.',
-              action: { label: 'Review', onClick: () => navigate('/conflicts') },
-              duration: 10000,
-            }
-          );
-        }
-      }, 1500);
     };
     const handleOffline = () => {
       setHasInternet(false);
@@ -181,6 +168,8 @@ const Sidebar: React.FC = () => {
             }}>ADMIN</span>
           </NavLink>
         )}
+        
+
       </div>
 
       {/* ── Node card ── */}

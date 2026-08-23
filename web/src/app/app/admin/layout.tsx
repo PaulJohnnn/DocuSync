@@ -9,14 +9,44 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     const u = mockAuthService.getCurrentUser();
-    if (!u || !u.isAdmin) {
-      router.push('/app/login');
-    } else {
-      setUser(u);
-    }
-  }, [router]);
+    setUser(u);
+  }, []);
 
   if (!user) return null;
+
+  if (!user.isAdmin) {
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: '#0f172a', color: '#f8fafc', fontFamily: "'Inter', sans-serif"
+      }}>
+        <div style={{
+          background: '#1e293b', border: '1px solid #334155', borderRadius: 20,
+          padding: '40px', textAlign: 'center', maxWidth: 400
+        }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 8, color: '#f1f5f9' }}>
+            Admin access restricted
+          </h2>
+          <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: 24 }}>
+            Only the Global Admin can access this panel.
+          </p>
+          <button 
+            onClick={() => router.push('/app/files')}
+            style={{
+              background: '#3b82f6', color: 'white', border: 'none',
+              padding: '10px 20px', borderRadius: 8, fontWeight: 600, cursor: 'pointer',
+              transition: 'background 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#2563eb'}
+            onMouseLeave={e => e.currentTarget.style.background = '#3b82f6'}
+          >
+            Back to Files
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -49,16 +79,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span style={{ fontSize: 13, color: '#94a3b8' }}>
             Logged in as <strong style={{ color: '#fff' }}>{user.email}</strong>
           </span>
-          <button
-            onClick={() => router.push('/app/files')}
-            style={{
-              background: '#3b82f6', border: '1px solid #2563eb', color: '#ffffff',
-              padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-              cursor: 'pointer', transition: 'all 0.2s'
-            }}
-          >
-            Open Workspace →
-          </button>
           <button
             onClick={() => {
               mockAuthService.logout();

@@ -316,7 +316,7 @@ const MetricsPage: React.FC = () => {
     ? `${Math.round(((hostMetrics?.pushSuccessCount ?? totalSyncEvents) / totalSyncEvents) * 100)}%`
     : 'No data yet';
 
-  const activePeerCount = hostMetrics?.connectedPeerCount ?? connectedPeers.length;
+  const activePeerCount = (hostMetrics?.connectedPeerCount ?? connectedPeers.length) + 1;
 
   // Bar chart data for RQ4 breakdown
   const rq4ComparisonData = [

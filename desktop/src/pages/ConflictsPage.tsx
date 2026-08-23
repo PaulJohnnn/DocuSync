@@ -1,16 +1,16 @@
 /**
  * @module ConflictsPage
  * Conflict resolution hub — route `/conflicts`.
- * Refactored: uses ConflictService. No inline IPC calls.
- * Buttons renamed Accept / Reject per manuscript spec.
  */
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useElectronSync, type PendingConflict } from '@/context/ElectronSyncContext';
-import { IconAlertTriangle, IconRefresh, IconArrowLeft, IconShield, IconZap, IconCheck } from '@/components/Icons';
+import { IconAlertTriangle, IconRefresh, IconArrowLeft, IconShield, IconCheck, IconZap } from '@/components/Icons';
 import ConflictService, { type ConflictRecord } from '@/services/ConflictService';
 import { ServiceError } from '@/services/errors/ServiceError';
 import { notify } from '@docusync/shared/utils/notifications';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,19 +51,11 @@ function computeWordDiff(htmlA: string, htmlB: string) {
     ? '<em style="color:var(--text-muted)">(empty)</em>'
     : wordsA.map((w, idx) =>
         delSet.has(idx)
-          ? `<mark style="background:rgba(239,68,68,0.18);color:#ef4444;border-radius:3px;padding:0 3px;text-decoration:line-through">${w}</mark>`
+          ? `<mark style="background:rgba(234,179,8,0.25);color:#ca8a04;border-radius:3px;padding:0 3px;font-weight:600">${w}</mark>`
           : w
       ).join(' ');
 
-  const highlightedB = wordsB.length === 0
-    ? '<em style="color:var(--text-muted)">(empty)</em>'
-    : wordsB.map((w, idx) =>
-        addSet.has(idx)
-          ? `<mark style="background:rgba(34,197,94,0.18);color:#16a34a;border-radius:3px;padding:0 3px;font-weight:600">${w}</mark>`
-          : w
-      ).join(' ');
-
-  return { highlightedA, highlightedB, deletedCount: delSet.size, addedCount: addSet.size };
+  return { highlightedA, diffCount: delSet.size };
 }
 
 function extractNodeId(summary: string, side: 'A' | 'B'): string {
@@ -72,17 +64,27 @@ function extractNodeId(summary: string, side: 'A' | 'B'): string {
   return side === 'A' ? match[1] : match[2];
 }
 
-// ── SplitHtmlDiff ─────────────────────────────────────────────────────────────
+// ── InteractiveConflictEditor ─────────────────────────────────────────────────
 
-const SplitHtmlDiff: React.FC<{
-  htmlA: string; htmlB: string;
-  nodeIdA: string; nodeIdB: string;
-  tsA: number; tsB: number;
-}> = ({ htmlA, htmlB, nodeIdA, nodeIdB, tsA, tsB }) => {
-  const { highlightedA, highlightedB, deletedCount, addedCount } = useMemo(
-    () => computeWordDiff(htmlA, htmlB), [htmlA, htmlB]
-  );
-  const isIdentical = deletedCount === 0 && addedCount === 0;
+const InteractiveConflictEditor: React.FC<{
+  conflict: ConflictDetail;
+  onManualResolve: (id: string, customPayload: string) => Promise<void>;
+  onReject: (id: string) => Promise<void>;
+}> = ({ conflict, onManualResolve, onReject }) => {
+  const { highlightedA } = useMemo(() => computeWordDiff(conflict.payloadA, conflict.payloadB), [conflict.payloadA, conflict.payloadB]);
+
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: conflict.payloadB,
+  });
+
+  const handleResolveClick = () => {
+    if (window.confirm('Are you sure you want to save this merged file? This will overwrite the live document and resolve the conflict.')) {
+      const html = editor?.getHTML() || '';
+      onManualResolve(conflict.conflictId, html);
+    }
+  };
+
   const panelStyle: React.CSSProperties = {
     flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
     border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden',
@@ -93,109 +95,53 @@ const SplitHtmlDiff: React.FC<{
     display: 'flex', flexDirection: 'column', gap: 2,
   });
   const bodyStyle: React.CSSProperties = {
-    padding: '12px 14px', flex: 1, overflowY: 'auto', maxHeight: 260,
+    padding: '12px 14px', flex: 1, overflowY: 'auto', maxHeight: 360, minHeight: 260,
     fontSize: 12, lineHeight: 1.7, color: 'var(--text-primary)', background: 'var(--bg-card)',
   };
 
-  if (isIdentical) return (
-    <div style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: 12, textAlign: 'center',
-      background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8 }}>
-      ✅ Files are identical — no differences detected.
-    </div>
-  );
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', gap: 8, fontSize: 11 }}>
-        <span style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
-          −{deletedCount} word{deletedCount !== 1 ? 's' : ''} removed (local)
-        </span>
-        <span style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
-          +{addedCount} word{addedCount !== 1 ? 's' : ''} added (updated)
-        </span>
+    <article className="ds-card" style={{ overflow: 'hidden', opacity: conflict.resolving ? 0.6 : 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* Header */}
+      <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '-1rem -1rem 0 -1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 9 }}>CONFLICT RESOLUTION</span>
+          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>File #{conflict.fileId}</span>
+        </div>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{conflict.detectedAt.toLocaleString()}</span>
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+        Your local edits (while offline) are highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong>. 
+        Copy and paste any text you want to keep into the editable pane on the right, then click Resolve & Save.
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
         <div style={panelStyle}>
-          <div style={headerStyle('#ef4444', 'rgba(239,68,68,0.06)')}>
-            <span>Your Local Version</span>
-            <span style={{ fontWeight: 400, opacity: 0.8 }}>Node: {nodeIdA.slice(0,12)}… · ts={tsA}</span>
+          <div style={headerStyle('#ca8a04', 'rgba(234,179,8,0.06)')}>
+            <span>Local Edits (Offline)</span>
+            <span style={{ fontWeight: 400, opacity: 0.8 }}>Read-Only Reference</span>
           </div>
           <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedA }} />
         </div>
 
-        <div style={panelStyle}>
-          <div style={headerStyle('#16a34a', 'rgba(34,197,94,0.06)')}>
-            <span>Updated Version</span>
-            <span style={{ fontWeight: 400, opacity: 0.8 }}>Node: {nodeIdB.slice(0,12)}… · ts={tsB}</span>
+        <div style={{...panelStyle, border: '1px solid var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }}>
+          <div style={headerStyle('var(--accent)', 'rgba(16,185,129,0.06)')}>
+            <span>Current Online Version</span>
+            <span style={{ fontWeight: 400, opacity: 0.8 }}>Editable</span>
           </div>
-          <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedB }} />
+          <div style={{...bodyStyle, background: '#fff', cursor: 'text'}}>
+            <EditorContent editor={editor} />
+          </div>
         </div>
       </div>
 
-      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-        Red strikethrough = words in your local version not in the updated file &nbsp;·&nbsp;
-        Green bold = words added in the updated version
-      </div>
-    </div>
-  );
-};
-
-// ── ConflictCard ──────────────────────────────────────────────────────────────
-
-const ConflictCard: React.FC<{
-  conflict: ConflictDetail;
-  onAccept: (id: string) => Promise<void>;
-  onReject: (id: string) => Promise<void>;
-}> = ({ conflict, onAccept, onReject }) => {
-  const lwwWinner: 'A' | 'B' = conflict.logicalTimestampA >= conflict.logicalTimestampB ? 'A' : 'B';
-
-  return (
-    <article className="ds-card" style={{ overflow: 'hidden', opacity: conflict.resolving ? 0.6 : 1 }}>
-      {/* Card header */}
-      <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 9 }}>CONFLICT</span>
-          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>File #{conflict.fileId}</span>
-          <IconAlertTriangle size={14} style={{ color: 'var(--red)' }} />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{conflict.detectedAt.toLocaleString()}</span>
-          <code style={{ fontSize: 10, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '2px 7px', borderRadius: 4 }}>{conflict.conflictId.slice(0, 10)}…</code>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div style={{ padding: '14px 16px' }}>
-        <SplitHtmlDiff
-          htmlA={conflict.payloadA}
-          htmlB={conflict.payloadB}
-          nodeIdA={conflict.nodeIdA}
-          nodeIdB={conflict.nodeIdB}
-          tsA={conflict.logicalTimestampA}
-          tsB={conflict.logicalTimestampB}
-        />
-      </div>
-
-      {/* Action bar — Accept / Reject (manuscript terminology) */}
-      <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '10px 16px', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button className="ds-btn ds-btn-ghost" disabled={conflict.resolving} onClick={() => onReject(conflict.conflictId)} style={{ fontSize: 12, height: 32 }}>
-          <IconShield size={13} /> Reject (Keep Original)
+      <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 -1rem -1rem -1rem' }}>
+        <button className="ds-btn ds-btn-ghost" disabled={conflict.resolving} onClick={() => onReject(conflict.conflictId)}>
+          <IconShield size={13} /> Delete Conflict
         </button>
-        <button
-          className="ds-btn"
-          disabled={conflict.resolving}
-          onClick={() => lwwWinner === 'B' ? onAccept(conflict.conflictId) : onReject(conflict.conflictId)}
-          title={`LWW Auto: Side ${lwwWinner} wins`}
-          style={{ fontSize: 12, height: 32, background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--border-accent)' }}
-        >
-          <IconZap size={13} /> ⚡ LWW Auto
-          <span style={{ fontSize: 9, background: 'rgba(79,125,248,0.25)', borderRadius: 3, padding: '0 4px', marginLeft: 2 }}>→ {lwwWinner}</span>
+        <button className="ds-btn ds-btn-success" disabled={conflict.resolving} onClick={handleResolveClick} style={{ padding: '6px 24px' }}>
+          <IconCheck size={14} /> Resolve & Save
         </button>
-        <button className="ds-btn ds-btn-success" disabled={conflict.resolving} onClick={() => onAccept(conflict.conflictId)} style={{ fontSize: 12, height: 32 }}>
-          <IconCheck size={13} /> Accept (Apply Incoming)
-        </button>
-        {conflict.resolving && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>Resolving…</span>}
       </div>
     </article>
   );
@@ -207,6 +153,7 @@ const ConflictsPage: React.FC = () => {
   const navigate = useNavigate();
   const { conflictQueue, pendingConflicts, markConflictResolved, refreshStatus, currentRoom, localNodeId } = useElectronSync();
   const [details, setDetails] = useState<Map<string, ConflictDetail>>(new Map());
+  const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
 
   const buildFallbackDetail = useCallback((conflict: PendingConflict): ConflictDetail => ({
     conflictId: conflict.conflictId, fileId: conflict.fileId, summary: conflict.summary,
@@ -280,14 +227,15 @@ const ConflictsPage: React.FC = () => {
       : 'https://docusync-pnc.vercel.app';
   const MATCHMAKER = `${_WEB_BASE}/api/lobby`;
 
-  const pushResolutionToMatchmaker = async (conflictId: string, winner: 'A' | 'B') => {
+  const pushResolutionToMatchmaker = async (conflictId: string, customPayload?: string) => {
     const detail = details.get(conflictId);
     if (!detail) return;
     
     const otp = currentRoom?.id || currentRoom?.otp;
     if (!otp) return;
 
-    const winnerPayload = winner === 'A' ? detail.payloadA : detail.payloadB;
+    // Use customPayload if manual resolve, else payloadA (for reject)
+    const winnerPayload = customPayload !== undefined ? customPayload : detail.payloadA;
     const deltaSize = new Blob([winnerPayload]).size;
 
     try {
@@ -309,60 +257,94 @@ const ConflictsPage: React.FC = () => {
     }
   };
 
-  const handleAccept = useCallback(async (conflictId: string) => {
+  const handleManualResolve = useCallback(async (conflictId: string, customPayload: string) => {
     setResolving(conflictId, true);
     try {
-      await ConflictService.accept(conflictId);
+      const conflict = details.get(conflictId);
+      await ConflictService.resolveManual(conflictId, customPayload);
       markConflictResolved(conflictId);
-      await pushResolutionToMatchmaker(conflictId, 'B'); // Incoming wins
-      notify.success('Change accepted — incoming version applied and synced.');
+      
+      // Push the manual resolution to the web app
+      await pushResolutionToMatchmaker(conflictId, customPayload);
+
+      // Auto-reject any older conflicts for this fileId
+      if (conflict) {
+        const olderConflicts = [...details.values()].filter(c => c.fileId === conflict.fileId && c.conflictId !== conflictId);
+        for (const older of olderConflicts) {
+          try {
+            await ConflictService.reject(older.conflictId);
+            markConflictResolved(older.conflictId);
+          } catch (e) {
+            console.error('Failed to auto-reject older conflict', e);
+          }
+        }
+      }
+
+      notify.success('Conflict resolved and synced.');
+      setSelectedConflictId(null);
     } catch (err) {
       notify.error(err instanceof ServiceError ? err.message : String(err));
       setResolving(conflictId, false);
     }
-  }, [markConflictResolved, currentRoom, details, localNodeId]);
+  }, [markConflictResolved, details]);
 
   const handleReject = useCallback(async (conflictId: string) => {
     setResolving(conflictId, true);
     try {
+      const conflict = details.get(conflictId);
       await ConflictService.reject(conflictId);
       markConflictResolved(conflictId);
-      await pushResolutionToMatchmaker(conflictId, 'A'); // Original wins
-      notify.success('Change rejected — original version kept and synced.');
+      
+      // Push the rejection (original A wins) to the web app
+      await pushResolutionToMatchmaker(conflictId);
+      
+      if (conflict) {
+        const olderConflicts = [...details.values()].filter(c => c.fileId === conflict.fileId && c.conflictId !== conflictId);
+        for (const older of olderConflicts) {
+          try {
+            await ConflictService.reject(older.conflictId);
+            markConflictResolved(older.conflictId);
+          } catch (e) {
+            console.error('Failed to auto-reject older conflict', e);
+          }
+        }
+      }
+
+      notify.success('Conflict deleted.');
+      setSelectedConflictId(null);
     } catch (err) {
       notify.error(err instanceof ServiceError ? err.message : String(err));
       setResolving(conflictId, false);
     }
-  }, [markConflictResolved, currentRoom, details, localNodeId]);
+  }, [markConflictResolved, details]);
 
-  const sorted = useMemo(() => [...details.values()].sort((a, b) => b.detectedAt.getTime() - a.detectedAt.getTime()), [details]);
+  // Group by fileId and show only the latest
+  const groupedConflicts = useMemo(() => {
+    const all = [...details.values()].sort((a, b) => b.detectedAt.getTime() - a.detectedAt.getTime());
+    const seen = new Set<string>();
+    const grouped = [];
+    for (const c of all) {
+      if (!seen.has(String(c.fileId))) {
+        seen.add(String(c.fileId));
+        grouped.push(c);
+      }
+    }
+    return grouped;
+  }, [details]);
 
   return (
     <>
-      {/* Topbar */}
       <div className="ds-topbar">
         <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/')}><IconArrowLeft size={14} /> Files</button>
         <span className="ds-topbar-title">Conflict Resolution</span>
-        {pendingConflicts > 0 && <span className="ds-badge ds-badge-red">{pendingConflicts} pending</span>}
+        {groupedConflicts.length > 0 && <span className="ds-badge ds-badge-red">{groupedConflicts.length} pending</span>}
         <div className="ds-topbar-actions">
           <button className="ds-btn ds-btn-ghost" onClick={refreshStatus}><IconRefresh size={14} /> Refresh</button>
         </div>
       </div>
 
-      <div className="ds-main-scroll ds-page-enter" style={{ maxWidth: 900, margin: '0 auto', width: '100%' }}>
-        {/* Amber banner */}
-        {pendingConflicts > 0 && (
-          <div className="ds-banner ds-banner-amber" style={{ borderRadius: '0 var(--r-md) var(--r-md) 0' }}>
-            <span style={{ fontSize: '1.1rem' }}>⚠️</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>{pendingConflicts} conflict{pendingConflicts !== 1 ? 's' : ''} require your review</div>
-              <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 2, opacity: 0.8 }}>As the document owner, Accept or Reject each change before it propagates to peers.</div>
-            </div>
-          </div>
-        )}
-
-        {/* Empty state */}
-        {sorted.length === 0 && (
+      <div className="ds-main-scroll ds-page-enter" style={{ maxWidth: 1000, margin: '0 auto', width: '100%' }}>
+        {groupedConflicts.length === 0 && (
           <div className="ds-empty" style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>✅</div>
             <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>All conflicts resolved</h2>
@@ -373,17 +355,52 @@ const ConflictsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Conflict cards */}
-        {sorted.length > 0 && (
+        {groupedConflicts.length > 0 && !selectedConflictId && (
+          <div className="ds-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Room Name</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>File Name</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Conflict Time</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupedConflicts.map(c => (
+                  <tr key={c.conflictId} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '12px 16px' }}>{currentRoom?.name || currentRoom?.id || 'Local Room'}</td>
+                    <td style={{ padding: '12px 16px', fontWeight: 500 }}>File #{c.fileId}</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{c.detectedAt.toLocaleString()}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      <button className="ds-btn ds-btn-primary" style={{ padding: '4px 12px', fontSize: 12, height: 'auto' }} onClick={() => setSelectedConflictId(c.conflictId)}>
+                        Check
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {groupedConflicts.length > 0 && selectedConflictId && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {sorted.map(c => (
-              <ConflictCard
-                key={c.conflictId}
-                conflict={c}
-                onAccept={handleAccept}
-                onReject={handleReject}
-              />
-            ))}
+            <button className="ds-btn ds-btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setSelectedConflictId(null)}>
+              <IconArrowLeft size={14} /> Back to List
+            </button>
+            {(() => {
+              const selected = groupedConflicts.find(c => c.conflictId === selectedConflictId);
+              return selected ? (
+                <InteractiveConflictEditor
+                  conflict={selected}
+                  onManualResolve={handleManualResolve}
+                  onReject={handleReject}
+                />
+              ) : (
+                <div style={{ color: 'var(--red)' }}>Conflict not found or already resolved.</div>
+              );
+            })()}
           </div>
         )}
       </div>

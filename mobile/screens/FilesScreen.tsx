@@ -25,6 +25,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MATCHMAKER_KEY = '@docusync/matchmaker_url';
 const DEFAULT_MATCHMAKER = 'http://10.127.60.142:3000';
+
+/**
+ * Extensions that DocuSync's delta engine can handle (text streams).
+ * Anything NOT in this set is rejected before upload.
+ * Mirrors desktop/electron/ipc-handlers.ts → ALLOWED_EXTENSIONS.
+ */
+const MOBILE_ALLOWED_EXTENSIONS = new Set([
+  'txt', 'md', 'json', 'csv', 'ts', 'tsx', 'js', 'jsx', 'css', 'html', 'docx', 'doc', ''
+]);
+
 async function getMatchmakerUrl(): Promise<string> {
   try {
     const saved = await AsyncStorage.getItem(MATCHMAKER_KEY);
@@ -123,8 +133,19 @@ export default function FilesScreen({ navigation }: any) {
       });
       if (result.canceled) return;
 
-      setIsSharing(true);
       const asset = result.assets[0];
+
+      // ── Binary-file guard (mirrors desktop ALLOWED_EXTENSIONS) ──
+      const pickedExt = (asset.name.split('.').pop() ?? '').toLowerCase();
+      if (!MOBILE_ALLOWED_EXTENSIONS.has(pickedExt)) {
+        Alert.alert(
+          'Unsupported File Type',
+          `Binary files (${asset.name}) are not supported. DocuSync's delta engine operates on text streams.`
+        );
+        return;
+      }
+
+      setIsSharing(true);
       let contentString = '';
       try {
         contentString = await FileSystem.readAsStringAsync(asset.uri, {

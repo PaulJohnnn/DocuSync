@@ -109,6 +109,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, status: 'verified' }, { headers: corsHeaders });
     }
 
+    if (action === 'cancel_request') {
+      const { email } = body;
+      const idx = db.pending.findIndex((p: any) => p.email.toLowerCase() === email.toLowerCase());
+      if (idx !== -1) {
+        db.pending.splice(idx, 1);
+        saveDb(db);
+      }
+      return NextResponse.json({ success: true }, { headers: corsHeaders });
+    }
+
     if (action === 'approve') {
       const { reqId } = body;
       const idx = db.pending.findIndex((p: any) => p.id === reqId);

@@ -38,7 +38,7 @@ function getMatchmakerUrl(): string {
     return `${import.meta.env.VITE_WEB_URL}/api/lobby`;
   }
   // Default to the live matchmaker in all environments (even dev) to avoid localhost routing issues
-  return 'https://docusync-pnc.vercel.app/api/lobby';
+  return import.meta.env.DEV ? 'http://localhost:3000/api/lobby' : 'https://docusync-pnc.vercel.app/api/lobby';
 }
 
 function loadRooms(): Room[] {

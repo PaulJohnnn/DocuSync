@@ -55,6 +55,15 @@ class ConflictService {
     const result = await window.docuSync.resolveConflict(conflictId, 'A');
     if (!result.success) throw new ServiceError('ConflictService.reject', result.error ?? 'Reject failed.');
   }
+
+  /**
+   * Resolves a conflict using a custom provided payload. Owner-only action.
+   */
+  static async resolveManual(conflictId: string, customPayload: string): Promise<void> {
+    if (!window.docuSync?.resolveConflictManual) throw new ServiceError('ConflictService.resolveManual', 'IPC bridge not available.');
+    const result = await window.docuSync.resolveConflictManual(conflictId, customPayload);
+    if (!result.success) throw new ServiceError('ConflictService.resolveManual', result.error ?? 'Manual resolve failed.');
+  }
 }
 
 export default ConflictService;

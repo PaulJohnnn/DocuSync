@@ -8,6 +8,7 @@ import {
   LogOut, Loader2, ArrowLeft
 } from 'lucide-react';
 import { uGet, uSet, uRemove } from '@/lib/userStorage';
+import { toast } from 'sonner';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -143,9 +144,16 @@ export default function FilesPage() {
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         if (file.name.startsWith('.') || file.size > 5 * 1024 * 1024) continue;
+        
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        const REJECTED_TYPES = ['png', 'jpg', 'jpeg', 'mp4', 'mp3', 'exe', 'zip', 'gif', 'webp', 'bmp', 'ico', 'pdf', 'rar', '7z', 'tar', 'gz', 'dmg', 'iso', 'bin', 'dll', 'so', 'class', 'pyc'];
+        if (REJECTED_TYPES.includes(ext)) {
+          toast.error(`Binary files (${file.name}) are not supported. DocuSync's delta engine operates on text streams.`, { duration: 5000 });
+          continue;
+        }
+
         try {
           let content = '';
-          const ext = file.name.split('.').pop()?.toLowerCase() || '';
           if (ext === 'docx') {
             const formData = new FormData();
             formData.append('file', file);
@@ -410,17 +418,11 @@ export default function FilesPage() {
             boxShadow: '0 10px 25px rgba(0,0,0,0.1)', padding: 8, minWidth: 260, zIndex: 50,
             animation: 'slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}>
-            {/* You */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-              borderRadius: 8, background: 'var(--s1)'
-            }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>You (Web App)</div>
-                <div style={{ fontSize: 11, color: 'var(--t3)' }}>🌐 Web Node • Online</div>
+            {connectedPeers.length === 0 && (
+              <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--t3)', fontStyle: 'italic', textAlign: 'center' }}>
+                No other peers connected
               </div>
-            </div>
+            )}
             
             {/* Peers */}
             {connectedPeers.map((p, i) => {
@@ -455,10 +457,14 @@ export default function FilesPage() {
       </div>
 
       {/* Room Files Label + Share Button */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', letterSpacing: 1 }}>
-          ROOM FILES ({roomFiles.length})
-        </div>
+      {(() => {
+        const activeFiles = roomFiles.filter(f => !f.isDeleted && f.status !== 'deleted');
+        return (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--t3)', letterSpacing: 1 }}>
+                ROOM FILES ({activeFiles.length})
+              </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="ds-btn ds-btn-primary" style={{ fontSize: 13 }} onClick={() => handleShareToRoom(false)}>
             <FileText size={13} /> Share Files
@@ -470,7 +476,7 @@ export default function FilesPage() {
       </div>
 
       {/* File List */}
-      {roomFiles.length === 0 ? (
+      {activeFiles.length === 0 ? (
         <div style={{
           background: 'var(--s1)', borderRadius: 12, border: '1px solid var(--b1)',
           padding: '60px 20px', display: 'flex', flexDirection: 'column',
@@ -499,7 +505,7 @@ export default function FilesPage() {
             <div style={{ minWidth: 240, textAlign: 'right', paddingRight: 8 }}>Actions</div>
           </div>
 
-          {roomFiles.map((f, i) => {
+          {activeFiles.map((f, i) => {
             const ext = (f.fileName || f.name || '').split('.').pop() ?? '';
             const { icon, color, bg } = extMeta(ext);
             return (
@@ -568,6 +574,9 @@ export default function FilesPage() {
           })}
         </div>
       )}
+          </>
+        );
+      })()}
     </PageShell>
   );
 }

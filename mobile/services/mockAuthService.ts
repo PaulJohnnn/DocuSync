@@ -55,6 +55,14 @@ export async function requestAccount(email: string): Promise<'verified'> {
   return 'verified';
 }
 
+export async function cancelRequest(email: string): Promise<void> {
+  await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'cancel_request', email })
+  }).catch(() => {});
+}
+
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
     const data = await AsyncStorage.getItem(SESSION_KEY);
@@ -85,6 +93,7 @@ export async function checkApprovalStatus(email: string): Promise<string | null>
 const mockAuthService = {
   login,
   requestAccount,
+  cancelRequest,
   getCurrentUser,
   logout,
   checkApprovalStatus,

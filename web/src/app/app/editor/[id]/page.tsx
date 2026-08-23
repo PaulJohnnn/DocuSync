@@ -2,13 +2,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
-import { ArrowLeft, Save, RefreshCw, Clock, WifiOff, Wifi } from 'lucide-react';
+import { ArrowLeft, Save, RefreshCw, Clock, WifiOff, Wifi, History as HistoryIcon, FileDown, LogOut, Download } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { uGet, uSet } from '@/lib/userStorage';
 import { useWebSync } from '@/context/WebSyncContext';
+import { useSyncState } from '@/context/SyncStateContext';
 const TipTapEditor = dynamic(() => import('@/components/TipTapEditor'), { ssr: false });
 import type { RemoteCursor } from '@/components/TipTapEditor';
 import { diffWords } from 'diff';
+import { toast } from 'sonner';
 // ── Matchmaker URL ─────────────────────────────────────────────────────────
 const MATCHMAKER_URL = process.env.NODE_ENV === 'development'
   ? '/api/lobby'
@@ -39,9 +41,10 @@ export default function EditorPage() {
   const params = useParams();
   const router = useRouter();
   const fileId = params.id as string;
+  const { syncState, registerReconnectCallback } = useSyncState();
   const [file, setFile] = useState<FileRecord | null>(null);
   const [content, setContent] = useState('');
-  const [conflictData, setConflictData] = useState<{ local: string; remote: string } | null>(null);
+
   
   const setContentAndRef = (v: string) => { currentContentRef.current = v; setContent(v); };
   const [saved, setSaved] = useState(true);
@@ -153,13 +156,18 @@ export default function EditorPage() {
       if (msg.nodeId === localNodeIdRef.current) return;
       if (msg.authorNodeId === localNodeIdRef.current) return;
       if (isTypingRef.current || hasPendingChangesRef.current) return; // Don't stomp on local typing or pending pushes
+      console.log('[APPLY]', 'source:', msg.nodeId, 'my content before:', currentContentRef.current, 'incoming content:', msg.content);
       if (msg.content && msg.content !== currentContentRef.current) {
         lastSyncedAt.current = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now();
         setContentAndRef(msg.content);
         lastSave.current = msg.content;
         setSaved(true);
         setSyncStatusMsg(`↓ Live Synced`);
-        if (msg.vectorClockJson) localVectorClockRef.current = msg.vectorClockJson;
+        if (msg.vectorClockJson) {
+          const myIdx = localVectorClockRef.current.nodeIndex;
+          localVectorClockRef.current = msg.vectorClockJson;
+          localVectorClockRef.current.nodeIndex = myIdx;
+        }
         
         try {
           const stored = uGet('files');
@@ -182,16 +190,23 @@ export default function EditorPage() {
 
   // ── Online/Offline detection ──────────────────────────────────────────────
   useEffect(() => {
-    const goOnline = () => setIsOnline(true);
+    const isActuallyOnline = navigator.onLine;
+    const isDevOffline = (window as any).__DOCUSYNC_DEV_OFFLINE__ === true || syncState === 'offline';
+    setIsOnline(isActuallyOnline && !isDevOffline);
+
+    const goOnline = () => {
+      const devOffline = (window as any).__DOCUSYNC_DEV_OFFLINE__ === true || syncState === 'offline';
+      setIsOnline(!devOffline);
+    };
     const goOffline = () => setIsOnline(false);
-    setIsOnline(navigator.onLine);
+
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
     return () => {
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
     };
-  }, []);
+  }, [syncState]);
 
   // ── Load file from local storage ──────────────────────────────────────────
   useEffect(() => {
@@ -240,7 +255,7 @@ export default function EditorPage() {
       return;
     }
 
-    if (!navigator.onLine) {
+    if (!navigator.onLine || syncState === 'offline' || (window as any).__DOCUSYNC_DEV_OFFLINE__ === true) {
       setSyncStatusMsg('Offline — queued');
       setOfflineQueue(true);
       return;
@@ -270,6 +285,7 @@ export default function EditorPage() {
               nodeId: localNodeIdRef.current,
               content: contentToSave,
               vectorClock: vectorClockSnapshot,
+              isOfflineReconnect: offlineQueue,
             }),
           });
           if (res.ok) {
@@ -281,12 +297,30 @@ export default function EditorPage() {
               localVectorClockRef.current.nodeIndex = myIdx;
             }
             if (data.escalated) {
-              setConflictData({ local: contentToSave, remote: data.serverContent || data.content || '' });
-              setSyncStatusMsg('Conflict Detected!');
+              const conflict = {
+                id: `web-conflict-${Date.now()}`,
+                fileId: fileId,
+                localContent: contentToSave,
+                serverContent: data.serverContent || data.content || '',
+                timestamp: Date.now()
+              };
+              let conflicts = [];
+              try {
+                const stored = uGet('docusync_web_conflicts');
+                if (stored) conflicts = JSON.parse(stored);
+              } catch (e) {}
+              conflicts.push(conflict);
+              uSet('docusync_web_conflicts', JSON.stringify(conflicts));
+              
+              setSyncStatusMsg('Conflict Detected! Check menu.');
               return;
             } else {
+              if (data.lwwResolved) {
+                toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
+              }
               setSyncStatusMsg(`Synced ✓`);
               setOfflineQueue(false);
+              console.log('[OfflineQueue] Reset to false after sync');
               hasPendingChangesRef.current = false;
             }
           }
@@ -305,18 +339,37 @@ export default function EditorPage() {
               authorName: localNodeIdRef.current.slice(0, 8),
               content: contentToSave,
               vectorClock: vectorClockSnapshot,
-              deltaSize
+              deltaSize,
+              isOfflineReconnect: offlineQueue
             }),
           });
           if (res.ok) {
             const data = await res.json();
             if (data.escalated) {
-              setConflictData({ local: contentToSave, remote: data.serverContent || data.content || '' });
-              setSyncStatusMsg('Conflict Detected!');
+              const conflict = {
+                id: `web-conflict-${Date.now()}`,
+                fileId: fileId,
+                localContent: contentToSave,
+                serverContent: data.serverContent || data.content || '',
+                timestamp: Date.now()
+              };
+              let conflicts = [];
+              try {
+                const stored = uGet('docusync_web_conflicts');
+                if (stored) conflicts = JSON.parse(stored);
+              } catch (e) {}
+              conflicts.push(conflict);
+              uSet('docusync_web_conflicts', JSON.stringify(conflicts));
+
+              setSyncStatusMsg('Conflict Detected! Check menu.');
               return;
+            }
+            if (data.lwwResolved) {
+              toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
             }
             setSyncStatusMsg(`Synced ✓`);
             setOfflineQueue(false);
+            console.log('[OfflineQueue] Reset to false after sync');
             hasPendingChangesRef.current = false;
           } else if (res.status === 409) {
             const data = await res.json();
@@ -343,7 +396,7 @@ export default function EditorPage() {
     } finally {
       setSyncing(false);
     }
-  }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
+  }, [fileId, getRoomHostInfo, getSyncBaseUrl, offlineQueue]);
 
   // ── Track last accepted seq to avoid re-applying same snapshot ───────────
   const lastAcceptedSeq = useRef<number>(0);
@@ -373,6 +426,7 @@ export default function EditorPage() {
             if (res.ok) {
               const data = await res.json();
               if (!data.upToDate && data.content && data.authorNodeId !== localNodeIdRef.current) {
+                console.log('[POLL DIRECT]', 'server content:', data.content, 'will overwrite local:', !(isTypingRef.current || hasPendingChangesRef.current));
                 if (data.content !== currentContentRef.current) {
                   setContentAndRef(data.content);
                   lastSave.current = data.content;
@@ -395,6 +449,7 @@ export default function EditorPage() {
 
         if (data.unchanged || !data.snapshot?.content) return;
         const snap = data.snapshot;
+        console.log('[POLL MATCHMAKER]', 'server content:', snap.content, 'will overwrite local:', !(isTypingRef.current || hasPendingChangesRef.current));
 
         // Skip our own pushes
         if (snap.authorNodeId === localNodeIdRef.current) return;
@@ -458,6 +513,22 @@ export default function EditorPage() {
     // content from the server. Updating it on save would cause the Matchmaker
     // poll to return 'unchanged' for Desktop edits saved before our save time.
 
+    console.log('[VC SHAPE]', JSON.stringify(localVectorClockRef.current, null, 2));
+
+    // Guarded increment of our vector clock counter before pushing
+    try {
+      const myIdx = localVectorClockRef.current?.nodeIndex;
+      if (typeof myIdx === 'number' && localVectorClockRef.current?.root?.children?.[myIdx]) {
+        localVectorClockRef.current.root.children[myIdx].counter = 
+          (localVectorClockRef.current.root.children[myIdx].counter || 0) + 1;
+      } else {
+        console.warn('Vector clock shape invalid or uninitialized, skipping local tick.');
+      }
+    } catch (e) {
+      console.warn('Failed to tick vector clock:', e);
+    }
+
+    console.log('[SEND]', JSON.stringify(localVectorClockRef.current));
     await pushToHost(contentToSave, localVectorClockRef.current, forcePush);
   }, [fileId, pushToHost]);
 
@@ -484,20 +555,23 @@ export default function EditorPage() {
   }, [saveFile]);
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      if (hasPendingChangesRef.current) {
-        saveFile(currentContentRef.current, true);
-      }
+    if (isOnline && hasPendingChangesRef.current) {
+      saveFile(currentContentRef.current, true);
+    }
+  }, [isOnline, saveFile]);
+
+  // ── Register real reconnect flush callback with SyncStateContext ─────────
+  // OfflineBanner's "Reconnect" button calls context.reconnect(), which calls
+  // this function — flushing queued offline edits via the existing pushToHost
+  // path with isOfflineReconnect: true already set on offlineQueue state.
+  useEffect(() => {
+    const flush = async () => {
+      hasPendingChangesRef.current = true; // ensure saveFile doesn't short-circuit
+      await saveFile(currentContentRef.current, true);
     };
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
+    registerReconnectCallback(flush);
+    return () => registerReconnectCallback(null); // clean up on unmount
+  }, [registerReconnectCallback, saveFile]);
 
   useEffect(() => {
     if (!file) return;
@@ -509,13 +583,6 @@ export default function EditorPage() {
 
   return (
     <>
-      {/* Offline Banner outside PageShell if desired, or inside */}
-      {!isOnline && (
-        <div style={{ background: '#f59e0b', color: '#000', padding: '6px 16px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <WifiOff size={14} /> <span>You are currently offline. Edits saved locally.</span>
-        </div>
-      )}
-
       <PageShell>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -528,6 +595,9 @@ export default function EditorPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button className="ds-btn" style={{ background: 'transparent', color: 'var(--t2)', border: '1px solid var(--b1)' }} onClick={() => router.push(`/app/history/${fileId}`)} title="View History">
+              <Clock size={14} /> History
+            </button>
             <button className="ds-btn" onClick={() => {
               const origName = file.name || 'document';
               const ext = origName.split('.').pop()?.toLowerCase() || '';
@@ -610,94 +680,10 @@ export default function EditorPage() {
             <span>Δ {new Blob([content]).size} B</span>
             {offlineQueue && <span style={{ color: '#ef4444' }}>⏳ Queued offline</span>}
           </div>
-          <span>{peers?.length || 0} peers connected</span>
+          <span>{(peers?.length || 0) + 1} peers connected</span>
         </div>
       </PageShell>
 
-      {/* Conflict Modal */}
-      {conflictData && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.6)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24
-        }}>
-          <div style={{
-            background: 'var(--bg-base)', borderRadius: 12, width: '100%', maxWidth: 1000,
-            maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)'
-          }}>
-            <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-              <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--amber)' }}>⚠️ Conflict Detected</h2>
-              <button onClick={() => setConflictData(null)} className="ds-btn ds-btn-ghost">Cancel</button>
-            </div>
-            
-            <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-              {/* Local */}
-              <div style={{ flex: 1, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '8px 16px', background: 'var(--bg-sidebar)', fontSize: 13, fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
-                  Local edit (offline)
-                </div>
-                <div style={{ flex: 1, padding: 24, overflow: 'auto', background: '#fff', color: '#000', fontSize: 14 }}>
-                  {(() => {
-                    const strip = (s: string) => s.replace(/<[^>]*>?/gm, ' ');
-                    const diffs = diffWords(strip(conflictData.remote), strip(conflictData.local));
-                    return diffs.map((part, i) => {
-                      if (part.removed) return null;
-                      return (
-                      <span key={i} style={{ 
-                        background: part.added ? '#86efac' : 'transparent',
-                        color: 'inherit',
-                      }}>
-                        {part.value}
-                      </span>
-                    )});
-                  })()}
-                </div>
-                <div style={{ padding: 16, borderTop: '1px solid var(--border)', background: 'var(--bg-sidebar)' }}>
-                   <button className="ds-btn ds-btn-primary" style={{ width: '100%' }} onClick={() => {
-                     saveFile(conflictData.local, true);
-                     setConflictData(null);
-                   }}>
-                     Keep Local Edit
-                   </button>
-                </div>
-              </div>
-              
-              {/* Remote */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ padding: '8px 16px', background: 'var(--bg-sidebar)', fontSize: 13, fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
-                  Updated version file (online)
-                </div>
-                <div style={{ flex: 1, padding: 24, overflow: 'auto', background: '#fff', color: '#000', fontSize: 14 }}>
-                  {(() => {
-                    const strip = (s: string) => s.replace(/<[^>]*>?/gm, ' ');
-                    const diffs = diffWords(strip(conflictData.remote), strip(conflictData.local));
-                    return diffs.map((part, i) => {
-                      if (part.added) return null;
-                      return (
-                      <span key={i} style={{ 
-                        background: part.removed ? '#fca5a5' : 'transparent',
-                        textDecoration: part.removed ? 'line-through' : 'none',
-                      }}>
-                        {part.value}
-                      </span>
-                    )});
-                  })()}
-                </div>
-                <div style={{ padding: 16, borderTop: '1px solid var(--border)', background: 'var(--bg-sidebar)' }}>
-                   <button className="ds-btn" style={{ width: '100%' }} onClick={() => {
-                     setContentAndRef(conflictData.remote);
-                     saveFile(conflictData.remote, true);
-                     setConflictData(null);
-                   }}>
-                     Accept Online Version
-                   </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

@@ -112,6 +112,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [approvedPin, setApprovedPin] = useState<string | null>(null);
+  const [copyState, setCopyState] = useState<'idle' | 'loading' | 'copied'>('idle');
 
   useEffect(() => {
     if (!success) return;
@@ -127,6 +128,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) { setEmailError('Email is required.'); return; }
+
     setLoading(true);
     try {
       await mockAuthService.requestAccount(email);
@@ -165,17 +167,41 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
             }}>
               <span>{approvedPin}</span>
               <button
-                onClick={() => navigator.clipboard.writeText(approvedPin)}
+                onClick={() => {
+                  if (copyState !== 'idle' || !approvedPin) return;
+                  setCopyState('loading');
+                  setTimeout(() => {
+                    navigator.clipboard.writeText(approvedPin).then(() => {
+                      setCopyState('copied');
+                      setTimeout(() => setCopyState('idle'), 2000);
+                    });
+                  }, 400);
+                }}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex',
                   alignItems: 'center', justifyContent: 'center', color: '#64748b'
                 }}
                 title="Copy PIN"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
+                {copyState === 'loading' && (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+                  </svg>
+                )}
+                
+                {copyState === 'copied' && (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+
+                {copyState === 'idle' && (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                )}
               </button>
             </div>
             <button onClick={onBack} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, background: 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)', color: '#fff', border: 'none', cursor: 'pointer' }}>
@@ -186,10 +212,10 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
           <>
             <h3 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>Request Sent!</h3>
             <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 24, lineHeight: 1.5 }}>
-              Your profile request for <strong>{email}</strong> has been sent. Waiting for admin approval...
+              Your profile request for <strong>{email}</strong> has been logged locally. Waiting for admin approval...
             </p>
             <div style={{ width: 32, height: 32, margin: '0 auto 16px', border: '3px solid #e2e8f0', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-            <button onClick={onBack} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
+            <button onClick={() => { mockAuthService.cancelRequest(email); onBack(); }} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#fff', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
               Back to Unlock
             </button>
           </>
@@ -227,8 +253,8 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
             }}
           />
         </div>
-        {emailError && <p style={{ marginTop: 4, fontSize: 12, color: '#ef4444' }}>{emailError}</p>}
       </div>
+      {emailError && <p style={{ marginTop: 4, fontSize: 12, color: '#ef4444' }}>{emailError}</p>}
 
       <button
         type="submit"
@@ -322,7 +348,16 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         else navigate('/');
       }, 800);
     } catch (err: any) {
-      setAuthError(err?.message ?? 'Invalid credentials. Please try again.');
+      const rawMsg: string = err?.message ?? 'Invalid credentials. Please try again.';
+      // Map generic API errors to user-friendly test-case messages
+      const friendlyMsg =
+        rawMsg.toLowerCase().includes('not found') ||
+        rawMsg.toLowerCase().includes('invalid login') ||
+        rawMsg.toLowerCase().includes('no user') ||
+        rawMsg.toLowerCase().includes('invalid credentials')
+          ? 'Login rejected. Error: Account not found'
+          : rawMsg;
+      setAuthError(friendlyMsg);
       setPinError('Incorrect PIN');
       setPin('');
       triggerShake();

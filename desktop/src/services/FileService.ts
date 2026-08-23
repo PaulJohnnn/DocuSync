@@ -103,6 +103,15 @@ class FileService {
   }
 
   /**
+   * Appends a tombstone 'delete' event to the log and broadcasts it.
+   */
+  static async deleteFile(fileId: number): Promise<void> {
+    if (!window.docuSync?.deleteFile) throw new ServiceError('FileService.deleteFile', 'Delete not available.');
+    const result = await window.docuSync.deleteFile(fileId);
+    if (!result.success) throw new ServiceError('FileService.deleteFile', result.error ?? 'Delete failed.');
+  }
+
+  /**
    * Imports a room file (from another peer) into the local repository.
    */
   static async importRoomFile(fileName: string, content: string, fileId?: number): Promise<FileRecord> {

@@ -17,6 +17,7 @@ import {
 import { formatBytes, basename } from '@docusync/shared/utils/formatters';
 import { notify } from '@docusync/shared/utils/notifications';
 import SyncService from '@/services/SyncService';
+import { toast } from 'sonner';
 
 import { Extension } from '@tiptap/core';
 import { diffWords } from 'diff';
@@ -142,17 +143,14 @@ const ToolbarBtn: React.FC<{
   </button>
 );
 
-// ── EditorPage ──────────────────────────────────────────────────────────────
+// ── EditorCore ──────────────────────────────────────────────────────────────
 
-const EditorPage: React.FC = () => {
+const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ initialContent, filePath }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const fileId = useMemo(() => { const n = parseInt(id ?? '', 10); return Number.isFinite(n) ? n : null; }, [id]);
   const { currentRoom, connectedPeers, matchmakerPeerCount, vectorClock, pendingConflicts, localNodeId, syncStatus } = useElectronSync();
 
-  const [filePath, setFilePath] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [lastDeltaSize, setLastDeltaSize] = useState<number | null>(null);
@@ -166,7 +164,7 @@ const EditorPage: React.FC = () => {
   // lastSyncedAt tracks which remote version we've already applied (LWW guard)
   const lastSyncedAt = useRef<number>(0);
   // lastContent tracks last saved HTML to avoid redundant saves
-  const lastContent = useRef<string>('');
+  const lastContent = useRef<string>(initialContent);
   const myNodeId = localNodeId || `anon-${Math.random().toString(36).slice(2, 8)}`;
   const roomOtp = currentRoom?.id;
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
@@ -222,7 +220,7 @@ const EditorPage: React.FC = () => {
       Placeholder.configure({ placeholder: 'Start writing… (auto-saves every 500 ms)' }),
       RemoteCursorsExtension.configure({ cursors: Object.values(remoteCursors) }),
     ],
-    content: '',
+    content: initialContent,
     editorProps: { attributes: { class: 'ProseMirror', 'data-testid': 'tiptap-editor' } },
   });
 
@@ -232,7 +230,7 @@ const EditorPage: React.FC = () => {
   // collaborators see changes in real time instead of waiting for the 4s poll.
   useEffect(() => {
     if (!window.docuSync?.onFileUpdated) return;
-    const unsub = window.docuSync.onFileUpdated((updatedFileId: number, newContent: string) => {
+    const unsub = window.docuSync.onFileUpdated((updatedFileId: number, newContent: string, lwwResolved?: boolean) => {
       if (updatedFileId !== fileId) return;
       if (isTypingRef.current) return; // Don't stomp on local typing
       if (!editor) return;
@@ -240,17 +238,33 @@ const EditorPage: React.FC = () => {
       editor.commands.setContent(newContent, { emitUpdate: false });
       const maxPos = editor.state.doc.content.size;
       editor.commands.setTextSelection(Math.min(from, maxPos - 1));
-      setIncomingBanner('↓ Remote edit received');
-      setTimeout(() => setIncomingBanner(null), 4000);
+      
+      if (lwwResolved) {
+        toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
+      } else {
+        setIncomingBanner('↓ Remote edit received');
+        setTimeout(() => setIncomingBanner(null), 4000);
+      }
     });
     return unsub;
   }, [fileId, editor]);
 
+  // Listen for remote deletes of the currently open file
+  useEffect(() => {
+    if (!window.docuSync?.onFileDeleted) return;
+    const unsub = window.docuSync.onFileDeleted((deletedFileId: number) => {
+      if (deletedFileId === fileId) {
+        notify.error('This file was deleted by another user. It is now read-only or obsolete.');
+        setIncomingBanner('⚠ File deleted by remote peer');
+        // We do not auto-close the editor as per Option 1.
+      }
+    });
+    return unsub;
+  }, [fileId]);
+
   useEffect(() => {
     if (pendingConflicts > prevConflictCount.current) {
       setConflictBannerDismissed(false);
-      // Auto-resolution toast
-      notify.success('Conflict resolved automatically using Last-Write-Wins.');
     }
     prevConflictCount.current = pendingConflicts;
   }, [pendingConflicts]);
@@ -373,73 +387,6 @@ const EditorPage: React.FC = () => {
     return () => clearInterval(iv);
   }, [roomOtp, fileId, editor, myNodeId]);
 
-
-
-  // ── File load ─────────────────────────────────────────────────────────────
-
-  const loadFile = useCallback(async () => {
-    if (fileId === null) { setLoadError('Invalid file ID.'); setLoading(false); return; }
-    
-      const mockMap: Record<number, { path: string; content: string }> = {
-        101: { 
-          path: 'C:/Users/Paul John Palamara/Documents/ProjectProposal.docx', 
-          content: '<h2>📄 Word Document (.docx)</h2><p><strong>Use Case:</strong> Formal reports, essays, proposals, and structured business documents.</p><p><strong>DocuSync Behavior:</strong> This file represents a rich-text document. DocuSync extracts the raw text and formatting (like <strong>bold</strong>, <em>italics</em>, and headers) and allows real-time collaborative editing using Delta Encoding.</p><blockquote>"A successful thesis proposal requires clear architecture and robust synchronization logic."</blockquote>' 
-        },
-        102: { 
-          path: 'C:/Users/Paul John Palamara/Documents/Notes.md', 
-          content: '<h2>📝 Markdown File (.md)</h2><p><strong>Use Case:</strong> Developer documentation, README files, quick meeting notes, and knowledge base articles.</p><p><strong>DocuSync Behavior:</strong> Markdown is natively supported. It remains lightweight and is perfectly suited for DocuSync\'s CRDT (Conflict-Free Replicated Data Type) engine for high-speed P2P syncing.</p><ul><li>Supports lists</li><li>Supports code blocks</li><li>Extremely fast delta resolution</li></ul>' 
-        },
-        103: { 
-          path: 'C:/Users/Paul John Palamara/Downloads/Data_Export.csv', 
-          content: '<h2>📊 Comma-Separated Values (.csv)</h2><p><strong>Use Case:</strong> Tabular data exports, database backups, and spreadsheet data (Excel/Google Sheets).</p><p><strong>DocuSync Behavior:</strong> Since CSV is pure UTF-8 text, DocuSync can safely synchronize row changes. Each line represents a data record.</p><pre><code>id,first_name,last_name,role,sync_status\n1,Paul John,Palamara,Admin,Synced\n2,John,Doe,User,Pending\n3,Jane,Smith,Editor,Conflict</code></pre>' 
-        },
-        104: { 
-          path: 'C:/Users/Paul John Palamara/Projects/DocuSync/package.json', 
-          content: '<h2>⚙️ JSON Configuration (.json)</h2><p><strong>Use Case:</strong> Application configuration, API payloads, and dependency management (like NPM).</p><p><strong>DocuSync Behavior:</strong> DocuSync handles structured data effortlessly. You can safely co-edit JSON files without breaking the syntax thanks to precise line-level delta tracking.</p><pre><code>{\n  "name": "docusync-core",\n  "version": "1.0.0",\n  "description": "Hybrid P2P Synchronization Engine",\n  "author": "Palamara, Paul John G.",\n  "license": "MIT"\n}</code></pre>' 
-        },
-        105: { 
-          path: 'C:/Users/Paul John Palamara/Projects/DocuSync/index.tsx', 
-          content: '<h2>💻 React Source Code (.tsx)</h2><p><strong>Use Case:</strong> Frontend application logic, UI components, and TypeScript codebases.</p><p><strong>DocuSync Behavior:</strong> Perfect for pair-programming! DocuSync syncs code changes instantly across peers. It treats source code as a continuous stream of text, preventing merge conflicts during active development.</p><pre><code>import React from "react";\nimport { useElectronSync } from "@/context/ElectronSyncContext";\n\nexport default function App() {\n  const { syncStatus } = useElectronSync();\n  return (\n    &lt;div className="app"&gt;\n      &lt;h1&gt;DocuSync is running&lt;/h1&gt;\n      &lt;p&gt;Status: {syncStatus}&lt;/p&gt;\n    &lt;/div&gt;\n  );\n}</code></pre>' 
-        },
-        106: { 
-          path: 'C:/Users/Paul John Palamara/Pictures/Architecture.png', 
-          content: '<h2>🖼️ Image File (.png) — Rejected Format</h2><p><strong>Use Case:</strong> Graphics, architecture diagrams, photographs, and UI mockups.</p><p><strong>DocuSync Behavior:</strong> ❌ <em>Delta Encoding Not Applicable</em>. Because this is a compiled binary file rather than plain text, mathematical delta algorithms cannot accurately splice changes. Opening binary files will result in read-only mode or rejection by the engine.</p>' 
-        },
-        107: { 
-          path: 'C:/Users/Paul John Palamara/Downloads/Archive.zip', 
-          content: '<h2>📦 Compressed Archive (.zip) — Rejected Format</h2><p><strong>Use Case:</strong> Zipped folders, compressed backups, and packaged executables.</p><p><strong>DocuSync Behavior:</strong> ❌ <em>Delta Encoding Not Applicable</em>. This is a highly compressed binary blob. Attempting to sync byte-level changes in a ZIP file would corrupt the archive. DocuSync actively blocks binary formats to protect data integrity.</p>' 
-        },
-      };
-      
-      const mock = mockMap[fileId];
-      if (mock) {
-        setFilePath(mock.path);
-        const savedMockContent = localStorage.getItem(`docusync_mock_${fileId}`);
-        const finalContent = savedMockContent || mock.content;
-        if (editor) editor.commands.setContent(finalContent);
-        lastContent.current = finalContent;
-        setLoading(false);
-        return;
-      }
-    // ------------------------------
-
-    if (!window.docuSync) { setLoadError('IPC bridge not available.'); setLoading(false); return; }
-    setLoading(true); setLoadError(null);
-    try {
-      const res = await window.docuSync.openFile(fileId);
-      if (!res.success || !res.data) throw new Error(res.error ?? 'No data.');
-      const data = res.data as FileOpenData;
-      setFilePath(data.filePath);
-      if (editor && data.content) { editor.commands.setContent(data.content); lastContent.current = data.content; }
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [fileId, editor]);
-
-  useEffect(() => { loadFile(); }, [fileId]);
-
   // ── Ctrl+S ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -452,9 +399,17 @@ const EditorPage: React.FC = () => {
 
   // ── Save ──────────────────────────────────────────────────────────────────
 
+  const saveQueueRef = useRef<NodeJS.Timeout | null>(null);
+
   const performSave = useCallback(async (html: string, forceSync = false) => {
-    if (saving) return;
     if (html === lastContent.current && !forceSync) return;
+    if (saving) {
+      if (saveQueueRef.current) clearTimeout(saveQueueRef.current);
+      saveQueueRef.current = setTimeout(() => {
+        if (performSaveRef.current) performSaveRef.current(html, forceSync);
+      }, 500);
+      return;
+    }
     setSaving(true);
     setSyncing(true);
     try {
@@ -467,6 +422,8 @@ const EditorPage: React.FC = () => {
         setSaving(false);
         return;
       }
+
+      let payloadVectorClock = vectorClock;
 
       // ── Step 1: Save to local SQLite via IPC (Desktop only) ──────────────
       if (fileId !== null && window.docuSync) {
@@ -483,6 +440,13 @@ const EditorPage: React.FC = () => {
         const data = res.data as FileSaveData;
         savedDeltaSize = data.deltaSize ?? data.bytesSaved;
         savedPeersNotified = data.peersNotified ?? 0;
+        
+        // The main process increments the vector clock. We MUST use this updated clock
+        // for the Matchmaker push below, otherwise we send stale data and edits get rejected.
+        if (data.vectorClock) {
+          payloadVectorClock = data.vectorClock;
+        }
+
         setLastDeltaSize(savedDeltaSize);
         setPeersNotified(savedPeersNotified);
       }
@@ -502,7 +466,7 @@ const EditorPage: React.FC = () => {
               authorNodeId: myNodeId,
               authorName: myNodeId.slice(0, 8),
               content: html,
-              vectorClock: vectorClock || {},
+              vectorClock: payloadVectorClock || {},
               deltaSize
             })
           });
@@ -564,7 +528,10 @@ const EditorPage: React.FC = () => {
         display: 'flex', alignItems: 'center',
         padding: '0 16px', gap: 10, flexShrink: 0,
       }}>
-        <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/')} style={{ height: 30, padding: '0 10px', fontSize: 12 }}>
+        <button className="ds-btn ds-btn-ghost" onClick={async () => {
+          if (editor) await performSave(editor.getHTML(), true);
+          navigate('/');
+        }} style={{ height: 30, padding: '0 10px', fontSize: 12 }}>
           <IconArrowLeft size={13} /> Room
         </button>
         <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
@@ -630,36 +597,6 @@ const EditorPage: React.FC = () => {
         </div>
       )}
 
-      {/* Conflict banner */}
-      {pendingConflicts > 0 && !conflictBannerDismissed && (
-        <div className="ds-banner ds-banner-amber" style={{ margin: '0', borderRadius: 0, flexShrink: 0 }}>
-          <span>⚠️</span>
-          <span style={{ flex: 1, fontSize: '0.8rem' }}>
-            {pendingConflicts} conflict{pendingConflicts !== 1 ? 's' : ''} detected — resolve before continuing.
-          </span>
-          <button className="ds-btn ds-btn-amber" onClick={() => navigate('/conflicts')} style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem' }}>
-            Review →
-          </button>
-          <button onClick={() => setConflictBannerDismissed(true)} style={{ background: 'transparent', border: 'none', color: 'var(--ds-text3)', cursor: 'pointer', fontSize: '1rem' }}>×</button>
-        </div>
-      )}
-
-      {/* Load error */}
-      {loadError && (
-        <div className="ds-banner ds-banner-red" style={{ margin: '0', borderRadius: 0, flexShrink: 0 }}>
-          <span>⛔</span>
-          <span style={{ flex: 1 }}>Failed to load: {loadError}</span>
-          <button className="ds-btn ds-btn-ghost" onClick={loadFile} style={{ fontSize: '0.72rem' }}>Retry</button>
-        </div>
-      )}
-
-      {/* Loading */}
-      {loading && (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ds-text3)' }}>
-          <span className="ds-pulse">⏳</span>&nbsp;Loading…
-        </div>
-      )}
-
       {/* Save Confirm Modal */}
       {showSaveConfirm && (
         <div style={{
@@ -720,7 +657,7 @@ const EditorPage: React.FC = () => {
       )}
 
       {/* Editor */}
-      {!loading && !loadError && editor && (
+      {editor && (
         <>
           {/* Formatting toolbar */}
           <div style={{
@@ -798,8 +735,7 @@ const EditorPage: React.FC = () => {
       )}
 
       {/* Footer metrics bar */}
-      {!loading && !loadError && (
-        <div style={{
+      <div style={{
           height: 28,
           borderTop: '1px solid var(--border)',
           background: 'var(--bg-sidebar)',
@@ -814,7 +750,7 @@ const EditorPage: React.FC = () => {
             <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Δ {formatBytes(lastDeltaSize)}</span>
           )}
           <span style={{ fontSize: 10, color: peersNotified > 0 ? 'var(--green)' : 'var(--text-muted)' }}>
-            {peersNotified > 0 ? `✓ ${peersNotified} notified` : `${Math.max(connectedPeers.length, matchmakerPeerCount - 1)} peers`}
+            {peersNotified > 0 ? `✓ ${peersNotified} notified` : `${Math.max(connectedPeers.length, Math.max(0, matchmakerPeerCount - 1)) + 1} peers`}
           </span>
           <span style={{
             marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)',
@@ -822,10 +758,81 @@ const EditorPage: React.FC = () => {
           }}>
             {filePath || `file #${fileId}`}
           </span>
-        </div>
-      )}
+      </div>
     </div>
   );
+};
+
+// ── EditorPage (Wrapper) ────────────────────────────────────────────────────
+
+const EditorPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const fileId = useMemo(() => { const n = parseInt(id ?? '', 10); return Number.isFinite(n) ? n : null; }, [id]);
+
+  const [isFileLoaded, setIsFileLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [initialContent, setInitialContent] = useState<string>('');
+  const [filePath, setFilePath] = useState('');
+
+  const loadFile = useCallback(async () => {
+    if (fileId === null) { setLoadError('Invalid file ID.'); return; }
+    
+    const mockMap: Record<number, { path: string; content: string }> = {
+      101: { path: 'C:/Users/Paul John Palamara/Documents/ProjectProposal.docx', content: '<h2>📄 Word Document (.docx)</h2><p><strong>Use Case:</strong> Formal reports, essays, proposals, and structured business documents.</p><p><strong>DocuSync Behavior:</strong> This file represents a rich-text document. DocuSync extracts the raw text and formatting (like <strong>bold</strong>, <em>italics</em>, and headers) and allows real-time collaborative editing using Delta Encoding.</p><blockquote>"A successful thesis proposal requires clear architecture and robust synchronization logic."</blockquote>' },
+      102: { path: 'C:/Users/Paul John Palamara/Documents/Notes.md', content: '<h2>📝 Markdown File (.md)</h2><p><strong>Use Case:</strong> Developer documentation, README files, quick meeting notes, and knowledge base articles.</p><p><strong>DocuSync Behavior:</strong> Markdown is natively supported. It remains lightweight and is perfectly suited for DocuSync\'s CRDT (Conflict-Free Replicated Data Type) engine for high-speed P2P syncing.</p><ul><li>Supports lists</li><li>Supports code blocks</li><li>Extremely fast delta resolution</li></ul>' },
+      103: { path: 'C:/Users/Paul John Palamara/Downloads/Data_Export.csv', content: '<h2>📊 Comma-Separated Values (.csv)</h2><p><strong>Use Case:</strong> Tabular data exports, database backups, and spreadsheet data (Excel/Google Sheets).</p><p><strong>DocuSync Behavior:</strong> Since CSV is pure UTF-8 text, DocuSync can safely synchronize row changes. Each line represents a data record.</p><pre><code>id,first_name,last_name,role,sync_status\n1,Paul John,Palamara,Admin,Synced\n2,John,Doe,User,Pending\n3,Jane,Smith,Editor,Conflict</code></pre>' },
+      104: { path: 'C:/Users/Paul John Palamara/Projects/DocuSync/package.json', content: '<h2>⚙️ JSON Configuration (.json)</h2><p><strong>Use Case:</strong> Application configuration, API payloads, and dependency management (like NPM).</p><p><strong>DocuSync Behavior:</strong> DocuSync handles structured data effortlessly. You can safely co-edit JSON files without breaking the syntax thanks to precise line-level delta tracking.</p><pre><code>{\n  "name": "docusync-core",\n  "version": "1.0.0",\n  "description": "Hybrid P2P Synchronization Engine",\n  "author": "Palamara, Paul John G.",\n  "license": "MIT"\n}</code></pre>' },
+      105: { path: 'C:/Users/Paul John Palamara/Projects/DocuSync/index.tsx', content: '<h2>💻 React Source Code (.tsx)</h2><p><strong>Use Case:</strong> Frontend application logic, UI components, and TypeScript codebases.</p><p><strong>DocuSync Behavior:</strong> Perfect for pair-programming! DocuSync syncs code changes instantly across peers. It treats source code as a continuous stream of text, preventing merge conflicts during active development.</p><pre><code>import React from "react";\nimport { useElectronSync } from "@/context/ElectronSyncContext";\n\nexport default function App() {\n  const { syncStatus } = useElectronSync();\n  return (\n    &lt;div className="app"&gt;\n      &lt;h1&gt;DocuSync is running&lt;/h1&gt;\n      &lt;p&gt;Status: {syncStatus}&lt;/p&gt;\n    &lt;/div&gt;\n  );\n}</code></pre>' },
+      106: { path: 'C:/Users/Paul John Palamara/Pictures/Architecture.png', content: '<h2>🖼️ Image File (.png) — Rejected Format</h2><p><strong>Use Case:</strong> Graphics, architecture diagrams, photographs, and UI mockups.</p><p><strong>DocuSync Behavior:</strong> ❌ <em>Delta Encoding Not Applicable</em>. Because this is a compiled binary file rather than plain text, mathematical delta algorithms cannot accurately splice changes. Opening binary files will result in read-only mode or rejection by the engine.</p>' },
+      107: { path: 'C:/Users/Paul John Palamara/Downloads/Archive.zip', content: '<h2>📦 Compressed Archive (.zip) — Rejected Format</h2><p><strong>Use Case:</strong> Zipped folders, compressed backups, and packaged executables.</p><p><strong>DocuSync Behavior:</strong> ❌ <em>Delta Encoding Not Applicable</em>. This is a highly compressed binary blob. Attempting to sync byte-level changes in a ZIP file would corrupt the archive. DocuSync actively blocks binary formats to protect data integrity.</p>' },
+    };
+    
+    const mock = mockMap[fileId];
+    if (mock) {
+      setFilePath(mock.path);
+      const savedMockContent = localStorage.getItem(`docusync_mock_${fileId}`);
+      setInitialContent(savedMockContent || mock.content);
+      setIsFileLoaded(true);
+      return;
+    }
+
+    if (!window.docuSync) { setLoadError('IPC bridge not available.'); return; }
+    setLoadError(null);
+    try {
+      const res = await window.docuSync.openFile(fileId);
+      if (!res.success || !res.data) throw new Error(res.error ?? 'No data.');
+      const data = res.data as FileOpenData;
+      setFilePath(data.filePath);
+      setInitialContent(data.content || '');
+      setIsFileLoaded(true);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : String(err));
+    }
+  }, [fileId]);
+
+  useEffect(() => { loadFile(); }, [loadFile]);
+
+  if (loadError) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+        <div className="ds-banner ds-banner-red" style={{ margin: '0', borderRadius: 0, flexShrink: 0 }}>
+          <span>⛔</span>
+          <span style={{ flex: 1 }}>Failed to load: {loadError}</span>
+          <button className="ds-btn ds-btn-ghost" onClick={loadFile} style={{ fontSize: '0.72rem' }}>Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isFileLoaded) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+        <span className="ds-pulse">⏳</span>&nbsp;Loading document...
+      </div>
+    );
+  }
+
+  return <EditorCore initialContent={initialContent} filePath={filePath} />;
 };
 
 export default EditorPage;

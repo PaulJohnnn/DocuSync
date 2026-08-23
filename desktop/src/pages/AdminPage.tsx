@@ -138,7 +138,7 @@ const AdminPage: React.FC = () => {
                     <button 
                       className="ds-btn" 
                       style={{ background: 'var(--ds-red)', color: 'white', border: 'none' }}
-                      disabled={deleting || deleteOtp.length < 3}
+                      disabled={deleting || deleteOtp.trim().length === 0}
                       onClick={async () => {
                         if (!window.confirm(`Are you sure you want to forcibly delete group ${deleteOtp}?`)) return;
                         setDeleting(true);

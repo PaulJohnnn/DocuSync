@@ -19,44 +19,58 @@ type View =
 
 // ── OTP display (tap-to-copy) ─────────────────────────────────────────────
 const OtpDisplay: React.FC<{ otp: string }> = ({ otp }) => {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'loading' | 'copied'>('idle');
+  
   const copy = () => {
-    navigator.clipboard.writeText(otp).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    if (copyState !== 'idle') return;
+    setCopyState('loading');
+    setTimeout(() => {
+      navigator.clipboard.writeText(otp).then(() => {
+        setCopyState('copied');
+        setTimeout(() => setCopyState('idle'), 2000);
+      });
+    }, 400); // simulate a slight loading interaction as requested
   };
+
   return (
     <button
       onClick={copy}
       title="Click to copy invite code"
       style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-        width: '100%', padding: '16px 20px', borderRadius: 14, cursor: 'pointer',
-        background: copied ? 'rgba(34,197,94,0.08)' : 'rgba(79,70,229,0.06)',
-        border: `1.5px dashed ${copied ? '#22c55e' : '#818cf8'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16,
+        width: '100%', padding: '16px 20px', borderRadius: 8, cursor: 'pointer',
+        background: '#f1f5f9', border: '1px solid #e2e8f0',
         transition: 'all 0.2s',
       }}
+      onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+      onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
     >
       <span style={{
-        fontSize: 28, fontWeight: 800, letterSpacing: '0.25em',
-        color: copied ? '#15803d' : '#3730a3', fontFamily: 'monospace',
+        fontSize: 28, fontWeight: 700, letterSpacing: '0.3em',
+        color: '#0f172a', fontFamily: 'monospace',
       }}>
         {otp}
       </span>
-      {copied ? (
+      
+      {copyState === 'loading' && (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+        </svg>
+      )}
+      
+      {copyState === 'copied' && (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="20 6 9 17 4 12" />
         </svg>
-      ) : (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      )}
+
+      {copyState === 'idle' && (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
         </svg>
       )}
-      <span style={{ fontSize: 12, color: copied ? '#16a34a' : '#6366f1', fontWeight: 600 }}>
-        {copied ? 'Copied!' : 'Tap to copy'}
-      </span>
     </button>
   );
 };
@@ -592,13 +606,13 @@ export default function PeersPage() {
                   <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
                 </svg>
               </div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>Room Does Not Exist</h2>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>Room Not Found</h2>
               <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6 }}>
-                {joinError || 'No room was found with that invite code. Check the code and try again.'}
+                {joinError || 'Room not found. Check the invite code and try again.'}
               </p>
             </div>
             <div style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '12px 16px', marginBottom: 24, fontSize: 12, color: '#dc2626' }}>
-              Code <strong style={{ fontFamily: 'monospace', fontSize: 14 }}>{otpInput}</strong> was not found. It may have expired or been deleted.
+              Code <strong style={{ fontFamily: 'monospace', fontSize: 14 }}>{otpInput}</strong> was not found. Check the invite code and try again.
             </div>
             <button onClick={() => { setOtpInput(''); setJoinError(''); setView('join_otp'); }} style={{
               width: '100%', padding: '14px', borderRadius: 12, fontSize: 15, fontWeight: 700,

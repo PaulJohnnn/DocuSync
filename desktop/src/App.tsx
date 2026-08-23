@@ -79,10 +79,10 @@ const GlobalVerifyModal: React.FC = () => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', color: '#f5a623' }}>
           <ShieldAlert size={24} />
-          <h2 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--ds-text)' }}>⚠️ New Login Attempt</h2>
+          <h2 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--ds-text)' }}>Duplicate Session Detected</h2>
         </div>
         <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--ds-text2)', lineHeight: 1.5 }}>
-          Someone is trying to access your DocuSync account from a new device.
+          Another tab or device is trying to connect using your session. If this is you (e.g. a second browser tab), click 'Yes, that's me'.
         </p>
         <div style={{
           background: 'var(--ds-bg)', padding: '0.75rem', borderRadius: '4px',

@@ -131,6 +131,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
   const [success, setSuccess] = useState(false);
 
   const [approvedPin, setApprovedPin] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!success) return;
@@ -194,17 +195,32 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
             }}>
               <span>{approvedPin}</span>
               <button
-                onClick={() => navigator.clipboard.writeText(approvedPin)}
+                onClick={() => {
+                  if (approvedPin) navigator.clipboard.writeText(approvedPin);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
                 style={{
-                  background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', color: '#64748b'
+                  background: copied ? '#10b981' : 'none', 
+                  border: 'none', cursor: 'pointer', padding: 6, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', 
+                  color: copied ? '#fff' : '#64748b',
+                  borderRadius: 6,
+                  transition: 'all 0.2s ease',
+                  transform: copied ? 'scale(1.1)' : 'scale(1)'
                 }}
                 title="Copy PIN"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
+                {copied ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                )}
               </button>
             </div>
           </>
@@ -217,7 +233,10 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
           </>
         )}
         <button
-          onClick={onBack}
+          onClick={() => {
+            if (!approvedPin) mockAuthService.cancelRequest(email);
+            onBack();
+          }}
           style={{
             padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600,
             background: '#fff', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer'

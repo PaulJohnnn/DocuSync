@@ -25,9 +25,27 @@ export function getDisplayName(user: AuthUser | null | undefined): string {
 }
 
 const SESSION_KEY = 'docusync_auth_user';
-const API_BASE = import.meta.env.VITE_WEB_URL 
-  ? `${import.meta.env.VITE_WEB_URL}/api/auth` 
-  : 'https://docusync-pnc.vercel.app/api/auth';
+
+/**
+ * Resolves the base API URL.
+ * Priority: localStorage override → VITE_WEB_URL env → localhost (dev) → Vercel (prod)
+ * The localStorage key `docusync_server_url` lets Device B specify Device A's LAN IP
+ * without needing to rebuild the app (e.g. "http://192.168.1.5:3000").
+ */
+function getApiBase(): string {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('docusync_server_url');
+    if (stored && stored.trim()) return `${stored.trim().replace(/\/$/, '')}/api/auth`;
+  }
+  if (import.meta.env.VITE_WEB_URL) return `${import.meta.env.VITE_WEB_URL}/api/auth`;
+  if (import.meta.env.DEV) return 'http://localhost:3000/api/auth';
+  return 'https://docusync-pnc.vercel.app/api/auth';
+}
+
+const API_BASE_STATIC = import.meta.env.VITE_WEB_URL
+  ? `${import.meta.env.VITE_WEB_URL}/api/auth`
+  : (import.meta.env.DEV ? 'http://localhost:3000/api/auth' : 'https://docusync-pnc.vercel.app/api/auth');
+
 
 // ── Polling logic for reactivity ─────────────────────────────────────────
 let _usersHash = '';
@@ -36,7 +54,7 @@ let _pendingHash = '';
 async function pollDatabase() {
   if (typeof window === 'undefined') return;
   try {
-    const res = await fetch(`${API_BASE}?action=sync`);
+    const res = await fetch(`${getApiBase()}?action=sync`);
     if (res.ok) {
       const data = await res.json();
       const currentUsersStr = JSON.stringify(data.users || []);
@@ -82,7 +100,7 @@ if (typeof window !== 'undefined') {
 // ── Auth methods ───────────────────────────────────────────────────────────
 
 export async function login(email: string, pin: string): Promise<AuthUser> {
-  const res = await fetch(API_BASE, {
+  const res = await fetch(getApiBase(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'login', email, pin })
@@ -100,7 +118,7 @@ export async function login(email: string, pin: string): Promise<AuthUser> {
 }
 
 export async function requestAccount(email: string): Promise<'verified'> {
-  const res = await fetch(API_BASE, {
+  const res = await fetch(getApiBase(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'request', email }),
@@ -118,22 +136,46 @@ export async function requestAccount(email: string): Promise<'verified'> {
   return 'verified';
 }
 
+export async function cancelRequest(email: string): Promise<void> {
+  await fetch(getApiBase(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'cancel_request', email })
+  }).catch(() => {});
+  pollDatabase();
+}
+
 export function getCurrentUser(): AuthUser | null {
   if (typeof window === 'undefined') return null;
   const data = sessionStorage.getItem(SESSION_KEY);
   return data ? JSON.parse(data) : null;
 }
 
-export function logout() {
+export async function logout() {
   if (typeof window !== 'undefined') {
     sessionStorage.removeItem(SESSION_KEY);
+    // Clear user-scoped localStorage
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('ds_')) {
+        localStorage.removeItem(k);
+      }
+    }
+    // Isolate desktop state by wiping SQLite backend
+    try {
+      if (window.docuSync && window.docuSync.clearDatabase) {
+        await window.docuSync.clearDatabase();
+      }
+    } catch (e) {
+      console.error('Failed to wipe database on logout', e);
+    }
     window.location.href = '#/vault-login'; // Desktop uses HashRouter
   }
 }
 
 export async function checkApprovalStatus(email: string): Promise<string | null> {
   try {
-    const res = await fetch(`${API_BASE}?action=sync`);
+    const res = await fetch(`${getApiBase()}?action=sync`);
     if (res.ok) {
       const data = await res.json();
       const user = (data.users || []).find((u: any) => u.email.toLowerCase() === email.toLowerCase());
@@ -156,6 +198,7 @@ export function subscribeToDatabaseChanges(callback: () => void) {
 const mockAuthService = {
   login,
   requestAccount,
+  cancelRequest,
   getCurrentUser,
   logout,
   checkApprovalStatus,

@@ -1,11 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
-  FolderOpen, AlertTriangle, Clock, Users, Wifi, Settings, BarChart2
+  FolderOpen, AlertTriangle, Clock, Users, Wifi, Settings, BarChart2, LogOut
 } from 'lucide-react';
 import OnlineStatusPill from './OnlineStatusPill';
+import mockAuthService from '@/lib/mockAuthService';
+import { uGet } from '@/lib/userStorage';
 
 const NAV_ITEMS = [
   { href: '/app/files', label: 'Room', icon: FolderOpen },
@@ -19,6 +21,7 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [nodeId, setNodeId] = useState('');
+  const [conflictCount, setConflictCount] = useState(0);
 
   useEffect(() => {
     let id = sessionStorage.getItem('docusync_node_id');
@@ -27,6 +30,22 @@ export default function Sidebar() {
       sessionStorage.setItem('docusync_node_id', id);
     }
     setNodeId(id);
+
+    const checkConflicts = () => {
+      try {
+        const stored = uGet('docusync_web_conflicts');
+        if (stored) {
+          const arr = JSON.parse(stored);
+          setConflictCount(Array.isArray(arr) ? arr.length : 0);
+        } else {
+          setConflictCount(0);
+        }
+      } catch (e) {}
+    };
+    
+    checkConflicts();
+    const interval = setInterval(checkConflicts, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -84,11 +103,21 @@ export default function Sidebar() {
               transition: 'all 0.15s',
             }}>
               <Icon size={16} />
-              {item.label}
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.label === 'Conflicts' && conflictCount > 0 && (
+                <span style={{
+                  background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 700,
+                  padding: '2px 6px', borderRadius: 99, display: 'inline-block'
+                }}>
+                  {conflictCount}
+                </span>
+              )}
             </Link>
           );
         })}
       </nav>
+
+
 
       {/* Bottom node info */}
       <div style={{

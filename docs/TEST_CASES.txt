@@ -107,8 +107,8 @@ ETC-03  | Join room with invalid OTP             | 1. Enter random 6-character c
 ETC-04  | Non-admin accesses Admin page          | 1. Log in as regular user.                                        | Shows "Admin access restricted" with lock                             |
         |                                        | 2. Navigate to Admin route.                                       | icon and "Back to Files" button.                                      |
 ------- | -------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------- | ------
-ETC-05  | Concurrent edits trigger LWW           | 1. Open same file on Desktop and Web.                             | LWW resolves automatically. Toast:                                    |
-        |                                        | 2. Type different text simultaneously.                            | "Conflict resolved using Last-Write-Wins."                            |
+ETC-05  | Concurrent edits trigger LWW           | 1. Open same file on Desktop and Web.                             | System flags offline concurrent edits as a conflict.                  |
+        |                                        | 2. Type different text simultaneously.                            | Users must manually review via Conflicts page.                        |
         |                                        | 3. Wait for sync.                                                 |                                                                       |
 ------- | -------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------- | ------
 ETC-06  | View and resolve conflict manually     | 1. After ETC-05, go to Conflicts page.                            | Side-by-side diff with red deletions and                              |
@@ -152,10 +152,10 @@ CTC-02  | Three-device sync                      | 1. Create room. Join from Web
         | (Desktop + Web + Mobile)               | 2. Edit file on each device sequentially.                         | Peers page shows 3 peers. Metrics reflect                             |
         |                                        | 3. Compare content across all three.                              | increased activity.                                                   |
 ------- | -------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------- | ------
-CTC-03  | Conflict: detect → auto-resolve →      | 1. Open file on Desktop and Web.                                  | LWW auto-resolves. Conflicts page shows                               |
-        | manual review                          | 2. Go offline. Edit same paragraph on both.                       | side-by-side diff with word highlights.                               |
-        |                                        | 3. Reconnect. Go to Conflicts page.                               | Accepting resolves it. "conflict-resolve"                             |
-        |                                        | 4. Accept preferred version.                                      | event is logged.                                                      |
+CTC-03  | Conflict: detect → manual review       | 1. Open file on Desktop and Web.                                  | Conflicts page shows side-by-side diff with                           |
+        |                                        | 2. Go offline. Edit same paragraph on both.                       | word highlights. Accepting resolves it.                               |
+        |                                        | 3. Reconnect. Go to Conflicts page.                               | "conflict-resolve" event is logged.                                   |
+        |                                        | 4. Accept preferred version.                                      |                                                                       |
 ------- | -------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------- | ------
 CTC-04  | Admin lifecycle: Generate →             | 1. Admin provisions account.                                      | New user logs in successfully. Admin sees                             |
         | Login → Revoke → Auto-logout           | 2. User logs in with generated credentials.                       | user as "Active". After revocation, user                              |

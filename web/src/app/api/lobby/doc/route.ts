@@ -156,6 +156,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: true,
+        lwwResolved: existing !== null && existing.content !== content,
         committedAt: now,
         seq: nextSeq,
         message: `Version ${nextSeq} committed by ${snapshot.authorName}`,

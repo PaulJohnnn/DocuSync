@@ -87,7 +87,7 @@ export default function MetricsOverlay({ deltaBytes, peerCount, vectorClock, syn
                     valueClass={`font-bold transition-colors duration-200 ${flashDelta ? 'text-yellow-300' : 'text-green-400'}`}
                     extra={flashDelta && <span className="ml-2 text-[8px] text-yellow-400 animate-pulse">TX ▲</span>}
                 />
-                <MetricRow label="ACTIVE PEERS" value={`${peerCount} node${peerCount !== 1 ? 's' : ''}`} valueClass="text-purple-400" />
+                <MetricRow label="ACTIVE PEERS" value={`${peerCount + 1} node${peerCount + 1 !== 1 ? 's' : ''}`} valueClass="text-purple-400" />
                 <MetricRow
                     label="VECTOR CLOCK"
                     value={vectorClock ? `${vectorClock.nodeId} · cnt ${vectorClock.counter}` : "LWW · last-write-wins"}

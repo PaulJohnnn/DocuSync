@@ -8,7 +8,7 @@ import React from 'react';
 import { useSyncState } from '@/context/SyncStateContext';
 
 export default function OfflineBanner() {
-  const { syncState, pendingEdits, simulateReconnect } = useSyncState();
+  const { syncState, pendingEdits, reconnect } = useSyncState();
 
   if (syncState !== 'offline') return null;
 
@@ -40,7 +40,7 @@ export default function OfflineBanner() {
         </div>
       </div>
       <button
-        onClick={simulateReconnect}
+        onClick={reconnect}
         style={{
           padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
           background: '#d97706', color: '#fff', border: 'none', cursor: 'pointer',

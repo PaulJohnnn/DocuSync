@@ -620,6 +620,74 @@ export class LWWResolver {
     };
   }
 
+  // ── Manual Resolve ─────────────────────────────────────────────────────
+
+  /**
+   * Resolves a pending conflict using a custom, user-provided payload.
+   *
+   * @param conflictId     - The UUID of the conflict to resolve.
+   * @param customPayload  - The new manually-merged HTML content.
+   * @param resolvedBy     - The node ID of the owner who made the decision.
+   * @param mergedClockJson - The merged vector clock after resolution.
+   *
+   * @throws {Error} If the conflict does not exist or is already resolved.
+   */
+  public async manualResolve(
+    conflictId: string,
+    customPayload: string,
+    resolvedBy: string,
+    mergedClockJson: VectorClockJSON
+  ): Promise<AutoResolveResult> {
+    const row = await this.prisma.conflict.findUnique({
+      where: { conflictId },
+    });
+
+    if (!row) throw new Error(`Conflict not found: "${conflictId}".`);
+    if (row.status === 'resolved') throw new Error(`Conflict is already resolved.`);
+
+    const updatedRow = await this.prisma.conflict.update({
+      where: { conflictId },
+      data: {
+        status: 'resolved',
+        winner: 'B', // We treat custom resolution as B winning for simplicity, but with custom payload
+        resolvedBy,
+        resolvedAt: new Date(),
+      },
+    });
+
+    const resolutionEventId = generateUUID();
+    const mergedClock = VectorClock.fromJSON(mergedClockJson);
+    const logicalTimestamp = mergedClock.counters[mergedClock.nodeIndex];
+
+    const eventLogEntry = await this.eventLog.appendEvent({
+      eventId: resolutionEventId,
+      fileId: row.fileId,
+      nodeId: resolvedBy,
+      eventType: 'conflict-resolve',
+      logicalTimestamp,
+      vectorClockJson: mergedClockJson,
+      payload: customPayload,
+    });
+
+    const mergeAcceptMessage: MergeAcceptMessage = {
+      type: 'MERGE_ACCEPT',
+      conflictId,
+      fileId: row.fileId,
+      winner: 'B',
+      winnerPayload: customPayload,
+      resolutionEventId,
+      resolvedBy,
+      logicalTimestamp,
+      vectorClockJson: mergedClockJson,
+    };
+
+    return {
+      conflict: toConflictRecord(updatedRow),
+      eventLogEntry,
+      mergeAcceptMessage,
+    };
+  }
+
   // ── Queries ──────────────────────────────────────────────────────────
 
   /**

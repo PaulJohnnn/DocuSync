@@ -22,7 +22,7 @@ const getAdminUrl = () => {
     return `${import.meta.env.VITE_WEB_URL}/api/admin`;
   }
   // Default to the live admin API in all environments
-  return 'https://docusync-pnc.vercel.app/api/admin';
+  return import.meta.env.DEV ? 'http://localhost:3000/api/admin' : 'https://docusync-pnc.vercel.app/api/admin';
 };
 
 async function adminFetch(path: string, options: RequestInit = {}): Promise<Response> {

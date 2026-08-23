@@ -290,7 +290,7 @@ export async function initEngine(
     CREATE TABLE IF NOT EXISTS "event_log" (
       "id"               INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
       "eventId"          TEXT     NOT NULL UNIQUE,
-      "fileId"           INTEGER  NOT NULL,
+      "fileId"           TEXT     NOT NULL,
       "nodeId"           TEXT     NOT NULL,
       "eventType"        TEXT     NOT NULL,
       "logicalTimestamp" INTEGER  NOT NULL,
@@ -312,7 +312,7 @@ export async function initEngine(
     CREATE TABLE IF NOT EXISTS "conflict" (
       "id"               INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
       "conflictId"       TEXT     NOT NULL UNIQUE,
-      "fileId"           INTEGER  NOT NULL,
+      "fileId"           TEXT     NOT NULL,
       "eventIdA"         TEXT     NOT NULL,
       "nodeIdA"          TEXT     NOT NULL,
       "vectorClockJsonA" TEXT     NOT NULL,
@@ -392,7 +392,16 @@ export async function initEngine(
     getFileContent: async (fileId: number) => {
       return fileContents.get(fileId) ?? '';
     },
-    onDeltaApplied: async (fileId, newContent, _eventId, _nodeId, _vcJson) => {
+    onDeltaApplied: async (fileId, newContent, _eventId, _nodeId, _vcJson, eventType, lwwResolved) => {
+      // Handle delete events
+      if (eventType === 'delete') {
+        BrowserWindow.getAllWindows()[0]?.webContents.send(
+          'evt:file-deleted',
+          fileId
+        );
+        return;
+      }
+
       // Update in-memory cache.
       fileContents.set(fileId, newContent);
 
@@ -410,7 +419,8 @@ export async function initEngine(
       BrowserWindow.getAllWindows()[0]?.webContents.send(
         'evt:file-updated',
         fileId,
-        newContent
+        newContent,
+        lwwResolved
       );
     },
     onConflictNotified: async (conflictId, fileId, summary) => {
@@ -529,7 +539,7 @@ export async function initEngine(
     localNodeId,
     openFiles,
     fileContents,
-    nextFileId: 1,
+    nextFileId: Date.now(),
     verifyResolvers,
   };
 }
@@ -591,6 +601,20 @@ export function registerIPCHandlers(services: EngineServices): void {
         verifyResolvers.delete(reqId);
       }
       return true;
+    })
+  );
+
+  // ── db:clear (State Isolation) ─────────────────────────────────────
+  ipcMain.handle(
+    'db:clear',
+    safeHandler(async () => {
+      console.log('[IPC] db:clear → Wiping all SQLite data for state isolation...');
+      await prisma.conflict.deleteMany({});
+      await prisma.eventLog.deleteMany({});
+      await prisma.peerRegistry.deleteMany({});
+      openFiles.clear();
+      fileContents.clear();
+      return { success: true };
     })
   );
 
@@ -673,7 +697,9 @@ export function registerIPCHandlers(services: EngineServices): void {
       const ext = path.extname(filePath).toLowerCase();
       let content: string;
 
-      if (ext === '.docx' || ext === '.doc') {
+      if (ext === '.doc') {
+        throw new Error('Legacy .doc files are not supported. Please save the document as .docx and try again.');
+      } else if (ext === '.docx') {
         // Parse Word documents as plain text using mammoth
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const mammoth = require('mammoth');
@@ -816,17 +842,22 @@ export function registerIPCHandlers(services: EngineServices): void {
         services.nextFileId = explicitFileId + 1;
       }
 
-      const existingContent = fileContents.get(newFileId);
-      const contentToWrite = content || existingContent || '';
-
-      // Write content to disk
-      await fs.promises.writeFile(destPath, contentToWrite, 'utf-8');
+      let finalContent = '';
+      if (fs.existsSync(destPath)) {
+        // File already exists locally. DO NOT overwrite with the Matchmaker snapshot,
+        // as the local file contains the latest P2P updates.
+        finalContent = fileContents.get(newFileId) ?? await fs.promises.readFile(destPath, 'utf-8');
+      } else {
+        // File does not exist locally. Use the snapshot and save to disk.
+        finalContent = content || fileContents.get(newFileId) || '';
+        await fs.promises.writeFile(destPath, finalContent, 'utf-8');
+      }
 
       const ext = path.extname(fileName);
       const extLower = ext.toLowerCase();
 
       openFiles.set(newFileId, destPath);
-      fileContents.set(newFileId, contentToWrite);
+      fileContents.set(newFileId, finalContent);
 
       console.log(`[IPC] file:import-room-file → ${destPath} (fileId=${newFileId})`);
 
@@ -834,9 +865,9 @@ export function registerIPCHandlers(services: EngineServices): void {
         fileId: newFileId,
         filePath: destPath,
         fileName,
-        content: contentToWrite,
+        content: finalContent,
         extension: extLower.replace('.', ''),
-        contentLength: Buffer.byteLength(contentToWrite, 'utf-8'),
+        contentLength: Buffer.byteLength(finalContent, 'utf-8'),
       };
     })
   );
@@ -917,13 +948,27 @@ export function registerIPCHandlers(services: EngineServices): void {
             const resolveResult = await lwwResolver.resolve(eventA, latestEvent, frontendVc, engineVc);
             
             if (resolveResult.outcome === 'escalated') {
-              // Tell the frontend that it escalated
+              // The user specifically requested not to show conflicts for LIVE typing.
+              // Since this is `file:save` from an active frontend session, it is a live concurrent edit.
+              // We DO NOT escalate this to the UI! 
+              // We just drop the save. The frontend TipTap editor will receive the remote delta via
+              // `sync:delta`, natively merge it using Prosemirror/TipTap logic, and trigger a new save!
+              console.log('[IPC] file:save concurrent edit detected. Auto-resolving via frontend TipTap merge instead of escalating.');
+              
+              // We must delete the pending conflict from the database that lwwResolver just created!
+              if (resolveResult.conflictId) {
+                 try {
+                   await prisma.conflict.delete({ where: { conflictId: resolveResult.conflictId } });
+                 } catch (e) {
+                   console.error('Failed to cleanup live conflict record:', e);
+                 }
+              }
+
               return {
                 fileId,
                 saved: false,
                 synced: false,
-                escalated: true,
-                conflictId: resolveResult.conflictId,
+                escalated: false, // DO NOT escalate!
               };
             }
           }
@@ -1103,12 +1148,98 @@ export function registerIPCHandlers(services: EngineServices): void {
 
       console.log(`[IPC] file:restore → fileId=${fileId}, to=${targetEventId}`);
 
+      // ── Broadcast the restore event ─────────────────────────────
+      const pushMsg: PeerMessage = {
+        type: 'DELTA_PUSH',
+        eventId: restoreEventId,
+        nodeId: localNodeId,
+        fileId,
+        deltaBase64: Buffer.from(content).toString('base64'),
+        eventType: 'restore',
+        logicalTimestamp: vectorClock.counters[vectorClock.nodeIndex],
+        vectorClockJson: vcJson,
+        timestamp: new Date().toISOString(),
+      };
+      peerManager.broadcast(pushMsg);
+
+      // Notify the frontend of the update
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send('evt:file-updated', {
+          fileId,
+          filePath,
+          content,
+          updatedAt: new Date().toISOString(),
+          eventType: 'restore',
+        });
+      });
+
       return {
         fileId,
         restoredToEventId: targetEventId,
         restoreEventId,
         contentLength: content.length,
       };
+    })
+  );
+
+  // ── file:delete ────────────────────────────────────────────────────
+  /**
+   * Appends a tombstone 'delete' event to the log and broadcasts it.
+   *
+   * @param fileId - The file ID to delete.
+   * @returns `{ fileId }` on success.
+   */
+  ipcMain.handle(
+    'file:delete',
+    safeHandler(async (...args: unknown[]) => {
+      const fileId = args[0] as number;
+
+      if (typeof fileId !== 'number') {
+        throw new Error('file:delete requires (fileId: number).');
+      }
+
+      // Log the delete event
+      vectorClock.increment();
+      const vcJson = vectorClock.toJSON();
+      const deleteEventId = generateUUID();
+
+      const newEvent = await eventLog.appendEvent({
+        eventId: deleteEventId,
+        fileId,
+        nodeId: localNodeId,
+        eventType: 'delete',
+        logicalTimestamp: vectorClock.counters[vectorClock.nodeIndex],
+        vectorClockJson: vcJson,
+        payload: '', // Empty payload for tombstone
+      });
+
+      try {
+        await prisma.conflict.deleteMany({
+          where: { fileId: String(fileId) }
+        });
+        console.log(`[IPC] file:delete → Deleted conflicts for fileId=${fileId}`);
+      } catch (err) {
+        console.error(`[IPC] file:delete → Failed to delete conflicts:`, err);
+      }
+
+      console.log(`[IPC] file:delete → fileId=${fileId}`);
+
+      // Broadcast the deletion to all connected peers
+      const message: PeerMessage = {
+        type: 'DELTA_PUSH',
+        nodeId: localNodeId,
+        eventId: newEvent.eventId,
+        fileId,
+        deltaBase64: newEvent.payload, // Empty
+        eventType: 'delete',
+        logicalTimestamp: newEvent.logicalTimestamp,
+        vectorClockJson: newEvent.vectorClockJson,
+        timestamp: new Date().toISOString(),
+      };
+
+      peerManager.broadcastToRoom(message);
+
+      return { fileId };
     })
   );
 
@@ -1426,10 +1557,48 @@ export function registerIPCHandlers(services: EngineServices): void {
       const winnerPayload = winner === 'A' ? conflict.payloadA : conflict.payloadB;
       fileContents.set(Number(conflict.fileId), winnerPayload);
 
-      const filePath = openFiles.get(Number(conflict.fileId));
+      let filePath = openFiles.get(Number(conflict.fileId));
+      if (!filePath) {
+        const win = BrowserWindow.getAllWindows()[0];
+        const result = await dialog.showSaveDialog(win ?? undefined!, {
+          title: 'Save Resolved File',
+          defaultPath: `Resolved_Conflict_${conflict.fileId}.txt`
+        });
+        if (!result.canceled && result.filePath) {
+          filePath = result.filePath;
+          openFiles.set(Number(conflict.fileId), filePath);
+        }
+      }
+
       if (filePath) {
         await fs.promises.writeFile(filePath, winnerPayload, 'utf-8');
       }
+
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        win.webContents.send('evt:file-updated', {
+          fileId: Number(conflict.fileId),
+          content: winnerPayload
+        });
+      }
+
+      const previousContent = fileContents.get(Number(conflict.fileId)) ?? '';
+      const encodeResult = encode(previousContent, winnerPayload, 'conflict.txt');
+
+      const deltaPushMsg: any = {
+        type: 'DELTA_PUSH',
+        fileId: Number(conflict.fileId),
+        nodeId: localNodeId,
+        deltaBase64: encodeResult.deltaBase64 ?? '',
+        logicalTimestamp: mergedClock.counters[mergedClock.nodeIndex] || 1,
+        vectorClockJson: mergedClock.toJSON(),
+        timestamp: new Date().toISOString(),
+        // Extra fields the web app might expect
+        content: winnerPayload,
+        authorNodeId: localNodeId,
+        authorName: 'Host (Resolution)'
+      };
+      peerManager.broadcast(deltaPushMsg as PeerMessage);
 
       console.log(
         `[IPC] conflict:resolve → ${conflictId} winner=${winner}, ` +
@@ -1439,6 +1608,110 @@ export function registerIPCHandlers(services: EngineServices): void {
       return {
         conflictId,
         winner,
+        resolvedBy: localNodeId,
+        peersNotified,
+        fileId: conflict.fileId,
+      };
+    })
+  );
+
+  // ── conflict:resolve-manual ───────────────────────────────────────
+  /**
+   * Resolves a conflict with a user-provided custom payload.
+   *
+   * @param conflictId - The UUID of the conflict to resolve.
+   * @param customPayload - The manually merged HTML.
+   * @returns Resolves when complete.
+   */
+  ipcMain.handle(
+    'conflict:resolve-manual',
+    safeHandler(async (...args: unknown[]) => {
+      const conflictId = args[0] as string;
+      const customPayload = args[1] as string;
+
+      if (typeof conflictId !== 'string' || typeof customPayload !== 'string') {
+        throw new Error('conflict:resolve-manual requires (conflictId: string, customPayload: string).');
+      }
+
+      console.log(`[IPC] conflict:resolve-manual → resolving ${conflictId} with custom payload`);
+      
+      const conflict = await lwwResolver.getConflict(conflictId);
+      if (!conflict) throw new Error(`Conflict ${conflictId} not found`);
+
+      // Merge clocks
+      const clockA = VectorClock.fromJSON(conflict.vectorClockJsonA);
+      const clockB = VectorClock.fromJSON(conflict.vectorClockJsonB);
+      vectorClock.merge(clockA);
+      vectorClock.merge(clockB);
+      vectorClock.increment();
+
+      const mergedClockJson = vectorClock.toJSON();
+
+      const result = await lwwResolver.manualResolve(
+        conflictId,
+        customPayload,
+        localNodeId,
+        mergedClockJson
+      );
+
+      // Broadcast MERGE_ACCEPT to peers
+      const acceptMsg: PeerMessage = {
+        ...result.mergeAcceptMessage,
+        fileId: Number(result.mergeAcceptMessage.fileId),
+        timestamp: new Date().toISOString(),
+      };
+      const peersNotified = peerManager.broadcast(acceptMsg);
+
+      // Update local file contents
+      fileContents.set(Number(conflict.fileId), customPayload);
+      
+      let filePath = openFiles.get(Number(conflict.fileId));
+      if (!filePath) {
+        const win = BrowserWindow.getAllWindows()[0];
+        const result = await dialog.showSaveDialog(win ?? undefined!, {
+          title: 'Save Resolved File',
+          defaultPath: `Resolved_Conflict_${conflict.fileId}.txt`
+        });
+        if (!result.canceled && result.filePath) {
+          filePath = result.filePath;
+          openFiles.set(Number(conflict.fileId), filePath);
+        }
+      }
+
+      if (filePath) {
+        await fs.promises.writeFile(filePath, customPayload, 'utf-8');
+      }
+
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        win.webContents.send('evt:file-updated', {
+          fileId: Number(conflict.fileId),
+          content: customPayload
+        });
+      }
+
+      const previousContent = fileContents.get(Number(conflict.fileId)) ?? '';
+      const encodeResult = encode(previousContent, customPayload, 'conflict.txt');
+
+      const deltaPushMsg: any = {
+        type: 'DELTA_PUSH',
+        fileId: Number(conflict.fileId),
+        nodeId: localNodeId,
+        deltaBase64: encodeResult.deltaBase64 ?? '',
+        logicalTimestamp: 1, // Will be overridden or ignored if vectorClockJson is present
+        vectorClockJson: mergedClockJson,
+        timestamp: new Date().toISOString(),
+        content: customPayload,
+        authorNodeId: localNodeId,
+        authorName: 'Host (Resolution)'
+      };
+      peerManager.broadcast(deltaPushMsg as PeerMessage);
+
+      console.log(`[IPC] conflict:resolve-manual → ${conflictId} peers=${peersNotified}`);
+
+      return {
+        conflictId,
+        winner: 'B',
         resolvedBy: localNodeId,
         peersNotified,
         fileId: conflict.fileId,
@@ -1576,36 +1849,6 @@ export function registerIPCHandlers(services: EngineServices): void {
       } else {
         return { success: false };
       }
-    })
-  );
-
-  ipcMain.handle(
-    'network:get-lan-ip',
-    safeHandler(async () => {
-      const nets = os.networkInterfaces();
-      let bestIp: string | null = null;
-      for (const name of Object.keys(nets)) {
-        // Skip obvious virtual/WSL adapters
-        if (name.toLowerCase().includes('veth') || 
-            name.toLowerCase().includes('wsl') || 
-            name.toLowerCase().includes('hyper') ||
-            name.toLowerCase().includes('vmware') ||
-            name.toLowerCase().includes('virtual')) {
-          continue;
-        }
-        for (const net of nets[name] || []) {
-          if (net.family === 'IPv4' && !net.internal) {
-            // Prefer 192.168.x.x or 10.x.x.x
-            if (net.address.startsWith('192.168.') || net.address.startsWith('10.')) {
-              return net.address;
-            }
-            if (!bestIp) bestIp = net.address;
-          }
-        }
-      }
-      if (bestIp) return bestIp;
-      if (!app.isPackaged) return '127.0.0.1';
-      throw new Error('No network connection detected — connect to Wi-Fi or Ethernet to host a room.');
     })
   );
 
@@ -1853,7 +2096,7 @@ export async function cleanupIPCHandlers(services: EngineServices): Promise<void
   const channels = [
     'file:open', 'file:save', 'file:history', 'file:restore', 'file:checkout',
     'sync:status', 'sync:trigger',
-    'conflict:list', 'conflict:detail', 'conflict:resolve',
+    'conflict:list', 'conflict:detail', 'conflict:resolve', 'conflict:resolve-manual',
     'peer:list', 'peer:connect',
     'admin:get-activity-log', 'cache:auto-cleanup', 'cache:get-size',
     'session:terminate', 'auth:verify-respond',

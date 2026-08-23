@@ -213,6 +213,15 @@ export async function rejectRequest(reqId: string): Promise<void> {
   pollDatabase();
 }
 
+export async function cancelRequest(email: string): Promise<void> {
+  await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'cancel_request', email })
+  });
+  pollDatabase();
+}
+
 export async function revokeUser(userId: string): Promise<void> {
   await fetch(API_BASE, {
     method: 'POST',
@@ -244,6 +253,7 @@ const mockAuthService = {
   checkApprovalStatus,
   approveRequest,
   rejectRequest,
+  cancelRequest,
   revokeUser,
   subscribeToDatabaseChanges,
 };

@@ -111,7 +111,9 @@ export type OnDeltaApplied = (
   newContent: string,
   eventId: string,
   nodeId: string,
-  vectorClockJson: VectorClockJSON
+  vectorClockJson: VectorClockJSON,
+  eventType?: 'edit' | 'restore' | 'delete' | 'merge',
+  lwwResolved?: boolean
 ) => void | Promise<void>;
 
 /**
@@ -441,6 +443,7 @@ export class PeerManager {
         const delta = body.delta;
         const remoteContent = body.content || '';
         const nodeId = body.nodeId || `client-${Date.now()}`;
+        const isOfflineReconnect = body.isOfflineReconnect === true;
 
         if (!this.config.vectorClock || !this.config.lwwResolver) {
           res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
@@ -461,10 +464,15 @@ export class PeerManager {
           const latestEventEarly = await this.config.eventLog.getLatestEvent(fileId);
           const authorNodeIdEarly = latestEventEarly ? latestEventEarly.nodeId : undefined;
 
+          console.log('[RECEIVE]', JSON.stringify(incomingVc), 'server:', JSON.stringify(this.config.vectorClock));
+          
           // Only deduplicate if it's REALLY from the same node. If it's a different node,
           // it's a slot collision (e.g. 2 web apps assigned nodeIndex=1). Let it through
           // to be treated as a concurrent edit.
-          if (senderSlotIncoming <= senderSlotOnServer && (!authorNodeIdEarly || authorNodeIdEarly === nodeId)) {
+          const isDedup = senderSlotIncoming <= senderSlotOnServer && (!authorNodeIdEarly || authorNodeIdEarly === nodeId);
+          console.log('[RECEIVE DEDUP RESULT]', isDedup, 'REASON:', isDedup ? 'senderSlotIncoming <= senderSlotOnServer' : 'not dedup');
+          
+          if (isDedup) {
             console.log(
               `[PeerManager] Dedup: sender slot [${senderNodeIndex}] incoming=${senderSlotIncoming} ` +
               `<= server=${senderSlotOnServer}. Deduplicated resend, not a conflict.`
@@ -504,7 +512,10 @@ export class PeerManager {
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ merged: true, upToDate: true, vectorClock: this.config.vectorClock.toJSON() }));
             return;
-          } else if (relation === 'dominated') {
+          } else if (relation === 'dominated' || (!isOfflineReconnect && relation === 'concurrent')) {
+            if (relation === 'concurrent') {
+              console.log(`[PeerManager] Live concurrent edit detected from ${nodeId}. Auto-merging instead of escalating.`);
+            }
             try {
               this.config.vectorClock.merge(incomingVc);
             } catch {}
@@ -533,7 +544,7 @@ export class PeerManager {
             }
 
             if (this.config.onDeltaApplied) {
-              await this.config.onDeltaApplied(fileId, newContent, eventId, nodeId, this.config.vectorClock.toJSON());
+              await this.config.onDeltaApplied(fileId, newContent, eventId, nodeId, this.config.vectorClock.toJSON(), 'merge', true);
             }
 
             // Relay HTTP push to all connected WebSocket peers
@@ -552,10 +563,10 @@ export class PeerManager {
             this._metrics.pushSuccessCount++;
             this._metrics.pushTotalLatencyMs += Date.now() - pushT0;
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ merged: true, vectorClock: this.config.vectorClock.toJSON() }));
+            res.end(JSON.stringify({ merged: true, lwwResolved: true, vectorClock: this.config.vectorClock.toJSON() }));
             return;
           } else {
-            // concurrent - escalate
+            // concurrent - escalate (ONLY if isOfflineReconnect is true)
             const eventA = {
               eventId: crypto.randomUUID(),
               fileId,
@@ -619,7 +630,7 @@ export class PeerManager {
             }
 
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ merged: true, vectorClock: this.config.vectorClock.toJSON() }));
+            res.end(JSON.stringify({ merged: true, lwwResolved: true, vectorClock: this.config.vectorClock.toJSON() }));
             return;
           }
         } catch (pushError: any) {
@@ -627,6 +638,131 @@ export class PeerManager {
           console.error(pushError?.stack);
           res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: pushError?.message || 'Internal Server Error' }));
+          return;
+        }
+      }
+
+      // ── GET /sync/history ────────────────────────────────────────────────
+      if (url.pathname === '/sync/history' && req.method === 'GET') {
+        try {
+          const fileId = parseInt(url.searchParams.get('fileId') || '', 10);
+          if (isNaN(fileId) || !fileId) {
+            res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Valid fileId required' }));
+            return;
+          }
+          if (!this.config.eventLog) {
+            res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Engine dependencies missing' }));
+            return;
+          }
+
+          const history = await this.config.eventLog.getHistory(fileId);
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            fileId,
+            entries: history.map((entry: any) => ({
+              id: entry.id,
+              eventId: entry.eventId,
+              nodeId: entry.nodeId,
+              eventType: entry.eventType,
+              logicalTimestamp: entry.logicalTimestamp,
+              createdAt: entry.createdAt.toISOString(),
+              isCompacted: entry.isCompacted,
+              payloadPreview: entry.payload.slice(0, 200),
+            })),
+            totalEntries: history.length,
+          }));
+          return;
+        } catch (historyError: any) {
+          console.error('[PeerManager] EXACT /sync/history ERROR:', historyError?.message);
+          res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: historyError?.message || 'Internal Server Error' }));
+          return;
+        }
+      }
+
+      // ── POST /sync/restore ───────────────────────────────────────────────
+      if (url.pathname === '/sync/restore' && req.method === 'POST') {
+        let bodyStr = '';
+        for await (const chunk of req) bodyStr += chunk;
+        let body: any;
+        try {
+          body = JSON.parse(bodyStr);
+        } catch (err: any) {
+          res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Malformed JSON payload' }));
+          return;
+        }
+
+        const fileId = parseInt(body.fileId, 10);
+        const targetEventId = body.eventId;
+
+        if (isNaN(fileId) || !fileId || !targetEventId) {
+          res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Valid fileId and eventId required' }));
+          return;
+        }
+
+        if (!this.config.eventLog || !this.config.vectorClock) {
+          res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Engine dependencies missing' }));
+          return;
+        }
+
+        try {
+          const history = await this.config.eventLog.getHistory(fileId);
+          const targetEvent = history.find((e: any) => e.eventId === targetEventId);
+          if (!targetEvent) {
+            res.writeHead(404, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Event not found in history' }));
+            return;
+          }
+
+          let content = '';
+          for (const event of history) {
+            if (event.isCompacted) continue;
+            try {
+              if (event.eventType === 'edit' || event.eventType === 'merge') {
+                const decodeResult = decodeDelta(content, event.payload);
+                content = decodeResult.content;
+              } else if (event.eventType === 'restore') {
+                content = event.payload;
+              }
+            } catch {
+              content = event.payload;
+            }
+            if (event.eventId === targetEventId) break;
+          }
+
+          // Generate restore event locally in EventLog
+          this.config.vectorClock.increment();
+          const vcJson = this.config.vectorClock.toJSON();
+          const restoreEventId = crypto.randomUUID();
+
+          await this.config.eventLog.appendEvent({
+            eventId: restoreEventId,
+            fileId,
+            nodeId: this.config.vectorClock.nodeId || 'unknown',
+            eventType: 'restore',
+            logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex],
+            vectorClockJson: vcJson,
+            payload: content,
+          });
+
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            fileId,
+            restoredToEventId: targetEventId,
+            restoreEventId,
+            content,
+            vectorClock: vcJson
+          }));
+          return;
+        } catch (restoreError: any) {
+          console.error('[PeerManager] EXACT /sync/restore ERROR:', restoreError?.message);
+          res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: restoreError?.message || 'Internal Server Error' }));
           return;
         }
       }
@@ -1298,32 +1434,62 @@ export class PeerManager {
     );
 
     try {
-      // Step 1: Get current local content.
-      const currentContent = await this.config.getFileContent(msg.fileId);
+      // Handle tombstone delete event
+      if (msg.eventType === 'delete') {
+        await this.config.eventLog.appendEvent({
+          eventId: msg.eventId,
+          fileId: msg.fileId,
+          nodeId: msg.nodeId,
+          eventType: 'delete',
+          logicalTimestamp: msg.logicalTimestamp,
+          vectorClockJson: msg.vectorClockJson,
+          payload: '',
+        });
 
-      // Step 2: Decode the delta.
-      const decodeResult = decodeDelta(currentContent, msg.deltaBase64);
-      const newContent = decodeResult.content;
+        if (this.config.onDeltaApplied) {
+          await this.config.onDeltaApplied(
+            msg.fileId,
+            '', // Content is empty for delete
+            msg.eventId,
+            msg.nodeId,
+            msg.vectorClockJson,
+            'delete'
+          );
+        }
+      } else {
+        // Step 1: Get current local content.
+        const currentContent = await this.config.getFileContent(msg.fileId);
 
-      // Step 3: Append to EventLog.
-      await this.config.eventLog.appendEvent({
-        eventId: msg.eventId,
-        fileId: msg.fileId,
-        nodeId: msg.nodeId,
-        eventType: 'merge',
-        logicalTimestamp: msg.logicalTimestamp,
-        vectorClockJson: msg.vectorClockJson,
-        payload: msg.deltaBase64,
-      });
+        // Step 2: Decode the delta.
+        const decodeResult = decodeDelta(currentContent, msg.deltaBase64);
+        const newContent = decodeResult.content;
 
-      // Step 4: Notify the application layer.
-      if (this.config.onDeltaApplied) {
-        await this.config.onDeltaApplied(
-          msg.fileId,
-          newContent,
-          msg.eventId,
-          msg.nodeId,
-          msg.vectorClockJson
+        // Step 3: Append to EventLog.
+        await this.config.eventLog.appendEvent({
+          eventId: msg.eventId,
+          fileId: msg.fileId,
+          nodeId: msg.nodeId,
+          eventType: 'merge',
+          logicalTimestamp: msg.logicalTimestamp,
+          vectorClockJson: msg.vectorClockJson,
+          payload: msg.deltaBase64,
+        });
+
+        // Step 4: Notify the application layer.
+        if (this.config.onDeltaApplied) {
+          await this.config.onDeltaApplied(
+            msg.fileId,
+            newContent,
+            msg.eventId,
+            msg.nodeId,
+            msg.vectorClockJson,
+            'merge'
+          );
+        }
+
+        console.log(
+          `[PeerManager] Applied delta for file ${msg.fileId} ` +
+            `(${decodeResult.opsApplied} ops)`
         );
       }
 
@@ -1342,11 +1508,6 @@ export class PeerManager {
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(serialiseMessage(ack));
       }
-
-      console.log(
-        `[PeerManager] Applied delta for file ${msg.fileId} ` +
-          `(${decodeResult.opsApplied} ops)`
-      );
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error(

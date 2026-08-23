@@ -1,82 +1,110 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import {
-  Clock, FileEdit, GitMerge, AlertTriangle, RotateCcw, ArrowLeft, Activity
+  Clock, FileEdit, GitMerge, AlertTriangle, RotateCcw, ArrowLeft, Activity, RefreshCw, Scale, FilePlus, Trash2
 } from 'lucide-react';
 import { uGet, uSet } from '@/lib/userStorage';
 
-interface EventRecord {
-  id: number;
+interface HistoryEntry {
   eventId: string;
   fileId: string;
   nodeId: string;
-  eventType: string;
+  eventType: 'edit' | 'merge' | 'conflict-resolve' | 'restore' | 'delete' | string;
   logicalTimestamp: number;
-  payload: string;
+  payloadPreview: string | null;
   createdAt: string;
+  isCompacted: boolean;
 }
 
-const EVENT_ICONS: Record<string, { icon: React.ElementType; color: string }> = {
-  'edit': { icon: FileEdit, color: 'var(--acc)' },
-  'merge': { icon: GitMerge, color: 'var(--grn)' },
-  'conflict-resolve': { icon: AlertTriangle, color: 'var(--amb)' },
-  'restore': { icon: RotateCcw, color: 'var(--pur)' },
-  'offline-replay': { icon: Activity, color: 'var(--tel)' },
+const EVENT_ICONS: Record<string, { icon: React.ElementType; color: string; bg: string; label: string }> = {
+  'edit': { icon: FileEdit, color: 'var(--acc)', bg: 'var(--acb)', label: 'Edit' },
+  'merge': { icon: GitMerge, color: 'var(--pur)', bg: 'rgba(168, 85, 247, 0.15)', label: 'Merge' },
+  'conflict-resolve': { icon: Scale, color: 'var(--amb)', bg: 'var(--amb-bg)', label: 'Conflict Resolved' },
+  'restore': { icon: FilePlus, color: 'var(--grn)', bg: 'rgba(16, 185, 129, 0.15)', label: 'Restore' },
+  'delete': { icon: Trash2, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', label: 'File Deleted' },
+  'offline-replay': { icon: Activity, color: 'var(--tel)', bg: 'rgba(20, 184, 166, 0.15)', label: 'Offline Replay' },
 };
 
 export default function HistoryPage() {
   const params = useParams();
   const router = useRouter();
   const fileId = params.id as string;
-  const [events, setEvents] = useState<EventRecord[]>([]);
+  const [events, setEvents] = useState<HistoryEntry[]>([]);
   const [fileName, setFileName] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [restoring, setRestoring] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
+  const fetchHistory = useCallback(async () => {
     if (fileId === 'all') {
-      // Aggregate all events from all files
-      const filesStr = uGet('files');
-      if (!filesStr) return;
-      const files = JSON.parse(filesStr);
-      const allEvents: EventRecord[] = [];
-      for (const f of files) {
-        const evStr = localStorage.getItem(`docusync_events_${f.id}`);
-        if (evStr) {
-          const evts = JSON.parse(evStr);
-          allEvents.push(...evts.map((e: Record<string, unknown>) => ({ ...e, fileName: f.name })));
-        }
+      setErrorMsg('Cannot fetch history for all files from host.');
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    
+    try {
+      const roomStr = uGet('activeRoom');
+      const room = roomStr ? JSON.parse(roomStr) : null;
+      if (!room || !room.hostIp) {
+        throw new Error('No active room connection found. Are you in a session?');
       }
-      allEvents.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setEvents(allEvents);
-      setFileName('All Files');
-    } else {
-      const evStr = localStorage.getItem(`docusync_events_${fileId}`);
-      if (evStr) {
-        const evts = JSON.parse(evStr);
-        evts.sort((a: EventRecord, b: EventRecord) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setEvents(evts);
-      }
+
       const filesStr = uGet('files');
       if (filesStr) {
         const files = JSON.parse(filesStr);
-        const f = files.find((f: Record<string, unknown>) => f.id === fileId);
+        const f = files.find((f: any) => String(f.id) === String(fileId));
         if (f) setFileName(f.name);
       }
+
+      const baseUrl = `http://${room.hostIp}:${room.port || 9000}`;
+      const res = await fetch(`${baseUrl}/sync/history?fileId=${fileId}`);
+      const result = await res.json();
+      
+      if (result.success && result.data) {
+        const sorted = [...result.data.entries].sort((a: any, b: any) => b.logicalTimestamp - a.logicalTimestamp);
+        setEvents(sorted);
+      } else {
+        throw new Error(result.error || 'Failed to fetch history');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || String(err));
+      console.error('History fetch error:', err);
+    } finally {
+      setLoading(false);
     }
   }, [fileId]);
 
-  const restore = (event: EventRecord) => {
-    if (fileId === 'all') return;
-    const stored = uGet('files');
-    if (!stored) return;
-    const files = JSON.parse(stored);
-    const idx = files.findIndex((f: Record<string, unknown>) => f.id === fileId);
-    if (idx >= 0) {
-      files[idx].content = event.payload;
-      files[idx].updatedAt = new Date().toISOString();
-      uSet('files', JSON.stringify(files));
-      router.push(`/editor/${fileId}`);
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  const handleRestore = async (eventId: string) => {
+    setRestoring(prev => ({ ...prev, [eventId]: true }));
+    try {
+      const roomStr = uGet('activeRoom');
+      const room = roomStr ? JSON.parse(roomStr) : null;
+      if (!room || !room.hostIp) {
+        throw new Error('No active room connection found.');
+      }
+      const baseUrl = `http://${room.hostIp}:${room.port || 9000}`;
+      
+      const res = await fetch(`${baseUrl}/sync/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileId: Number(fileId), commitId: eventId })
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+         throw new Error(result.error || 'Failed to restore version');
+      }
+      
+      router.push(`/app/editor/${fileId}`);
+    } catch (err: any) {
+      alert(err.message || String(err));
+      setRestoring(prev => ({ ...prev, [eventId]: false }));
     }
   };
 
@@ -84,81 +112,108 @@ export default function HistoryPage() {
     <PageShell>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button className="ds-btn" onClick={() => router.push('/')}>
+          <button className="ds-btn" onClick={() => router.back()}>
             <ArrowLeft size={14} /> Back
           </button>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>History</h1>
             <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>
-              {fileName} • {events.length} event{events.length !== 1 ? 's' : ''}
+              {fileName || `File ID: ${fileId}`} • {events.length} event{events.length !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
       </div>
 
-      {events.length === 0 ? (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 60, color: 'var(--t3)' }}>
+          <RefreshCw size={24} className="spin" style={{ marginBottom: 12, opacity: 0.5, animation: 'spin 1s linear infinite' }} />
+          <p style={{ fontSize: 14 }}>Loading history from Host...</p>
+        </div>
+      ) : errorMsg ? (
+        <div style={{ textAlign: 'center', padding: 60, color: '#ef4444' }}>
+          <AlertTriangle size={32} style={{ marginBottom: 12, opacity: 0.8 }} />
+          <p style={{ fontSize: 14, fontWeight: 600 }}>Error</p>
+          <p style={{ fontSize: 13, marginTop: 4 }}>{errorMsg}</p>
+        </div>
+      ) : events.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--t3)' }}>
           <Clock size={48} style={{ marginBottom: 12, opacity: 0.3 }} />
           <p style={{ fontSize: 14 }}>No events yet</p>
           <p style={{ fontSize: 12, marginTop: 4 }}>Edit a file to start generating history</p>
         </div>
       ) : (
-        <div style={{ position: 'relative', paddingLeft: 24 }}>
-          {/* Timeline line */}
-          <div style={{
-            position: 'absolute', left: 11, top: 0, bottom: 0,
-            width: 2, background: 'var(--b1)',
-          }} />
+        <div style={{ position: 'relative', paddingLeft: 24, paddingBottom: 40 }}>
+          <div style={{ position: 'absolute', left: 11, top: 0, bottom: 0, width: 2, background: 'var(--b1)' }} />
 
           {events.map((ev, i) => {
+            const isLatest = i === 0;
             const evInfo = EVENT_ICONS[ev.eventType] || EVENT_ICONS['edit'];
             const Icon = evInfo.icon;
+            
             return (
-              <div key={`${ev.eventId}-${i}`} style={{
-                position: 'relative', marginBottom: 12,
-              }}>
-                {/* Timeline dot */}
+              <div key={`${ev.eventId}-${i}`} style={{ position: 'relative', marginBottom: 16, opacity: ev.isCompacted ? 0.5 : 1 }}>
                 <div style={{
-                  position: 'absolute', left: -18, top: 14,
-                  width: 16, height: 16, borderRadius: '50%',
-                  background: `${evInfo.color}20`, border: `2px solid ${evInfo.color}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  zIndex: 1,
+                  position: 'absolute', left: -18, top: 16, width: 16, height: 16, borderRadius: '50%',
+                  background: evInfo.bg, border: `2px solid ${evInfo.color}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1,
                 }}>
                   <Icon size={8} style={{ color: evInfo.color }} />
                 </div>
 
-                <div className="ds-card" style={{ padding: 12, marginLeft: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', textTransform: 'capitalize' }}>
-                          {ev.eventType.replace('-', ' ')}
+                <div className="ds-card" style={{ padding: '12px 16px', marginLeft: 8, background: 'var(--s1)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: evInfo.color }}>
+                          {evInfo.label || ev.eventType}
                         </span>
-                        <span style={{ fontSize: 10, color: 'var(--t3)', fontFamily: 'monospace' }}>
-                          ts:{ev.logicalTimestamp}
+                        <span style={{ fontSize: 11, color: 'var(--t2)', background: 'var(--b2)', padding: '2px 6px', borderRadius: 12, fontFamily: 'monospace' }}>
+                          ts={ev.logicalTimestamp}
                         </span>
+                        {isLatest && <span style={{ fontSize: 11, color: 'var(--grn)', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: 12, fontWeight: 600 }}>latest</span>}
+                        {ev.isCompacted && <span style={{ fontSize: 11, color: 'var(--t3)', background: 'var(--b1)', padding: '2px 6px', borderRadius: 12 }}>compacted</span>}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--t3)', marginTop: 2 }}>
-                        {new Date(ev.createdAt).toLocaleString()} • Node: {ev.nodeId.slice(0, 8)}...
+                      
+                      <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
+                        Node: <span style={{ fontFamily: 'monospace', color: 'var(--t2)' }}>{ev.nodeId.slice(0, 12)}…</span>
                       </div>
-                      {ev.payload && (
+                      
+                      {ev.payloadPreview && (
                         <div style={{
-                          fontSize: 11, color: 'var(--t2)', marginTop: 6,
-                          padding: '6px 8px', background: 'var(--bg)',
-                          borderRadius: 6, fontFamily: 'monospace',
-                          maxHeight: 60, overflow: 'hidden',
-                          textOverflow: 'ellipsis',
+                          fontSize: 11, color: 'var(--t2)', marginTop: 8, padding: '6px 8px',
+                          background: 'var(--s2)', borderRadius: 6, fontFamily: 'monospace',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                         }}>
-                          {ev.payload.slice(0, 150)}...
+                          {ev.payloadPreview}
                         </div>
                       )}
                     </div>
-                    {fileId !== 'all' && (
-                      <button className="ds-btn" onClick={() => restore(ev)} style={{ flexShrink: 0 }}>
-                        <RotateCcw size={12} /> Restore
-                      </button>
-                    )}
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 12, color: 'var(--t3)' }}>
+                          {new Date(ev.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--t3)', fontFamily: 'monospace', opacity: 0.7, marginTop: 2 }}>
+                          {new Date(ev.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      
+                      {ev.eventType === 'delete' ? (
+                        <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, padding: '4px 8px', background: 'rgba(239,68,68,0.1)', borderRadius: 6 }}>
+                          🗑️ Deleted
+                        </span>
+                      ) : (
+                        <button 
+                          className="ds-btn" 
+                          onClick={() => handleRestore(ev.eventId)}
+                          disabled={restoring[ev.eventId]}
+                          style={{ background: 'transparent', border: '1px solid var(--b2)', padding: '4px 10px', fontSize: 11, fontWeight: 600 }}
+                        >
+                          {restoring[ev.eventId] ? '⏳ Restoring…' : '⏪ Restore'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

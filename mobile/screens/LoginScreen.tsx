@@ -281,7 +281,13 @@ export default function LoginScreen() {
               )}
               
               <TouchableOpacity
-                onPress={() => { setMode('unlock'); setSignupSuccess(false); setGeneratedPin(''); setEmail(''); }}
+                onPress={() => { 
+                  if (!generatedPin) mockAuthService.cancelRequest(email);
+                  setMode('unlock'); 
+                  setSignupSuccess(false); 
+                  setGeneratedPin(''); 
+                  setEmail(''); 
+                }}
                 style={{ marginTop: 24, padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: '#e2e8f0', paddingHorizontal: 28 }}
               >
                 <Text style={{ fontSize: 14, fontWeight: '600', color: '#475569' }}>Back to Unlock</Text>

@@ -2,10 +2,12 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
-import { AlertTriangle, Shield, Check, ArrowLeft, CheckCircle } from 'lucide-react';
-import { uGet, uSet } from '@/lib/userStorage';
+import { Shield, Check, ArrowLeft, CheckCircle } from 'lucide-react';
+import { uGet, uSet, uRemove } from '@/lib/userStorage';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 
-// ── Word-level diff engine (Ported from Desktop) ──────────────────────────────
+// ── Word-level diff engine (Match Desktop exactly) ────────────────────────────
 
 function stripHtml(html: string): string {
   return html
@@ -36,30 +38,38 @@ function computeWordDiff(htmlA: string, htmlB: string) {
     ? '<em style="color:var(--text-muted)">(empty)</em>'
     : wordsA.map((w, idx) =>
         delSet.has(idx)
-          ? `<mark style="background:rgba(239,68,68,0.18);color:#ef4444;border-radius:3px;padding:0 3px;text-decoration:line-through">${w}</mark>`
+          ? `<mark style="background:rgba(234,179,8,0.25);color:#ca8a04;border-radius:3px;padding:0 3px;font-weight:600">${w}</mark>`
           : w
       ).join(' ');
 
-  const highlightedB = wordsB.length === 0
-    ? '<em style="color:var(--text-muted)">(empty)</em>'
-    : wordsB.map((w, idx) =>
-        addSet.has(idx)
-          ? `<mark style="background:rgba(34,197,94,0.18);color:#16a34a;border-radius:3px;padding:0 3px;font-weight:600">${w}</mark>`
-          : w
-      ).join(' ');
-
-  return { highlightedA, highlightedB, deletedCount: delSet.size, addedCount: addSet.size };
+  return { highlightedA, diffCount: delSet.size };
 }
 
-// ── SplitHtmlDiff ─────────────────────────────────────────────────────────────
+// ── InteractiveConflictEditor (Ported from Desktop) ────────────────────────────
 
-const SplitHtmlDiff: React.FC<{
-  htmlA: string; htmlB: string;
-}> = ({ htmlA, htmlB }) => {
-  const { highlightedA, highlightedB, deletedCount, addedCount } = useMemo(
-    () => computeWordDiff(htmlA, htmlB), [htmlA, htmlB]
-  );
-  
+const InteractiveConflictEditor: React.FC<{
+  fileId: string;
+  payloadA: string;
+  payloadB: string;
+  timestamp: Date;
+  onManualResolve: (customPayload: string) => void;
+  onReject: () => void;
+  fileName: string;
+}> = ({ fileId, payloadA, payloadB, timestamp, onManualResolve, onReject, fileName }) => {
+  const { highlightedA } = useMemo(() => computeWordDiff(payloadA, payloadB), [payloadA, payloadB]);
+
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: payloadB,
+  });
+
+  const handleResolveClick = () => {
+    if (window.confirm('Are you sure you want to save this merged file? This will overwrite the live document and resolve the conflict.')) {
+      const html = editor?.getHTML() || '';
+      onManualResolve(html);
+    }
+  };
+
   const panelStyle: React.CSSProperties = {
     flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
     border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden',
@@ -70,41 +80,55 @@ const SplitHtmlDiff: React.FC<{
     display: 'flex', flexDirection: 'column', gap: 2,
   });
   const bodyStyle: React.CSSProperties = {
-    padding: '12px 14px', flex: 1, overflowY: 'auto', maxHeight: 260,
+    padding: '12px 14px', flex: 1, overflowY: 'auto', maxHeight: 360, minHeight: 260,
     fontSize: 12, lineHeight: 1.7, color: 'var(--text-primary)', background: 'var(--bg-card)',
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ display: 'flex', gap: 8, fontSize: 11 }}>
-        <span style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
-          −{deletedCount} word{deletedCount !== 1 ? 's' : ''} removed (local)
-        </span>
-        <span style={{ background: 'rgba(34,197,94,0.1)', color: '#16a34a', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
-          +{addedCount} word{addedCount !== 1 ? 's' : ''} added (updated)
-        </span>
+    <article className="ds-card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* Header */}
+      <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '-1rem -1rem 0 -1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 9 }}>CONFLICT RESOLUTION</span>
+          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{fileName}</span>
+        </div>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{timestamp.toLocaleString()}</span>
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+        Your local edits (while offline) are highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong>. 
+        Copy and paste any text you want to keep into the editable pane on the right, then click Resolve & Save.
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
         <div style={panelStyle}>
-          <div style={headerStyle('#ef4444', 'rgba(239,68,68,0.06)')}>
-            <span>Your Local (Offline) Edits</span>
+          <div style={headerStyle('#ca8a04', 'rgba(234,179,8,0.06)')}>
+            <span>Local Edits (Offline)</span>
+            <span style={{ fontWeight: 400, opacity: 0.8 }}>Read-Only Reference</span>
           </div>
           <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedA }} />
         </div>
 
-        <div style={panelStyle}>
-          <div style={headerStyle('#16a34a', 'rgba(34,197,94,0.06)')}>
-            <span>Server Updated Version</span>
+        <div style={{...panelStyle, border: '1px solid var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }}>
+          <div style={headerStyle('var(--accent)', 'rgba(16,185,129,0.06)')}>
+            <span>Current Online Version</span>
+            <span style={{ fontWeight: 400, opacity: 0.8 }}>Editable</span>
           </div>
-          <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedB }} />
+          <div style={{...bodyStyle, background: '#fff', cursor: 'text'}}>
+            <EditorContent editor={editor} />
+          </div>
         </div>
       </div>
 
-      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-        Tip: You can manually copy-paste text from your local edits to the updated version before clicking Accept.
+      <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 -1rem -1rem -1rem' }}>
+        <button className="ds-btn ds-btn-ghost" onClick={onReject}>
+          <Shield size={13} /> Delete Conflict
+        </button>
+        <button className="ds-btn ds-btn-success" onClick={handleResolveClick} style={{ padding: '6px 24px' }}>
+          <Check size={14} /> Resolve & Save
+        </button>
       </div>
-    </div>
+    </article>
   );
 };
 
@@ -112,16 +136,54 @@ const SplitHtmlDiff: React.FC<{
 
 export default function ConflictsPage() {
   const router = useRouter();
-  const [conflict, setConflict] = useState<any>(null);
+  const [conflicts, setConflicts] = useState<any[]>([]);
+  const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
 
   useEffect(() => {
-    const data = localStorage.getItem('docusync_web_conflict');
-    if (data) {
-      setConflict(JSON.parse(data));
-    }
+    const checkConflicts = () => {
+      try {
+        const data = uGet('docusync_web_conflicts');
+        if (data) {
+          setConflicts(JSON.parse(data));
+        } else {
+          // Backward compatibility check for single old conflict
+          const old = uGet('docusync_web_conflict');
+          if (old) {
+            setConflicts([{ ...JSON.parse(old), id: 'legacy' }]);
+          }
+        }
+      } catch (e) {}
+    };
+    checkConflicts();
+    const iv = setInterval(checkConflicts, 2000);
+    return () => clearInterval(iv);
   }, []);
 
+  const getFileName = (fileId: string) => {
+    try {
+      const stored = uGet('files');
+      if (stored) {
+        const files = JSON.parse(stored);
+        const file = files.find((f: any) => String(f.id) === String(fileId));
+        return file ? file.name : `File #${fileId}`;
+      }
+    } catch {}
+    return `File #${fileId}`;
+  };
+
+  const getRoomName = () => {
+    try {
+      const stored = uGet('current_room');
+      if (stored) {
+        const room = JSON.parse(stored);
+        return room.name || room.id;
+      }
+    } catch {}
+    return 'Unknown Room';
+  };
+
   const resolveAndReturn = (winnerContent: string) => {
+    const conflict = conflicts.find(c => c.id === selectedConflictId);
     if (!conflict) return;
     
     // Update local storage files with the winner content
@@ -129,7 +191,7 @@ export default function ConflictsPage() {
       const stored = uGet('files');
       if (stored) {
         const files = JSON.parse(stored);
-        const idx = files.findIndex((f: any) => f.id === conflict.fileId);
+        const idx = files.findIndex((f: any) => String(f.id) === String(conflict.fileId));
         if (idx >= 0) {
           files[idx].content = winnerContent;
           files[idx].updatedAt = new Date().toISOString();
@@ -140,22 +202,43 @@ export default function ConflictsPage() {
       console.error(e);
     }
     
-    localStorage.removeItem('docusync_web_conflict');
-    router.push(`/app/editor/${conflict.fileId}`);
+    // Remove from array (also handle backward compat deletion)
+    const updatedConflicts = conflicts.filter(c => c.id !== selectedConflictId);
+    setConflicts(updatedConflicts);
+    uSet('docusync_web_conflicts', JSON.stringify(updatedConflicts));
+    uRemove('docusync_web_conflict');
+    setSelectedConflictId(null);
   };
+
+  const rejectConflict = () => {
+    const updatedConflicts = conflicts.filter(c => c.id !== selectedConflictId);
+    setConflicts(updatedConflicts);
+    uSet('docusync_web_conflicts', JSON.stringify(updatedConflicts));
+    uRemove('docusync_web_conflict');
+    setSelectedConflictId(null);
+  };
+
+  const activeConflict = conflicts.find(c => c.id === selectedConflictId);
 
   return (
     <PageShell title="Conflicts">
-      <div style={{ maxWidth: 900, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ maxWidth: 1000, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '1rem' }}>
-          <button onClick={() => router.back()} className="ds-btn ds-btn-ghost" style={{ padding: 8 }}>
-            <ArrowLeft size={16} /> Back
-          </button>
+          {selectedConflictId && (
+            <button onClick={() => setSelectedConflictId(null)} className="ds-btn ds-btn-ghost" style={{ padding: 8 }}>
+              <ArrowLeft size={16} /> Back to List
+            </button>
+          )}
           <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Conflict Resolution</h1>
+          {conflicts.length > 0 && !selectedConflictId && (
+            <span style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+              {conflicts.length} pending
+            </span>
+          )}
         </div>
 
-        {!conflict ? (
+        {conflicts.length === 0 ? (
           <div className="ds-empty" style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)', padding: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{ 
               background: 'rgba(34, 197, 94, 0.1)', 
@@ -172,44 +255,44 @@ export default function ConflictsPage() {
               You do not have any pending local offline conflicts.
             </p>
           </div>
-        ) : (
-          <>
-            <div className="ds-banner ds-banner-amber" style={{ borderRadius: 'var(--r-md)' }}>
-              <span style={{ fontSize: '1.1rem' }}>⚠️</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>Offline edits conflicted with the server</div>
-                <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 2, opacity: 0.8 }}>
-                  Someone edited this document while you were offline. Review the differences below and choose which version to keep.
-                </div>
-              </div>
-            </div>
-
-            <article className="ds-card" style={{ overflow: 'hidden' }}>
-              <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 9 }}>CONFLICT</span>
-                <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>File #{conflict.fileId}</span>
-                <AlertTriangle size={14} style={{ color: 'var(--red)' }} />
-              </div>
-
-              <div style={{ padding: '14px 16px' }}>
-                <SplitHtmlDiff
-                  htmlA={conflict.localContent}
-                  htmlB={conflict.serverContent}
-                />
-              </div>
-
-              <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '10px 16px', display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button className="ds-btn ds-btn-ghost" onClick={() => resolveAndReturn(conflict.localContent)} style={{ fontSize: 12, height: 32 }}>
-                  <Shield size={13} /> Reject Server (Keep Local)
-                </button>
-                <div style={{ flex: 1 }}></div>
-                <button className="ds-btn ds-btn-success" onClick={() => resolveAndReturn(conflict.serverContent)} style={{ fontSize: 12, height: 32 }}>
-                  <Check size={13} /> Accept Server (Discard Local)
-                </button>
-              </div>
-            </article>
-          </>
-        )}
+        ) : !selectedConflictId ? (
+          <div className="ds-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Room Name</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>File Name</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Conflict Time</th>
+                  <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)', textAlign: 'right' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conflicts.map((c, i) => (
+                  <tr key={c.id || i} style={{ borderBottom: i < conflicts.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                    <td style={{ padding: '12px 16px' }}>{getRoomName()}</td>
+                    <td style={{ padding: '12px 16px', fontWeight: 500 }}>{getFileName(c.fileId)}</td>
+                    <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{new Date(c.timestamp).toLocaleString()}</td>
+                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                      <button className="ds-btn ds-btn-primary" style={{ padding: '4px 12px', fontSize: 12, height: 'auto' }} onClick={() => setSelectedConflictId(c.id)}>
+                        Check
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : activeConflict ? (
+          <InteractiveConflictEditor
+            fileId={activeConflict.fileId}
+            fileName={getFileName(activeConflict.fileId)}
+            payloadA={activeConflict.localContent}
+            payloadB={activeConflict.serverContent}
+            timestamp={new Date(activeConflict.timestamp)}
+            onManualResolve={resolveAndReturn}
+            onReject={rejectConflict}
+          />
+        ) : null}
       </div>
     </PageShell>
   );

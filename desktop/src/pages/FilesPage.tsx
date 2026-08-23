@@ -55,6 +55,15 @@ const FilesPage: React.FC = () => {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
 
+  // Listen for remote deletes
+  useEffect(() => {
+    if (!window.docuSync?.onFileDeleted) return;
+    const unsub = window.docuSync.onFileDeleted((fileId) => {
+      setRoomFiles(prev => prev.filter(f => String(f.fileId ?? f.id) !== String(fileId)));
+    });
+    return unsub;
+  }, []);
+
   // Poll room files
   useEffect(() => {
     const fetchRoomFiles = async () => {
@@ -79,9 +88,11 @@ const FilesPage: React.FC = () => {
       const newFile = {
         fileId: file.fileId,
         fileName: file.fileName ?? basename(file.filePath),
-        filePath: file.filePath,
+        // filePath intentionally omitted — cross-platform peers cannot use a local Windows path
         contentLength: file.sizeBytes ?? file.contentLength ?? 1024,
         content: file.content,
+        sharedBy: 'Desktop Node',
+        sharedAt: new Date().toISOString(),
       };
       await RoomService.shareFileToRoom(currentRoom.otp || currentRoom.id, newFile);
       setRoomFiles(prev => [...prev, newFile]);
@@ -130,17 +141,24 @@ const FilesPage: React.FC = () => {
       const code = currentRoom.otp || currentRoom.id;
       const targetId = file.fileId || file.id || '';
       const targetName = encodeURIComponent(file.fileName || file.name || '');
-      const MATCHMAKER_URL = import.meta.env.VITE_WEB_URL 
+      const MATCHMAKER_URL = import.meta.env.VITE_WEB_URL
         ? `${import.meta.env.VITE_WEB_URL}/api/lobby`
-        : (import.meta.env.DEV ? 'http://localhost:3000/api/lobby' : 'https://docusync-pnc.vercel.app/api/lobby');
+        : 'https://docusync-pnc.vercel.app/api/lobby';
       const res = await fetch(`${MATCHMAKER_URL}/files?otp=${code}&fileId=${targetId}&fileName=${targetName}`, {
         method: 'DELETE',
       });
       if (res.ok) {
+        if (targetId) {
+          try {
+            await FileService.deleteFile(Number(targetId));
+          } catch (e) {
+            console.error('Failed to create local delete event:', e);
+          }
+        }
         setRoomFiles(prev => prev.filter(f => {
           const idMatch = targetId && String(f.fileId ?? f.id) === String(targetId);
           const nameMatch = (f.fileName || f.name) === decodeURIComponent(targetName);
-          return !idMatch && !nameMatch;
+          return !(idMatch || nameMatch);
         }));
         notify.success('File deleted from room');
       }
@@ -205,9 +223,6 @@ const FilesPage: React.FC = () => {
         </button>
 
         <div className="ds-topbar-actions" style={{ marginLeft: 'auto' }}>
-          <button className="ds-btn ds-btn-primary" onClick={handleShareToRoom}>
-            <FileText size={13} /> Add File to Room
-          </button>
           <button
             className="ds-btn"
             style={{
@@ -278,17 +293,14 @@ const FilesPage: React.FC = () => {
 
         {/* Active Peers */}
         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: 1, marginBottom: 10 }}>
-          ACTIVE PEERS ({Math.max(connectedPeers.length + 1, matchmakerPeerCount)})
+          ACTIVE PEERS ({Math.max(connectedPeers.length, Math.max(0, matchmakerPeerCount - 1)) + 1})
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 28 }}>
-          <div style={{
-            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20,
-            padding: '5px 14px', display: 'flex', alignItems: 'center', gap: 7,
-            fontSize: 13, color: 'var(--text-primary)',
-          }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)' }} />
-            <strong>You</strong> (Desktop Node)
-          </div>
+          {connectedPeers.length === 0 && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', padding: '4px 8px' }}>
+              No other peers connected
+            </div>
+          )}
           {connectedPeers.map((p, i) => (
             <div key={i} style={{
               background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20,
@@ -307,7 +319,7 @@ const FilesPage: React.FC = () => {
             ROOM FILES ({roomFiles.length})
           </div>
           <button className="ds-btn ds-btn-primary" style={{ fontSize: 12 }} onClick={handleShareToRoom}>
-            <FolderOpen size={13} /> Add File to Room
+            <FolderOpen size={13} /> Share File
           </button>
         </div>
 
@@ -353,14 +365,15 @@ const FilesPage: React.FC = () => {
                     display: 'flex', alignItems: 'center', padding: '12px 16px',
                     borderBottom: i < roomFiles.length - 1 ? '1px solid var(--border)' : 'none',
                     transition: 'background 0.15s',
+                    opacity: 1,
                   }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card-hover)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                 >
                   <div style={{
-                    width: 34, height: 34, borderRadius: 8, background: bg, color,
+                    width: 34, height: 34, borderRadius: 8, background: bg, color: color,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0, marginRight: 12,
+                    flexShrink: 0, marginRight: 12, filter: 'none',
                   }}>
                     {icon}
                   </div>
@@ -368,11 +381,12 @@ const FilesPage: React.FC = () => {
                     <div style={{
                       fontWeight: 600, fontSize: 14, color: 'var(--text-primary)',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      textDecoration: 'none',
                     }}>
                       {f.fileName || f.name}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      Shared by {f.sharedBy || 'Peer'}
+                      {`Shared by ${f.sharedBy || 'Peer'}`}
                     </div>
                   </div>
                   <div style={{ flex: 1, fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -391,28 +405,28 @@ const FilesPage: React.FC = () => {
                     >
                       {opening ? '...' : 'Open & Edit'}
                     </button>
-                    <button
-                      onClick={() => handleDownloadRoomFile(f)}
-                      style={{
-                        background: 'var(--bg-card-hover)', color: 'var(--text-primary)', border: '1px solid var(--border)',
-                        borderRadius: 7, padding: '0 12px', height: 32, fontSize: 12,
-                        fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
-                        display: 'inline-flex', alignItems: 'center',
-                      }}
-                    >
-                      Download
-                    </button>
-                    <button
-                      onClick={() => handleDeleteRoomFile(f)}
-                      style={{
-                        background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)',
-                        borderRadius: 7, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer', flexShrink: 0,
-                      }}
-                      title="Delete file from room"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                        <button
+                          onClick={() => handleDownloadRoomFile(f)}
+                          style={{
+                            background: 'var(--bg-card-hover)', color: 'var(--text-primary)', border: '1px solid var(--border)',
+                            borderRadius: 7, padding: '0 12px', height: 32, fontSize: 12,
+                            fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                            display: 'inline-flex', alignItems: 'center',
+                          }}
+                        >
+                          Download
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRoomFile(f)}
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)',
+                            borderRadius: 7, width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', flexShrink: 0,
+                          }}
+                          title="Delete file from room"
+                        >
+                          <Trash2 size={15} />
+                        </button>
                   </div>
                 </div>
               );

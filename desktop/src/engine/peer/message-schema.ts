@@ -140,8 +140,10 @@ export interface DeltaPushMessage {
   nodeId: string;
   /** File ID this delta applies to. */
   fileId: number;
-  /** Base64-encoded delta string. */
+  /** Base64-encoded delta string (empty if tombstone). */
   deltaBase64: string;
+  /** Classification of the sync event. */
+  eventType?: 'edit' | 'restore' | 'delete' | 'merge';
   /** Logical timestamp from the sender's vector clock. */
   logicalTimestamp: number;
   /** Sender's full vector clock snapshot. */

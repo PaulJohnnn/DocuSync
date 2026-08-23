@@ -51,7 +51,8 @@ export type EventType =
   | 'conflict-resolve'
   | 'restore'
   | 'offline-replay'
-  | 'checkout';
+  | 'checkout'
+  | 'delete';
 
 /**
  * Input data for appending a new event to the log.
@@ -188,6 +189,7 @@ const VALID_EVENT_TYPES: ReadonlySet<string> = new Set<EventType>([
   'conflict-resolve',
   'restore',
   'offline-replay',
+  'delete',
 ]);
 
 function assertValidEventType(type: string): asserts type is EventType {
