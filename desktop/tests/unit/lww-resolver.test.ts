@@ -414,7 +414,7 @@ describe('LWWResolver — autoResolve()', () => {
     expect(msg.winner).toBe('A');
     expect(msg.winnerPayload).toBe('Winner Content');
     expect(msg.resolvedBy).toBe('owner-node');
-    expect(msg.fileId).toBe(1);
+    expect(msg.fileId).toBe('1');
     expect(msg.vectorClockJson).toBeTruthy();
     expect(msg.resolutionEventId).toBeTruthy();
   });
