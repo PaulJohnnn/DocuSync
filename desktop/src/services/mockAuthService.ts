@@ -81,6 +81,7 @@ async function pollDatabase() {
             const stillExists = (data.users || []).find((u: any) => u.id === user.id && u.status === 'active');
             if (!stillExists) {
               console.warn('[mockAuthService] Account deleted or revoked. Logging out.');
+              if (typeof window !== 'undefined') window.alert("Your account has been deleted by an administrator.");
               logout();
             }
           }
@@ -145,6 +146,32 @@ export async function cancelRequest(email: string): Promise<void> {
   pollDatabase();
 }
 
+export async function getActiveUsers(): Promise<AuthUser[]> {
+  try {
+    const res = await fetch(`${getApiBase()}?action=sync`);
+    if (res.ok) {
+      const data = await res.json();
+      return (data.users || []).filter((u: any) => u.status === 'active' && !u.isAdmin).map((u: any) => {
+        const { pin: _pin, ...safe } = u;
+        return safe;
+      });
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+
+export async function revokeUser(userId: string): Promise<void> {
+  await fetch(getApiBase(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'revoke', userId })
+  });
+  pollDatabase();
+}
+
 export function getCurrentUser(): AuthUser | null {
   if (typeof window === 'undefined') return null;
   const data = sessionStorage.getItem(SESSION_KEY);
@@ -199,6 +226,8 @@ const mockAuthService = {
   login,
   requestAccount,
   cancelRequest,
+  revokeUser,
+  getActiveUsers,
   getCurrentUser,
   logout,
   checkApprovalStatus,

@@ -631,27 +631,37 @@ export default function PeersPage() {
 
   return (
     <>
-      {deleteConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-        }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 380, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>Leave this room?</h3>
-            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20, lineHeight: 1.6 }}>
-              You'll lose access to this room's shared workspace. The room owner can re-invite you later.
-            </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setDeleteConfirm(null)} style={{ flex: 1, padding: '11px', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button onClick={() => handleDelete(deleteConfirm)} style={{ flex: 1, padding: '11px', borderRadius: 10, fontSize: 14, fontWeight: 700, background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer' }}>
-                Leave Room
-              </button>
+      {deleteConfirm && (() => {
+        const roomToDelete = rooms.find(r => r.id === deleteConfirm);
+        if (!roomToDelete) return null;
+        
+        const isOwner = roomToDelete.isOwner;
+        const title = isOwner ? 'Delete this repository permanently?' : 'Leave this room?';
+        const description = isOwner 
+          ? 'This action is permanent. The repository and all files will be destroyed for all connected members globally. Are you completely sure?' 
+          : 'You\'ll lose access to this room\'s shared workspace. The room owner can re-invite you later.';
+        const btnText = isOwner ? 'Delete Repository' : 'Leave Room';
+
+        return (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          }}>
+            <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 380, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+              <h3 style={{ fontSize: 17, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>{title}</h3>
+              <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20, lineHeight: 1.6 }}>{description}</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setDeleteConfirm(null)} style={{ flex: 1, padding: '11px', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button onClick={() => handleDelete(deleteConfirm)} style={{ flex: 1, padding: '11px', borderRadius: 10, fontSize: 14, fontWeight: 700, background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                  {btnText}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div style={{ padding: '32px 24px', minHeight: '100%', background: '#f8fafc' }}>
         {renderView()}

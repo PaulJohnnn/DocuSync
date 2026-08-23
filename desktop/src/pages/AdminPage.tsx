@@ -12,6 +12,7 @@ import { useElectronSync } from '@/context/ElectronSyncContext';
 import AdminService, { type SessionLogEntry, type GenerateAccountResult } from '@/services/AdminService';
 import { formatTimestampRelative } from '@docusync/shared/utils/formatters';
 import { notify } from '@docusync/shared/utils/notifications';
+import mockAuthService, { type AuthUser } from '@/services/mockAuthService';
 
 interface AdminStats {
   rooms: any[];
@@ -33,11 +34,17 @@ const AdminPage: React.FC = () => {
   const [generating, setGenerating] = useState(false);
   const [generatedAccount, setGeneratedAccount] = useState<GenerateAccountResult | null>(null);
 
+  const [activeProfiles, setActiveProfiles] = useState<AuthUser[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [revoking, setRevoking] = useState(false);
+
   const fetchStats = useCallback(async () => {
     const data = await AdminService.getStats();
     setStats(data);
     const log = await AdminService.getSessionLog(10);
     setSessionLog(log);
+    const profiles = await mockAuthService.getActiveUsers();
+    setActiveProfiles(profiles);
     setLoading(false);
   }, []);
 
@@ -156,6 +163,74 @@ const AdminPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Profile Access Control */}
+            <div className="ds-card" style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderBottom: '1px solid var(--ds-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Users size={18} color="var(--ds-accent)" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--ds-text)' }}>Profile Access Control ({activeProfiles.length})</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--ds-text3)' }}>Manage and revoke user profiles</div>
+                  </div>
+                </div>
+                {selectedUserIds.size > 0 && (
+                  <button 
+                    className="ds-btn"
+                    style={{ background: 'var(--ds-red)', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.75rem' }}
+                    disabled={revoking}
+                    onClick={async () => {
+                      if (!window.confirm(`Revoke completely ${selectedUserIds.size} selected users?`)) return;
+                      setRevoking(true);
+                      try {
+                        for (const id of Array.from(selectedUserIds)) {
+                          await mockAuthService.revokeUser(id);
+                        }
+                        notify.success(`Revoked ${selectedUserIds.size} users`);
+                        setSelectedUserIds(new Set());
+                        fetchStats();
+                      } catch (err: any) { notify.error(err.message); }
+                      finally { setRevoking(false); }
+                    }}
+                  >
+                    {revoking ? 'Revoking...' : `Revoke Selected (${selectedUserIds.size})`}
+                  </button>
+                )}
+              </div>
+              {activeProfiles.length === 0 ? (
+                <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--ds-text3)', fontSize: '0.82rem' }}>No active profiles.</div>
+              ) : (
+                <div>
+                  <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                    {activeProfiles.map(p => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 1.25rem', borderBottom: '1px solid var(--ds-border)' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedUserIds.has(p.id)}
+                          onChange={() => {
+                            const next = new Set(selectedUserIds);
+                            if (next.has(p.id)) next.delete(p.id);
+                            else next.add(p.id);
+                            setSelectedUserIds(next);
+                          }}
+                          style={{ cursor: 'pointer', width: 16, height: 16, accentColor: 'var(--ds-red)' }}
+                        />
+                        <div style={{
+                          width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg, #60a5fa, #2563eb)',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
+                        }}>
+                          {p.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--ds-text)' }}>{p.name}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--ds-text3)' }}>{p.email}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Registered Users */}
