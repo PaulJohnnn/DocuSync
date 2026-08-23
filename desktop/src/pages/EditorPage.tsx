@@ -457,9 +457,12 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
           const deltaSize = new Blob([html]).size;
           const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
           const url = `${_WEB_BASE}/api/lobby/doc`;
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 2000);
           const mmRes = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify({
               otp: roomOtp,
               fileId: String(fileId),
@@ -470,6 +473,7 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
               deltaSize
             })
           });
+          clearTimeout(timeoutId);
           if (!mmRes.ok) console.warn('Matchmaker push failed:', await mmRes.text());
         } catch (e) {
           console.error("Matchmaker push error:", e);
