@@ -84,12 +84,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ snapshot: null }, { headers: corsHeaders });
     }
 
-    // If the client already has this version, tell them nothing has changed
-    if (since >= snapshot.committedAt) {
+    const conflictRecord = await redis.get(`conflict:${otp}:${fileId}`);
+
+    // If the client already has this version and no conflict exists, tell them nothing has changed
+    if (since >= snapshot.committedAt && !conflictRecord) {
       return NextResponse.json({ unchanged: true }, { headers: corsHeaders });
     }
 
-    return NextResponse.json({ snapshot }, { headers: corsHeaders });
+    return NextResponse.json({ snapshot, conflict: conflictRecord }, { headers: corsHeaders });
   } catch (err: any) {
     console.error('[Doc GET] Error:', err);
     return NextResponse.json(
@@ -135,8 +137,41 @@ export async function POST(request: Request) {
     const existing = (await redis.get(key)) as DocSnapshot | null;
     const nextSeq = existing ? (existing.seq || 0) + 1 : 1;
 
-    // Always accept the incoming content — clients are responsible for merging
-    // before pushing. Rejecting saves was causing edits to be silently lost.
+    const isOfflinePush = body.isOfflineReconnect === true || body.isOffline === true;
+
+    // ── Offline / Concurrent Conflict Escalation ──────────────────────────
+    // If a different peer modified the document while this node was offline or editing concurrently:
+    if (existing && existing.authorNodeId !== authorNodeId && existing.content !== content) {
+      if (isOfflinePush) {
+        console.log(`[Doc POST] Offline conflict detected between ${authorNodeId} and ${existing.authorNodeId} on file ${fileId}`);
+
+        const conflictRecord = {
+          id: `conflict-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          otp,
+          fileId,
+          nodeIdA: existing.authorNodeId,
+          nodeIdB: authorNodeId,
+          payloadA: existing.content,
+          payloadB: content,
+          timestamp: new Date().toISOString()
+        };
+        await redis.set(`conflict:${otp}:${fileId}`, conflictRecord, { ex: 24 * 60 * 60 });
+
+        return NextResponse.json(
+          {
+            escalated: true,
+            conflictId: conflictRecord.id,
+            fileId,
+            serverContent: existing.content,
+            localContent: content,
+            message: 'Conflict detected: Concurrent edits while offline.',
+          },
+          { headers: corsHeaders }
+        );
+      }
+    }
+
+    // Always accept incoming content if no offline conflict escalated
     const snapshot: DocSnapshot = {
       otp,
       fileId,
@@ -152,6 +187,9 @@ export async function POST(request: Request) {
     // Store with 24-hour TTL
     const TTL_SECONDS = 24 * 60 * 60;
     await redis.set(key, snapshot, { ex: TTL_SECONDS });
+
+    // ── Clear any resolved conflict key in Redis ─────────────────────────
+    await redis.del(`conflict:${otp}:${fileId}`);
 
     // ── Also update content in lobby.files list so /api/lobby/files returns fresh text ──
     try {

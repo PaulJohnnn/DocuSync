@@ -362,6 +362,9 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
             const mmRes = await fetch(`${_WEB_BASE}/api/lobby/doc?otp=${roomOtp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
             if (mmRes.ok) {
               const mmData = await mmRes.json();
+              if (mmData.conflict) {
+                notify.error('Conflict detected with remote peer! Check Conflicts page.');
+              }
               if (!mmData.unchanged && mmData.snapshot?.content && mmData.snapshot.authorNodeId !== myNodeId) {
                 const incoming = mmData.snapshot;
                 // Only apply if this is a genuinely newer version (newer seq or newer timestamp)
