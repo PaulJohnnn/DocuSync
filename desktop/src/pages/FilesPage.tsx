@@ -68,15 +68,30 @@ const FilesPage: React.FC = () => {
   useEffect(() => {
     const fetchRoomFiles = async () => {
       if (!currentRoom || currentRoom.id.startsWith('direct-')) return;
+      const otp = currentRoom.otp || currentRoom.id;
+      
+      // Always try to load from cache first
+      const cachedStr = localStorage.getItem(`docusync_cached_room_files_${otp}`);
+      if (cachedStr && roomFiles.length === 0) {
+        try {
+          setRoomFiles(JSON.parse(cachedStr));
+        } catch (e) {}
+      }
+      
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        return; // skip network if strictly offline
+      }
+
       try {
-        const files = await RoomService.listRoomFiles(currentRoom.otp || currentRoom.id);
+        const files = await RoomService.listRoomFiles(otp);
         setRoomFiles(files);
+        localStorage.setItem(`docusync_cached_room_files_${otp}`, JSON.stringify(files));
       } catch { /* silently ignore */ }
     };
     fetchRoomFiles();
-    const iv = setInterval(fetchRoomFiles, 1000);
+    const iv = setInterval(fetchRoomFiles, 2000);
     return () => clearInterval(iv);
-  }, [currentRoom]);
+  }, [currentRoom, roomFiles.length]);
 
   const handleShareToRoom = async () => {
     if (!currentRoom || currentRoom.id.startsWith('direct-')) {

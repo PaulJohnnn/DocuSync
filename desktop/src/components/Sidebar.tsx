@@ -42,6 +42,9 @@ const Sidebar: React.FC = () => {
       setHasInternet(true);
       toast.success('Back online — syncing with peers');
       try {
+        if (window.docuSync && typeof window.docuSync.triggerSync === 'function') {
+          await window.docuSync.triggerSync();
+        }
         await refreshStatus();
       } catch {}
     };

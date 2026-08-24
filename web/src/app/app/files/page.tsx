@@ -96,9 +96,29 @@ export default function FilesPage() {
       if (!storedRoom) return;
       try {
         const r = JSON.parse(storedRoom);
-        fetch(`${MATCHMAKER_URL}/files?otp=${r.otp || r.id}`)
-          .then(res => res.json())
-          .then(data => { if (data.files) setRoomFiles(data.files || []); })
+        const otp = r.otp || r.id;
+        
+        // Always try to load from cache first for immediate display (especially if offline)
+        const cachedStr = uGet(`docusync_cached_room_files_${otp}`);
+        if (cachedStr && roomFiles.length === 0) {
+          try {
+            setRoomFiles(JSON.parse(cachedStr));
+          } catch (e) {}
+        }
+        
+        // If we are definitely offline (no network at all), skip fetching to avoid throwing
+        if (typeof window !== 'undefined' && navigator.onLine === false) {
+          return;
+        }
+
+        fetch(`${MATCHMAKER_URL}/files?otp=${otp}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => { 
+            if (data?.files) {
+              setRoomFiles(data.files); 
+              uSet(`docusync_cached_room_files_${otp}`, JSON.stringify(data.files));
+            }
+          })
           .catch(() => {});
       } catch {}
     };
@@ -106,7 +126,7 @@ export default function FilesPage() {
     fetchRoomFiles();
     const iv = setInterval(fetchRoomFiles, 2000);
     return () => clearInterval(iv);
-  }, []);
+  }, [roomFiles.length]);
 
   const [currentRoom, setCurrentRoom] = useState<{ id: string; name: string; otp?: string; hostIp?: string; hostPort?: number } | null>(null);
   const [isMounted, setIsMounted] = useState(false);

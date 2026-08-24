@@ -255,6 +255,11 @@ export default function EditorPage() {
 
     // Always fetch latest canonical snapshot from Matchmaker on mount to ensure fresh content on rejoin
     try {
+      // If we are definitely offline, do not attempt to fetch from server
+      if (typeof window !== 'undefined' && navigator.onLine === false) {
+        return;
+      }
+      
       const storedRoomStr = uGet('current_room');
       if (storedRoomStr) {
         const room = JSON.parse(storedRoomStr);
