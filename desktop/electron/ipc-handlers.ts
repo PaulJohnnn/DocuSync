@@ -971,13 +971,7 @@ export function registerIPCHandlers(services: EngineServices): void {
                    console.error('Failed to cleanup live conflict record:', e);
                  }
               }
-
-              return {
-                fileId,
-                saved: false,
-                synced: false,
-                escalated: false, // DO NOT escalate!
-              };
+              // Removed return: allow it to fall through and broadcast the live edit
             }
           }
         }

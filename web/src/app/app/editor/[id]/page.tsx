@@ -543,7 +543,7 @@ export default function EditorPage() {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false;
-    }, 2000);
+    }, 300);
   }, []);
 
   useEffect(() => {
