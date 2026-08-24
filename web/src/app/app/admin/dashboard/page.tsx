@@ -7,6 +7,8 @@ import { ShieldCheck, Clock, X, Check, UserX, Activity } from 'lucide-react';
 export default function AdminDashboardPage() {
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [activeUsers, setActiveUsers] = useState<AuthUser[]>([]);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [sessionLog, setSessionLog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [confirmModal, setConfirmModal] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void } | null>(null);
@@ -26,9 +28,11 @@ export default function AdminDashboardPage() {
 
   const loadData = async (isInitial = false) => {
     if (isInitial) setLoading(true);
-    const [reqs, users] = await Promise.all([
+    const [reqs, users, statsRes, logRes] = await Promise.all([
       mockAuthService.getPendingRequests(),
-      mockAuthService.getActiveUsers()
+      mockAuthService.getActiveUsers(),
+      fetch('/api/admin/stats').then(r => r.json()).catch(() => ({ rooms: [] })),
+      fetch('/api/admin/session-log').then(r => r.json()).catch(() => ({ log: [] })),
     ]);
     
     // Check if there are new requests since last load
@@ -40,7 +44,30 @@ export default function AdminDashboardPage() {
     
     setPendingRequests(reqs);
     setActiveUsers(users);
+    setRooms(statsRes.rooms || []);
+    setSessionLog(logRes.log || []);
     if (isInitial) setLoading(false);
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!deleteOtp.trim()) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/admin/delete-group', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: deleteOtp.trim().toUpperCase() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to terminate repository');
+      toast.success(`Repository (OTP: ${deleteOtp.toUpperCase()}) terminated successfully`);
+      setDeleteOtp('');
+      await loadData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to terminate repository');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   useEffect(() => {
@@ -440,6 +467,90 @@ export default function AdminDashboardPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* ── Active Repositories (Rooms) Section ───────────────────────────────────── */}
+      <div style={{ marginTop: 40, background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, padding: 24, backdropFilter: 'blur(20px)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span>📁</span> Active Repositories / Rooms ({rooms.length})
+          </h2>
+        </div>
+
+        {rooms.length === 0 ? (
+          <div style={{ padding: '30px 20px', textAlign: 'center', color: '#64748b', fontSize: 14 }}>
+            No active repositories on matchmaker.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1.5fr 1fr', gap: 12, fontSize: 13, color: '#94a3b8' }}>
+            <div style={{ fontWeight: 700, color: '#e2e8f0', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Room Name</div>
+            <div style={{ fontWeight: 700, color: '#e2e8f0', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>OTP Code</div>
+            <div style={{ fontWeight: 700, color: '#e2e8f0', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Host Node ID</div>
+            <div style={{ fontWeight: 700, color: '#e2e8f0', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Members</div>
+            {rooms.map((r, i) => (
+              <React.Fragment key={i}>
+                <div style={{ color: '#f8fafc', fontWeight: 600 }}>{r.roomName}</div>
+                <code style={{ color: '#4ade80', fontFamily: 'monospace' }}>{r.otp}</code>
+                <code style={{ color: '#818cf8', fontFamily: 'monospace' }}>{r.hostNodeId?.slice(0, 16)}...</code>
+                <div>{r.memberCount} active</div>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Terminate Repository by OTP Section ───────────────────────────────────── */}
+      <div style={{ marginTop: 24, background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 20, padding: 24 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f87171', margin: '0 0 8px 0' }}>Terminate Repository (by OTP)</h3>
+        <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 16px 0' }}>Enter a 6-character room OTP to immediately dissolve and terminate an active repository across all peers.</p>
+        <div style={{ display: 'flex', gap: 12, maxWidth: 450 }}>
+          <input
+            type="text"
+            placeholder="Enter OTP (e.g. A1B2C3)"
+            value={deleteOtp}
+            onChange={e => setDeleteOtp(e.target.value.toUpperCase())}
+            maxLength={6}
+            style={{
+              flex: 1, padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(0,0,0,0.3)', color: '#fff', fontSize: 14, fontFamily: 'monospace', textTransform: 'uppercase'
+            }}
+          />
+          <button
+            disabled={!deleteOtp.trim() || deleting}
+            onClick={handleDeleteGroup}
+            style={{
+              padding: '10px 20px', borderRadius: 10, border: 'none',
+              background: !deleteOtp.trim() ? 'rgba(239, 68, 68, 0.2)' : '#ef4444',
+              color: '#fff', fontWeight: 600, fontSize: 13, cursor: !deleteOtp.trim() ? 'not-allowed' : 'pointer',
+              opacity: !deleteOtp.trim() || deleting ? 0.5 : 1, transition: 'all 0.2s'
+            }}
+          >
+            {deleting ? 'Terminating...' : 'Terminate Group'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Global Session Audit Log Section ───────────────────────────────────────── */}
+      <div style={{ marginTop: 24, background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, padding: 24, backdropFilter: 'blur(20px)' }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px 0', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span>🛡️</span> Global Session Audit Log
+        </h2>
+        {sessionLog.length === 0 ? (
+          <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+            No global audit logs recorded yet.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 250, overflowY: 'auto' }}>
+            {sessionLog.map((log, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', fontSize: 12 }}>
+                <span style={{ color: '#64748b', minWidth: 80 }}>{new Date(log.timestamp).toLocaleTimeString()}</span>
+                <code style={{ color: '#818cf8', fontFamily: 'monospace', minWidth: 120 }}>{log.nodeId?.slice(0, 14)}</code>
+                <span style={{ fontWeight: 600, color: log.action?.includes('CONFLICT') ? '#fbbf24' : '#e2e8f0', minWidth: 140 }}>{log.action}</span>
+                <span style={{ color: '#94a3b8' }}>{log.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
