@@ -491,28 +491,6 @@ export default function EditorPage() {
         if (!res.ok) return;
         const data = await res.json();
 
-        // Check for active remote conflict
-        if (data.conflict) {
-          const conflictObj = {
-            id: data.conflict.id || `web-conflict-${Date.now()}`,
-            fileId: fileId,
-            localContent: currentContentRef.current,
-            serverContent: data.conflict.payloadA || data.conflict.payloadB || '',
-            timestamp: Date.now()
-          };
-          let conflicts = [];
-          try {
-            const stored = uGet('docusync_web_conflicts');
-            if (stored) conflicts = JSON.parse(stored);
-          } catch (e) {}
-          if (!conflicts.some((c: any) => c.id === conflictObj.id)) {
-            conflicts.push(conflictObj);
-            uSet('docusync_web_conflicts', JSON.stringify(conflicts));
-            toast.error('Offline Conflict Detected! Check Conflicts menu.');
-            setSyncStatusMsg('Conflict Detected!');
-          }
-        }
-
         if (data.unchanged || !data.snapshot?.content) return;
         const snap = data.snapshot;
         console.log('[POLL MATCHMAKER]', 'server content:', snap.content, 'will overwrite local:', !(isTypingRef.current || hasPendingChangesRef.current));
