@@ -970,7 +970,6 @@ export function registerIPCHandlers(services: EngineServices): void {
         }
       }
 
-      // If we won the resolution, or there was no conflict:
       // ── Write to disk ───────────────────────────────────────────
       // Strip HTML for non-HTML files to prevent TipTap markup corruption
       const contentToWrite = isHtmlExtension(filePath) ? newContent : stripHtmlToPlainText(newContent);

@@ -556,7 +556,12 @@ export default function EditorPage() {
       saveFile(currentContentRef.current, true);
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (hasPendingChangesRef.current) {
+        saveFile(currentContentRef.current, true);
+      }
+    };
   }, [saveFile]);
 
   useEffect(() => {

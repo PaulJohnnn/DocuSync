@@ -292,12 +292,18 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (performSaveRef.current && editor) {
+      if (performSaveRef.current && editor && !editor.isDestroyed) {
         performSaveRef.current(editor.getHTML(), true);
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Flush pending save when navigating away from the editor
+      if (performSaveRef.current && editor && !editor.isDestroyed) {
+        performSaveRef.current(editor.getHTML(), true);
+      }
+    };
   }, [editor]);
 
   const performSaveRef = useRef<((html: string, explicit?: boolean) => Promise<void>) | null>(null);

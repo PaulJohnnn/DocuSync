@@ -201,6 +201,43 @@ export default function ConflictsPage() {
     } catch (e) {
       console.error(e);
     }
+
+    // ── Push resolution to Matchmaker so Desktop & all room peers update ──
+    try {
+      const storedRoom = uGet('current_room');
+      if (storedRoom) {
+        const room = JSON.parse(storedRoom);
+        const otp = room.otp || room.id;
+        fetch('/api/lobby/doc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            otp,
+            fileId: conflict.fileId,
+            authorNodeId: 'web-user',
+            authorName: 'Web Member (Conflict Resolution)',
+            content: winnerContent,
+            vectorClock: {},
+            deltaSize: new Blob([winnerContent]).size,
+          }),
+        }).catch(err => console.error('[Conflict Resolve] Matchmaker push error:', err));
+      }
+    } catch (e) {}
+
+    // ── Record event in History ──
+    try {
+      const historyStr = uGet('docusync_history') || '[]';
+      const history = JSON.parse(historyStr);
+      history.unshift({
+        id: Date.now(),
+        fileName: getFileName(conflict.fileId),
+        action: 'Conflict Resolved',
+        timestamp: new Date().toLocaleString(),
+        resolvedBy: 'Web Member',
+        type: 'conflict-resolve',
+      });
+      uSet('docusync_history', JSON.stringify(history));
+    } catch (e) {}
     
     // Remove from array (also handle backward compat deletion)
     const updatedConflicts = conflicts.filter(c => c.id !== selectedConflictId);
@@ -211,6 +248,25 @@ export default function ConflictsPage() {
   };
 
   const rejectConflict = () => {
+    const conflict = conflicts.find(c => c.id === selectedConflictId);
+    
+    // Record rejection in History
+    if (conflict) {
+      try {
+        const historyStr = uGet('docusync_history') || '[]';
+        const history = JSON.parse(historyStr);
+        history.unshift({
+          id: Date.now(),
+          fileName: getFileName(conflict.fileId),
+          action: 'Conflict Deleted',
+          timestamp: new Date().toLocaleString(),
+          resolvedBy: 'Web Member',
+          type: 'conflict-delete',
+        });
+        uSet('docusync_history', JSON.stringify(history));
+      } catch (e) {}
+    }
+
     const updatedConflicts = conflicts.filter(c => c.id !== selectedConflictId);
     setConflicts(updatedConflicts);
     uSet('docusync_web_conflicts', JSON.stringify(updatedConflicts));
