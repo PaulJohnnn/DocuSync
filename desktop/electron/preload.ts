@@ -457,6 +457,10 @@ const docuSyncBridge: DocuSyncBridge = {
     return ipcRenderer.invoke('user:set-name', name);
   },
 
+  rejectMerge(conflictId: string, reason: string): Promise<IPCResponse> {
+    return ipcRenderer.invoke('conflict:reject-merge', conflictId, reason);
+  },
+
   // ── File Operations ──────────────────────────────────────────────────
 
   openFile(filePathOrId?: string | number): Promise<IPCResponse> {

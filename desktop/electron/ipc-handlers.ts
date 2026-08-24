@@ -1066,7 +1066,7 @@ export function registerIPCHandlers(services: EngineServices): void {
           logicalTimestamp: entry.logicalTimestamp,
           createdAt: entry.createdAt.toISOString(),
           isCompacted: entry.isCompacted,
-          // Omit payload for performance — it can be large.
+          payload: entry.payload,
           payloadPreview: entry.payload.slice(0, 200),
         })),
         totalEntries: history.length,
@@ -1357,36 +1357,10 @@ export function registerIPCHandlers(services: EngineServices): void {
       try {
         const fileIdNum = typeof data.fileId === 'string' ? parseInt(data.fileId, 10) : data.fileId;
         
-        // Ensure file exists locally before importing conflict
-        const fileExists = await prisma.file.findUnique({ where: { id: fileIdNum } });
-        if (!fileExists) return { success: false, error: 'File not found locally' };
-
-        const existing = await prisma.conflict.findUnique({
-          where: { conflictId: data.conflictId }
-        });
-        
-        if (existing) return { success: true };
-
-        await prisma.conflict.create({
-          data: {
-            conflictId: data.conflictId,
-            fileId: fileIdNum,
-            eventIdA: data.eventIdA,
-            nodeIdA: data.nodeIdA,
-            vectorClockJsonA: JSON.stringify(data.vectorClockJsonA),
-            payloadA: data.payloadA,
-            eventIdB: data.eventIdB,
-            nodeIdB: data.nodeIdB,
-            vectorClockJsonB: JSON.stringify(data.vectorClockJsonB),
-            payloadB: data.payloadB,
-            status: 'pending',
-            detectedAt: new Date(data.detectedAt)
-          }
-        });
-
         // Broadcast to UI
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('conflict:detected', {
+        const win = BrowserWindow.getAllWindows()[0];
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('conflict:detected', {
             conflictId: data.conflictId,
             fileId: fileIdNum,
             summary: `Conflict from Matchmaker (Web App offline edit)`

@@ -658,9 +658,7 @@ export default function EditorPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="ds-btn" style={{ background: 'transparent', color: 'var(--t2)', border: '1px solid var(--b1)' }} onClick={() => router.push(`/app/history/${fileId}`)} title="View History">
-              <Clock size={14} /> History
-            </button>
+
             <button className="ds-btn" onClick={() => {
               const origName = file.name || 'document';
               const ext = origName.split('.').pop()?.toLowerCase() || '';
