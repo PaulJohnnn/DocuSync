@@ -61,6 +61,7 @@ async function pollDatabase() {
             const stillExists = (data.users || []).find((u: any) => u.id === user.id && u.status === 'active');
             if (!stillExists) {
               console.warn('[mockAuthService] Account deleted or revoked. Logging out.');
+              if (typeof window !== 'undefined') alert('Your account has been deleted or revoked by an administrator.');
               logout();
             }
           }
