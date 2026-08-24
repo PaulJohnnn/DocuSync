@@ -290,31 +290,55 @@ class RoomService {
     return joined;
   }
 
-  /** List files shared to a room (fetches from matchmaker) */
+  /** List files shared to a room (queries matchmaker with multi-URL fallback for high speed) */
   static async listRoomFiles(roomId: string): Promise<any[]> {
-    try {
-      const MATCHMAKER = getMatchmakerUrl();
-      const res = await fetch(`${MATCHMAKER}/files?otp=${encodeURIComponent(roomId)}`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.files || [];
-    } catch {
-      return [];
+    const urlsToTry = Array.from(new Set([
+      getMatchmakerUrl(),
+      'http://localhost:3000/api/lobby',
+      'https://docusync-pnc.vercel.app/api/lobby',
+    ]));
+
+    for (const baseUrl of urlsToTry) {
+      try {
+        const res = await fetch(`${baseUrl}/files?otp=${encodeURIComponent(roomId)}`, {
+          signal: AbortSignal.timeout(2000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.files)) return data.files;
+        }
+      } catch {
+        // try next URL
+      }
     }
+    return [];
   }
 
   /** Share a file into a room by posting it to the matchmaker */
   static async shareFileToRoom(roomId: string, file: Record<string, unknown>): Promise<void> {
-    const MATCHMAKER = getMatchmakerUrl();
-    const res = await fetch(`${MATCHMAKER}/files`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ otp: roomId, file }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(`Failed to upload to room: ${data.error || 'Server error'}. Please rejoin.`);
+    const urlsToTry = Array.from(new Set([
+      getMatchmakerUrl(),
+      'http://localhost:3000/api/lobby',
+      'https://docusync-pnc.vercel.app/api/lobby',
+    ]));
+
+    let lastError = 'Failed to upload to room.';
+    for (const baseUrl of urlsToTry) {
+      try {
+        const res = await fetch(`${baseUrl}/files`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ otp: roomId, file }),
+          signal: AbortSignal.timeout(3000),
+        });
+        if (res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        if (data.error) lastError = data.error;
+      } catch {
+        // try next URL
+      }
     }
+    throw new Error(`Failed to upload to room: ${lastError}. Please check your connection.`);
   }
 
   static subscribeToRoomChanges(callback: () => void): () => void {

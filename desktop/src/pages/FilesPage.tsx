@@ -74,7 +74,7 @@ const FilesPage: React.FC = () => {
       } catch { /* silently ignore */ }
     };
     fetchRoomFiles();
-    const iv = setInterval(fetchRoomFiles, 2000);
+    const iv = setInterval(fetchRoomFiles, 1000);
     return () => clearInterval(iv);
   }, [currentRoom]);
 
