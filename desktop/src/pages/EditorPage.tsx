@@ -309,7 +309,7 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
         isTypingRef.current = false;
-      }, 2000);
+      }, 300); // Match save debounce — remote updates apply sooner after a local pause
 
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
