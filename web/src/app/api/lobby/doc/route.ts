@@ -142,10 +142,38 @@ export async function POST(request: Request) {
     if (existing && existing.authorNodeId !== authorNodeId && existing.content !== content) {
       if (isOfflinePush) {
         console.log(`[Doc POST] Offline conflict detected between ${authorNodeId} and ${existing.authorNodeId} on file ${fileId}`);
+        const conflictId = `conflict-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const conflictRecord = {
+          conflictId,
+          fileId,
+          eventIdA: `evt-${Date.now()}-server`,
+          nodeIdA: existing.authorNodeId,
+          vectorClockJsonA: existing.vectorClock || {},
+          payloadA: existing.content,
+          eventIdB: `evt-${Date.now()}-local`,
+          nodeIdB: authorNodeId,
+          vectorClockJsonB: vectorClock || {},
+          payloadB: content,
+          detectedAt: new Date().toISOString()
+        };
+
+        // Save conflict globally for the room
+        try {
+          const roomConflictsKey = `conflicts:${otp}`;
+          const rawConflicts = await redis.get(roomConflictsKey) as any[];
+          const conflictsList = Array.isArray(rawConflicts) ? rawConflicts : [];
+          // Keep only active conflicts, remove if fileId already has a conflict
+          const updatedList = conflictsList.filter(c => String(c.fileId) !== String(fileId));
+          updatedList.push(conflictRecord);
+          await redis.set(roomConflictsKey, updatedList, { ex: 86400 }); // 24hr TTL
+        } catch (e) {
+          console.error('[Doc POST] Failed to save conflict to Redis', e);
+        }
+
         return NextResponse.json(
           {
             escalated: true,
-            conflictId: `conflict-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            conflictId,
             fileId,
             serverContent: existing.content,
             localContent: content,

@@ -133,6 +133,16 @@ export interface DocuSyncBridge {
    */
   setDisplayName(name: string): Promise<IPCResponse>;
 
+  /**
+   * Rejects an incoming peer delta (rarely used directly by frontend).
+   */
+  rejectMerge(conflictId: string, reason: string): Promise<IPCResponse>;
+
+  /**
+   * Imports a conflict from the Matchmaker into the local database.
+   */
+  importConflict(conflictData: any): Promise<IPCResponse>;
+
   // ── File Operations ────────────────────────────────────────────────────
 
   /**
@@ -495,6 +505,10 @@ const docuSyncBridge: DocuSyncBridge = {
 
   listConflicts(): Promise<IPCResponse> {
     return ipcRenderer.invoke('conflict:list');
+  },
+
+  importConflict(conflictData: any): Promise<IPCResponse> {
+    return ipcRenderer.invoke('conflict:import', conflictData);
   },
 
   clearDatabase(): Promise<IPCResponse> {

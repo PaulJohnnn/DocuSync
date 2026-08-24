@@ -220,6 +220,96 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
 
   const webRtcRef = useRef<WebRTCManager | null>(null);
 
+  // ── Fetch sync status from engine ────────────────────────────────────────
+
+  /**
+   * Calls `sync:status` IPC and updates all derived state.
+   *
+   * Safe to call repeatedly — errors are caught and reflected in `syncStatus`.
+   */
+  const refreshStatus = useCallback(async () => {
+    // Guard: preload bridge may not be injected in plain browser dev mode.
+    if (!window.docuSync) return;
+
+    try {
+      const res = await window.docuSync.getSyncStatus();
+
+      if (!res.success || !res.data) {
+        setSyncStatus('error');
+        return;
+      }
+
+      const data = res.data as {
+        localNodeId: string;
+        vectorClock: Record<string, unknown>;
+        connectedPeers: ConnectedPeerInfo[];
+        pendingConflicts: number;
+      };
+
+      setLocalNodeId(data.localNodeId ?? '');
+      setVectorClock(data.vectorClock ?? null);
+      setConnectedPeers(data.connectedPeers ?? []);
+
+      // Derive sync state from peer count and conflict count.
+      const peers = data.connectedPeers ?? [];
+      const conflicts = data.pendingConflicts ?? 0;
+
+      setPendingConflicts(conflicts);
+
+      if (conflicts > 0) {
+        setSyncStatus('conflict');
+      } else if (peers.length === 0) {
+        setSyncStatus('offline');
+      } else {
+        setSyncStatus('idle');
+      }
+    } catch {
+      setSyncStatus('error');
+    }
+  }, []);
+
+  // ── Poll matchmaker for offline conflicts ────────────────────────────────
+  useEffect(() => {
+    const _WEB_BASE = import.meta.env.VITE_WEB_URL
+      || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+    const MATCHMAKER_CONFLICTS = `${_WEB_BASE}/api/lobby/conflicts`;
+
+    const pollConflicts = async () => {
+      if (typeof window !== 'undefined' && !navigator.onLine) return;
+      const roomOtp = currentRoom?.otp || currentRoom?.id;
+      if (!roomOtp || roomOtp.startsWith('direct-')) return;
+      
+      try {
+        const res = await fetch(`${MATCHMAKER_CONFLICTS}?otp=${roomOtp}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.conflicts && Array.isArray(data.conflicts) && data.conflicts.length > 0) {
+            let imported = false;
+            for (const conflict of data.conflicts) {
+              const result = await window.docuSync?.importConflict(conflict);
+              if (result?.success) {
+                imported = true;
+                // Delete conflict from Matchmaker after successfully importing
+                await fetch(`${MATCHMAKER_CONFLICTS}?otp=${roomOtp}&conflictId=${conflict.conflictId}`, {
+                  method: 'DELETE'
+                }).catch(() => {});
+              }
+            }
+            if (imported) {
+              refreshStatus(); // Refresh UI to show red badge
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to poll Matchmaker conflicts', e);
+      }
+    };
+
+    pollConflicts();
+    const iv = setInterval(pollConflicts, 5_000);
+    return () => clearInterval(iv);
+  }, [currentRoom, refreshStatus]);
+
   // ── WebRTC Signaling & Connection ──────────────────────────────────────────
   useEffect(() => {
     if (!currentRoom || !localNodeId) return;
@@ -296,6 +386,7 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
     const iv = setInterval(pollMatchmaker, 10_000);
     return () => clearInterval(iv);
   }, [currentRoom, localNodeId]);
+
 
   // ── Fetch sync status from engine ────────────────────────────────────────
 
