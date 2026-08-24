@@ -265,6 +265,7 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
     const MATCHMAKER = `${_WEB_BASE}/api/lobby`;
 
     const pollMatchmaker = async () => {
+      if (typeof window !== 'undefined' && !navigator.onLine) return;
       const roomOtp = currentRoom?.otp || currentRoom?.id;
       if (!roomOtp || roomOtp.startsWith('direct-')) return;
       try {

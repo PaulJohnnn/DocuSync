@@ -48,6 +48,10 @@ const API_BASE_STATIC = import.meta.env.VITE_WEB_URL
 
 
 async function authFetch(path: string = '', options: RequestInit = {}): Promise<Response> {
+  if (typeof window !== 'undefined' && !navigator.onLine) {
+    throw new Error('Offline: No network connection.');
+  }
+
   const primary = getApiBase();
   const urlsToTry = [
     `${primary}${path}`,
@@ -60,14 +64,14 @@ async function authFetch(path: string = '', options: RequestInit = {}): Promise<
     try {
       const res = await fetch(url, {
         ...options,
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(1500)
       });
       if (res.ok || res.status < 500) return res;
     } catch {
       // Try next fallback URL
     }
   }
-  throw new Error('Network timeout: Cannot connect to the Web App Admin. Make sure the local web app is running on http://localhost:3000');
+  throw new Error('Network timeout: Cannot connect to the Web App Admin.');
 }
 
 // ── Polling logic for reactivity ─────────────────────────────────────────
@@ -75,7 +79,7 @@ let _usersHash = '';
 let _pendingHash = '';
 
 async function pollDatabase() {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined' || !navigator.onLine) return;
   try {
     const res = await authFetch('?action=sync');
     if (res.ok) {

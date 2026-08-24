@@ -479,11 +479,21 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
               authorName: myNodeId.slice(0, 8),
               content: html,
               vectorClock: payloadVectorClock || {},
-              deltaSize
+              deltaSize,
+              isOfflineReconnect: !navigator.onLine
             })
           });
           clearTimeout(timeoutId);
-          if (!mmRes.ok) console.warn('Matchmaker push failed:', await mmRes.text());
+          if (mmRes.ok) {
+            const data = await mmRes.json();
+            if (data.escalated) {
+              notify.error('Offline Conflict Detected! Check Conflicts page.');
+              setSaving(false);
+              return;
+            }
+          } else {
+            console.warn('Matchmaker push failed:', await mmRes.text());
+          }
         } catch (e) {
           console.error("Matchmaker push error:", e);
         }

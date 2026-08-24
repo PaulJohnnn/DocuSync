@@ -135,6 +135,27 @@ export async function POST(request: Request) {
     const existing = (await redis.get(key)) as DocSnapshot | null;
     const nextSeq = existing ? (existing.seq || 0) + 1 : 1;
 
+    const isOfflinePush = body.isOfflineReconnect === true || body.isOffline === true;
+
+    // ── Offline Edit Conflict Escalation ─────────────────────────────────
+    // If another peer edited this file while this node was offline:
+    if (existing && existing.authorNodeId !== authorNodeId && existing.content !== content) {
+      if (isOfflinePush) {
+        console.log(`[Doc POST] Offline conflict detected between ${authorNodeId} and ${existing.authorNodeId} on file ${fileId}`);
+        return NextResponse.json(
+          {
+            escalated: true,
+            conflictId: `conflict-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            fileId,
+            serverContent: existing.content,
+            localContent: content,
+            message: 'Conflict detected: Concurrent edits while offline.',
+          },
+          { headers: corsHeaders }
+        );
+      }
+    }
+
     // Always accept the incoming content — clients are responsible for merging
     // before pushing. Rejecting saves was causing edits to be silently lost.
     const snapshot: DocSnapshot = {
