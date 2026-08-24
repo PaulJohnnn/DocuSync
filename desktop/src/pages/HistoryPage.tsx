@@ -42,7 +42,7 @@ const TimelineItem: React.FC<{
   entry: HistoryEntry;
   isLatest: boolean;
   restoring: boolean;
-  onRestore: (eventId: string) => Promise<void>;
+  onRestore: (eventId: string) => void;
 }> = ({ entry, isLatest, restoring, onRestore }) => {
   const meta = eventMeta(entry.eventType);
 
@@ -90,21 +90,55 @@ const TimelineItem: React.FC<{
               🗑️ Deleted at {new Date(entry.createdAt).toLocaleTimeString()}
             </span>
           ) : (
-            <button
-              className="ds-btn ds-btn-ghost"
-              disabled={restoring}
-              onClick={() => onRestore(entry.eventId)}
-              style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem' }}
-              title={`Restore to ts=${entry.logicalTimestamp}`}
-            >
-              {restoring ? '⏳ Restoring…' : '⏪ Restore'}
-            </button>
+            isLatest ? (
+              <span style={{ fontSize: '0.68rem', color: 'var(--ds-green)', fontWeight: 600, border: '1px solid var(--ds-green)', padding: '0.2rem 0.5rem', borderRadius: 4 }}>
+                 Current Version
+              </span>
+            ) : (
+              <button
+                className="ds-btn ds-btn-ghost"
+                disabled={restoring}
+                onClick={() => onRestore(entry.eventId)}
+                style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem' }}
+                title={`Restore to ts=${entry.logicalTimestamp}`}
+              >
+                {restoring ? '⏳ Restoring…' : '⏪ Restore'}
+              </button>
+            )
           )}
         </div>
       </article>
     </div>
   );
 };
+
+// ── Compare Modal ────────────────────────────────────────────────────────────
+
+import { diffWords } from 'diff';
+
+function renderDiff(oldText: string, newText: string) {
+  // Strip simple HTML tags for a clean text diff
+  const strip = (html: string) => html ? html.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') : '';
+  const oldClean = strip(oldText);
+  const newClean = strip(newText);
+  
+  const diffs = diffWords(newClean, oldClean); // Diffing latest against restored version
+
+  return (
+    <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5', background: 'var(--ds-bg3)', padding: 16, borderRadius: 8, maxHeight: 300, overflowY: 'auto' }}>
+      {diffs.map((part, index) => {
+        const color = part.added ? '#ef4444' : part.removed ? '#10b981' : 'var(--ds-text2)';
+        const bg = part.added ? 'rgba(239, 68, 68, 0.15)' : part.removed ? 'rgba(16, 185, 129, 0.15)' : 'transparent';
+        const textDecoration = part.added ? 'line-through' : 'none';
+        return (
+          <span key={index} style={{ color, backgroundColor: bg, padding: part.removed || part.added ? '0 2px' : 0, borderRadius: 2, textDecoration }}>
+            {part.value}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 // ── HistoryPage ───────────────────────────────────────────────────────────────
 
@@ -118,6 +152,8 @@ const HistoryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<Record<string, boolean>>({});
+  
+  const [comparingEvent, setComparingEvent] = useState<HistoryEntry | null>(null);
 
   const fetchHistory = useCallback(async () => {
     if (fileId === null) { setLoadError('Invalid file ID.'); setLoading(false); return; }
@@ -133,8 +169,10 @@ const HistoryPage: React.FC = () => {
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
-  const handleRestore = useCallback(async (eventId: string) => {
-    if (fileId === null) return;
+  const handleConfirmRestore = useCallback(async () => {
+    if (fileId === null || !comparingEvent) return;
+    const eventId = comparingEvent.eventId;
+    setComparingEvent(null);
     setRestoring(prev => ({ ...prev, [eventId]: true }));
     try {
       const data = await FileService.restoreVersion(fileId, eventId);
@@ -144,7 +182,9 @@ const HistoryPage: React.FC = () => {
       notify.error(err instanceof ServiceError ? err.message : `Restore failed: ${String(err)}`);
       setRestoring(prev => ({ ...prev, [eventId]: false }));
     }
-  }, [fileId, navigate]);
+  }, [fileId, navigate, comparingEvent]);
+
+  const latestEntry = entries.length > 0 ? entries[0] : null;
 
   return (
     <>
@@ -158,6 +198,55 @@ const HistoryPage: React.FC = () => {
           <button className="ds-btn ds-btn-ghost" onClick={fetchHistory}><IconRefresh size={14} /> Refresh</button>
         </div>
       </div>
+
+      {/* Compare Modal */}
+      {comparingEvent && latestEntry && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999,
+          background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+          animation: 'fadeIn 0.15s ease-out'
+        }}>
+          <div style={{
+            background: 'var(--ds-surface)', borderRadius: 16, width: '100%', maxWidth: 700,
+            padding: 24, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7)', border: '1px solid var(--ds-border)',
+            display: 'flex', flexDirection: 'column', gap: 16
+          }}>
+            <h2 style={{ fontSize: '1.2rem', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <IconScale size={20} /> Compare Version vs Latest
+            </h2>
+            
+            <div style={{ fontSize: '0.85rem', color: 'var(--ds-text2)' }}>
+              You are viewing the difference between the <strong>latest version (ts={latestEntry.logicalTimestamp})</strong> and the historical version from <strong>{new Date(comparingEvent.createdAt).toLocaleString()} (ts={comparingEvent.logicalTimestamp})</strong>.
+            </div>
+
+            <div style={{ display: 'flex', gap: 16, fontSize: '0.8rem', color: 'var(--ds-text3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ display: 'inline-block', width: 12, height: 12, background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', borderRadius: 2 }}></span> What will be removed from latest</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ display: 'inline-block', width: 12, height: 12, background: 'rgba(16, 185, 129, 0.2)', border: '1px solid #10b981', borderRadius: 2 }}></span> What will be restored (added)</div>
+            </div>
+
+            {renderDiff(comparingEvent.payload, latestEntry.payload)}
+
+            <div className="ds-banner ds-banner-amber" style={{ padding: '0.8rem 1rem' }}>
+              <span style={{ fontSize: 18 }}>⚠️</span>
+              <div style={{ flex: 1, fontSize: '0.85rem' }}>
+                <strong>Warning:</strong> Restoring this historical version will overwrite the current content of the file. A new "Restore" event will be appended to the history log, preserving this moment.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
+              <button className="ds-btn ds-btn-ghost" onClick={() => setComparingEvent(null)}>Cancel</button>
+              <button 
+                className="ds-btn ds-btn-primary" 
+                onClick={handleConfirmRestore}
+                style={{ background: 'var(--ds-green)', borderColor: 'var(--ds-green)' }}
+              >
+                <IconFilePlus size={14} /> Confirm and Restore
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="ds-main-scroll ds-page-enter" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
         {/* Loading */}
@@ -202,7 +291,10 @@ const HistoryPage: React.FC = () => {
                 entry={entry}
                 isLatest={idx === 0}
                 restoring={!!restoring[entry.eventId]}
-                onRestore={handleRestore}
+                onRestore={(eventId) => {
+                  const target = entries.find(e => e.eventId === eventId);
+                  if (target) setComparingEvent(target);
+                }}
               />
             ))}
           </div>

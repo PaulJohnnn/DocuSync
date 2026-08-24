@@ -32,6 +32,7 @@ export interface HistoryEntry {
   createdAt: string;
   isCompacted: boolean;
   payloadPreview: string;
+  payload: string;
 }
 
 export interface RestoreResult {
