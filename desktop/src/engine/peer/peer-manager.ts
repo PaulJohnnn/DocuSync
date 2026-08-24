@@ -512,10 +512,7 @@ export class PeerManager {
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ merged: true, upToDate: true, vectorClock: this.config.vectorClock.toJSON() }));
             return;
-          } else if (relation === 'dominated' || (!isOfflineReconnect && relation === 'concurrent')) {
-            if (relation === 'concurrent') {
-              console.log(`[PeerManager] Live concurrent edit detected from ${nodeId}. Auto-merging instead of escalating.`);
-            }
+          } else if (relation === 'dominated') {
             try {
               this.config.vectorClock.merge(incomingVc);
             } catch {}
