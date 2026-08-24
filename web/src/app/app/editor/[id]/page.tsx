@@ -297,8 +297,9 @@ export default function EditorPage() {
     updateLocalStorageFile(fileId, contentToSave);
 
     const room = getRoomHostInfo();
-    if (!room || !room.hostIp) {
-      setSyncStatusMsg("Host unavailable");
+    const otp = room?.otp || room?.id;
+    if (!room && !otp) {
+      setSyncStatusMsg("Room unavailable");
       return;
     }
 
@@ -316,10 +317,9 @@ export default function EditorPage() {
       const now = Date.now();
       lastSyncedAt.current = now;
 
-      const otp = room.otp; // Always use the short OTP (e.g. "8WUSP2"), never room.id UUID
       let directSuccess = false;
 
-      if (room.hostIp) {
+      if (room?.hostIp) {
         try {
           const baseUrl = getSyncBaseUrl(room);
           const res = await fetch(`${baseUrl}/sync/push`, {
