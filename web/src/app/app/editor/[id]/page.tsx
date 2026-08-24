@@ -158,11 +158,13 @@ export default function EditorPage() {
       if (isTypingRef.current || hasPendingChangesRef.current) return; // Don't stomp on local typing or pending pushes
       console.log('[APPLY]', 'source:', msg.nodeId, 'my content before:', currentContentRef.current, 'incoming content:', msg.content);
       if (msg.content && msg.content !== currentContentRef.current) {
+        isApplyingRemoteRef.current = true;
         lastSyncedAt.current = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now();
         setContentAndRef(msg.content);
         lastSave.current = msg.content;
         setSaved(true);
         setSyncStatusMsg(`↓ Live Synced`);
+        setTimeout(() => { isApplyingRemoteRef.current = false; }, 500);
         if (msg.vectorClockJson) {
           const myIdx = localVectorClockRef.current.nodeIndex;
           localVectorClockRef.current = msg.vectorClockJson;
@@ -506,10 +508,12 @@ export default function EditorPage() {
         lastSyncedAt.current = snap.committedAt || Date.now();
 
         // Update editor content
+        isApplyingRemoteRef.current = true;
         setContentAndRef(snap.content);
         lastSave.current = snap.content;
         setSaved(true);
         setSyncStatusMsg('↓ Synced from peer');
+        setTimeout(() => { isApplyingRemoteRef.current = false; }, 500);
 
         // Persist to local storage
         try {
@@ -576,9 +580,11 @@ export default function EditorPage() {
     await pushToHost(contentToSave, localVectorClockRef.current, forcePush);
   }, [fileId, pushToHost]);
 
+  const isApplyingRemoteRef = useRef(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleContentChange = useCallback((newContent: string) => {
+    if (isApplyingRemoteRef.current) return; // Do not trigger save when applying remote content
     setContentAndRef(newContent);
     setSaved(false);
     isTypingRef.current = true;

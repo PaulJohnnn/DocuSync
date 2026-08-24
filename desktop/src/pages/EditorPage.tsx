@@ -308,9 +308,12 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
 
   const performSaveRef = useRef<((html: string, explicit?: boolean) => Promise<void>) | null>(null);
 
+  const isApplyingRemoteRef = useRef(false);
+
   useEffect(() => {
     if (!editor) return;
     const handleUpdate = () => {
+      if (isApplyingRemoteRef.current) return; // Do not trigger debounced save when applying remote content
       isTypingRef.current = true;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
@@ -370,11 +373,13 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
                   lastSyncedAt.current = incoming.committedAt || Date.now();
                   if (editor && incoming.content !== editor.getHTML()) {
                     const { from } = editor.state.selection;
+                    isApplyingRemoteRef.current = true;
                     editor.commands.setContent(incoming.content, { emitUpdate: false });
                     lastContent.current = incoming.content;
                     const maxPos = editor.state.doc.content.size;
                     editor.commands.setTextSelection(Math.min(from, maxPos - 1));
                     setIncomingBanner(`↓ Synced from peer`);
+                    setTimeout(() => { isApplyingRemoteRef.current = false; }, 500);
                     setTimeout(() => setIncomingBanner(null), 4000);
                   }
                 }
