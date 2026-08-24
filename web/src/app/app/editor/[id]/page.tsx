@@ -405,7 +405,7 @@ export default function EditorPage() {
   useEffect(() => {
     const pollDoc = async () => {
       if (!navigator.onLine) return;
-      if (isTypingRef.current) return; // Don't interrupt active typing
+      if (isTypingRef.current || hasPendingChangesRef.current) return; // Don't interrupt active typing or pending saves
 
       // Read room dynamically every tick — the room might be loaded after mount
       const room = getRoomHostInfo();
@@ -426,8 +426,7 @@ export default function EditorPage() {
             if (res.ok) {
               const data = await res.json();
               if (!data.upToDate && data.content && data.authorNodeId !== localNodeIdRef.current) {
-                console.log('[POLL DIRECT]', 'server content:', data.content, 'will overwrite local:', !(isTypingRef.current || hasPendingChangesRef.current));
-                if (data.content !== currentContentRef.current) {
+                if (!(isTypingRef.current || hasPendingChangesRef.current) && data.content !== currentContentRef.current) {
                   setContentAndRef(data.content);
                   lastSave.current = data.content;
                   setSaved(true);

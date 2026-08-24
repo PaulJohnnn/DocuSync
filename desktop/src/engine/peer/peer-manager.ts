@@ -554,10 +554,11 @@ export class PeerManager {
               nodeId,
               fileId,
               deltaBase64: delta,
+              content: newContent,
               logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
               vectorClockJson: this.config.vectorClock.toJSON(),
               timestamp: new Date().toISOString(),
-            });
+            } as any);
 
             // Track successful merge latency
             this._metrics.pushSuccessCount++;
@@ -623,10 +624,11 @@ export class PeerManager {
                 nodeId,
                 fileId,
                 deltaBase64: delta,
+                content: remoteContent || localContent,
                 logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
                 vectorClockJson: this.config.vectorClock.toJSON(),
                 timestamp: new Date().toISOString(),
-              });
+              } as any);
             }
 
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });

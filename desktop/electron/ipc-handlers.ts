@@ -1005,12 +1005,13 @@ export function registerIPCHandlers(services: EngineServices): void {
       // ── Broadcast to peers ──────────────────────────────────────
       let peersNotified = 0;
       if (encodeResult.deltaBase64) {
-        const pushMsg: PeerMessage = {
+        const pushMsg: any = {
           type: 'DELTA_PUSH',
           eventId,
           nodeId: localNodeId,
           fileId,
           deltaBase64: encodeResult.deltaBase64,
+          content: newContent,
           logicalTimestamp,
           vectorClockJson: vcJson,
           timestamp: new Date().toISOString(),
