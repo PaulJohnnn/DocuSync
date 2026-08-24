@@ -388,53 +388,7 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
   }, [currentRoom, localNodeId]);
 
 
-  // ── Fetch sync status from engine ────────────────────────────────────────
 
-  /**
-   * Calls `sync:status` IPC and updates all derived state.
-   *
-   * Safe to call repeatedly — errors are caught and reflected in `syncStatus`.
-   */
-  const refreshStatus = useCallback(async () => {
-    // Guard: preload bridge may not be injected in plain browser dev mode.
-    if (!window.docuSync) return;
-
-    try {
-      const res = await window.docuSync.getSyncStatus();
-
-      if (!res.success || !res.data) {
-        setSyncStatus('error');
-        return;
-      }
-
-      const data = res.data as {
-        localNodeId: string;
-        vectorClock: Record<string, unknown>;
-        connectedPeers: ConnectedPeerInfo[];
-        pendingConflicts: number;
-      };
-
-      setLocalNodeId(data.localNodeId ?? '');
-      setVectorClock(data.vectorClock ?? null);
-      setConnectedPeers(data.connectedPeers ?? []);
-
-      // Derive sync state from peer count and conflict count.
-      const peers = data.connectedPeers ?? [];
-      const conflicts = data.pendingConflicts ?? 0;
-
-      setPendingConflicts(conflicts);
-
-      if (conflicts > 0) {
-        setSyncStatus('conflict');
-      } else if (peers.length === 0) {
-        setSyncStatus('offline');
-      } else {
-        setSyncStatus('idle');
-      }
-    } catch {
-      setSyncStatus('error');
-    }
-  }, []);
 
   // ── Polling ───────────────────────────────────────────────────────────────
 
