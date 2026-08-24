@@ -168,31 +168,6 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
   const myNodeId = localNodeId || `anon-${Math.random().toString(36).slice(2, 8)}`;
   const roomOtp = currentRoom?.id;
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [historyEntries, setHistoryEntries] = useState<any[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-
-  const fetchHistory = useCallback(async () => {
-    if (!fileId || !window.docuSync?.getHistory) return;
-    setLoadingHistory(true);
-    try {
-      const res = await window.docuSync.getHistory(fileId);
-      const entries = (res.data as any)?.entries;
-      if (res.success && Array.isArray(entries)) {
-        setHistoryEntries(entries);
-      }
-    } catch (e) {
-      console.error('Failed to fetch file history:', e);
-    } finally {
-      setLoadingHistory(false);
-    }
-  }, [fileId]);
-
-  useEffect(() => {
-    if (showHistoryModal) {
-      fetchHistory();
-    }
-  }, [showHistoryModal, fetchHistory]);
 
   // ── Remote Cursors ─────────────────────────────────────────────────────────
   const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor & { lastUpdate: number }>>({});
@@ -720,122 +695,6 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
         </div>
       )}
 
-      {/* Version History Modal */}
-      {showHistoryModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(8px)',
-          zIndex: 9999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-          animation: 'fadeIn 0.2s ease-out'
-        }}>
-          <div style={{
-            background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-            borderRadius: 16, width: '100%', maxWidth: 640, maxHeight: '85vh',
-            padding: 24, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1)',
-            display: 'flex', flexDirection: 'column', gap: 16
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ background: 'rgba(56, 189, 248, 0.2)', padding: 8, borderRadius: 10 }}>
-                  <IconHistory size={20} />
-                </div>
-                <div>
-                  <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#f8fafc' }}>Document Version History</h2>
-                  <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Review edits & revert to any previous snapshot</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowHistoryModal(false)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, padding: 4 }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, paddingRight: 4 }}>
-              {loadingHistory ? (
-                <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-                  ↻ Loading version history…
-                </div>
-              ) : historyEntries.length === 0 ? (
-                <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-                  No history events recorded yet for this file.
-                </div>
-              ) : (
-                historyEntries.slice().reverse().map((entry, idx) => (
-                  <div key={entry.id || idx} style={{
-                    background: 'rgba(30, 41, 59, 0.8)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: 12, padding: 16,
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12
-                  }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{
-                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                          background: entry.eventType === 'conflict_resolved' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(59, 130, 246, 0.2)',
-                          color: entry.eventType === 'conflict_resolved' ? '#f87171' : '#60a5fa'
-                        }}>
-                          {entry.eventType === 'conflict_resolved' ? 'Conflict Resolved' : entry.eventType === 'lww_resolved' ? 'LWW Edit' : 'Edit Event'}
-                        </span>
-                        <span style={{ fontSize: 12, color: '#f8fafc', fontWeight: 600 }}>
-                          {new Date(entry.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 12, color: '#94a3b8', margin: 0, fontFamily: 'monospace' }}>
-                        Node: {entry.nodeId ? entry.nodeId.slice(0, 8) : 'Local'} • Vector Clock #{entry.logicalTimestamp}
-                      </p>
-                      {entry.payloadPreview && (
-                        <p style={{ fontSize: 11, color: '#64748b', margin: '4px 0 0 0', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          "{entry.payloadPreview.replace(/<[^>]*>/g, '')}"
-                        </p>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={async () => {
-                        let contentToRestore = entry.payload;
-                        if (!contentToRestore && entry.payloadPreview) contentToRestore = entry.payloadPreview;
-                        if (contentToRestore && editor) {
-                          editor.commands.setContent(contentToRestore);
-                          await performSave(contentToRestore, true);
-                          notify.success(`Reverted file to version from ${new Date(entry.createdAt).toLocaleTimeString()}`);
-                          setShowHistoryModal(false);
-                        } else {
-                          notify.error('Unable to restore selected snapshot.');
-                        }
-                      }}
-                      style={{
-                        padding: '8px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                        background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff',
-                        border: 'none', cursor: 'pointer', flexShrink: 0,
-                        boxShadow: '0 2px 8px rgba(37,99,235,0.3)', transition: 'all 0.15s'
-                      }}
-                    >
-                      ↩ Revert to this
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
-              <button
-                onClick={() => setShowHistoryModal(false)}
-                style={{
-                  padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: 'transparent', color: '#94a3b8', border: '1px solid #334155', cursor: 'pointer'
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Editor */}
       {editor && (
         <>
@@ -858,14 +717,6 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
             <ToolbarBtn active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title="Quote"><IconQuote size={14} /></ToolbarBtn>
             <ToolbarBtn active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title="Code"><IconCode size={14} /></ToolbarBtn>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-              <button
-                className="ds-btn"
-                onClick={() => setShowHistoryModal(true)}
-                style={{ height: 30, fontSize: 12, padding: '0 14px', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                title="View document version history and undo changes"
-              >
-                <IconHistory size={14} /> History
-              </button>
               <button
                 className="ds-btn ds-btn-primary"
                 onClick={async () => {
