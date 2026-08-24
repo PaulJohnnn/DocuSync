@@ -292,6 +292,17 @@ class RoomService {
 
   /** List files shared to a room (queries matchmaker with multi-URL fallback for high speed) */
   static async listRoomFiles(roomId: string): Promise<any[]> {
+    const cacheKey = `docusync_room_files_${roomId}`;
+
+    // If offline, instantly return locally cached room files
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      try {
+        const stored = localStorage.getItem(cacheKey);
+        if (stored) return JSON.parse(stored);
+      } catch {}
+      return [];
+    }
+
     const urlsToTry = Array.from(new Set([
       getMatchmakerUrl(),
       'http://localhost:3000/api/lobby',
@@ -301,16 +312,28 @@ class RoomService {
     for (const baseUrl of urlsToTry) {
       try {
         const res = await fetch(`${baseUrl}/files?otp=${encodeURIComponent(roomId)}`, {
-          signal: AbortSignal.timeout(2000),
+          signal: AbortSignal.timeout(1000),
         });
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data.files)) return data.files;
+          if (Array.isArray(data.files)) {
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify(data.files));
+            } catch {}
+            return data.files;
+          }
         }
       } catch {
         // try next URL
       }
     }
+
+    // On network failure, fall back to cached files
+    try {
+      const stored = localStorage.getItem(cacheKey);
+      if (stored) return JSON.parse(stored);
+    } catch {}
+
     return [];
   }
 

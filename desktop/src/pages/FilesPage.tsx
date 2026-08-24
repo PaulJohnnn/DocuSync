@@ -112,8 +112,8 @@ const FilesPage: React.FC = () => {
       const explicitId = file.fileId ?? file.id;
       let contentToUse = file.content || '';
       
-      // If content in the room file list is empty/stale, fetch latest snapshot from Matchmaker
-      if (!contentToUse && currentRoom) {
+      // If content in the room file list is empty/stale and we are online, fetch latest snapshot from Matchmaker
+      if (!contentToUse && currentRoom && (typeof window !== 'undefined' && navigator.onLine)) {
         const otp = currentRoom.otp || currentRoom.id;
         if (otp) {
           try {
