@@ -595,8 +595,9 @@ export default function EditorPage() {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false;
-    }, 1500);
-  }, []);
+      saveFile(newContent);
+    }, 1000);
+  }, [saveFile]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
