@@ -1543,7 +1543,7 @@
       {
         "fileId": 1787545205086,
         "fileName": "saa.docx",
-        "content": "<p>helloasd<br>dasdasd<br>hi<br>wifi is here2211sasasa<br><br><br>helloasdlll<br><br>pol</p>",
+        "content": "<p>hello<br><br>hi<br>wifi is here2211sasasa<br>sdasd</p>",
         "contentLength": 5,
         "sharedBy": "Web Node",
         "sharedAt": "2026-08-24T04:20:05.086Z"
@@ -1717,33 +1717,13 @@
   "doc:MSNN3C:1787545205086": {
     "otp": "MSNN3C",
     "fileId": "1787545205086",
-    "authorNodeId": "web-76339",
-    "authorName": "web-7633",
-    "content": "<p>helloasd<br>dasdasd<br>hi<br>wifi is here2211sasasa<br><br><br>helloasdlll<br><br>pol</p>",
-    "vectorClock": {
-      "nodeCount": 3,
-      "nodeIndex": 1,
-      "root": {
-        "counter": 0,
-        "children": [
-          {
-            "counter": 0,
-            "children": []
-          },
-          {
-            "counter": 12,
-            "children": []
-          },
-          {
-            "counter": 0,
-            "children": []
-          }
-        ]
-      }
-    },
-    "committedAt": 1787549854845,
-    "deltaSize": 92,
-    "seq": 87
+    "authorNodeId": "web-user",
+    "authorName": "Web Member (Conflict Resolution)",
+    "content": "<p>hello<br><br>hi<br>wifi is here2211sasasa<br>sdasd</p>",
+    "vectorClock": {},
+    "committedAt": 1787550880069,
+    "deltaSize": 57,
+    "seq": 92
   },
   "user:8e2f8e59-7c70-42f2-81fe-f19faafdb123": {
     "nodeId": "8e2f8e59-7c70-42f2-81fe-f19faafdb123",
@@ -1793,7 +1773,108 @@
   ],
   "user:26d969ac-4487-4bf8-a2d9-c5f832420bd3": {
     "nodeId": "26d969ac-4487-4bf8-a2d9-c5f832420bd3",
-    "lastActive": 1787550748250,
+    "lastActive": 1787550778251,
+    "ip": "192.168.68.105"
+  },
+  "user:320f959b-0c90-4953-bb68-629a91a2576c": {
+    "nodeId": "320f959b-0c90-4953-bb68-629a91a2576c",
+    "lastActive": 1787551405274,
+    "ip": "192.168.68.105"
+  },
+  "lobby:4YR524": {
+    "otp": "4YR524",
+    "roomName": "hi",
+    "hostNodeId": "web-1787551001740",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1787551002149,
+    "expiresAt": 1787637402149,
+    "members": [
+      "desktop-1787551033323"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1787551053456,
+        "fileName": "saa.docx",
+        "content": "<p>saa nice one ok na nice asd sadfasx</p>",
+        "contentLength": 5,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-24T05:57:33.457Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1787551001740"
+  },
+  "signals:4YR524:web-1787551001740": [
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:335051710 1 udp 2122260223 172.18.48.1 55226 typ host generation 0 ufrag pPtK network-id 1\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"pPtK\"},\"ts\":1787551040052}",
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:4009663314 1 udp 2122194687 192.168.68.105 55227 typ host generation 0 ufrag pPtK network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"pPtK\"},\"ts\":1787551040063}",
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"offer\",\"data\":{\"sdp\":\"v=0\\r\\no=- 7017445678382422798 2 IN IP4 127.0.0.1\\r\\ns=-\\r\\nt=0 0\\r\\na=group:BUNDLE 0\\r\\na=extmap-allow-mixed\\r\\na=msid-semantic: WMS\\r\\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\\r\\nc=IN IP4 0.0.0.0\\r\\na=ice-ufrag:pPtK\\r\\na=ice-pwd:YVdLpYvzOiAbdpdvzJ/H9fwG\\r\\na=ice-options:trickle\\r\\na=fingerprint:sha-256 74:74:4A:4E:F4:9D:CD:DE:BE:64:2D:0B:3E:79:96:5A:AD:58:8B:89:D8:33:16:52:D4:61:D9:39:F1:13:E5:96\\r\\na=setup:actpass\\r\\na=mid:0\\r\\na=sctp-port:5000\\r\\na=max-message-size:262144\\r\\n\",\"type\":\"offer\"},\"ts\":1787551040753}",
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:1832360230 1 tcp 1518280447 172.18.48.1 9 typ host tcptype active generation 0 ufrag pPtK network-id 1\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"pPtK\"},\"ts\":1787551041362}",
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:2419161546 1 tcp 1518214911 192.168.68.105 9 typ host tcptype active generation 0 ufrag pPtK network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"pPtK\"},\"ts\":1787551041368}",
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:791727128 1 udp 1685987071 49.144.103.122 31953 typ srflx raddr 192.168.68.105 rport 55227 generation 0 ufrag pPtK network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"pPtK\"},\"ts\":1787551042024}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"offer\",\"data\":{\"sdp\":\"v=0\\r\\no=- 234925470999571650 2 IN IP4 127.0.0.1\\r\\ns=-\\r\\nt=0 0\\r\\na=group:BUNDLE 0\\r\\na=extmap-allow-mixed\\r\\na=msid-semantic: WMS\\r\\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\\r\\nc=IN IP4 0.0.0.0\\r\\na=ice-ufrag:QO7k\\r\\na=ice-pwd:80br5pUJ5Lzqtv37ugjqFhsU\\r\\na=ice-options:trickle\\r\\na=fingerprint:sha-256 1E:A7:9C:B8:C8:91:23:02:D9:75:65:67:9D:85:EF:83:97:53:91:48:F7:6F:72:C4:A8:47:27:D2:A6:CB:5B:10\\r\\na=setup:actpass\\r\\na=mid:0\\r\\na=sctp-port:5000\\r\\na=max-message-size:262144\\r\\n\",\"type\":\"offer\"},\"ts\":1787551558954}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:4149631451 1 udp 2122194687 192.168.68.105 50072 typ host generation 0 ufrag QO7k network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"QO7k\"},\"ts\":1787551558986}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:173062455 1 udp 2122260223 172.18.48.1 50071 typ host generation 0 ufrag QO7k network-id 1\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"QO7k\"},\"ts\":1787551559018}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:915934865 1 udp 1685987071 49.144.103.122 32959 typ srflx raddr 192.168.68.105 rport 50072 generation 0 ufrag QO7k network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"QO7k\"},\"ts\":1787551559084}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:1956600751 1 tcp 1518280447 172.18.48.1 9 typ host tcptype active generation 0 ufrag QO7k network-id 1\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"QO7k\"},\"ts\":1787551559114}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:2308553539 1 tcp 1518214911 192.168.68.105 9 typ host tcptype active generation 0 ufrag QO7k network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"QO7k\"},\"ts\":1787551559119}"
+  ],
+  "signals:4YR524:desktop-1787551033323": [
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"offer\",\"data\":{\"sdp\":\"v=0\\r\\no=- 8265957583607830818 2 IN IP4 127.0.0.1\\r\\ns=-\\r\\nt=0 0\\r\\na=group:BUNDLE 0\\r\\na=extmap-allow-mixed\\r\\na=msid-semantic: WMS\\r\\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\\r\\nc=IN IP4 0.0.0.0\\r\\na=ice-ufrag:+B30\\r\\na=ice-pwd:4K99FgmAKFzclOKG6BbOw2JN\\r\\na=ice-options:trickle\\r\\na=fingerprint:sha-256 F2:53:40:4D:91:DD:F6:B3:4A:76:24:82:19:19:CB:0A:BC:A4:C0:80:14:2A:4B:CC:84:4E:AF:15:65:58:26:D5\\r\\na=setup:actpass\\r\\na=mid:0\\r\\na=sctp-port:5000\\r\\na=max-message-size:262144\\r\\n\",\"type\":\"offer\"},\"ts\":1787551040057}",
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:3934373054 1 udp 2122260223 172.18.48.1 55228 typ host generation 0 ufrag +B30 network-id 1\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"+B30\"},\"ts\":1787551040069}",
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:3595137816 1 udp 1685987071 49.144.103.122 31954 typ srflx raddr 192.168.68.105 rport 55229 generation 0 ufrag +B30 network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"+B30\"},\"ts\":1787551041355}",
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:2488149542 1 tcp 1518280447 172.18.48.1 9 typ host tcptype active generation 0 ufrag +B30 network-id 1\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"+B30\"},\"ts\":1787551041380}",
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:394732626 1 udp 2122194687 192.168.68.105 55229 typ host generation 0 ufrag +B30 network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"+B30\"},\"ts\":1787551041386}",
+    "{\"senderNodeId\":\"320f959b-0c90-4953-bb68-629a91a2576c\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:1766377162 1 tcp 1518214911 192.168.68.105 9 typ host tcptype active generation 0 ufrag +B30 network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"+B30\"},\"ts\":1787551042660}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"offer\",\"data\":{\"sdp\":\"v=0\\r\\no=- 3392546162194661386 2 IN IP4 127.0.0.1\\r\\ns=-\\r\\nt=0 0\\r\\na=group:BUNDLE 0\\r\\na=extmap-allow-mixed\\r\\na=msid-semantic: WMS\\r\\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\\r\\nc=IN IP4 0.0.0.0\\r\\na=ice-ufrag:tMw9\\r\\na=ice-pwd:7fImHsbCppkZiqQnt5FA/Z5B\\r\\na=ice-options:trickle\\r\\na=fingerprint:sha-256 17:B7:E3:3F:60:23:E4:A8:EE:E7:E3:52:47:07:4E:98:4D:09:3B:21:E3:46:86:AF:0A:C8:35:C3:F4:AE:58:94\\r\\na=setup:actpass\\r\\na=mid:0\\r\\na=sctp-port:5000\\r\\na=max-message-size:262144\\r\\n\",\"type\":\"offer\"},\"ts\":1787551558982}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:2183222323 1 udp 2122260223 172.18.48.1 50073 typ host generation 0 ufrag tMw9 network-id 1\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"tMw9\"},\"ts\":1787551559023}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:2133308639 1 udp 2122194687 192.168.68.105 50074 typ host generation 0 ufrag tMw9 network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"tMw9\"},\"ts\":1787551559028}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:3202999189 1 udp 1685987071 49.144.103.122 32960 typ srflx raddr 192.168.68.105 rport 50074 generation 0 ufrag tMw9 network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"tMw9\"},\"ts\":1787551559061}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:4243502763 1 tcp 1518280447 172.18.48.1 9 typ host tcptype active generation 0 ufrag tMw9 network-id 1\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"tMw9\"},\"ts\":1787551559125}",
+    "{\"senderNodeId\":\"85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166\",\"type\":\"candidate\",\"data\":{\"candidate\":\"candidate:32003655 1 tcp 1518214911 192.168.68.105 9 typ host tcptype active generation 0 ufrag tMw9 network-id 2\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0,\"usernameFragment\":\"tMw9\"},\"ts\":1787551559130}"
+  ],
+  "doc:4YR524:1787551053456": {
+    "otp": "4YR524",
+    "fileId": "1787551053456",
+    "authorNodeId": "web-76339",
+    "authorName": "web-7633",
+    "content": "<p>saa nice one ok na nice asd sadfasx</p>",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 4,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1787551657162,
+    "deltaSize": 42,
+    "seq": 18
+  },
+  "user:0cdfaa82-36b0-4b8e-bae2-f575d1479c3b": {
+    "nodeId": "0cdfaa82-36b0-4b8e-bae2-f575d1479c3b",
+    "lastActive": 1787551457315,
+    "ip": "192.168.68.105"
+  },
+  "user:85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166": {
+    "nodeId": "85cdc6d4-8fa2-47c3-a3b4-8c6a3acfd166",
+    "lastActive": 1787551644354,
     "ip": "192.168.68.105"
   }
 }

@@ -53,6 +53,15 @@
       "isAdmin": false,
       "createdAt": "2026-08-24T04:24:20.416Z",
       "status": "active"
+    },
+    {
+      "id": "user-1787550968514",
+      "email": "1",
+      "name": "1",
+      "pin": "242969",
+      "isAdmin": false,
+      "createdAt": "2026-08-24T05:56:08.514Z",
+      "status": "active"
     }
   ],
   "pending": []
