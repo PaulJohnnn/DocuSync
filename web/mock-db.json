@@ -28,39 +28,21 @@
       "status": "active"
     },
     {
-      "id": "user-1787544890502",
-      "email": "palamara",
-      "name": "palamara",
-      "pin": "630739",
+      "id": "user-1787554760150",
+      "email": "palamara2",
+      "name": "palamara2",
+      "pin": "348195",
       "isAdmin": false,
-      "createdAt": "2026-08-24T04:14:50.502Z",
+      "createdAt": "2026-08-24T06:59:20.150Z",
       "status": "active"
     },
     {
-      "id": "user-1787544986597",
-      "email": "asf",
-      "name": "asf",
-      "pin": "365716",
+      "id": "user-1787556987807",
+      "email": "pala",
+      "name": "pala",
+      "pin": "919553",
       "isAdmin": false,
-      "createdAt": "2026-08-24T04:16:26.597Z",
-      "status": "active"
-    },
-    {
-      "id": "user-1787545460416",
-      "email": "a",
-      "name": "a",
-      "pin": "400697",
-      "isAdmin": false,
-      "createdAt": "2026-08-24T04:24:20.416Z",
-      "status": "active"
-    },
-    {
-      "id": "user-1787550968514",
-      "email": "1",
-      "name": "1",
-      "pin": "242969",
-      "isAdmin": false,
-      "createdAt": "2026-08-24T05:56:08.514Z",
+      "createdAt": "2026-08-24T07:36:27.808Z",
       "status": "active"
     }
   ],

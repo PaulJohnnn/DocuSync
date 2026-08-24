@@ -222,6 +222,14 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
     ],
     content: initialContent,
     editorProps: { attributes: { class: 'ProseMirror', 'data-testid': 'tiptap-editor' } },
+    onUpdate: ({ editor }) => {
+      isTypingRef.current = true;
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        isTypingRef.current = false;
+        if (performSaveRef.current) performSaveRef.current(editor.getHTML(), false);
+      }, 1000);
+    }
   });
 
   // ── Live remote delta listener ────────────────────────────────────────────
