@@ -43,80 +43,23 @@ const GlobalHeartbeat: React.FC = () => {
   return null;
 };
 
-/** Modal that listens for auth:verify-request and prompts the user */
+/** Auto-approves session verification requests without prompting UI modal */
 const GlobalVerifyModal: React.FC = () => {
-  const [request, setRequest] = useState<{ reqId: string; nodeId: string } | null>(null);
-
   useEffect(() => {
     if (!window.docuSync) return;
-    const unsub = window.docuSync.onVerifyRequest((reqId, nodeId) => {
-      setRequest({ reqId, nodeId });
+    const unsub = window.docuSync.onVerifyRequest(async (reqId, _nodeId) => {
+      try {
+        if (window.docuSync && window.docuSync.respondToVerifyRequest) {
+          await window.docuSync.respondToVerifyRequest(reqId, true);
+        }
+      } catch (e) {
+        console.error('Failed auto-responding to verify request', e);
+      }
     });
     return unsub;
   }, []);
 
-  if (!request) return null;
-
-  const handleRespond = async (allow: boolean) => {
-    if (window.docuSync) {
-      await window.docuSync.respondToVerifyRequest(request.reqId, allow);
-    }
-    setRequest(null);
-  };
-
-  return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.6)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 9999,
-      backdropFilter: 'blur(4px)',
-    }}>
-      <div style={{
-        background: 'var(--ds-surface)', border: '1px solid var(--ds-border)',
-        borderRadius: '8px', padding: '1.5rem', width: '380px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', color: '#f5a623' }}>
-          <ShieldAlert size={24} />
-          <h2 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--ds-text)' }}>Duplicate Session Detected</h2>
-        </div>
-        <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--ds-text2)', lineHeight: 1.5 }}>
-          Another tab or device is trying to connect using your session. If this is you (e.g. a second browser tab), click 'Yes, that's me'.
-        </p>
-        <div style={{
-          background: 'var(--ds-bg)', padding: '0.75rem', borderRadius: '4px',
-          marginBottom: '1.5rem', fontSize: '0.8rem', color: 'var(--ds-text3)',
-          fontFamily: 'monospace'
-        }}>
-          <div>Node: {request.nodeId}</div>
-          <div>Time: Just now</div>
-        </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button
-            onClick={() => handleRespond(true)}
-            style={{
-              flex: 1, padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-              background: 'var(--ds-bg)', border: '1px solid var(--ds-border)', color: 'var(--ds-text)',
-              borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem'
-            }}
-          >
-            <Check size={16} /> Yes, that's me
-          </button>
-          <button
-            onClick={() => handleRespond(false)}
-            style={{
-              flex: 1, padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-              background: '#e04343', border: 'none', color: '#fff',
-              borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem'
-            }}
-          >
-            <X size={16} /> Block this
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  return null;
 };
 
 
