@@ -175,54 +175,73 @@ export async function createRoom(name: string): Promise<Room> {
 /** Join a room using an OTP. Throws if invalid. */
 export async function joinRoom(otp: string): Promise<Room> {
   const rooms = loadRooms();
-  const upperOtp = otp.toUpperCase();
+  const upperOtp = otp.toUpperCase().trim();
 
-  if (upperOtp === 'FAIL01' || otp.length < 5) {
+  if (upperOtp === 'FAIL01' || upperOtp.length < 5) {
     const err = new Error('Room not found. Check the invite code and try again.');
     (err as any).code = 'ROOM_NOT_FOUND';
     throw err;
   }
 
-  const MATCHMAKER_URL = process.env.NODE_ENV === 'development'
-    ? '/api/lobby'
-    : 'https://docusync-pnc.vercel.app/api/lobby';
+  const urlsToTry = Array.from(new Set([
+    '/api/lobby',
+    'https://docusync-pnc.vercel.app/api/lobby'
+  ]));
 
-  let apiRoomName: string | null = null;
-  let apiHostIp: string | undefined;
-  let apiHostPort: number | undefined;
-  let apiHostType: 'desktop' | 'web' | 'mobile' = 'desktop';
-  let apiMemberCount = 1;
+  let apiData: any = null;
+  let matchmakerSuccess = false;
+  let matchmakerError: string | null = null;
 
-  try {
-    const res = await fetch(`${MATCHMAKER_URL}/join`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ otp: upperOtp, memberNodeId: `web-join-${Date.now()}` }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.roomName) {
-        apiRoomName = data.roomName;
-        apiHostIp = data.hostIp;
-        apiHostPort = data.hostPort;
-        apiHostType = data.hostType || 'desktop';
-        apiMemberCount = data.memberCount || 1;
+  for (const baseUrl of urlsToTry) {
+    try {
+      const res = await fetch(`${baseUrl}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: upperOtp, memberNodeId: `web-join-${Date.now()}` }),
+        signal: AbortSignal.timeout(3000)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.roomName) {
+        apiData = data;
+        matchmakerSuccess = true;
+        break;
+      } else if (res.status === 404 || res.status === 410 || data.error) {
+        matchmakerError = data.error || `Room not found. No active room with OTP "${upperOtp}".`;
+        break;
       }
+    } catch {
+      // try next
     }
-  } catch { /* offline – fall through to local lookup */ }
+  }
+
+  if (matchmakerError) {
+    const err = new Error(matchmakerError);
+    (err as any).code = 'ROOM_NOT_FOUND';
+    throw err;
+  }
 
   const globalEntry = lookupGlobalOTP(upperOtp);
-  const roomName = apiRoomName ?? (globalEntry ? globalEntry.name : `Room ${upperOtp.slice(0, 3)}`);
-  const targetIp = apiHostIp || globalEntry?.hostIp;
-  const targetPort = apiHostPort || globalEntry?.hostPort || 9000;
+
+  if (!matchmakerSuccess && !globalEntry) {
+    const existingLocal = rooms.find(r => r.otp === upperOtp || r.id === otp);
+    if (!existingLocal) {
+      const err = new Error(`Room not found. No active room with OTP "${upperOtp}". Ask the host to generate a new code.`);
+      (err as any).code = 'ROOM_NOT_FOUND';
+      throw err;
+    }
+  }
+
+  const roomName = apiData?.roomName ?? (globalEntry ? globalEntry.name : `Room ${upperOtp}`);
+  const targetIp = apiData?.hostIp || globalEntry?.hostIp;
+  const targetPort = apiData?.hostPort || globalEntry?.hostPort || 9000;
+  const apiMemberCount = apiData?.memberCount || 1;
 
   const existing = rooms.find(r => r.otp === upperOtp || r.id === otp);
   if (existing) {
-    let changed = false;
-    if (existing.name !== roomName) { existing.name = roomName; changed = true; }
-    if (!existing.hostIp || existing.hostIp !== targetIp) { existing.hostIp = targetIp; changed = true; }
-    if (!existing.hostPort || existing.hostPort !== targetPort) { existing.hostPort = targetPort; changed = true; }
-    if (changed) saveRooms(rooms);
+    existing.name = roomName;
+    existing.hostIp = targetIp;
+    existing.hostPort = targetPort;
+    saveRooms(rooms);
     return existing;
   }
 
