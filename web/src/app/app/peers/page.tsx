@@ -20,19 +20,47 @@ type View =
   | 'join_success'
   | 'join_error';
 
+// ── Safe Clipboard Copy Helper ──────────────────────────────────────────
+const safeCopy = async (text: string): Promise<boolean> => {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) {
+    console.warn('Clipboard writeText failed, using fallback', e);
+  }
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return ok;
+  } catch (err) {
+    console.error('Fallback copy failed', err);
+    return false;
+  }
+};
+
 // ── OTP display (tap-to-copy) ─────────────────────────────────────────────
 const OtpDisplay: React.FC<{ otp: string }> = ({ otp }) => {
   const [copyState, setCopyState] = useState<'idle' | 'loading' | 'copied'>('idle');
   
-  const copy = () => {
+  const copy = async () => {
     if (copyState !== 'idle') return;
     setCopyState('loading');
-    setTimeout(() => {
-      navigator.clipboard.writeText(otp).then(() => {
-        setCopyState('copied');
-        setTimeout(() => setCopyState('idle'), 2000);
-      });
-    }, 400); // simulate a slight loading interaction as requested
+    const success = await safeCopy(otp);
+    if (success) {
+      setCopyState('copied');
+      setTimeout(() => setCopyState('idle'), 2000);
+    } else {
+      setCopyState('idle');
+    }
   };
 
   return (
@@ -219,9 +247,10 @@ const RoomCard: React.FC<{
 
             {/* OTP chip */}
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (!showOtp) { setShowOtp(true); return; }
-                navigator.clipboard.writeText(room.otp).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+                const ok = await safeCopy(room.otp);
+                if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
               }}
               style={{
                 padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
