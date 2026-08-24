@@ -850,16 +850,9 @@ export function registerIPCHandlers(services: EngineServices): void {
         services.nextFileId = explicitFileId + 1;
       }
 
-      let finalContent = '';
-      if (fs.existsSync(destPath)) {
-        // File already exists locally. DO NOT overwrite with the Matchmaker snapshot,
-        // as the local file contains the latest P2P updates.
-        finalContent = fileContents.get(newFileId) ?? await fs.promises.readFile(destPath, 'utf-8');
-      } else {
-        // File does not exist locally. Use the snapshot and save to disk.
-        finalContent = content || fileContents.get(newFileId) || '';
-        await fs.promises.writeFile(destPath, finalContent, 'utf-8');
-      }
+      let finalContent = typeof content === 'string' ? content : '';
+      // Always write the canonical room content snapshot to disk when opening a room file
+      await fs.promises.writeFile(destPath, finalContent, 'utf-8');
 
       const ext = path.extname(fileName);
       const extLower = ext.toLowerCase();

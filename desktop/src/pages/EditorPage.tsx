@@ -309,7 +309,7 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
         isTypingRef.current = false;
-      }, 300); // Match save debounce — remote updates apply sooner after a local pause
+      }, 1500); // 1.5s protection after typing pause
 
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
@@ -339,17 +339,15 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
     };
   }, [editor, fileId, myNodeId]);
 
-  // ── Real-time presence (dummy cursors for now) ────────────────────────────
-  // Every 3 seconds, ask the matchmaker for the latest committed version.
-  // If the remote version is newer than what we last applied (LWW), apply it.
+  // ── Real-time presence ───────────────────────────────────────────────────
   const lastMatchmakerSeq = useRef<number>(0);
 
   useEffect(() => {
     if (!fileId || !window.docuSync) return;
     const pollDoc = async () => {
       try {
-        // Skip applying remote updates if actively typing
-        if (isTypingRef.current) return;
+        // Skip applying remote updates if actively typing or saving
+        if (isTypingRef.current || saving) return;
 
         // ── Primary: Poll Matchmaker for changes from ALL peers ─────────
         if (roomOtp) {
