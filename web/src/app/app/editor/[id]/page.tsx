@@ -197,6 +197,12 @@ export default function EditorPage() {
     const goOnline = () => {
       const devOffline = (window as any).__DOCUSYNC_DEV_OFFLINE__ === true || syncState === 'offline';
       setIsOnline(!devOffline);
+      if (!devOffline) {
+        console.log('[Online Flusher] Network reconnected! Pushing queued offline edits...');
+        setTimeout(() => {
+          pushToHost(currentContentRef.current, localVectorClockRef.current, true);
+        }, 500);
+      }
     };
     const goOffline = () => setIsOnline(false);
 

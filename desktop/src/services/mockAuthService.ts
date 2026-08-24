@@ -112,7 +112,34 @@ export async function login(email: string, pin: string): Promise<AuthUser> {
   }
   
   if (typeof window !== 'undefined') {
+    const prevUserStr = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
+    let isDifferentUser = true;
+    if (prevUserStr) {
+      try {
+        const prev = JSON.parse(prevUserStr);
+        if (prev.id === data.user.id) isDifferentUser = false;
+      } catch {}
+    }
+
+    if (isDifferentUser) {
+      console.log('[Auth] New or different user logging in. Isolation cleanup starting...');
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('ds_') || k.startsWith('docusync_') || k === 'files' || k === 'current_room')) {
+          localStorage.removeItem(k);
+        }
+      }
+      try {
+        if (window.docuSync && window.docuSync.clearDatabase) {
+          await window.docuSync.clearDatabase();
+        }
+      } catch (e) {
+        console.error('Failed to wipe database on new user login', e);
+      }
+    }
+
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
     sessionStorage.setItem('docusync_has_seen_welcome_session', 'true');
   }
   return data.user;
