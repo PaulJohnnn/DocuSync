@@ -332,7 +332,7 @@ export default function EditorPage() {
               nodeId: localNodeIdRef.current,
               content: contentToSave,
               vectorClock: vectorClockSnapshot,
-              isOfflineReconnect: offlineQueue,
+              isOfflineReconnect: explicit || offlineQueue,
             }),
           });
           if (res.ok) {
@@ -360,6 +360,7 @@ export default function EditorPage() {
               uSet('docusync_web_conflicts', JSON.stringify(conflicts));
               
               setSyncStatusMsg('Conflict Detected! Check menu.');
+              toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
               return;
             } else {
               if (data.lwwResolved) {
@@ -387,7 +388,7 @@ export default function EditorPage() {
               content: contentToSave,
               vectorClock: vectorClockSnapshot,
               deltaSize,
-              isOfflineReconnect: offlineQueue
+              isOfflineReconnect: explicit || offlineQueue
             }),
           });
           if (res.ok) {
@@ -409,6 +410,7 @@ export default function EditorPage() {
               uSet('docusync_web_conflicts', JSON.stringify(conflicts));
 
               setSyncStatusMsg('Conflict Detected! Check menu.');
+              toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
               return;
             }
             if (data.lwwResolved) {
