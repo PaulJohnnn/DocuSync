@@ -47,6 +47,29 @@ const API_BASE_STATIC = import.meta.env.VITE_WEB_URL
   : (import.meta.env.DEV ? 'http://localhost:3000/api/auth' : 'https://docusync-pnc.vercel.app/api/auth');
 
 
+async function authFetch(path: string = '', options: RequestInit = {}): Promise<Response> {
+  const primary = getApiBase();
+  const urlsToTry = [
+    `${primary}${path}`,
+    `http://localhost:3000/api/auth${path}`,
+    `https://docusync-pnc.vercel.app/api/auth${path}`
+  ];
+  const uniqueUrls = Array.from(new Set(urlsToTry));
+
+  for (const url of uniqueUrls) {
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(3000)
+      });
+      if (res.ok || res.status < 500) return res;
+    } catch {
+      // Try next fallback URL
+    }
+  }
+  throw new Error('Network timeout: Cannot connect to the Web App Admin. Make sure the local web app is running on http://localhost:3000');
+}
+
 // ── Polling logic for reactivity ─────────────────────────────────────────
 let _usersHash = '';
 let _pendingHash = '';
@@ -54,7 +77,7 @@ let _pendingHash = '';
 async function pollDatabase() {
   if (typeof window === 'undefined') return;
   try {
-    const res = await fetch(`${getApiBase()}?action=sync`);
+    const res = await authFetch('?action=sync');
     if (res.ok) {
       const data = await res.json();
       const currentUsersStr = JSON.stringify(data.users || []);
@@ -101,7 +124,7 @@ if (typeof window !== 'undefined') {
 // ── Auth methods ───────────────────────────────────────────────────────────
 
 export async function login(email: string, pin: string): Promise<AuthUser> {
-  const res = await fetch(getApiBase(), {
+  const res = await authFetch('', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'login', email, pin })
@@ -146,13 +169,10 @@ export async function login(email: string, pin: string): Promise<AuthUser> {
 }
 
 export async function requestAccount(email: string): Promise<'verified'> {
-  const res = await fetch(getApiBase(), {
+  const res = await authFetch('', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'request', email }),
-    signal: AbortSignal.timeout(5000)
-  }).catch(() => {
-    throw new Error('Network timeout: Cannot connect to the Web App Admin. Make sure the laptop is running the Web App and the IP address is correct.');
+    body: JSON.stringify({ action: 'request', email })
   });
   const data = await res.json();
   if (!res.ok || !data.success) {
@@ -165,7 +185,7 @@ export async function requestAccount(email: string): Promise<'verified'> {
 }
 
 export async function cancelRequest(email: string): Promise<void> {
-  await fetch(getApiBase(), {
+  await authFetch('', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'cancel_request', email })
@@ -175,7 +195,7 @@ export async function cancelRequest(email: string): Promise<void> {
 
 export async function getActiveUsers(): Promise<AuthUser[]> {
   try {
-    const res = await fetch(`${getApiBase()}?action=sync`);
+    const res = await authFetch('?action=sync');
     if (res.ok) {
       const data = await res.json();
       return (data.users || []).filter((u: any) => u.status === 'active' && !u.isAdmin).map((u: any) => {
@@ -189,9 +209,8 @@ export async function getActiveUsers(): Promise<AuthUser[]> {
   }
 }
 
-
 export async function revokeUser(userId: string): Promise<void> {
-  await fetch(getApiBase(), {
+  await authFetch('', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'revoke', userId })
@@ -229,7 +248,7 @@ export async function logout() {
 
 export async function checkApprovalStatus(email: string): Promise<string | null> {
   try {
-    const res = await fetch(`${getApiBase()}?action=sync`);
+    const res = await authFetch('?action=sync');
     if (res.ok) {
       const data = await res.json();
       const user = (data.users || []).find((u: any) => u.email.toLowerCase() === email.toLowerCase());
