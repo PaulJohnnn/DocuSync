@@ -72,6 +72,25 @@ function getMockRedis() {
       const actualKeys = Array.isArray(keys[0]) ? keys[0] : keys;
       return actualKeys.map(k => store[k] || null);
     },
+    rpush: async (key: string, ...values: any[]) => {
+      const store = readStore();
+      if (!store[key]) store[key] = [];
+      if (!Array.isArray(store[key])) store[key] = [store[key]];
+      store[key].push(...values);
+      writeStore(store);
+      return store[key].length;
+    },
+    lrange: async (key: string, start: number, end: number) => {
+      const store = readStore();
+      const list = store[key] || [];
+      if (!Array.isArray(list)) return [];
+      if (end === -1) return list.slice(start);
+      return list.slice(start, end + 1);
+    },
+    expire: async (key: string, seconds: number) => {
+      // Mock expire (file-backed mock doesn't run background GC)
+      return 1;
+    },
   };
   return _mockRedis;
 }
