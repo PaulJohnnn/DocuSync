@@ -858,7 +858,7 @@ export function registerIPCHandlers(services: EngineServices): void {
           if (existingDiskContent) finalContent = existingDiskContent;
         } catch (e) {}
       }
-      // Always write the canonical room content snapshot to disk when opening a room file
+      // Write the file content to disk
       await fs.promises.writeFile(destPath, finalContent, 'utf-8');
 
       const ext = path.extname(fileName);

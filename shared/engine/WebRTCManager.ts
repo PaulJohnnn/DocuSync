@@ -80,7 +80,12 @@ export class WebRTCManager {
 
   private async pollSignals() {
     try {
-      const res = await fetch(`${this.signalingUrl}?otp=${this.otp}&nodeId=${this.localNodeId}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`${this.signalingUrl}?otp=${this.otp}&nodeId=${this.localNodeId}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
       if (!res.ok) return;
       const data = await res.json();
       
@@ -89,15 +94,18 @@ export class WebRTCManager {
         await this.handleSignal(signal);
       }
     } catch (err) {
-      console.warn('[WebRTC] Signaling poll failed', err);
+      // Ignore abort/network errors during offline mode
     }
   }
 
   private async sendSignal(targetNodeId: string, type: string, data: any) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
       await fetch(this.signalingUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           otp: this.otp,
           targetNodeId,
@@ -106,8 +114,9 @@ export class WebRTCManager {
           data
         })
       });
+      clearTimeout(timeoutId);
     } catch (err) {
-      console.error('[WebRTC] Failed to send signal', err);
+      // Ignore abort/network errors during offline mode
     }
   }
 

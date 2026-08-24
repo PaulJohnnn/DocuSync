@@ -458,6 +458,22 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
 
         setLastDeltaSize(savedDeltaSize);
         setPeersNotified(savedPeersNotified);
+
+        // Update local room files cache in localStorage so room workspace shows updated content immediately
+        if (roomOtp) {
+          try {
+            const cacheKey = `docusync_room_files_${roomOtp}`;
+            const stored = localStorage.getItem(cacheKey);
+            if (stored) {
+              const files = JSON.parse(stored);
+              const idx = files.findIndex((f: any) => String(f.fileId ?? f.id) === String(fileId));
+              if (idx >= 0) {
+                files[idx].content = html;
+                localStorage.setItem(cacheKey, JSON.stringify(files));
+              }
+            }
+          } catch (e) {}
+        }
       }
 
       // ── Step 2: Push to Matchmaker (fallback) ──────────────
