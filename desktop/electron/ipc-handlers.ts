@@ -851,6 +851,13 @@ export function registerIPCHandlers(services: EngineServices): void {
       }
 
       let finalContent = typeof content === 'string' ? content : '';
+      // If content passed is empty but destPath exists on disk with content, preserve disk content
+      if (!finalContent && fs.existsSync(destPath)) {
+        try {
+          const existingDiskContent = await fs.promises.readFile(destPath, 'utf-8');
+          if (existingDiskContent) finalContent = existingDiskContent;
+        } catch (e) {}
+      }
       // Always write the canonical room content snapshot to disk when opening a room file
       await fs.promises.writeFile(destPath, finalContent, 'utf-8');
 

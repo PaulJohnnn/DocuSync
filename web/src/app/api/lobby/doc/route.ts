@@ -153,6 +153,21 @@ export async function POST(request: Request) {
     const TTL_SECONDS = 24 * 60 * 60;
     await redis.set(key, snapshot, { ex: TTL_SECONDS });
 
+    // ── Also update content in lobby.files list so /api/lobby/files returns fresh text ──
+    try {
+      const lobbyKey = `lobby:${otp}`;
+      const lobby = (await redis.get(lobbyKey)) as any;
+      if (lobby && Array.isArray(lobby.files)) {
+        const idx = lobby.files.findIndex((f: any) => String(f.fileId ?? f.id) === String(fileId));
+        if (idx >= 0) {
+          lobby.files[idx].content = content;
+          await redis.set(lobbyKey, lobby, { ex: TTL_SECONDS });
+        }
+      }
+    } catch (e) {
+      console.error('[Doc POST] Failed to update lobby.files list in Redis:', e);
+    }
+
     return NextResponse.json(
       {
         success: true,

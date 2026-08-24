@@ -214,12 +214,27 @@ export default function EditorPage() {
     };
   }, [syncState]);
 
+  const updateLocalStorageFile = useCallback((fileIdToUpdate: string, newContent: string) => {
+    try {
+      const stored = uGet('files');
+      if (stored) {
+        const files: FileRecord[] = JSON.parse(stored);
+        const idx = files.findIndex(f => String(f.id) === String(fileIdToUpdate));
+        if (idx >= 0) {
+          files[idx].content = newContent;
+          files[idx].updatedAt = new Date().toISOString();
+          uSet('files', JSON.stringify(files));
+        }
+      }
+    } catch (e) {}
+  }, []);
+
   // ── Load file from local storage ──────────────────────────────────────────
   useEffect(() => {
     const stored = uGet('files');
     if (!stored) return;
     const files: FileRecord[] = JSON.parse(stored);
-    const found = files.find(f => f.id === fileId);
+    const found = files.find(f => String(f.id) === String(fileId));
     if (found) {
       setFile(found);
       setContentAndRef(found.content);
@@ -235,7 +250,28 @@ export default function EditorPage() {
 
     const savedNodeId = sessionStorage.getItem('docusync_node_id');
     if (savedNodeId) localNodeIdRef.current = savedNodeId;
-  }, [fileId]);
+
+    // Always fetch latest canonical snapshot from Matchmaker on mount to ensure fresh content on rejoin
+    try {
+      const storedRoomStr = uGet('current_room');
+      if (storedRoomStr) {
+        const room = JSON.parse(storedRoomStr);
+        const otp = room.otp || room.id;
+        if (otp) {
+          fetch(`/api/lobby/doc?otp=${otp}&fileId=${fileId}`)
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (data?.snapshot?.content) {
+                setContentAndRef(data.snapshot.content);
+                lastSave.current = data.snapshot.content;
+                updateLocalStorageFile(fileId, data.snapshot.content);
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    } catch (e) {}
+  }, [fileId, updateLocalStorageFile]);
 
   const getRoomHostInfo = useCallback((): any | null => {
     try {
@@ -255,6 +291,9 @@ export default function EditorPage() {
 
   // ── Push content to Host ──────────────────────────────────────────────────
   const pushToHost = useCallback(async (contentToSave: string, vectorClockSnapshot: Record<string, number>, explicit = false) => {
+    // Instantly update local storage representation of the file so rejoining file displays new content
+    updateLocalStorageFile(fileId, contentToSave);
+
     const room = getRoomHostInfo();
     if (!room || !room.hostIp) {
       setSyncStatusMsg("Host unavailable");

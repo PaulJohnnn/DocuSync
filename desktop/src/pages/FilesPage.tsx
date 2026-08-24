@@ -110,9 +110,32 @@ const FilesPage: React.FC = () => {
     setOpening(true);
     try {
       const explicitId = file.fileId ?? file.id;
+      let contentToUse = file.content || '';
+      
+      // If content in the room file list is empty/stale, fetch latest snapshot from Matchmaker
+      if (!contentToUse && currentRoom) {
+        const otp = currentRoom.otp || currentRoom.id;
+        if (otp) {
+          try {
+            const _WEB_BASE = (typeof import.meta !== 'undefined' && import.meta.env.VITE_WEB_URL)
+              ? import.meta.env.VITE_WEB_URL
+              : (typeof import.meta !== 'undefined' && import.meta.env.DEV)
+                ? 'http://localhost:3000'
+                : 'https://docusync-pnc.vercel.app';
+            const res = await fetch(`${_WEB_BASE}/api/lobby/doc?otp=${otp}&fileId=${explicitId}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.snapshot?.content) {
+                contentToUse = data.snapshot.content;
+              }
+            }
+          } catch (e) {}
+        }
+      }
+
       const imported = await FileService.importRoomFile(
         file.fileName || file.name,
-        file.content || '',
+        contentToUse,
         explicitId ? Number(explicitId) : undefined,
       );
       notify.success(`Opened: ${basename(imported.filePath)}`);
@@ -120,7 +143,7 @@ const FilesPage: React.FC = () => {
     } catch (error) {
       if (error instanceof ServiceError) notify.error(error.message);
     } finally { setOpening(false); }
-  }, [navigate]);
+  }, [navigate, currentRoom]);
 
   const handleDownloadRoomFile = useCallback((file: any) => {
     try {
