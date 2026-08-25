@@ -349,7 +349,7 @@ export class PeerManager {
             console.warn('[PeerManager] getHistory failed in /sync/status:', e?.message);
           }
 
-          let latestVc = this.config.vectorClock || new VectorClock(3, 0, { counter: 0, children: [{ counter: 0, children: [] }, { counter: 0, children: [] }, { counter: 0, children: [] }] });
+          let latestVc = this.config.vectorClock || new VectorClock(2, 0, { counter: 0, children: [{ counter: 0, children: [] }, { counter: 0, children: [] }] });
           let committedAt = 0;
           let authorNodeId = '';
           if (history.length > 0) {

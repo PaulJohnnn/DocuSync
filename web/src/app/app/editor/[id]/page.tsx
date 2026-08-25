@@ -708,6 +708,9 @@ export default function EditorPage() {
             </button>
             <button className="ds-btn ds-btn-primary" onClick={() => {
               saveFile(content, true);
+              if (!isOnline || syncState === 'offline') {
+                window.alert('Offline session finalized. Your edits are strictly saved to your local device and will remain queued safely. Please reconnect to sync with the Host.');
+              }
               router.push('/app/files');
             }} disabled={syncing}>Done</button>
           </div>
