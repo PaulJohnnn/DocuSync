@@ -382,67 +382,12 @@ export default function EditorPage() {
       }
 
       if (!directSuccess && otp) {
-        try {
-          const res = await fetch('/api/lobby/doc', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              otp,
-              fileId,
-              authorNodeId: localNodeIdRef.current,
-              authorName: localNodeIdRef.current.slice(0, 8),
-              content: contentToSave,
-              vectorClock: vectorClockSnapshot,
-              deltaSize,
-              isOfflineReconnect: explicit || offlineQueue
-            }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.escalated) {
-              const conflict = {
-                id: `web-conflict-${Date.now()}`,
-                fileId: fileId,
-                localContent: contentToSave,
-                serverContent: data.serverContent || data.content || '',
-                timestamp: Date.now()
-              };
-              let conflicts = [];
-              try {
-                const stored = uGet('docusync_web_conflicts');
-                if (stored) conflicts = JSON.parse(stored);
-              } catch (e) {}
-              conflicts.push(conflict);
-              uSet('docusync_web_conflicts', JSON.stringify(conflicts));
-
-              setSyncStatusMsg('Conflict Detected! Check menu.');
-              toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
-              return;
-            }
-            if (data.lwwResolved) {
-              toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
-            }
-            setSyncStatusMsg(`Synced ✓`);
-            setOfflineQueue(false);
-            console.log('[OfflineQueue] Reset to false after sync');
-            hasPendingChangesRef.current = false;
-          } else if (res.status === 409) {
-            const data = await res.json();
-            setSyncStatusMsg('Conflict detected via LWW! Fetching latest...');
-            if (data.currentVersion?.content) {
-              setContentAndRef(data.currentVersion.content);
-              lastSave.current = data.currentVersion.content;
-            }
-          } else {
-            setSyncStatusMsg('Sync failed — queued for retry');
-            setOfflineQueue(true);
-            updateLocalStorageFile(fileId, contentToSave, true);
-          }
-        } catch (err) {
-          setSyncStatusMsg('Host unavailable');
-          setOfflineQueue(true);
-          updateLocalStorageFile(fileId, contentToSave, true);
-        }
+        // DocuSync architecture strictly prohibits centralized Matchmaker syncing.
+        // If Desktop host is unavailable on port 9000, we queue offline.
+        setSyncStatusMsg('Host unavailable (offline flag queued)');
+        setOfflineQueue(true);
+        updateLocalStorageFile(fileId, contentToSave, true);
+        throw new Error('Unable to reach Desktop Sync Server. Edit queued offline.');
       } else if (!directSuccess) {
         setSyncStatusMsg('Sync failed — queued for retry');
         setOfflineQueue(true);
@@ -484,6 +429,16 @@ export default function EditorPage() {
             const res = await fetch(`${baseUrl}/sync/status?fileId=${fileId}&since=${vcStr}`);
             if (res.ok) {
               const data = await res.json();
+              
+              // If we reach the Desktop Host and we have queued offline edits on THIS file, flush them now!
+              if (offlineQueue || hasPendingChangesRef.current) {
+                // If the user's internet dropped while typing, push the queue immediately.
+                if (!isTypingRef.current) {
+                   await saveFile(currentContentRef.current, true);
+                   setOfflineQueue(false);
+                }
+              }
+
               if (!data.upToDate && data.content && data.authorNodeId !== localNodeIdRef.current) {
                 if (!(isTypingRef.current || hasPendingChangesRef.current) && data.content !== currentContentRef.current) {
                   setContentAndRef(data.content);
@@ -496,50 +451,9 @@ export default function EditorPage() {
               return; // successfully polled direct host
             }
           } catch {
-            // fall through to Matchmaker
+            // failed to reach direct host
           }
         }
-
-        // Step 2: Poll Matchmaker (works when Desktop is on different network)
-        const res = await fetch(`/api/lobby/doc?otp=${otp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
-        if (!res.ok) return;
-        const data = await res.json();
-
-        if (data.unchanged || !data.snapshot?.content) return;
-        const snap = data.snapshot;
-        console.log('[POLL MATCHMAKER]', 'server content:', snap.content, 'will overwrite local:', !(isTypingRef.current || hasPendingChangesRef.current));
-
-        // Skip our own pushes
-        if (snap.authorNodeId === localNodeIdRef.current) return;
-
-        // Skip if we've already applied this snapshot version
-        if (snap.seq && snap.seq <= lastAcceptedSeq.current) return;
-
-        // Apply the remote snapshot
-        lastAcceptedSeq.current = snap.seq || 0;
-        lastSyncedAt.current = snap.committedAt || Date.now();
-
-        // Update editor content
-        isApplyingRemoteRef.current = true;
-        setContentAndRef(snap.content);
-        lastSave.current = snap.content;
-        setSaved(true);
-        setSyncStatusMsg('↓ Synced from peer');
-        setTimeout(() => { isApplyingRemoteRef.current = false; }, 500);
-
-        // Persist to local storage
-        try {
-          const stored = uGet('files');
-          if (stored) {
-            const files: FileRecord[] = JSON.parse(stored);
-            const idx = files.findIndex(f => f.id === fileId);
-            if (idx >= 0) {
-              files[idx].content = snap.content;
-              files[idx].updatedAt = new Date().toISOString();
-              uSet('files', JSON.stringify(files));
-            }
-          }
-        } catch {}
       } catch {}
     };
 

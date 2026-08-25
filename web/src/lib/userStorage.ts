@@ -34,19 +34,28 @@ export function userKey(key: string): string {
 /** localStorage.getItem scoped to the current user. */
 export function uGet(key: string): string | null {
   if (typeof window === 'undefined') return null;
+  if (key === 'current_room') return sessionStorage.getItem(userKey(key));
   return localStorage.getItem(userKey(key));
 }
 
 /** localStorage.setItem scoped to the current user. */
 export function uSet(key: string, value: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(userKey(key), value);
+  if (key === 'current_room') {
+    sessionStorage.setItem(userKey(key), value);
+  } else {
+    localStorage.setItem(userKey(key), value);
+  }
 }
 
 /** localStorage.removeItem scoped to the current user. */
 export function uRemove(key: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(userKey(key));
+  if (key === 'current_room') {
+    sessionStorage.removeItem(userKey(key));
+  } else {
+    localStorage.removeItem(userKey(key));
+  }
 }
 
 /**

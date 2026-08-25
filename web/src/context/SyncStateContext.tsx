@@ -105,6 +105,7 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
           const auth = sessionStorage.getItem('docusync_auth_user');
           const uid = auth ? (JSON.parse(auth).id || 'guest') : 'guest';
           const key = `ds_${uid}_${k}`;
+          if (k === 'current_room') return sessionStorage.getItem(key);
           return localStorage.getItem(key);
         } catch { return null; }
       };

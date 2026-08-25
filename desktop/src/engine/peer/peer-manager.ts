@@ -349,7 +349,7 @@ export class PeerManager {
             console.warn('[PeerManager] getHistory failed in /sync/status:', e?.message);
           }
 
-          let latestVc = this.config.vectorClock || new VectorClock(3, 0, { counter: 0, children: [{ counter: 0, children: [] }, { counter: 0, children: [] }, { counter: 0, children: [] }] });
+          let latestVc = this.config.vectorClock || new VectorClock(2, 0, { counter: 0, children: [{ counter: 0, children: [] }, { counter: 0, children: [] }] });
           let committedAt = 0;
           let authorNodeId = '';
           if (history.length > 0) {
@@ -501,8 +501,61 @@ export class PeerManager {
             console.log(`[PeerManager] Forcing concurrent due to nodeIndex collision: Server auth=${authorNodeId} vs Incoming auth=${nodeId}`);
             relation = 'concurrent';
           }
-
+          
           const localContent = await this.config.getFileContent(fileId);
+
+          // ── USER-REQUESTED FORCED OFFLINE ESCALATION ───────────────────
+          // If the Web App reconnects from offline (isOfflineReconnect = true)
+          // AND there is already history on this server (latestEvent exists),
+          // we force an escalation regardless of text divergence or vector clock maths.
+          if (isOfflineReconnect && latestEvent) {
+             console.log(`[PeerManager] FORCING Offline Reconnect Conflict Escelation for file ${fileId}`);
+             const eventA = {
+              eventId: crypto.randomUUID(),
+              fileId,
+              nodeId: this.config.localNodeId,
+              payload: localContent, // Server content is preserved unaltered
+              logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+              vectorClockJson: this.config.vectorClock.toJSON(),
+            };
+            const eventB = {
+              eventId: crypto.randomUUID(),
+              fileId,
+              nodeId,
+              payload: remoteContent || localContent,
+              logicalTimestamp: incomingVc.counters[incomingVc.nodeIndex] || 1,
+              vectorClockJson: incomingVc.toJSON(),
+            };
+
+            // 1. Preserve both in the DB so they are securely durable
+            await Promise.all([
+              this.config.eventLog.appendEvent({ ...eventA, eventType: 'edit' }),
+              this.config.eventLog.appendEvent({ ...eventB, eventType: 'edit' }),
+            ]);
+
+            // 2. Persist genuine durable ConflictRecord without merging or incrementing clocks
+            const conflictId = await this.config.lwwResolver.escalateToOwner(eventA as any, eventB as any);
+            
+            this._metrics.conflictsDetectedThisSession++;
+            if (conflictId) {
+              this._metrics.conflictEscalatedAt.set(conflictId, Date.now());
+              if (this.config.onConflictNotified) {
+                await this.config.onConflictNotified(
+                  conflictId,
+                  fileId,
+                  `Forced offline comparison detected between ${nodeId} and ${this.config.localNodeId}`
+                );
+              }
+            }
+
+            res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+              escalated: true, 
+              conflictId,
+              serverContent: localContent
+            }));
+            return;
+          }
 
           if (relation === 'dominant') {
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
@@ -564,7 +617,7 @@ export class PeerManager {
             res.end(JSON.stringify({ merged: true, lwwResolved: true, vectorClock: this.config.vectorClock.toJSON() }));
             return;
           } else {
-            // concurrent - escalate (ONLY if isOfflineReconnect is true)
+            // concurrent - escalate 
             const eventA = {
               eventId: crypto.randomUUID(),
               fileId,
