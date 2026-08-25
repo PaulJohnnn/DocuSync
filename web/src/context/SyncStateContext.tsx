@@ -82,6 +82,42 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const handleOffline = () => {
+      setSyncStateRaw('offline');
+      setPendingEdits(1); // Give it a count of 1 so the UI says "1 edit queued" if they type, or just let page.tsx handle it.
+    };
+    
+    // We intentionally do NOT auto-reconnect on 'online'. 
+    // We wait for the user to click the "Reconnect" button in the OfflineBanner, 
+    // or we could auto-call reconnect(). Let's auto-call reconnect() after a short delay if they come back online.
+    const handleOnline = () => {
+      // Small delay to ensure network is fully stable
+      setTimeout(() => {
+        if (reconnectCallbackRef.current) {
+          reconnect();
+        } else {
+          setSyncStateRaw('online');
+        }
+      }, 1500);
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
+    // Initial check
+    if (!navigator.onLine) {
+      handleOffline();
+    }
+
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
+
   const registerReconnectCallback = useCallback((fn: (() => Promise<void>) | null) => {
     reconnectCallbackRef.current = fn;
   }, []);
