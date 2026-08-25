@@ -314,7 +314,7 @@ export default function SettingsPage() {
                       <span style={{ fontSize: '1.2rem' }}>⚠️</span>
                       <span style={{ fontSize: '0.9rem', color: 'var(--t2)', lineHeight: 1.6 }}>
                         <strong style={{ color: 'var(--t1)', fontWeight: 600 }}>Reason:</strong>{' '}
-                        Binary formats break delta encoding. DocuSync's delta engine operates on UTF-8 text streams. Importing binary files will result in rejection at the file-open stage.
+                        Binary formats break delta encoding. DocuSync&apos;s delta engine operates on UTF-8 text streams. Importing binary files will result in rejection at the file-open stage.
                       </span>
                     </div>
                   </div>

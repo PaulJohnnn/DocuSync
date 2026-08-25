@@ -134,34 +134,9 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
     setSyncStateRaw('syncing');
     setPendingEdits(0);
 
-    let foundOfflineEdits = false;
-    try {
-      const uGet = (k: string) => {
-        try {
-          const auth = sessionStorage.getItem('docusync_auth_user');
-          const uid = auth ? (JSON.parse(auth).id || 'guest') : 'guest';
-          const key = `ds_${uid}_${k}`;
-          if (k === 'current_room') return sessionStorage.getItem(key);
-          return localStorage.getItem(key);
-        } catch { return null; }
-      };
-
-      const filesStr = uGet('files');
-      const roomStr = uGet('current_room');
-      
-      if (filesStr && roomStr) {
-        const files = JSON.parse(filesStr);
-        const room = JSON.parse(roomStr);
-        const otp = room.otp || room.id;
-        let authNodeId = sessionStorage.getItem('docusync_node_id') || 'web-node';
-        
-      // We previously processed 'hasPendingOfflineEdit' files here, but this is now delegated 
-      // entirely to the 'reconnectCallbackRef' (which points to pushToHost in page.tsx) 
-      // to avoid duplicating pushes and conflicts.
-      }
-    } catch (e) {
-      console.error('[SyncStateContext] Error fetching files:', e);
-    }
+    // We previously processed 'hasPendingOfflineEdit' files here, but this is now delegated 
+    // entirely to the 'reconnectCallbackRef' (which points to pushToHost in page.tsx) 
+    // to avoid duplicating pushes and conflicts.
 
     if (reconnectCallbackRef.current) {
       try {
@@ -172,7 +147,7 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
     }
 
     setSyncStateRaw('synced');
-    setTimeout(() => setSyncStateRaw('online'), foundOfflineEdits ? 1500 : 2500);
+    setTimeout(() => setSyncStateRaw('online'), 2500);
   }, []);
 
   // ── Dev-only helpers — unchanged, still used by DevSyncToggle ──────────────
