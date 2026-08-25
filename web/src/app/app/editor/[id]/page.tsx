@@ -216,7 +216,7 @@ export default function EditorPage() {
     };
   }, [syncState]);
 
-  const updateLocalStorageFile = useCallback((fileIdToUpdate: string, newContent: string) => {
+  const updateLocalStorageFile = useCallback((fileIdToUpdate: string, newContent: string, isOfflineEdit: boolean = false) => {
     try {
       const stored = uGet('files');
       if (stored) {
@@ -225,6 +225,7 @@ export default function EditorPage() {
         if (idx >= 0) {
           files[idx].content = newContent;
           files[idx].updatedAt = new Date().toISOString();
+          if (isOfflineEdit) (files[idx] as any).hasPendingOfflineEdit = true;
           uSet('files', JSON.stringify(files));
         }
       }
@@ -298,8 +299,8 @@ export default function EditorPage() {
 
   // ── Push content to Host ──────────────────────────────────────────────────
   const pushToHost = useCallback(async (contentToSave: string, vectorClockSnapshot: Record<string, number>, explicit = false) => {
-    // Instantly update local storage representation of the file so rejoining file displays new content
-    updateLocalStorageFile(fileId, contentToSave);
+    const isActuallyOffline = !navigator.onLine || syncState === 'offline' || (window as any).__DOCUSYNC_DEV_OFFLINE__ === true;
+    updateLocalStorageFile(fileId, contentToSave, isActuallyOffline);
 
     const room = getRoomHostInfo();
     const otp = room?.otp || room?.id;
@@ -308,7 +309,7 @@ export default function EditorPage() {
       return;
     }
 
-    if (!navigator.onLine || syncState === 'offline' || (window as any).__DOCUSYNC_DEV_OFFLINE__ === true) {
+    if (isActuallyOffline) {
       setSyncStatusMsg('Offline — queued');
       setOfflineQueue(true);
       return;
@@ -435,18 +436,22 @@ export default function EditorPage() {
           } else {
             setSyncStatusMsg('Sync failed — queued for retry');
             setOfflineQueue(true);
+            updateLocalStorageFile(fileId, contentToSave, true);
           }
         } catch (err) {
           setSyncStatusMsg('Host unavailable');
           setOfflineQueue(true);
+          updateLocalStorageFile(fileId, contentToSave, true);
         }
       } else if (!directSuccess) {
         setSyncStatusMsg('Sync failed — queued for retry');
         setOfflineQueue(true);
+        updateLocalStorageFile(fileId, contentToSave, true);
       }
     } catch (e) {
       setSyncStatusMsg('Host unavailable');
       setOfflineQueue(true);
+      updateLocalStorageFile(fileId, contentToSave, true);
     } finally {
       setSyncing(false);
     }

@@ -726,10 +726,11 @@ const docuSyncBridge: DocuSyncBridge = {
   },
 
   onFileUpdated(
-    listener: (fileId: number, newContent: string) => void
+    listener: (fileId: number, newContent: string, lwwResolved?: boolean) => void
   ): () => void {
-    const wrapped = (_event: Electron.IpcRendererEvent, fileId: number, newContent: string) => {
-      listener(fileId, newContent);
+    const wrapped = (_event: Electron.IpcRendererEvent, payload: { fileId: number, newContent: string, lwwResolved?: boolean, eventId: string }) => {
+      // payload is an object when sent from ipc-handlers.ts via win.webContents.send
+      listener(payload.fileId, payload.newContent, payload.lwwResolved);
     };
     ipcRenderer.on(EVT_FILE_UPDATED, wrapped);
     return () => {
