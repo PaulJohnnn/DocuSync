@@ -105,7 +105,7 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
           const auth = sessionStorage.getItem('docusync_auth_user');
           const uid = auth ? (JSON.parse(auth).id || 'guest') : 'guest';
           const key = `ds_${uid}_${k}`;
-          return k === 'current_room' || k === 'files' ? sessionStorage.getItem(key) : localStorage.getItem(key);
+          return localStorage.getItem(key);
         } catch { return null; }
       };
 
@@ -172,7 +172,7 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
           try {
             const auth = sessionStorage.getItem('docusync_auth_user');
             const uid = auth ? (JSON.parse(auth).id || 'guest') : 'guest';
-            sessionStorage.setItem(`ds_${uid}_files`, JSON.stringify(files));
+            localStorage.setItem(`ds_${uid}_files`, JSON.stringify(files));
           } catch {}
         }
       }

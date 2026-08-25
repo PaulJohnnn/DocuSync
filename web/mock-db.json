@@ -44,6 +44,24 @@
       "isAdmin": false,
       "createdAt": "2026-08-24T07:36:27.808Z",
       "status": "active"
+    },
+    {
+      "id": "user-1787618493746",
+      "email": "andi",
+      "name": "andi",
+      "pin": "543482",
+      "isAdmin": false,
+      "createdAt": "2026-08-25T00:41:33.746Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1787618665798",
+      "email": "af",
+      "name": "af",
+      "pin": "404461",
+      "isAdmin": false,
+      "createdAt": "2026-08-25T00:44:25.798Z",
+      "status": "active"
     }
   ],
   "pending": []
