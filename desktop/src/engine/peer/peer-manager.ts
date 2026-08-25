@@ -512,7 +512,7 @@ export class PeerManager {
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ merged: true, upToDate: true, vectorClock: this.config.vectorClock.toJSON() }));
             return;
-          } else if (relation === 'dominated') {
+          } else if (relation === 'dominated' && !isOfflineReconnect) {
             try {
               this.config.vectorClock.merge(incomingVc);
             } catch {}
@@ -564,7 +564,14 @@ export class PeerManager {
             res.end(JSON.stringify({ merged: true, lwwResolved: true, vectorClock: this.config.vectorClock.toJSON() }));
             return;
           } else {
-            // concurrent - escalate (ONLY if isOfflineReconnect is true)
+            // concurrent OR forced offline reconnect - escalate
+            if (isOfflineReconnect && remoteContent === localContent) {
+              // Same content, no need to flag conflict
+              res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ merged: true, upToDate: true, vectorClock: this.config.vectorClock.toJSON() }));
+              return;
+            }
+
             const eventA = {
               eventId: crypto.randomUUID(),
               fileId,
@@ -583,7 +590,17 @@ export class PeerManager {
             };
 
             try {
-              const resolveResult = await this.config.lwwResolver.resolve(eventA, eventB, this.config.vectorClock, incomingVc);
+              // If it's explicitly an offline reconnect with divergence, FORCE the escalation
+              // regardless of vector clock math.
+              let resolveResult: any = { outcome: 'escalated' };
+              
+              if (isOfflineReconnect) {
+                console.log('[PeerManager] Forcing manual conflict review for Offline Reconnect');
+                const conflictId = await this.config.lwwResolver.escalateToOwner(eventA, eventB);
+                resolveResult.conflictId = conflictId;
+              } else {
+                resolveResult = await this.config.lwwResolver.resolve(eventA, eventB, this.config.vectorClock, incomingVc);
+              }
 
               if (resolveResult.outcome === 'escalated') {
                 this._metrics.conflictsDetectedThisSession++;

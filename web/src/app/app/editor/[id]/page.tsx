@@ -189,6 +189,38 @@ export default function EditorPage() {
     return () => window.removeEventListener('docusync_ws_delta', handleDelta);
   }, [fileId]);
 
+  // ── Remote Conflict Resolution Listeners (WebSockets) ────────────────────
+  useEffect(() => {
+    const handleResolution = (e: any) => {
+      const msg = e.detail;
+      const localFileId = Number(fileId);
+      if (msg.fileId !== localFileId) return;
+      
+      console.log('[CONFLICT RESOLVED] Host resolved conflict block. Unlocking local diff barriers.');
+      
+      // Crucial: Unlock the Web App's pending push state
+      hasPendingChangesRef.current = false;
+      setSyncStatusMsg('Resolved (by Host)');
+      
+      // Clear any cached Web UI conflict alerts for this file
+      try {
+        const stored = uGet('docusync_web_conflicts');
+        if (stored) {
+          let conflicts = JSON.parse(stored);
+          conflicts = conflicts.filter((c: any) => c.fileId !== fileId);
+          uSet('docusync_web_conflicts', JSON.stringify(conflicts)); 
+        }
+      } catch (err) {}
+    };
+
+    window.addEventListener('docusync_ws_merge_accept', handleResolution);
+    window.addEventListener('docusync_ws_merge_reject', handleResolution);
+    return () => {
+      window.removeEventListener('docusync_ws_merge_accept', handleResolution);
+      window.removeEventListener('docusync_ws_merge_reject', handleResolution);
+    };
+  }, [fileId]);
+
 
   // ── Online/Offline detection ──────────────────────────────────────────────
   useEffect(() => {
