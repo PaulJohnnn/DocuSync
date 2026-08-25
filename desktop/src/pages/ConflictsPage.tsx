@@ -151,7 +151,7 @@ const InteractiveConflictEditor: React.FC<{
 
 const ConflictsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { conflictQueue, pendingConflicts, markConflictResolved, refreshStatus, currentRoom, localNodeId } = useElectronSync();
+  const { conflictQueue, pendingConflicts, markConflictResolved, refreshStatus, currentRoom, localNodeId, vectorClock } = useElectronSync();
   const [details, setDetails] = useState<Map<string, ConflictDetail>>(new Map());
   const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
 
@@ -248,7 +248,7 @@ const ConflictsPage: React.FC = () => {
           authorNodeId: localNodeId || 'host',
           authorName: 'Host (Auto-Merge)',
           content: winnerPayload,
-          vectorClock: {},
+          vectorClock: vectorClock || {},
           deltaSize,
         }),
       });

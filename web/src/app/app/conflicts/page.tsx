@@ -209,6 +209,18 @@ export default function ConflictsPage() {
       if (storedRoom) {
         const room = JSON.parse(storedRoom);
         const otp = room.otp || room.id;
+        
+        // Retrieve latest vector clock for the file to properly merge
+        let mergedClock = {};
+        try {
+          const stored = uGet('files');
+          if (stored) {
+            const files = JSON.parse(stored);
+            const file = files.find((f: any) => String(f.id) === String(conflict.fileId));
+            if (file && file.vectorClock) mergedClock = { ...file.vectorClock };
+          }
+        } catch (e) {}
+        
         fetch('/api/lobby/doc', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -218,7 +230,7 @@ export default function ConflictsPage() {
             authorNodeId: 'web-user',
             authorName: 'Web Member (Conflict Resolution)',
             content: winnerContent,
-            vectorClock: {},
+            vectorClock: mergedClock,
             deltaSize: new Blob([winnerContent]).size,
           }),
         }).catch(err => console.error('[Conflict Resolve] Matchmaker push error:', err));

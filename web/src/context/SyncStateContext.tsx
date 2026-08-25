@@ -155,66 +155,11 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
         const otp = room.otp || room.id;
         let authNodeId = sessionStorage.getItem('docusync_node_id') || 'web-node';
         
-        let needFilesUpdate = false;
-
-        const syncPromises = files.map(async (f: any) => {
-          if (f.hasPendingOfflineEdit) {
-            foundOfflineEdits = true;
-            try {
-              const res = await fetch('/api/lobby/doc', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  otp,
-                  fileId: f.id,
-                  authorNodeId: authNodeId,
-                  authorName: authNodeId.slice(0, 8),
-                  content: f.content,
-                  isOfflineReconnect: true
-                }),
-              });
-
-              if (res.ok) {
-                const data = await res.json();
-                f.hasPendingOfflineEdit = false;
-                needFilesUpdate = true;
-                if (data.escalated) {
-                  const uSet = (k: string, v: string) => {
-                    const uid = sessionStorage.getItem('docusync_auth_user') ? JSON.parse(sessionStorage.getItem('docusync_auth_user')!).id : 'guest';
-                    localStorage.setItem(`ds_${uid}_${k}`, v);
-                  };
-                  const conflict = {
-                    id: `web-conflict-${Date.now()}-${f.id}`,
-                    fileId: String(f.id),
-                    localContent: f.content,
-                    serverContent: data.serverContent || data.content || '',
-                    timestamp: Date.now()
-                  };
-                  let conflicts = [];
-                  try {
-                    const stored = uGet('docusync_web_conflicts');
-                    if (stored) conflicts = JSON.parse(stored);
-                  } catch (e) {}
-                  conflicts.push(conflict);
-                  uSet('docusync_web_conflicts', JSON.stringify(conflicts));
-                }
-              }
-            } catch (err) {}
-          }
-        });
-
-        await Promise.all(syncPromises);
-
-        if (needFilesUpdate) {
-          try {
-            const auth = sessionStorage.getItem('docusync_auth_user');
-            const uid = auth ? (JSON.parse(auth).id || 'guest') : 'guest';
-            localStorage.setItem(`ds_${uid}_files`, JSON.stringify(files));
-          } catch {}
-        }
-      }
+      // We previously processed 'hasPendingOfflineEdit' files here, but this is now delegated 
+      // entirely to the 'reconnectCallbackRef' (which points to pushToHost in page.tsx) 
+      // to avoid duplicating pushes and conflicts.
     } catch (e) {
-      console.error('[SyncStateContext] Error flushing offline queue:', e);
+      console.error('[SyncStateContext] Error fetching files:', e);
     }
 
     if (reconnectCallbackRef.current) {

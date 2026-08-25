@@ -913,9 +913,9 @@ export function registerIPCHandlers(services: EngineServices): void {
       try {
         validateTextFile(fileName);
       } catch {
-        // Strip HTML for non-HTML files to prevent TipTap markup corruption
-        const contentToWrite = isHtmlExtension(filePath) ? newContent : stripHtmlToPlainText(newContent);
-        await fs.promises.writeFile(filePath, contentToWrite, 'utf-8');
+        // For non-standard extensions, we still write the HTML natively so TipTap can 
+        // reload it later without losing formatting. We don't strip HTML anymore.
+        await fs.promises.writeFile(filePath, newContent, 'utf-8');
         fileContents.set(fileId, newContent);
         return {
           fileId,
@@ -978,9 +978,8 @@ export function registerIPCHandlers(services: EngineServices): void {
       }
 
       // ── Write to disk ───────────────────────────────────────────
-      // Strip HTML for non-HTML files to prevent TipTap markup corruption
-      const contentToWrite = isHtmlExtension(filePath) ? newContent : stripHtmlToPlainText(newContent);
-      await fs.promises.writeFile(filePath, contentToWrite, 'utf-8');
+      // We write the raw HTML regardless of extension to prevent TipTap from losing formatting.
+      await fs.promises.writeFile(filePath, newContent, 'utf-8');
 
       // ── Update in-memory cache (keep HTML for TipTap/delta engine) ──
       fileContents.set(fileId, newContent);
@@ -1582,6 +1581,8 @@ export function registerIPCHandlers(services: EngineServices): void {
         peerManager.broadcast(rejectMsg);
       }
 
+      const previousContent = fileContents.get(Number(conflict.fileId)) ?? '';
+
       // ── Update local file ───────────────────────────────────────
       const winnerPayload = winner === 'A' ? conflict.payloadA : conflict.payloadB;
       fileContents.set(Number(conflict.fileId), winnerPayload);
@@ -1611,7 +1612,6 @@ export function registerIPCHandlers(services: EngineServices): void {
         });
       }
 
-      const previousContent = fileContents.get(Number(conflict.fileId)) ?? '';
       const encodeResult = encode(previousContent, winnerPayload, 'conflict.txt');
 
       const deltaPushMsg: any = {
@@ -1691,6 +1691,8 @@ export function registerIPCHandlers(services: EngineServices): void {
       };
       const peersNotified = peerManager.broadcast(acceptMsg);
 
+      const previousContent = fileContents.get(Number(conflict.fileId)) ?? '';
+      
       // Update local file contents
       fileContents.set(Number(conflict.fileId), customPayload);
       
@@ -1708,6 +1710,7 @@ export function registerIPCHandlers(services: EngineServices): void {
       }
 
       if (filePath) {
+        // We write the customPayload (HTML) directly to disk so TipTap formatting is preserved on reopen
         await fs.promises.writeFile(filePath, customPayload, 'utf-8');
       }
 
@@ -1719,7 +1722,6 @@ export function registerIPCHandlers(services: EngineServices): void {
         });
       }
 
-      const previousContent = fileContents.get(Number(conflict.fileId)) ?? '';
       const encodeResult = encode(previousContent, customPayload, 'conflict.txt');
 
       const deltaPushMsg: any = {
