@@ -556,16 +556,16 @@ export class PeerManager {
             }));
             return;
           }
-
-          if (relation === 'dominant') {
+          let effectiveRelation = relation;
+          if (effectiveRelation === 'dominant') {
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ merged: true, upToDate: false, content: localContent, vectorClock: this.config.vectorClock.toJSON() }));
             return;
-          } else if (relation === 'equal') {
+          } else if (effectiveRelation === 'equal') {
             res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ merged: true, upToDate: true, vectorClock: this.config.vectorClock.toJSON() }));
             return;
-          } else if (relation === 'dominated' && !isOfflineReconnect) {
+          } else if (effectiveRelation === 'dominated' && !isOfflineReconnect) {
             try {
               this.config.vectorClock.merge(incomingVc);
             } catch {}
@@ -648,7 +648,7 @@ export class PeerManager {
               let resolveResult: any = { outcome: 'escalated' };
               
               if (isOfflineReconnect) {
-                console.log('[PeerManager] Forcing manual conflict review for Offline Reconnect');
+                console.log(`[PeerManager] Forcing manual conflict review for Offline Reconnect`);
                 const conflictId = await this.config.lwwResolver.escalateToOwner(eventA, eventB);
                 resolveResult.conflictId = conflictId;
               } else {

@@ -335,9 +335,8 @@ export class VectorClock {
 
   /**
    * Total number of participant nodes this clock was created for.
-   * @readonly
    */
-  public readonly nodeCount: number;
+  public nodeCount: number;
 
   /**
    * Index of the local node that owns this clock instance (0-based).

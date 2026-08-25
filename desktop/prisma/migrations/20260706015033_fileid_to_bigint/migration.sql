@@ -10,7 +10,7 @@ CREATE TABLE "LocalVault" (
 CREATE TABLE "event_log" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "eventId" TEXT NOT NULL,
-    "fileId" BIGINT NOT NULL,
+    "fileId" TEXT NOT NULL,
     "nodeId" TEXT NOT NULL,
     "eventType" TEXT NOT NULL,
     "logicalTimestamp" INTEGER NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE "event_log" (
 CREATE TABLE "conflict" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "conflictId" TEXT NOT NULL,
-    "fileId" BIGINT NOT NULL,
+    "fileId" TEXT NOT NULL,
     "eventIdA" TEXT NOT NULL,
     "nodeIdA" TEXT NOT NULL,
     "vectorClockJsonA" TEXT NOT NULL,

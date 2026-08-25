@@ -398,6 +398,7 @@ export default function EditorPage() {
               
               setSyncStatusMsg('Conflict Detected! Check menu.');
               toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
+              setOfflineQueue(false);
               return;
             } else {
               if (data.lwwResolved) {
@@ -448,8 +449,10 @@ export default function EditorPage() {
 
               setSyncStatusMsg('Conflict Detected! Check menu.');
               toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
+              setOfflineQueue(false);
               return;
             }
+            
             if (data.lwwResolved) {
               toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
             }

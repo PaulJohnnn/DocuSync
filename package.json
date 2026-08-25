@@ -19,5 +19,13 @@
     "vite": "^8.0.16",
     "vite-plugin-electron": "^1.0.4",
     "vite-plugin-electron-renderer": "^1.0.0"
+  },
+  "allowScripts": {
+    "@prisma/client": true,
+    "@prisma/engines": true,
+    "electron": true,
+    "esbuild": true,
+    "prisma": true,
+    "unrs-resolver@1.12.2": true
   }
 }
