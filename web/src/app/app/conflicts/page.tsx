@@ -138,6 +138,7 @@ export default function ConflictsPage() {
   const router = useRouter();
   const [conflicts, setConflicts] = useState<any[]>([]);
   const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const checkConflicts = () => {
@@ -274,6 +275,53 @@ export default function ConflictsPage() {
     setSelectedConflictId(null);
   };
 
+  const deleteSelectedConflicts = () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} conflict(s)?`)) return;
+
+    try {
+      const historyStr = uGet('docusync_history') || '[]';
+      const history = JSON.parse(historyStr);
+      let now = Date.now();
+      
+      conflicts.forEach(c => {
+        if (selectedIds.includes(c.id)) {
+          history.unshift({
+            id: now++,
+            fileName: getFileName(c.fileId),
+            action: 'Conflict Deleted',
+            timestamp: new Date().toLocaleString(),
+            resolvedBy: 'Web Member',
+            type: 'conflict-delete',
+          });
+        }
+      });
+      uSet('docusync_history', JSON.stringify(history));
+    } catch (e) {}
+
+    const updatedConflicts = conflicts.filter(c => !selectedIds.includes(c.id));
+    setConflicts(updatedConflicts);
+    uSet('docusync_web_conflicts', JSON.stringify(updatedConflicts));
+    if (updatedConflicts.length === 0) {
+      uRemove('docusync_web_conflict');
+    }
+    setSelectedIds([]);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === conflicts.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(conflicts.map(c => c.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(selectedId => selectedId !== id) : [...prev, id]
+    );
+  };
+
   const activeConflict = conflicts.find(c => c.id === selectedConflictId);
 
   return (
@@ -291,6 +339,27 @@ export default function ConflictsPage() {
             <span style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
               {conflicts.length} pending
             </span>
+          )}
+          {!selectedConflictId && selectedIds.length > 0 && (
+            <button
+              onClick={deleteSelectedConflicts}
+              style={{
+                marginLeft: 'auto',
+                background: '#ef4444',
+                color: 'white',
+                border: 'none',
+                padding: '6px 16px',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+            >
+              Delete Selected ({selectedIds.length})
+            </button>
           )}
         </div>
 
@@ -316,6 +385,14 @@ export default function ConflictsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '12px 16px', width: 40, textAlign: 'center' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={conflicts.length > 0 && selectedIds.length === conflicts.length}
+                      onChange={toggleSelectAll}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  </th>
                   <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Room Name</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>File Name</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Conflict Time</th>
@@ -324,7 +401,15 @@ export default function ConflictsPage() {
               </thead>
               <tbody>
                 {conflicts.map((c, i) => (
-                  <tr key={c.id || i} style={{ borderBottom: i < conflicts.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <tr key={c.id || i} style={{ borderBottom: i < conflicts.length - 1 ? '1px solid var(--border)' : 'none', background: selectedIds.includes(c.id) ? 'rgba(239, 68, 68, 0.03)' : 'transparent' }}>
+                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedIds.includes(c.id)}
+                        onChange={() => toggleSelect(c.id)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </td>
                     <td style={{ padding: '12px 16px' }}>{getRoomName()}</td>
                     <td style={{ padding: '12px 16px', fontWeight: 500 }}>{getFileName(c.fileId)}</td>
                     <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{new Date(c.timestamp).toLocaleString()}</td>
