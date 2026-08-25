@@ -244,15 +244,8 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const simulateReconnect = useCallback(() => {
-    if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = false;
-    if (pendingTimer.current) clearInterval(pendingTimer.current);
-    setSyncStateRaw('syncing');
-    setPendingEdits(0);
-    setTimeout(() => {
-      setSyncStateRaw('synced');
-      setTimeout(() => setSyncStateRaw('online'), 2500);
-    }, 1200);
-  }, []);
+    reconnect();
+  }, [reconnect]);
 
   const simulateRapidFlicker = useCallback(() => {
     if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = true;

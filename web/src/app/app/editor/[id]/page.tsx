@@ -397,12 +397,16 @@ export default function EditorPage() {
               uSet('docusync_web_conflicts', JSON.stringify(conflicts));
               
               setSyncStatusMsg('Conflict Detected! Check menu.');
-              toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
+              if (explicit) {
+                toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
+              }
               setOfflineQueue(false);
               return;
             } else {
               if (data.lwwResolved) {
-                toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
+                if (explicit) {
+                  toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
+                }
               }
               setSyncStatusMsg(`Synced ✓`);
               setOfflineQueue(false);
@@ -448,13 +452,17 @@ export default function EditorPage() {
               uSet('docusync_web_conflicts', JSON.stringify(conflicts));
 
               setSyncStatusMsg('Conflict Detected! Check menu.');
-              toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
+              if (explicit) {
+                toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
+              }
               setOfflineQueue(false);
               return;
             }
             
             if (data.lwwResolved) {
-              toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
+              if (explicit) {
+                toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
+              }
             }
             setSyncStatusMsg(`Synced ✓`);
             setOfflineQueue(false);
