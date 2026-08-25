@@ -232,10 +232,7 @@ export default function EditorPage() {
       const devOffline = (window as any).__DOCUSYNC_DEV_OFFLINE__ === true || syncState === 'offline';
       setIsOnline(!devOffline);
       if (!devOffline) {
-        console.log('[Online Flusher] Network reconnected! Pushing queued offline edits...');
-        setTimeout(() => {
-          pushToHost(currentContentRef.current, localVectorClockRef.current, true);
-        }, 500);
+        console.log('[Online Flusher] Network reconnected! Waiting for user to click Reconnect...');
       }
     };
     const goOffline = () => setIsOnline(false);
@@ -401,6 +398,7 @@ export default function EditorPage() {
                 toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
               }
               setOfflineQueue(false);
+              hasPendingChangesRef.current = false;
               return;
             } else {
               if (data.lwwResolved) {
@@ -456,6 +454,7 @@ export default function EditorPage() {
                 toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
               }
               setOfflineQueue(false);
+              hasPendingChangesRef.current = false;
               return;
             }
             
