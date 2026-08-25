@@ -7,7 +7,7 @@
  * State machine:
  *   online ↔ offline → syncing → synced (auto-merge) | conflict (manual review)
  */
-import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
 
 export type SyncState = 'online' | 'offline' | 'syncing' | 'synced' | 'conflict';
 
