@@ -158,6 +158,7 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
       // We previously processed 'hasPendingOfflineEdit' files here, but this is now delegated 
       // entirely to the 'reconnectCallbackRef' (which points to pushToHost in page.tsx) 
       // to avoid duplicating pushes and conflicts.
+      }
     } catch (e) {
       console.error('[SyncStateContext] Error fetching files:', e);
     }
