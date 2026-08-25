@@ -485,7 +485,7 @@ export default function EditorPage() {
     } finally {
       setSyncing(false);
     }
-  }, [fileId, getRoomHostInfo, getSyncBaseUrl, offlineQueue]);
+  }, [fileId, getRoomHostInfo, getSyncBaseUrl, offlineQueue, syncState]);
 
   // ── Track last accepted seq to avoid re-applying same snapshot ───────────
   const lastAcceptedSeq = useRef<number>(0);
