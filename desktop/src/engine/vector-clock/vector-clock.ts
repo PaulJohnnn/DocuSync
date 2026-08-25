@@ -169,34 +169,48 @@ function flattenCounters(node: TreeClockNode): number[] {
 }
 
 /**
+ * Pads a tree clock in place so that its root has `targetChildrenCount` leaf nodes.
+ * New nodes are appended with counter 0.
+ *
+ * @param node - The root of the tree clock.
+ * @param targetChildrenCount - The desired number of children at the root.
+ *
+ * @internal
+ */
+function padTree(node: TreeClockNode, targetChildrenCount: number): void {
+  while (node.children.length < targetChildrenCount) {
+    node.children.push({ counter: 0, children: [] });
+  }
+}
+
+/**
  * Performs element-wise maximum of two tree clocks **in place** on `target`.
  *
- * Both trees must have identical topology (same shape and leaf count).
- * Counters at each corresponding leaf are set to `max(target, source)`.
+ * If topologies mismatch due to network expansion, the smaller tree is 
+ * dynamically padded with zeroes before merging.
  *
  * @param target - The tree to mutate.
  * @param source - The tree to merge values from.
  *
- * @throws {Error} If tree topologies do not match.
- *
  * @internal
  */
 function mergeTreeInPlace(target: TreeClockNode, source: TreeClockNode): void {
-  if (target.children.length !== source.children.length) {
-    throw new Error(
-      `VectorClock merge failed: tree topology mismatch ` +
-        `(${target.children.length} vs ${source.children.length} children).`
-    );
+  // Dynamically pad target if it's smaller
+  if (target.children.length < source.children.length) {
+    padTree(target, source.children.length);
   }
 
   // Leaf node — take the max counter.
-  if (target.children.length === 0) {
+  if (target.children.length === 0 && source.children.length === 0) {
     target.counter = Math.max(target.counter, source.counter);
     return;
   }
 
   // Internal node — recurse into children.
-  for (let i = 0; i < target.children.length; i++) {
+  // Note: if source is smaller, the missing source children are virtually 0.
+  // max(target, 0) == target, so we only need to merge up to source length.
+  const lengthToMerge = Math.min(target.children.length, source.children.length);
+  for (let i = 0; i < lengthToMerge; i++) {
     mergeTreeInPlace(target.children[i], source.children[i]);
   }
 }
@@ -346,9 +360,9 @@ export class VectorClock {
     if (nodeCount < 1) {
       throw new RangeError(`nodeCount must be ≥ 1, received ${nodeCount}.`);
     }
-    if (nodeIndex < 0 || nodeIndex >= nodeCount) {
+    if (nodeIndex < 0) {
       throw new RangeError(
-        `nodeIndex must be in [0, ${nodeCount - 1}], received ${nodeIndex}.`
+        `nodeIndex must be ≥ 0, received ${nodeIndex}.`
       );
     }
     if (!Number.isInteger(nodeCount) || !Number.isInteger(nodeIndex)) {
@@ -456,15 +470,11 @@ export class VectorClock {
    * @see Thesis citation [8]  — Fidge (1988), message receive handling
    */
   public merge(remote: VectorClock): this {
-    if (remote.nodeCount !== this.nodeCount) {
-      throw new Error(
-        `Cannot merge vector clocks with different node counts: ` +
-          `${this.nodeCount} vs ${remote.nodeCount}.`
-      );
-    }
-
-    // Step 1: Element-wise max.
+    // Step 1: Element-wise max, dynamically padding if needed.
     mergeTreeInPlace(this._root, remote._root);
+
+    // Update local node count if the remote topology was larger.
+    this.nodeCount = Math.max(this.nodeCount, remote.nodeCount);
 
     // Step 2: Check for overflow after merge.
     checkOverflow(this._root, { value: 0 });
@@ -552,15 +562,13 @@ export class VectorClock {
    * @see Thesis citation [8] — Fidge (1988), comparison algorithm
    */
   public compare(other: VectorClock): ClockRelation {
-    if (other.nodeCount !== this.nodeCount) {
-      throw new Error(
-        `Cannot compare vector clocks with different node counts: ` +
-          `${this.nodeCount} vs ${other.nodeCount}.`
-      );
-    }
-
     const thisCounters = flattenCounters(this._root);
     const otherCounters = flattenCounters(other._root);
+
+    // Dynamically pad the smaller array with zeroes to handle topology expansion
+    const maxLength = Math.max(thisCounters.length, otherCounters.length);
+    while (thisCounters.length < maxLength) thisCounters.push(0);
+    while (otherCounters.length < maxLength) otherCounters.push(0);
 
     let hasGreater = false;
     let hasLesser = false;
