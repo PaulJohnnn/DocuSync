@@ -12,6 +12,8 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     // 1. Get all active rooms from Redis

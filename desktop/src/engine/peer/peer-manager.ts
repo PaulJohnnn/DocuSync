@@ -584,7 +584,7 @@ export class PeerManager {
                 eventId,
                 fileId,
                 nodeId,
-                eventType: 'merge',
+                eventType: 'edit', // Record as standard edit (previously 'merge')
                 logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
                 vectorClockJson: this.config.vectorClock.toJSON(),
                 payload: delta || remoteContent || '',
@@ -727,10 +727,23 @@ export class PeerManager {
           }
 
           const history = await this.config.eventLog.getHistory(fileId);
-          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({
-            fileId,
-            entries: history.map((entry: any) => ({
+          
+          let currentContent = '';
+          const reconstructedEntries = history.map((entry: any) => {
+            if (!entry.isCompacted) {
+              try {
+                if (entry.eventType === 'edit' || entry.eventType === 'merge') {
+                  const decodeResult = decodeDelta(currentContent, entry.payload);
+                  currentContent = decodeResult.content;
+                } else {
+                  currentContent = entry.payload;
+                }
+              } catch {
+                currentContent = entry.payload;
+              }
+            }
+            
+            return {
               id: entry.id,
               eventId: entry.eventId,
               nodeId: entry.nodeId,
@@ -738,9 +751,18 @@ export class PeerManager {
               logicalTimestamp: entry.logicalTimestamp,
               createdAt: entry.createdAt.toISOString(),
               isCompacted: entry.isCompacted,
-              payloadPreview: entry.payload.slice(0, 200),
-            })),
-            totalEntries: history.length,
+              payloadPreview: currentContent.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').slice(0, 200),
+            };
+          });
+
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            data: {
+              fileId,
+              entries: reconstructedEntries,
+              totalEntries: history.length,
+            }
           }));
           return;
         } catch (historyError: any) {
@@ -819,13 +841,44 @@ export class PeerManager {
             payload: content,
           });
 
+          // Trigger local update on Desktop UI
+          if (this.config.onDeltaApplied) {
+            await this.config.onDeltaApplied(
+              fileId,
+              content,
+              restoreEventId,
+              'remote-web',
+              vcJson,
+              'restore',
+              false
+            );
+          }
+
+          // Broadcast to any other connected Web Apps
+          const pushMsg: any = {
+            type: 'DELTA_PUSH',
+            eventId: restoreEventId,
+            nodeId: this.config.vectorClock.nodeId || 'unknown',
+            fileId,
+            deltaBase64: Buffer.from(content).toString('base64'),
+            content: content,
+            eventType: 'restore',
+            logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex],
+            vectorClockJson: vcJson,
+            timestamp: new Date().toISOString(),
+          };
+          this.broadcast(pushMsg);
+
           res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
-            fileId,
-            restoredToEventId: targetEventId,
-            restoreEventId,
-            content,
-            vectorClock: vcJson
+            success: true,
+            data: {
+              fileId,
+              restoredToEventId: targetEventId,
+              restoreEventId,
+              content,
+              vectorClock: vcJson
+            }
           }));
           return;
         } catch (restoreError: any) {
@@ -880,6 +933,104 @@ export class PeerManager {
         } catch (metricsErr: any) {
           res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: metricsErr?.message || 'Metrics unavailable' }));
+          return;
+        }
+      }
+
+      // ── POST /sync/resolve ───────────────────────────────────────────────
+      if (url.pathname === '/sync/resolve' && req.method === 'POST') {
+        let bodyStr = '';
+        for await (const chunk of req) bodyStr += chunk;
+        let body: any;
+        try {
+          body = JSON.parse(bodyStr);
+        } catch (err: any) {
+          res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Malformed JSON payload' }));
+          return;
+        }
+
+        const { conflictId, fileId, content, vectorClock, authorNodeId, action } = body;
+
+        if (!conflictId || !fileId || content === undefined) {
+          res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'conflictId, fileId, and content are required' }));
+          return;
+        }
+
+        try {
+          if (action === 'reject') {
+            // Mark conflict as rejected in SQLite Database
+            await this.config.prisma.conflict.updateMany({
+              where: { conflictId },
+              data: { status: 'rejected', resolvedAt: new Date() }
+            });
+
+            // (Optional) Broadcast MERGE_REJECT if we wanted to tell other peers,
+            // but usually rejecting just means dropping it, so peers will ignore it anyway.
+            // For now, just succeeding is enough for the Web App.
+          } else {
+            const stringFileId = String(fileId);
+            const numericFileId = Number(fileId);
+
+            // Fetch any LOCAL pending conflicts for this file (Desktop and Matchmaker generate different UUIDs)
+            const localConflicts = await this.config.prisma.conflict.findMany({
+              where: { fileId: stringFileId, status: 'pending' }
+            });
+            const effectiveConflictIds = Array.from(new Set([conflictId, ...localConflicts.map((c: any) => c.conflictId)]));
+
+            // Mark conflict as resolved in SQLite Database
+            await this.config.prisma.conflict.updateMany({
+              where: { conflictId: { in: effectiveConflictIds } },
+              data: { status: 'resolved', resolvedAt: new Date() }
+            });
+
+            // Add history entry for the resolution
+            const resolutionEventId = crypto.randomUUID();
+            try {
+              await this.config.eventLog.appendEvent({
+                eventId: resolutionEventId,
+                fileId: numericFileId,
+                nodeId: authorNodeId || 'remote',
+                eventType: 'conflict-resolve',
+                logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+                vectorClockJson: vectorClock || this.config.vectorClock.toJSON(),
+                payload: content,
+              });
+            } catch (evErr: any) {
+              console.warn('[PeerManager] appendEvent failed in /sync/resolve:', evErr?.message);
+            }
+
+            // Trigger the application layer to apply the resolution
+            if (this.config.onMergeAccepted) {
+              for (const cid of effectiveConflictIds) {
+                await this.config.onMergeAccepted(cid, numericFileId, content, vectorClock || {}, authorNodeId || 'remote');
+              }
+            }
+
+            // Broadcast MERGE_ACCEPT to all other peers so they also resolve it
+            const mergeAcceptMsg: any = {
+              type: 'MERGE_ACCEPT',
+              conflictId,
+              fileId: numericFileId,
+              winner: 'B', // Treat remote resolution as winning side B
+              winnerPayload: content,
+              resolutionEventId,
+              resolvedBy: authorNodeId || 'remote',
+              logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+              vectorClockJson: vectorClock || this.config.vectorClock.toJSON(),
+              timestamp: new Date().toISOString()
+            };
+            this.broadcast(mergeAcceptMsg as PeerMessage);
+          }
+
+          res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+          return;
+        } catch (resolveError: any) {
+          console.error('[PeerManager] /sync/resolve ERROR:', resolveError?.message);
+          res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: resolveError?.message || 'Internal Server Error' }));
           return;
         }
       }

@@ -9,6 +9,7 @@ import { IconArrowLeft, IconEdit, IconGitMerge, IconScale, IconFilePlus, IconRef
 import FileService, { type HistoryEntry } from '@/services/FileService';
 import { ServiceError } from '@/services/errors/ServiceError';
 import { notify } from '@docusync/shared/utils/notifications';
+import { useElectronSync } from '@/context/ElectronSyncContext';
 import { formatRelativeTime } from '@docusync/shared/utils/formatters';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -146,6 +147,7 @@ const HistoryPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const fileId = useMemo(() => { const n = parseInt(id ?? '', 10); return Number.isFinite(n) ? n : null; }, [id]);
+  const { currentRoom, localNodeId } = useElectronSync();
 
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [totalEntries, setTotalEntries] = useState(0);
@@ -177,12 +179,37 @@ const HistoryPage: React.FC = () => {
     try {
       const data = await FileService.restoreVersion(fileId, eventId);
       notify.success('Version restored', `${data.contentLength} chars restored`);
+
+      // Push to Matchmaker so the room snapshot isn't stale
+      if (currentRoom) {
+        const otp = currentRoom.otp || currentRoom.id;
+        try {
+          const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+          await fetch(`${_WEB_BASE}/api/lobby/doc`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              otp,
+              fileId: String(fileId),
+              authorNodeId: localNodeId || 'host',
+              authorName: (localNodeId || 'host').slice(0, 8),
+              content: (data as any).content || '',
+              vectorClock: {},
+              deltaSize: data.contentLength,
+              isOfflineReconnect: !navigator.onLine
+            })
+          });
+        } catch (e) {
+          console.error('Failed to update Matchmaker after restore', e);
+        }
+      }
+
       navigate(`/editor/${data.fileId}`);
     } catch (err) {
       notify.error(err instanceof ServiceError ? err.message : `Restore failed: ${String(err)}`);
       setRestoring(prev => ({ ...prev, [eventId]: false }));
     }
-  }, [fileId, navigate, comparingEvent]);
+  }, [fileId, navigate, comparingEvent, currentRoom, localNodeId]);
 
   const latestEntry = entries.length > 0 ? entries[0] : null;
 

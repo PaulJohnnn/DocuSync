@@ -11,6 +11,8 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/lobby/cursors
  * Body: { otp, nodeId, displayName, color, from, to, fileId }

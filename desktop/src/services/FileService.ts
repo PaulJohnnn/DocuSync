@@ -39,6 +39,7 @@ export interface RestoreResult {
   fileId: number;
   restoredToEventId: string;
   contentLength: number;
+  content?: string;
 }
 
 class FileService {

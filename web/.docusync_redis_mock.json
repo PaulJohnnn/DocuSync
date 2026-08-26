@@ -2050,5 +2050,433 @@
     "nodeId": "fc62628b-9e0a-418b-9c6a-8aee79f2c6f7",
     "lastActive": 1787557629729,
     "ip": "10.144.54.55"
+  },
+  "lobby:N7WNZW": {
+    "otp": "N7WNZW",
+    "roomName": "lol",
+    "hostNodeId": "web-1787648984993",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1787648985882,
+    "expiresAt": 1787735385882,
+    "members": [
+      "desktop-1787649000980",
+      "desktop-1787649606124",
+      "desktop-1787651409260"
+    ],
+    "peersJoined": 3,
+    "files": [
+      {
+        "fileId": 1787649021593,
+        "fileName": "simple edit.docx",
+        "content": "<p>hi kaskd kasjdkjsa asdajjj poasdasdas</p>",
+        "contentLength": 4,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-25T09:10:21.594Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1787648984993"
+  },
+  "doc:N7WNZW:1787649021593": {
+    "otp": "N7WNZW",
+    "fileId": "1787649021593",
+    "authorNodeId": "web-13803",
+    "authorName": "web-1380",
+    "content": "<p>hi kaskd kasjdkjsa asdajjj poasdasdas</p>",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 2,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1787651448931,
+    "deltaSize": 44,
+    "seq": 11
+  },
+  "lobby:LBFDTZ": {
+    "otp": "LBFDTZ",
+    "roomName": "popopo",
+    "hostNodeId": "web-1787651540356",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1787651540759,
+    "expiresAt": 1787737940759,
+    "members": [
+      "desktop-1787651582066"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1787651601670,
+        "fileName": "simple edit.docx",
+        "content": "<p>hi askdaskjd</p>",
+        "contentLength": 4,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-25T09:53:21.672Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1787651540356"
+  },
+  "doc:LBFDTZ:1787651601670": {
+    "otp": "LBFDTZ",
+    "fileId": "1787651601670",
+    "authorNodeId": "web-13803",
+    "authorName": "web-1380",
+    "content": "<p>hi askdaskjd</p>",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 2,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1787651794589,
+    "deltaSize": 19,
+    "seq": 2
+  },
+  "lobby:YENPEA": {
+    "otp": "YENPEA",
+    "roomName": "asd",
+    "hostNodeId": "web-1787652081424",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1787652081987,
+    "expiresAt": 1787738481987,
+    "members": [
+      "desktop-1787652134270",
+      "desktop-1787652519353",
+      "desktop-1787653854808",
+      "desktop-1787654620955"
+    ],
+    "peersJoined": 4,
+    "files": [
+      {
+        "fileId": 1787652152910,
+        "fileName": "simple edit.docx",
+        "content": "<p>sdf</p>",
+        "contentLength": 4,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-25T10:02:32.924Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1787652081424"
+  },
+  "doc:YENPEA:1787652152910": {
+    "otp": "YENPEA",
+    "fileId": "1787652152910",
+    "authorNodeId": "web-user",
+    "authorName": "Web Member (Conflict Resolution)",
+    "content": "<p>sdf</p>",
+    "vectorClock": {},
+    "committedAt": 1787668088856,
+    "deltaSize": 10,
+    "seq": 10
+  },
+  "lobby:MZXB2W": {
+    "otp": "MZXB2W",
+    "roomName": "09",
+    "hostNodeId": "web-1787668137141",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1787668137758,
+    "expiresAt": 1787754537758,
+    "members": [
+      "desktop-1787668221375",
+      "desktop-1787671641181",
+      "desktop-1787678361936"
+    ],
+    "peersJoined": 3,
+    "files": [
+      {
+        "fileId": 1787668238768,
+        "fileName": "simple edit.docx",
+        "content": "<p>hi pol asd asd</p>",
+        "contentLength": 4,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-25T14:30:38.768Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1787668137141"
+  },
+  "doc:MZXB2W:1787668238768": {
+    "otp": "MZXB2W",
+    "fileId": "1787668238768",
+    "authorNodeId": "web-user",
+    "authorName": "Web Member (Conflict Resolution)",
+    "content": "<p>hi pol asd asd</p>",
+    "vectorClock": {},
+    "committedAt": 1787679303341,
+    "deltaSize": 21,
+    "seq": 2
+  },
+  "lobby:UZC9QG": {
+    "otp": "UZC9QG",
+    "roomName": "palamara",
+    "hostNodeId": "web-1787682237758",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1787682238376,
+    "expiresAt": 1787768638376,
+    "members": [
+      "desktop-1787682252529"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1787682269732,
+        "fileName": "simple edit.docx",
+        "content": "<p>hi sad fas</p>",
+        "contentLength": 4,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-25T18:24:29.733Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1787682237758"
+  },
+  "doc:UZC9QG:1787682269732": {
+    "otp": "UZC9QG",
+    "fileId": "1787682269732",
+    "authorNodeId": "web-user",
+    "authorName": "Web Member (Conflict Resolution)",
+    "content": "<p>hi sad fas</p>",
+    "vectorClock": {},
+    "committedAt": 1787682380485,
+    "deltaSize": 17,
+    "seq": 1
+  },
+  "lobby:WEVH42": {
+    "otp": "WEVH42",
+    "roomName": "as",
+    "hostNodeId": "web-1787684033202",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1787684034921,
+    "expiresAt": 1787770434921,
+    "members": [
+      "desktop-1787684046075",
+      "desktop-1787686566056"
+    ],
+    "peersJoined": 2,
+    "files": [
+      {
+        "fileId": 1787684070888,
+        "fileName": "simple edit.docx",
+        "content": "<p>sad hi nice sf <strong>pol</strong> <strong>john</strong></p>",
+        "contentLength": 4,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-25T18:54:30.890Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1787684033202"
+  },
+  "doc:WEVH42:1787684070888": {
+    "otp": "WEVH42",
+    "fileId": "1787684070888",
+    "authorNodeId": "web-user",
+    "authorName": "Web Member (Conflict Resolution)",
+    "content": "<p>sad hi nice sf <strong>pol</strong> <strong>john</strong></p>",
+    "vectorClock": {},
+    "committedAt": 1787687441380,
+    "deltaSize": 64,
+    "seq": 3
+  },
+  "lobby:EERB45": {
+    "otp": "EERB45",
+    "roomName": "p",
+    "hostNodeId": "web-1787688422072",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1787688422726,
+    "expiresAt": 1787774822726,
+    "members": [
+      "desktop-1787688434490",
+      "desktop-1787695455079",
+      "desktop-1787696755268"
+    ],
+    "peersJoined": 3,
+    "files": [
+      {
+        "fileId": 1787688453205,
+        "fileName": "simple edit.docx",
+        "content": "<p><strong>hi</strong> <strong>HWLLO</strong> <strong>ad</strong> <strong>pol</strong> <strong>asd</strong> <strong>fdas</strong> <strong>f</strong> <strong>sometimes</strong> <strong>wolrd</strong> <strong>is</strong> <strong>like</strong> <strong>a</strong> <strong>tree</strong> <strong>is</strong> <strong>that</strong> <strong>right?</strong> <strong>ok</strong> <strong>then</strong> <strong>hello</strong> <strong>yea</strong> <strong>baby</strong></p>",
+        "contentLength": 4,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-25T20:07:33.206Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1787688422072"
+  },
+  "doc:EERB45:1787688453205": {
+    "otp": "EERB45",
+    "fileId": "1787688453205",
+    "authorNodeId": "web-user",
+    "authorName": "Web Member (Conflict Resolution)",
+    "content": "<p><strong>hi</strong> <strong>HWLLO</strong> <strong>ad</strong> <strong>pol</strong> <strong>asd</strong> <strong>fdas</strong> <strong>f</strong> <strong>sometimes</strong> <strong>wolrd</strong> <strong>is</strong> <strong>like</strong> <strong>a</strong> <strong>tree</strong> <strong>is</strong> <strong>that</strong> <strong>right?</strong> <strong>ok</strong> <strong>then</strong> <strong>hello</strong> <strong>yea</strong> <strong>baby</strong></p>",
+    "vectorClock": {},
+    "committedAt": 1787696694323,
+    "deltaSize": 459,
+    "seq": 3
+  },
+  "lobby:8YEE89": {
+    "otp": "8YEE89",
+    "roomName": "The MiMic",
+    "hostNodeId": "web-1787710815988",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1787710816953,
+    "expiresAt": 1787797216953,
+    "members": [
+      "desktop-1787710839405"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1787710862256,
+        "fileName": "simple edit.docx",
+        "content": "hi\n\n",
+        "contentLength": 4,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-26T02:21:02.256Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1787710815988"
+  },
+  "lobby:DD62ZN": {
+    "otp": "DD62ZN",
+    "roomName": "TubegLameg",
+    "hostNodeId": "web-1787715155465",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1787715156204,
+    "expiresAt": 1787801556204,
+    "members": [
+      "desktop-1787715168251"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1787715207566,
+        "fileName": "simple edit.docx",
+        "content": "<p>hi</p>",
+        "contentLength": 4,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-26T03:33:27.567Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1787715155465"
+  },
+  "doc:DD62ZN:1787715207566": {
+    "otp": "DD62ZN",
+    "fileId": "1787715207566",
+    "authorNodeId": "web-64059",
+    "authorName": "web-6405",
+    "content": "<p>hi</p>",
+    "vectorClock": {
+      "nodeCount": 3,
+      "nodeIndex": 1,
+      "root": {
+        "counter": 0,
+        "children": [
+          {
+            "counter": 0,
+            "children": []
+          },
+          {
+            "counter": 1,
+            "children": []
+          },
+          {
+            "counter": 0,
+            "children": []
+          }
+        ]
+      }
+    },
+    "committedAt": 1787717646743,
+    "deltaSize": 9,
+    "seq": 1
+  },
+  "lobby:L94S8R": {
+    "otp": "L94S8R",
+    "roomName": "pol",
+    "hostNodeId": "web-1787717748699",
+    "hostIp": "127.0.0.1",
+    "hostPort": 9000,
+    "hostType": "web",
+    "createdAt": 1787717749216,
+    "expiresAt": 1787804149216,
+    "members": [
+      "desktop-1787717790129"
+    ],
+    "peersJoined": 1,
+    "files": [
+      {
+        "fileId": 1787717808072,
+        "fileName": "simple edit.docx",
+        "content": "hi\n\n",
+        "contentLength": 4,
+        "sharedBy": "Web Node",
+        "sharedAt": "2026-08-26T04:16:48.073Z"
+      }
+    ],
+    "ip": "127.0.0.1",
+    "port": 9000,
+    "nodeId": "web-1787717748699"
   }
 }

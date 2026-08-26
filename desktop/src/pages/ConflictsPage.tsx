@@ -111,14 +111,15 @@ const InteractiveConflictEditor: React.FC<{
       </div>
 
       <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-        Your local edits (while offline) are highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong>. 
-        Copy and paste any text you want to keep into the editable pane on the right, then click Resolve & Save.
+        Incoming offline edits are shown in the editable pane on the right. 
+        The current online version is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong> on the left.
+        Copy and paste any text you want to keep into the right pane, then click Resolve & Save.
       </div>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
         <div style={panelStyle}>
           <div style={headerStyle('#ca8a04', 'rgba(234,179,8,0.06)')}>
-            <span>Local Edits (Offline)</span>
+            <span>Current Online Version</span>
             <span style={{ fontWeight: 400, opacity: 0.8 }}>Read-Only Reference</span>
           </div>
           <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedA }} />
@@ -126,7 +127,7 @@ const InteractiveConflictEditor: React.FC<{
 
         <div style={{...panelStyle, border: '1px solid var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }}>
           <div style={headerStyle('var(--accent)', 'rgba(16,185,129,0.06)')}>
-            <span>Current Online Version</span>
+            <span>Incoming Offline Edits</span>
             <span style={{ fontWeight: 400, opacity: 0.8 }}>Editable</span>
           </div>
           <div style={{...bodyStyle, background: '#fff', cursor: 'text'}}>
@@ -190,26 +191,36 @@ const ConflictsPage: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const next = new Map(details);
-      let changed = false;
-      for (const conflict of conflictQueue) {
-        if (next.has(conflict.conflictId)) continue;
+      const newConflicts = conflictQueue.filter(c => !details.has(c.conflictId));
+      if (newConflicts.length === 0) return;
+
+      const fetchedDetails = new Map<string, ConflictDetail>();
+      
+      for (const conflict of newConflicts) {
         try {
           const detail = await ConflictService.getDetail(conflict.conflictId);
           if (!cancelled) {
-            next.set(conflict.conflictId, { ...detail, summary: conflict.summary, detectedAt: new Date(detail.detectedAt), resolving: false });
-            changed = true; continue;
+            fetchedDetails.set(conflict.conflictId, { ...detail, summary: conflict.summary, detectedAt: new Date(detail.detectedAt), resolving: false });
           }
         } catch { /* fallback */ }
-        if (!cancelled) { next.set(conflict.conflictId, buildFallbackDetail(conflict)); changed = true; }
+        
+        if (!cancelled && !fetchedDetails.has(conflict.conflictId)) { 
+          fetchedDetails.set(conflict.conflictId, buildFallbackDetail(conflict)); 
+        }
       }
-      for (const key of next.keys()) {
-        if (!conflictQueue.some(c => c.conflictId === key)) { next.delete(key); changed = true; }
+      
+      if (!cancelled && fetchedDetails.size > 0) {
+        setDetails(prev => {
+          const next = new Map(prev);
+          for (const [k, v] of fetchedDetails.entries()) {
+             next.set(k, v);
+          }
+          return next;
+        });
       }
-      if (changed && !cancelled) setDetails(next);
     })();
     return () => { cancelled = true; };
-  }, [conflictQueue, buildFallbackDetail]);
+  }, [conflictQueue, details, buildFallbackDetail]);
 
   const setResolving = (conflictId: string, value: boolean) => {
     setDetails(prev => {
@@ -252,6 +263,11 @@ const ConflictsPage: React.FC = () => {
           deltaSize,
         }),
       });
+
+      // Tell Matchmaker to clear the conflict so other peers don't keep it
+      await fetch(`${MATCHMAKER}/conflicts?otp=${otp}&conflictId=${conflictId}`, {
+        method: 'DELETE',
+      });
     } catch (e) {
       console.error('[Matchmaker] Failed to push conflict resolution:', e);
     }
@@ -274,11 +290,14 @@ const ConflictsPage: React.FC = () => {
           try {
             await ConflictService.reject(older.conflictId);
             markConflictResolved(older.conflictId);
+            setDetails(prev => { const n = new Map(prev); n.delete(older.conflictId); return n; });
           } catch (e) {
             console.error('Failed to auto-reject older conflict', e);
           }
         }
       }
+      
+      setDetails(prev => { const n = new Map(prev); n.delete(conflictId); return n; });
 
       notify.success('Conflict resolved and synced.');
       setSelectedConflictId(null);
@@ -304,11 +323,14 @@ const ConflictsPage: React.FC = () => {
           try {
             await ConflictService.reject(older.conflictId);
             markConflictResolved(older.conflictId);
+            setDetails(prev => { const n = new Map(prev); n.delete(older.conflictId); return n; });
           } catch (e) {
             console.error('Failed to auto-reject older conflict', e);
           }
         }
       }
+
+      setDetails(prev => { const n = new Map(prev); n.delete(conflictId); return n; });
 
       notify.success('Conflict deleted.');
       setSelectedConflictId(null);
@@ -318,33 +340,67 @@ const ConflictsPage: React.FC = () => {
     }
   }, [markConflictResolved, details]);
 
-  // Group by fileId and show only the latest
-  const groupedConflicts = useMemo(() => {
-    const all = [...details.values()].sort((a, b) => b.detectedAt.getTime() - a.detectedAt.getTime());
-    const seen = new Set<string>();
-    const grouped = [];
-    for (const c of all) {
-      if (!seen.has(String(c.fileId))) {
-        seen.add(String(c.fileId));
-        grouped.push(c);
+  // Show all conflicts (no longer grouped by fileId to allow multi-select)
+  const allConflictsList = useMemo(() => {
+    return [...details.values()].sort((a, b) => b.detectedAt.getTime() - a.detectedAt.getTime());
+  }, [details]);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds(new Set(allConflictsList.map(c => c.conflictId)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelect = (id: string, checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Delete ${selectedIds.size} selected conflict(s)?`)) return;
+
+    for (const id of selectedIds) {
+      setResolving(id, true);
+      try {
+        await ConflictService.reject(id);
+        markConflictResolved(id);
+        await pushResolutionToMatchmaker(id);
+        setDetails(prev => { const n = new Map(prev); n.delete(id); return n; });
+      } catch (err) {
+        console.error(`Failed to delete conflict ${id}`, err);
       }
     }
-    return grouped;
-  }, [details]);
+    notify.success(`Deleted ${selectedIds.size} conflict(s).`);
+    setSelectedIds(new Set());
+  };
 
   return (
     <>
       <div className="ds-topbar">
         <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/')}><IconArrowLeft size={14} /> Files</button>
         <span className="ds-topbar-title">Conflict Resolution</span>
-        {groupedConflicts.length > 0 && <span className="ds-badge ds-badge-red">{groupedConflicts.length} pending</span>}
+        {allConflictsList.length > 0 && <span className="ds-badge ds-badge-red">{allConflictsList.length} pending</span>}
         <div className="ds-topbar-actions">
+          {selectedIds.size > 0 && (
+            <button className="ds-btn ds-btn-ghost" style={{ color: 'var(--red)' }} onClick={handleDeleteSelected}>
+              <IconShield size={14} /> Delete Selected ({selectedIds.size})
+            </button>
+          )}
           <button className="ds-btn ds-btn-ghost" onClick={refreshStatus}><IconRefresh size={14} /> Refresh</button>
         </div>
       </div>
 
       <div className="ds-main-scroll ds-page-enter" style={{ maxWidth: 1000, margin: '0 auto', width: '100%' }}>
-        {groupedConflicts.length === 0 && (
+        {allConflictsList.length === 0 && (
           <div className="ds-empty" style={{ background: 'var(--bg-card)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>✅</div>
             <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>All conflicts resolved</h2>
@@ -355,11 +411,19 @@ const ConflictsPage: React.FC = () => {
           </div>
         )}
 
-        {groupedConflicts.length > 0 && !selectedConflictId && (
+        {allConflictsList.length > 0 && !selectedConflictId && (
           <div className="ds-card" style={{ padding: 0, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
               <thead>
                 <tr style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '12px 16px', width: 40 }}>
+                    <input 
+                      type="checkbox" 
+                      style={{ cursor: 'pointer' }}
+                      checked={allConflictsList.length > 0 && selectedIds.size === allConflictsList.length}
+                      onChange={handleSelectAll}
+                    />
+                  </th>
                   <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Room Name</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>File Name</th>
                   <th style={{ padding: '12px 16px', fontWeight: 600, color: 'var(--text-secondary)' }}>Conflict Time</th>
@@ -367,8 +431,16 @@ const ConflictsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {groupedConflicts.map(c => (
+                {allConflictsList.map(c => (
                   <tr key={c.conflictId} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '12px 16px' }}>
+                      <input 
+                        type="checkbox"
+                        style={{ cursor: 'pointer' }}
+                        checked={selectedIds.has(c.conflictId)}
+                        onChange={(e) => handleSelect(c.conflictId, e.target.checked)}
+                      />
+                    </td>
                     <td style={{ padding: '12px 16px' }}>{currentRoom?.name || currentRoom?.id || 'Local Room'}</td>
                     <td style={{ padding: '12px 16px', fontWeight: 500 }}>File #{c.fileId}</td>
                     <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>{c.detectedAt.toLocaleString()}</td>
@@ -384,13 +456,13 @@ const ConflictsPage: React.FC = () => {
           </div>
         )}
 
-        {groupedConflicts.length > 0 && selectedConflictId && (
+        {allConflictsList.length > 0 && selectedConflictId && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <button className="ds-btn ds-btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setSelectedConflictId(null)}>
               <IconArrowLeft size={14} /> Back to List
             </button>
             {(() => {
-              const selected = groupedConflicts.find(c => c.conflictId === selectedConflictId);
+              const selected = allConflictsList.find(c => c.conflictId === selectedConflictId);
               return selected ? (
                 <InteractiveConflictEditor
                   conflict={selected}

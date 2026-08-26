@@ -96,14 +96,15 @@ const InteractiveConflictEditor: React.FC<{
       </div>
 
       <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-        Your local edits (while offline) are highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong>. 
-        Copy and paste any text you want to keep into the editable pane on the right, then click Resolve & Save.
+        Your local edits (while offline) are in the editable pane on the right. 
+        The current online version is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong> on the left.
+        Copy and paste any text you want to keep into your local edits, then click Resolve & Save.
       </div>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
         <div style={panelStyle}>
           <div style={headerStyle('#ca8a04', 'rgba(234,179,8,0.06)')}>
-            <span>Local Edits (Offline)</span>
+            <span>Current Online Version</span>
             <span style={{ fontWeight: 400, opacity: 0.8 }}>Read-Only Reference</span>
           </div>
           <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedA }} />
@@ -111,7 +112,7 @@ const InteractiveConflictEditor: React.FC<{
 
         <div style={{...panelStyle, border: '1px solid var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }}>
           <div style={headerStyle('var(--accent)', 'rgba(16,185,129,0.06)')}>
-            <span>Current Online Version</span>
+            <span>Your Local Edits (Offline)</span>
             <span style={{ fontWeight: 400, opacity: 0.8 }}>Editable</span>
           </div>
           <div style={{...bodyStyle, background: '#fff', cursor: 'text'}}>
@@ -234,6 +235,34 @@ export default function ConflictsPage() {
             deltaSize: new Blob([winnerContent]).size,
           }),
         }).catch(err => console.error('[Conflict Resolve] Matchmaker push error:', err));
+        
+        // Push directly to Desktop Host to clear its local conflict queue
+        const pushToHostDirectly = async () => {
+          try {
+            const mmRes = await fetch(`/api/lobby/signal?otp=${otp}`);
+            if (mmRes.ok) {
+              const mmData = await mmRes.json();
+              if (mmData.hostUrl) {
+                await fetch(`${mmData.hostUrl}/sync/resolve`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    conflictId: conflict.id,
+                    fileId: conflict.fileId,
+                    authorNodeId: 'web-user',
+                    content: winnerContent,
+                    vectorClock: mergedClock,
+                    action: 'resolve'
+                  })
+                }).catch(() => {});
+              }
+            }
+          } catch {}
+        };
+        pushToHostDirectly();
+        
+        // Tell Matchmaker to clear the conflict so other peers don't keep it
+        fetch(`/api/lobby/conflicts?otp=${otp}&conflictId=${conflict.id}`, { method: 'DELETE' }).catch(() => {});
       }
     } catch (e) {}
 
@@ -262,23 +291,55 @@ export default function ConflictsPage() {
 
   const rejectConflict = () => {
     const conflict = conflicts.find(c => c.id === selectedConflictId);
+    if (!conflict) return;
     
     // Record rejection in History
-    if (conflict) {
-      try {
-        const historyStr = uGet('docusync_history') || '[]';
-        const history = JSON.parse(historyStr);
-        history.unshift({
-          id: Date.now(),
-          fileName: getFileName(conflict.fileId),
-          action: 'Conflict Deleted',
-          timestamp: new Date().toLocaleString(),
-          resolvedBy: 'Web Member',
-          type: 'conflict-delete',
-        });
-        uSet('docusync_history', JSON.stringify(history));
-      } catch (e) {}
-    }
+    try {
+      const historyStr = uGet('docusync_history') || '[]';
+      const history = JSON.parse(historyStr);
+      history.unshift({
+        id: Date.now(),
+        fileName: getFileName(conflict.fileId),
+        action: 'Conflict Deleted',
+        timestamp: new Date().toLocaleString(),
+        resolvedBy: 'Web Member',
+        type: 'conflict-delete',
+      });
+      uSet('docusync_history', JSON.stringify(history));
+    } catch (e) {}
+
+    // Tell Matchmaker and Desktop Host to clear it
+    try {
+      const storedRoom = uGet('current_room');
+      if (storedRoom) {
+        const room = JSON.parse(storedRoom);
+        const otp = room.otp || room.id;
+        
+        fetch(`/api/lobby/conflicts?otp=${otp}&conflictId=${conflict.id}`, { method: 'DELETE' }).catch(() => {});
+        
+        const pushToHostDirectly = async () => {
+          try {
+            const mmRes = await fetch(`/api/lobby/signal?otp=${otp}`);
+            if (mmRes.ok) {
+              const mmData = await mmRes.json();
+              if (mmData.hostUrl) {
+                await fetch(`${mmData.hostUrl}/sync/resolve`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    conflictId: conflict.id,
+                    fileId: conflict.fileId,
+                    content: '',
+                    action: 'reject'
+                  })
+                }).catch(() => {});
+              }
+            }
+          } catch {}
+        };
+        pushToHostDirectly();
+      }
+    } catch (e) {}
 
     const updatedConflicts = conflicts.filter(c => c.id !== selectedConflictId);
     setConflicts(updatedConflicts);
@@ -296,6 +357,10 @@ export default function ConflictsPage() {
       const history = JSON.parse(historyStr);
       let now = Date.now();
       
+      const storedRoom = uGet('current_room');
+      const room = storedRoom ? JSON.parse(storedRoom) : null;
+      const otp = room ? (room.otp || room.id) : null;
+      
       conflicts.forEach(c => {
         if (selectedIds.includes(c.id)) {
           history.unshift({
@@ -306,6 +371,31 @@ export default function ConflictsPage() {
             resolvedBy: 'Web Member',
             type: 'conflict-delete',
           });
+          
+          if (otp) {
+            fetch(`/api/lobby/conflicts?otp=${otp}&conflictId=${c.id}`, { method: 'DELETE' }).catch(() => {});
+            const pushToHostDirectly = async () => {
+              try {
+                const mmRes = await fetch(`/api/lobby/signal?otp=${otp}`);
+                if (mmRes.ok) {
+                  const mmData = await mmRes.json();
+                  if (mmData.hostUrl) {
+                    await fetch(`${mmData.hostUrl}/sync/resolve`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        conflictId: c.id,
+                        fileId: c.fileId,
+                        content: '',
+                        action: 'reject'
+                      })
+                    }).catch(() => {});
+                  }
+                }
+              } catch {}
+            };
+            pushToHostDirectly();
+          }
         }
       });
       uSet('docusync_history', JSON.stringify(history));
@@ -354,23 +444,11 @@ export default function ConflictsPage() {
           )}
           {!selectedConflictId && selectedIds.length > 0 && (
             <button
+              className="ds-btn ds-btn-ghost"
               onClick={deleteSelectedConflicts}
-              style={{
-                marginLeft: 'auto',
-                background: '#ef4444',
-                color: 'white',
-                border: 'none',
-                padding: '6px 16px',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6
-              }}
+              style={{ color: 'var(--red)', marginLeft: 'auto' }}
             >
-              Delete Selected ({selectedIds.length})
+              <Shield size={14} /> Delete Selected ({selectedIds.length})
             </button>
           )}
         </div>

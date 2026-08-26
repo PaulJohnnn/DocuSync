@@ -122,9 +122,26 @@ const FilesPage: React.FC = () => {
   };
 
   const handleOpenRoomFile = useCallback(async (file: any) => {
+    if (opening) return;
     setOpening(true);
     try {
       const explicitId = file.fileId ?? file.id;
+      
+      // Attempt to load locally first (if we are the host or already have it open)
+      if (explicitId) {
+        try {
+          const loaded = await FileService.load(Number(explicitId));
+          if (loaded) {
+            notify.success(`Opened: ${basename(loaded.filePath)}`);
+            navigate(`/editor/${loaded.fileId}`);
+            setOpening(false);
+            return;
+          }
+        } catch (e) {
+          // Fallback to import if not found locally
+        }
+      }
+
       let contentToUse = file.content || '';
       
       // If content in the room file list is empty/stale and we are online, fetch latest snapshot from Matchmaker

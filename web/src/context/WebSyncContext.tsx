@@ -145,11 +145,40 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
             const resolvedBy = msg.resolvedBy || msg.rejectedBy || 'Owner';
             const action = msg.type === 'MERGE_REJECT' || msg.winner === 'A' ? 'rejected' : 'resolved';
             toast.success(`Conflict ${action} by ${resolvedBy.slice(0, 8)}. File synced.`, { icon: '✅' });
+            
+            // Globally clear the conflict from local storage so UI updates instantly
+            try {
+              const stored = uGet('docusync_web_conflicts');
+              if (stored) {
+                let conflicts = JSON.parse(stored);
+                conflicts = conflicts.filter((c: any) => String(c.fileId) !== String(msg.fileId));
+                uSet('docusync_web_conflicts', JSON.stringify(conflicts));
+              }
+            } catch (err) {}
+
             window.dispatchEvent(new CustomEvent('docusync_ws_merge_accept', { detail: msg }));
             window.dispatchEvent(new CustomEvent('docusync_ws_merge_reject', { detail: msg }));
           }
           if (msg.type === 'DELTA_PUSH') {
             console.log('[WebSync] 📥 Received DELTA_PUSH from', msg.nodeId);
+            
+            // Globally update the file content in local storage so Editor has latest state
+            try {
+              if (msg.content) {
+                const stored = uGet('files');
+                if (stored) {
+                  const files = JSON.parse(stored);
+                  const idx = files.findIndex((f: any) => String(f.id) === String(msg.fileId));
+                  if (idx >= 0) {
+                    files[idx].content = msg.content;
+                    files[idx].updatedAt = new Date().toISOString();
+                    if (msg.vectorClockJson) files[idx].vectorClock = msg.vectorClockJson;
+                    uSet('files', JSON.stringify(files));
+                  }
+                }
+              }
+            } catch (err) {}
+
             window.dispatchEvent(new CustomEvent('docusync_ws_delta', { detail: msg }));
           }
           if (msg.type === 'CURSOR_UPDATE') {

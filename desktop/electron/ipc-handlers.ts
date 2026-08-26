@@ -455,6 +455,14 @@ export async function initEngine(
         conflictId,
         resolvedByNodeId || 'Owner'
       );
+
+      // Tell EditorPage to update its TipTap content immediately
+      BrowserWindow.getAllWindows()[0]?.webContents.send(
+        'evt:file-updated',
+        fileId,
+        winnerPayload,
+        true // lwwResolved flag so EditorPage applies it immediately
+      );
     },
     onUserVerifyRequest: (nodeId: string): Promise<boolean> => {
       return new Promise((resolve) => {
@@ -1055,9 +1063,22 @@ export function registerIPCHandlers(services: EngineServices): void {
 
       console.log(`[IPC] file:history → fileId=${fileId}, entries=${history.length}`);
 
-      return {
-        fileId,
-        entries: history.map((entry) => ({
+      let currentContent = '';
+      const reconstructedEntries = history.map((entry) => {
+        if (!entry.isCompacted) {
+          try {
+            if (entry.eventType === 'edit' || entry.eventType === 'merge') {
+              const decodeResult = decode(currentContent, entry.payload);
+              currentContent = decodeResult.content;
+            } else {
+              currentContent = entry.payload;
+            }
+          } catch {
+            currentContent = entry.payload;
+          }
+        }
+        
+        return {
           id: entry.id,
           eventId: entry.eventId,
           nodeId: entry.nodeId,
@@ -1065,9 +1086,14 @@ export function registerIPCHandlers(services: EngineServices): void {
           logicalTimestamp: entry.logicalTimestamp,
           createdAt: entry.createdAt.toISOString(),
           isCompacted: entry.isCompacted,
-          payload: entry.payload,
-          payloadPreview: entry.payload.slice(0, 200),
-        })),
+          payload: currentContent,
+          payloadPreview: currentContent.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').slice(0, 200),
+        };
+      });
+
+      return {
+        fileId,
+        entries: reconstructedEntries,
         totalEntries: history.length,
       };
     })
@@ -1156,6 +1182,7 @@ export function registerIPCHandlers(services: EngineServices): void {
         nodeId: localNodeId,
         fileId,
         deltaBase64: Buffer.from(content).toString('base64'),
+        content: content, // Web App expects msg.content for live updates
         eventType: 'restore',
         logicalTimestamp: vectorClock.counters[vectorClock.nodeIndex],
         vectorClockJson: vcJson,

@@ -46,7 +46,7 @@ export default function HistoryPage() {
     setLoading(true);
     
     try {
-      const roomStr = uGet('activeRoom');
+      const roomStr = uGet('current_room');
       const room = roomStr ? JSON.parse(roomStr) : null;
       if (!room || !room.hostIp) {
         throw new Error('No active room connection found. Are you in a session?');
@@ -84,7 +84,7 @@ export default function HistoryPage() {
   const handleRestore = async (eventId: string) => {
     setRestoring(prev => ({ ...prev, [eventId]: true }));
     try {
-      const roomStr = uGet('activeRoom');
+      const roomStr = uGet('current_room');
       const room = roomStr ? JSON.parse(roomStr) : null;
       if (!room || !room.hostIp) {
         throw new Error('No active room connection found.');
@@ -94,13 +94,50 @@ export default function HistoryPage() {
       const res = await fetch(`${baseUrl}/sync/restore`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId: Number(fileId), commitId: eventId })
+        body: JSON.stringify({ fileId: Number(fileId), eventId: eventId }) // fixed from commitId
       });
       const result = await res.json();
       if (!res.ok || !result.success) {
          throw new Error(result.error || 'Failed to restore version');
       }
+
+      // Update local storage so EditorPage has the correct content instantly
+      try {
+        const stored = uGet('files');
+        if (stored) {
+          const files = JSON.parse(stored);
+          const idx = files.findIndex((f: any) => String(f.id) === String(fileId));
+          if (idx >= 0 && result.data?.content) {
+            files[idx].content = result.data.content;
+            files[idx].updatedAt = new Date().toISOString();
+            uSet('files', JSON.stringify(files));
+          }
+        }
+      } catch (e) {
+        console.error('Failed to update local storage after restore:', e);
+      }
       
+      // Push the restored content to Matchmaker to keep the server snapshot fresh
+      if (room && room.otp && result.data?.content) {
+        try {
+          await fetch('/api/lobby/doc', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              otp: room.otp,
+              fileId: String(fileId),
+              authorNodeId: 'web-client',
+              authorName: 'Web User',
+              content: result.data.content,
+              vectorClock: result.data.vectorClock || {},
+              deltaSize: result.data.content.length,
+            })
+          });
+        } catch (e) {
+          console.error('Failed to push restored content to Matchmaker:', e);
+        }
+      }
+
       router.push(`/app/editor/${fileId}`);
     } catch (err: any) {
       alert(err.message || String(err));

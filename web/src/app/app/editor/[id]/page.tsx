@@ -68,6 +68,8 @@ export default function EditorPage() {
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   const hasPendingChangesRef = useRef(false);
+  const isPushingRef = useRef(false);
+  const queuedContentRef = useRef<string | null>(null);
   // Same ts for lastLocalSaveTime — the poll guard uses this to block old snapshots
   const lastLocalSaveTime = useRef<number>(_initSaveTs);
   const createInitialWebClock = () => {
@@ -366,7 +368,7 @@ export default function EditorPage() {
               nodeId: localNodeIdRef.current,
               content: contentToSave,
               vectorClock: vectorClockSnapshot,
-              isOfflineReconnect: explicit || offlineQueue,
+              isOfflineReconnect: offlineQueue,
             }),
           });
           if (res.ok) {
@@ -428,7 +430,7 @@ export default function EditorPage() {
               content: contentToSave,
               vectorClock: vectorClockSnapshot,
               deltaSize,
-              isOfflineReconnect: explicit || offlineQueue
+              isOfflineReconnect: offlineQueue
             }),
           });
           if (res.ok) {
@@ -588,16 +590,24 @@ export default function EditorPage() {
 
   const saveFile = useCallback(async (contentToSave: string, forcePush = false) => {
     if (contentToSave === lastSave.current && !forcePush) return;
-    localVectorClockRef.current = incrementVectorClock(
-      localVectorClockRef.current,
-      localVectorClockRef.current.nodeIndex
-    );
     
-    const stored = uGet('files');
-    if (stored) {
-      const files: FileRecord[] = JSON.parse(stored);
-      const idx = files.findIndex(f => f.id === fileId);
-      if (idx >= 0) {
+    if (isPushingRef.current) {
+      queuedContentRef.current = contentToSave;
+      return;
+    }
+
+    isPushingRef.current = true;
+    try {
+      localVectorClockRef.current = incrementVectorClock(
+        localVectorClockRef.current,
+        localVectorClockRef.current.nodeIndex
+      );
+      
+      const stored = uGet('files');
+      if (stored) {
+        const files: FileRecord[] = JSON.parse(stored);
+        const idx = files.findIndex(f => f.id === fileId);
+        if (idx >= 0) {
         files[idx].content = contentToSave;
         files[idx].updatedAt = new Date().toISOString();
         uSet('files', JSON.stringify(files));
@@ -612,21 +622,16 @@ export default function EditorPage() {
 
     console.log('[VC SHAPE]', JSON.stringify(localVectorClockRef.current, null, 2));
 
-    // Guarded increment of our vector clock counter before pushing
-    try {
-      const myIdx = localVectorClockRef.current?.nodeIndex;
-      if (typeof myIdx === 'number' && localVectorClockRef.current?.root?.children?.[myIdx]) {
-        localVectorClockRef.current.root.children[myIdx].counter = 
-          (localVectorClockRef.current.root.children[myIdx].counter || 0) + 1;
-      } else {
-        console.warn('Vector clock shape invalid or uninitialized, skipping local tick.');
-      }
-    } catch (e) {
-      console.warn('Failed to tick vector clock:', e);
-    }
-
     console.log('[SEND]', JSON.stringify(localVectorClockRef.current));
     await pushToHost(contentToSave, localVectorClockRef.current, forcePush);
+    } finally {
+      isPushingRef.current = false;
+      if (queuedContentRef.current !== null) {
+        const nextContent = queuedContentRef.current;
+        queuedContentRef.current = null;
+        saveFile(nextContent);
+      }
+    }
   }, [fileId, pushToHost]);
 
   const isApplyingRemoteRef = useRef(false);
@@ -700,6 +705,10 @@ export default function EditorPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            
+            <button className="ds-btn ds-btn-ghost" onClick={() => router.push(`/app/history/${fileId}`)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Clock size={14} /> History
+            </button>
 
             <button className="ds-btn" onClick={() => {
               const origName = file.name || 'document';

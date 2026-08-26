@@ -142,6 +142,8 @@ export interface DeltaPushMessage {
   fileId: number;
   /** Base64-encoded delta string (empty if tombstone). */
   deltaBase64: string;
+  /** Raw content used by Web App on restore */
+  content?: string;
   /** Classification of the sync event. */
   eventType?: 'edit' | 'restore' | 'delete' | 'merge';
   /** Logical timestamp from the sender's vector clock. */

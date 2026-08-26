@@ -12,7 +12,6 @@ import { uGet } from '@/lib/userStorage';
 const NAV_ITEMS = [
   { href: '/app/files', label: 'Room', icon: FolderOpen },
   { href: '/app/conflicts', label: 'Conflicts', icon: AlertTriangle },
-  { href: '/app/history/all', label: 'History', icon: Clock },
   { href: '/app/peers', label: 'Sync Rooms', icon: Users },
   { href: '/app/metrics', label: 'Metrics', icon: BarChart2 },
   { href: '/app/settings', label: 'Settings', icon: Settings },

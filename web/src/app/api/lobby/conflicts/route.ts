@@ -11,6 +11,8 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/lobby/conflicts?otp=XXXXX
  *

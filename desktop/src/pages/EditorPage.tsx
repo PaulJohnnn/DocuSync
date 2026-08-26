@@ -165,6 +165,13 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
   const lastSyncedAt = useRef<number>(0);
   // lastContent tracks last saved HTML to avoid redundant saves
   const lastContent = useRef<string>(initialContent);
+  const localVectorClockRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (vectorClock) {
+      localVectorClockRef.current = vectorClock;
+    }
+  }, [vectorClock]);
   const myNodeId = localNodeId || `anon-${Math.random().toString(36).slice(2, 8)}`;
   const roomOtp = currentRoom?.id;
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
@@ -440,12 +447,12 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
         return;
       }
 
-      let payloadVectorClock = vectorClock;
+      let payloadVectorClock = localVectorClockRef.current || vectorClock;
 
       // ── Step 1: Save to local SQLite via IPC (Desktop only) ──────────────
       if (fileId !== null && window.docuSync) {
-        console.log(`[Desktop Test] Editing on Desktop. Local vector clock:`, JSON.stringify(vectorClock));
-        const res = await window.docuSync.saveFile(fileId, html, vectorClock);
+        console.log(`[Desktop Test] Editing on Desktop. Local vector clock:`, JSON.stringify(payloadVectorClock));
+        const res = await window.docuSync.saveFile(fileId, html, payloadVectorClock);
         if (!res.success) {
            if (res.error?.includes('escalated') || (res.data as any)?.escalated) {
               setSaving(false);
@@ -462,6 +469,7 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
         // for the Matchmaker push below, otherwise we send stale data and edits get rejected.
         if (data.vectorClock) {
           payloadVectorClock = data.vectorClock;
+          localVectorClockRef.current = data.vectorClock;
         }
 
         setLastDeltaSize(savedDeltaSize);
