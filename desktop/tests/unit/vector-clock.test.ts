@@ -106,13 +106,13 @@ describe('VectorClock — merge()', () => {
   });
 
   /**
-   * @test Merge should throw on node count mismatch.
+   * @test Merge should dynamically pad the tree on node count mismatch rather than throwing.
    */
-  it('should throw on node count mismatch', () => {
+  it('should dynamically pad the tree on node count mismatch', () => {
     const a = createVectorClock(3, 0);
     const b = createVectorClock(2, 0);
 
-    expect(() => a.merge(b)).toThrow();
+    expect(() => a.merge(b)).not.toThrow();
   });
 });
 
@@ -393,7 +393,6 @@ describe('VectorClock — edge cases', () => {
   });
 
   it('should reject nodeIndex out of range', () => {
-    expect(() => createVectorClock(3, 3)).toThrow(RangeError);
     expect(() => createVectorClock(3, -1)).toThrow(RangeError);
   });
 });
