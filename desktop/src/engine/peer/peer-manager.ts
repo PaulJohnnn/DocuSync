@@ -643,12 +643,11 @@ export class PeerManager {
             };
 
             try {
-              // If it's explicitly an offline reconnect with divergence, FORCE the escalation
-              // regardless of vector clock math.
+              // If it's explicitly an offline reconnect with divergence, FORCE the escalation check
               let resolveResult: any = { outcome: 'escalated' };
               
               if (isOfflineReconnect) {
-                console.log(`[PeerManager] Forcing manual conflict review for Offline Reconnect`);
+                console.log(`[PeerManager] Forcing auto-resolve pipeline for Offline Reconnect`);
                 const conflictId = await this.config.lwwResolver.escalateToOwner(eventA, eventB);
                 resolveResult.conflictId = conflictId;
               } else {
@@ -657,21 +656,60 @@ export class PeerManager {
 
               if (resolveResult.outcome === 'escalated') {
                 this._metrics.conflictsDetectedThisSession++;
+                
                 if (resolveResult.conflictId) {
                   this._metrics.conflictEscalatedAt.set(resolveResult.conflictId, Date.now());
-                }
-                if (this.config.onConflictNotified && resolveResult.conflictId) {
-                  await this.config.onConflictNotified(
+                  
+                  console.log(`[PeerManager] Auto-resolving conflict ${resolveResult.conflictId} favoring incoming offline edit...`);
+                  
+                  // 1. Merge and increment clocks
+                  const mergedVc = this.config.vectorClock.clone();
+                  mergedVc.merge(incomingVc);
+                  mergedVc.increment();
+
+                  // 2. Resolve conflict giving winner to 'B' (the incoming edit)
+                  const autoResult = await this.config.lwwResolver.autoResolve(
                     resolveResult.conflictId,
-                    fileId,
-                    `Concurrent edit detected between ${nodeId} and ${this.config.localNodeId}`
+                    'B',
+                    this.config.localNodeId, // System auto-resolves it
+                    mergedVc.toJSON()
                   );
+
+                  // 3. Apply changes locally as if it's a normal merge
+                  this.config.vectorClock = mergedVc;
+                  let newContent = remoteContent || localContent;
+                  if (delta) {
+                    try {
+                      const decoded = decodeDelta(localContent, delta);
+                      newContent = decoded.content;
+                    } catch {}
+                  }
+
+                  if (this.config.onDeltaApplied) {
+                    await this.config.onDeltaApplied(fileId, newContent, autoResult.resolutionEvent.eventId, this.config.localNodeId, mergedVc.toJSON(), 'merge', true);
+                  }
+
+                  // 4. Relay MERGE_ACCEPT to any connected WebSockets
+                  this.broadcast(autoResult.mergeAcceptMessage as any);
+                  
+                  // 5. Notify the Desktop UI solely as a "Notification" 
+                  if (this.config.onConflictNotified) {
+                    await this.config.onConflictNotified(
+                      resolveResult.conflictId,
+                      fileId,
+                      `Automatic offline merge recorded between ${nodeId} and ${this.config.localNodeId} (Incoming priority)`
+                    );
+                  }
                 }
+                
+                // Return immediate success to the HTTP pusher
+                this._metrics.pushSuccessCount++;
+                this._metrics.pushTotalLatencyMs += Date.now() - pushT0;
                 res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ 
-                  escalated: true, 
-                  conflictId: resolveResult.conflictId,
-                  serverContent: localContent
+                  merged: true,
+                  lwwResolved: true,
+                  vectorClock: this.config.vectorClock.toJSON()
                 }));
                 return;
               }

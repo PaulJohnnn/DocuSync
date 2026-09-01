@@ -1458,8 +1458,9 @@ export function registerIPCHandlers(services: EngineServices): void {
       // (e.g., conflict was detected via a peer sync for a file not
       // currently open in the editor).
       const allPending = await prisma.conflict.findMany({
-        where: { status: 'pending' },
-        orderBy: { detectedAt: 'asc' },
+        where: { status: { in: ['pending', 'resolved'] } },
+        orderBy: { detectedAt: 'desc' },
+        take: 50
       });
 
       for (const row of allPending) {
@@ -1487,7 +1488,7 @@ export function registerIPCHandlers(services: EngineServices): void {
         });
       }
 
-      console.log(`[IPC] conflict:list → ${allConflicts.length} pending conflicts`);
+      console.log(`[IPC] conflict:list → ${allConflicts.length} conflicts (including auto-resolved notifications)`);
 
       return {
         conflicts: allConflicts,

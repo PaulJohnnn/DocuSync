@@ -14,6 +14,7 @@ export interface ConflictRecord {
   payloadB: string;
   logicalTimestampA: number;
   logicalTimestampB: number;
+  status: string;
   detectedAt: string;
 }
 

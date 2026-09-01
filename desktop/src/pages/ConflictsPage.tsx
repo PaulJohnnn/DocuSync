@@ -76,6 +76,7 @@ const InteractiveConflictEditor: React.FC<{
   const editor = useEditor({
     extensions: [StarterKit],
     content: conflict.payloadB,
+    editable: conflict.status !== 'resolved',
   });
 
   const handleResolveClick = () => {
@@ -104,16 +105,19 @@ const InteractiveConflictEditor: React.FC<{
       {/* Header */}
       <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '-1rem -1rem 0 -1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 9 }}>CONFLICT RESOLUTION</span>
+          <span className={`ds-badge ${conflict.status === 'resolved' ? 'ds-badge-green' : 'ds-badge-red'}`} style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 9 }}>
+            {conflict.status === 'resolved' ? 'AUTOMATIC MERGE NOTIFICATION' : 'CONFLICT RESOLUTION'}
+          </span>
           <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>File #{conflict.fileId}</span>
         </div>
         <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{conflict.detectedAt.toLocaleString()}</span>
       </div>
 
       <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-        Incoming offline edits are shown in the editable pane on the right. 
-        The current online version is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong> on the left.
-        Copy and paste any text you want to keep into the right pane, then click Resolve & Save.
+        {conflict.status === 'resolved' 
+          ? <>This conflict was automatically merged favoring the incoming offline edits. The online version prior to the merge is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong>.</>
+          : <>Incoming offline edits are shown in the editable pane on the right. The current online version is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong>. Copy and paste any text you want to keep into the right pane, then click Resolve & Save.</>
+        }
       </div>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
@@ -130,7 +134,7 @@ const InteractiveConflictEditor: React.FC<{
             <span>Incoming Offline Edits</span>
             <span style={{ fontWeight: 400, opacity: 0.8 }}>Editable</span>
           </div>
-          <div style={{...bodyStyle, background: '#fff', cursor: 'text'}}>
+          <div style={{...bodyStyle, background: '#fff', cursor: conflict.status === 'resolved' ? 'default' : 'text'}}>
             <EditorContent editor={editor} />
           </div>
         </div>
@@ -138,11 +142,13 @@ const InteractiveConflictEditor: React.FC<{
 
       <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 -1rem -1rem -1rem' }}>
         <button className="ds-btn ds-btn-ghost" disabled={conflict.resolving} onClick={() => onReject(conflict.conflictId)}>
-          <IconShield size={13} /> Delete Conflict
+          <IconShield size={13} /> {conflict.status === 'resolved' ? 'Dismiss Notification' : 'Delete Conflict'}
         </button>
-        <button className="ds-btn ds-btn-success" disabled={conflict.resolving} onClick={handleResolveClick} style={{ padding: '6px 24px' }}>
-          <IconCheck size={14} /> Resolve & Save
-        </button>
+        {conflict.status !== 'resolved' && (
+          <button className="ds-btn ds-btn-success" disabled={conflict.resolving} onClick={handleResolveClick} style={{ padding: '6px 24px' }}>
+            <IconCheck size={14} /> Resolve & Save
+          </button>
+        )}
       </div>
     </article>
   );
@@ -161,6 +167,7 @@ const ConflictsPage: React.FC = () => {
     nodeIdA: extractNodeId(conflict.summary, 'A'), nodeIdB: extractNodeId(conflict.summary, 'B'),
     payloadA: '(Could not load original content)', payloadB: '(Could not load incoming content)',
     logicalTimestampA: 0, logicalTimestampB: 1, detectedAt: conflict.receivedAt, resolving: false,
+    status: 'pending',
   }), []);
 
   // Load from DB on mount
