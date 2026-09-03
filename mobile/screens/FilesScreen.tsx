@@ -24,7 +24,7 @@ import { uGet, uSet, uRemove } from '../utils/userStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MATCHMAKER_KEY = '@docusync/matchmaker_url';
-const DEFAULT_MATCHMAKER = 'http://10.127.60.142:3000';
+const DEFAULT_MATCHMAKER = 'https://docusync-pnc.vercel.app/api/lobby';
 
 /**
  * Extensions that DocuSync's delta engine can handle (text streams).
