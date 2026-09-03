@@ -2478,5 +2478,28 @@
     "ip": "127.0.0.1",
     "port": 9000,
     "nodeId": "web-1787717748699"
+  },
+  "auth_db": {
+    "users": [
+      {
+        "id": "user-001",
+        "email": "alice@docusync.local",
+        "name": "Alice Reyes",
+        "pin": "123456",
+        "isAdmin": false,
+        "createdAt": "2025-01-10T08:00:00Z",
+        "status": "active"
+      },
+      {
+        "id": "user-002",
+        "email": "admin",
+        "name": "Admin",
+        "pin": "admin",
+        "isAdmin": true,
+        "createdAt": "2025-01-01T08:00:00Z",
+        "status": "active"
+      }
+    ],
+    "pending": []
   }
 }
