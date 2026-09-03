@@ -29,7 +29,7 @@ async function adminFetch(path: string, options: RequestInit = {}): Promise<Resp
   try {
     const res = await fetch(`${getAdminUrl()}${path}`, {
       ...options,
-      signal: AbortSignal.timeout(2000),
+      signal: AbortSignal.timeout(6000),
     });
     if (res.ok || res.status < 500) return res;
   } catch { /* if local fails and we want to fallback, we can, but we shouldn't mix if they forced an IP */ }

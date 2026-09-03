@@ -221,7 +221,7 @@ class RoomService {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ otp: upperOtp, memberNodeId: nodeId, clientNodeId: nodeId }),
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(6000),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.roomName) {
@@ -350,7 +350,7 @@ class RoomService {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ otp: roomId, file }),
-          signal: AbortSignal.timeout(3000),
+          signal: AbortSignal.timeout(6000),
         });
         if (res.ok) return;
         const data = await res.json().catch(() => ({}));
