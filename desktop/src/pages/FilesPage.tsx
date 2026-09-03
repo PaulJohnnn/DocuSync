@@ -3,7 +3,7 @@
  * Room workspace — shows files inside the currently entered room.
  * "My Files" tab has been removed. Navigate to Peers to select a room.
  */
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import {
@@ -54,6 +54,9 @@ const FilesPage: React.FC = () => {
   const [opening, setOpening] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [uploadError, setUploadError] = useState<{ filename: string, reason: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Listen for remote deletes
   useEffect(() => {
@@ -98,26 +101,50 @@ const FilesPage: React.FC = () => {
       notify.error('Not in a valid OTP room.');
       return;
     }
+    
     try {
-      const file = await FileService.open();
+      // Direct IPC call ensures native dialog opens flawlessly and securely
+      // since the Windows async deadlock was fixed in backend `dialog.showOpenDialog`
+      const fileRecord = await window.docuSync.openFile();
+      if (!fileRecord.success || !fileRecord.data) {
+        throw new Error(fileRecord.error ?? 'File selection cancelled or failed.');
+      }
+      
+      const file = fileRecord.data as any;
+      const filename = file.fileName ?? basename(file.filePath);
+      const ext = filename.split('.').pop()?.toLowerCase() || '';
+      
+      const REJECTED_TYPES = ['png', 'jpg', 'jpeg', 'mp4', 'mp3', 'exe', 'zip', 'gif', 'webp', 'bmp', 'ico', 'pdf', 'rar', '7z', 'tar', 'gz', 'dmg', 'iso', 'bin', 'dll', 'so', 'class', 'pyc'];
+      if (REJECTED_TYPES.includes(ext)) {
+        setUploadError({
+          filename,
+          reason: `This is a binary file format (.${ext}). DocuSync's collaborative engine requires text-based formats (like Word Documents) to safely stream real-time differences.`
+        });
+        return;
+      }
+
+      setSharing(true);
+
       const newFile = {
         fileId: file.fileId,
-        fileName: file.fileName ?? basename(file.filePath),
-        // filePath intentionally omitted — cross-platform peers cannot use a local Windows path
+        fileName: filename,
         contentLength: file.sizeBytes ?? file.contentLength ?? 1024,
         content: file.content,
         sharedBy: 'Desktop Node',
         sharedAt: new Date().toISOString(),
       };
+      
       await RoomService.shareFileToRoom(currentRoom.otp || currentRoom.id, newFile);
       setRoomFiles(prev => [...prev, newFile]);
       notify.success('File shared to room!');
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      // Silently ignore cancellations — user deliberately closed the dialog
-      if (msg.includes('cancelled by user') || msg.includes('canceled by user')) return;
-      if (error instanceof ServiceError) notify.error(error.message);
-      else notify.error('Failed to share file. Check the console for details.');
+      if (msg.includes('cancelled by user') || msg.includes('canceled by user') || msg.includes('File selection cancelled')) {
+        return; // Ignore user cancellations
+      }
+      notify.error(`Failed to share file: ${msg}`);
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -127,13 +154,13 @@ const FilesPage: React.FC = () => {
     try {
       const explicitId = file.fileId ?? file.id;
       
-      // Attempt to load locally first (if we are the host or already have it open)
+      // Attempt to load locally first (pass name as fallback explicitly for restart-recovery)
       if (explicitId) {
         try {
-          const loaded = await FileService.load(Number(explicitId));
-          if (loaded) {
-            notify.success(`Opened: ${basename(loaded.filePath)}`);
-            navigate(`/editor/${loaded.fileId}`);
+          const loaded = await window.docuSync.openFile(Number(explicitId), file.fileName || file.name);
+          if (loaded.success) {
+            notify.success(`Opened: ${basename((loaded.data as any)?.filePath as string)}`);
+            navigate(`/editor/${explicitId}`);
             setOpening(false);
             return;
           }
@@ -342,6 +369,68 @@ const FilesPage: React.FC = () => {
                   : 'Yes, Leave Room'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Error Modal */}
+      {uploadError && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16,
+            padding: '40px 56px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.4)', width: 480, maxWidth: '90%',
+            animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: 16, borderRadius: '50%', marginBottom: 16 }}>
+              <File style={{ color: '#ef4444' }} size={32} />
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--text-primary)', textAlign: 'center' }}>Incompatible File Type</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 12, marginBottom: 20, textAlign: 'center', lineHeight: 1.6 }}>
+              The file <strong>"{uploadError.filename}"</strong> cannot be processed.<br/><br/>
+              {uploadError.reason}
+            </p>
+            <div style={{
+              background: 'var(--bg-card-hover)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 16px', display: 'flex', flexDirection: 'column', width: '100%', marginBottom: 24
+            }}>
+              <strong style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: 8 }}>Accepted Formats:</strong>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {['.docx', '.doc', '.txt', '.md', '.html', '.json', '.csv'].map(typ => (
+                  <span key={typ} style={{ background: 'var(--bg-card)', padding: '4px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{typ}</span>
+                ))}
+              </div>
+            </div>
+            <button className="ds-btn ds-btn-primary" style={{ width: '100%', justifyContent: 'center', height: 44, fontSize: 14 }} onClick={() => setUploadError(null)}>
+              Understood
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Global Sharing/Processing Modal */}
+      {sharing && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16,
+            padding: '36px 56px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+            animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}>
+            <Loader2 size={48} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent)', marginBottom: 20 }} />
+            <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>Processing File...</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 14, marginTop: 8, marginBottom: 0, textAlign: 'center' }}>
+              Parsing contents to broadcast to room peers.<br/>Please wait.
+            </p>
           </div>
         </div>
       )}

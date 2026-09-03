@@ -8,6 +8,24 @@
       "isAdmin": true,
       "createdAt": "2025-01-01T08:00:00Z",
       "status": "active"
+    },
+    {
+      "id": "user-1788385070086",
+      "email": "g",
+      "name": "g",
+      "pin": "691477",
+      "isAdmin": false,
+      "createdAt": "2026-09-02T21:37:50.086Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1788385148597",
+      "email": "h",
+      "name": "h",
+      "pin": "795111",
+      "isAdmin": false,
+      "createdAt": "2026-09-02T21:39:08.597Z",
+      "status": "active"
     }
   ],
   "pending": []

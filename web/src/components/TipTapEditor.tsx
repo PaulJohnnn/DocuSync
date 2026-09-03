@@ -5,11 +5,15 @@ import Highlight from '@tiptap/extension-highlight';
 import Placeholder from '@tiptap/extension-placeholder';
 import TextAlign from '@tiptap/extension-text-align';
 import Underline from '@tiptap/extension-underline';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Quote, Code,
-  AlignLeft, AlignCenter, AlignRight, Highlighter
+  AlignLeft, AlignCenter, AlignRight, Highlighter, File
 } from 'lucide-react';
 
 import { Extension } from '@tiptap/core';
@@ -92,6 +96,7 @@ interface Props {
 
 export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate }: Props) {
   const initialized = useRef(false);
+  const [pasteError, setPasteError] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -101,6 +106,10 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       Placeholder.configure({ placeholder: 'Start typing your document...' }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       RemoteCursorsExtension.configure({ cursors: [] }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content: content || '<p></p>',
     onUpdate: ({ editor }) => {
@@ -115,6 +124,18 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
     editorProps: {
       attributes: {
         class: 'tiptap',
+      },
+      handlePaste: (view, event) => {
+        const items = event.clipboardData?.items;
+        if (items) {
+          for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image/') === 0) {
+              setPasteError(true);
+              return true; // prevent TipTap from processing it
+            }
+          }
+        }
+        return false;
       },
     },
   });
@@ -162,6 +183,35 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
 
   return (
     <div>
+      {/* Unsupported Media Modal */}
+      {pasteError && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            background: 'var(--bg)', border: '1px solid var(--b1)', borderRadius: 16,
+            padding: '40px 56px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)', width: 480, maxWidth: '90%',
+            animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: 16, borderRadius: '50%', marginBottom: 16 }}>
+              <File style={{ color: '#ef4444' }} size={32} />
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--t1)', textAlign: 'center' }}>Unsupported Media</h2>
+            <p style={{ color: 'var(--t2)', fontSize: 14, marginTop: 12, marginBottom: 20, textAlign: 'center', lineHeight: 1.6 }}>
+              Pasting images or binary objects directly into the editor is not supported.<br/><br/>
+              DocuSync's real-time engine only synchronizes text and document structures to ensure maximum performance across peers.
+            </p>
+            <button className="ds-btn ds-btn-primary" style={{ width: '100%', justifyContent: 'center', height: 44, fontSize: 14 }} onClick={() => setPasteError(false)}>
+              Understood
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 2,

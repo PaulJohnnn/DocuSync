@@ -20,43 +20,7 @@ interface ConflictDetail extends Omit<ConflictRecord, 'detectedAt'> {
   resolving: boolean;
 }
 
-// ── Word-level diff engine ────────────────────────────────────────────────────
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
-    .replace(/\s+/g, ' ').trim();
-}
-
-function computeWordDiff(htmlA: string, htmlB: string) {
-  const wordsA = stripHtml(htmlA).split(/\s+/).filter(Boolean);
-  const wordsB = stripHtml(htmlB).split(/\s+/).filter(Boolean);
-  const m = wordsA.length, n = wordsB.length;
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= n; j++)
-      dp[i][j] = wordsA[i-1] === wordsB[j-1] ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j], dp[i][j-1]);
-  const delSet = new Set<number>(), addSet = new Set<number>();
-  let i = m, j = n;
-  while (i > 0 && j > 0) {
-    if (wordsA[i-1] === wordsB[j-1]) { i--; j--; }
-    else if (dp[i-1][j] >= dp[i][j-1]) { delSet.add(--i); }
-    else { addSet.add(--j); }
-  }
-  while (i > 0) delSet.add(--i);
-  while (j > 0) addSet.add(--j);
-
-  const highlightedA = wordsA.length === 0
-    ? '<em style="color:var(--text-muted)">(empty)</em>'
-    : wordsA.map((w, idx) =>
-        delSet.has(idx)
-          ? `<mark style="background:rgba(234,179,8,0.25);color:#ca8a04;border-radius:3px;padding:0 3px;font-weight:600">${w}</mark>`
-          : w
-      ).join(' ');
-
-  return { highlightedA, diffCount: delSet.size };
-}
+// ── InteractiveConflictEditor ─────────────────────────────────────────────────
 
 function extractNodeId(summary: string, side: 'A' | 'B'): string {
   const match = summary.match(/([a-f0-9-]{8,})\s+vs\s+([a-f0-9-]{8,})/i);
@@ -64,26 +28,25 @@ function extractNodeId(summary: string, side: 'A' | 'B'): string {
   return side === 'A' ? match[1] : match[2];
 }
 
-// ── InteractiveConflictEditor ─────────────────────────────────────────────────
-
 const InteractiveConflictEditor: React.FC<{
   conflict: ConflictDetail;
   onManualResolve: (id: string, customPayload: string) => Promise<void>;
   onReject: (id: string) => Promise<void>;
 }> = ({ conflict, onManualResolve, onReject }) => {
-  const { highlightedA } = useMemo(() => computeWordDiff(conflict.payloadA, conflict.payloadB), [conflict.payloadA, conflict.payloadB]);
+  const editorA = useEditor({
+    extensions: [StarterKit],
+    content: conflict.payloadA,
+    editable: false,
+  });
 
-  const editor = useEditor({
+  const editorB = useEditor({
     extensions: [StarterKit],
     content: conflict.payloadB,
-    editable: conflict.status !== 'resolved',
+    editable: false,
   });
 
   const handleResolveClick = () => {
-    if (window.confirm('Are you sure you want to save this merged file? This will overwrite the live document and resolve the conflict.')) {
-      const html = editor?.getHTML() || '';
-      onManualResolve(conflict.conflictId, html);
-    }
+  // Resolve logic removed; system enforces deterministic LWW.
   };
 
   const panelStyle: React.CSSProperties = {
@@ -114,19 +77,18 @@ const InteractiveConflictEditor: React.FC<{
       </div>
 
       <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-        {conflict.status === 'resolved' 
-          ? <>This conflict was automatically merged favoring the incoming offline edits. The online version prior to the merge is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong>.</>
-          : <>Incoming offline edits are shown in the editable pane on the right. The current online version is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong>. Copy and paste any text you want to keep into the right pane, then click Resolve & Save.</>
-        }
+        This conflict log was recorded automatically favoring the most recent offline changes using the LWW deterministic resolver. The online version prior to the merge is displayed on the left for your reference.
       </div>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
-        <div style={panelStyle}>
+        <div style={{...panelStyle, border: '1px solid #ca8a04', boxShadow: '0 0 0 1px rgba(234,179,8,0.3)' }}>
           <div style={headerStyle('#ca8a04', 'rgba(234,179,8,0.06)')}>
             <span>Current Online Version</span>
             <span style={{ fontWeight: 400, opacity: 0.8 }}>Read-Only Reference</span>
           </div>
-          <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedA }} />
+          <div style={{...bodyStyle, background: 'rgba(234,179,8,0.02)'}}>
+            <EditorContent editor={editorA} />
+          </div>
         </div>
 
         <div style={{...panelStyle, border: '1px solid var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }}>
@@ -134,21 +96,16 @@ const InteractiveConflictEditor: React.FC<{
             <span>Incoming Offline Edits</span>
             <span style={{ fontWeight: 400, opacity: 0.8 }}>Editable</span>
           </div>
-          <div style={{...bodyStyle, background: '#fff', cursor: conflict.status === 'resolved' ? 'default' : 'text'}}>
-            <EditorContent editor={editor} />
+          <div style={{...bodyStyle, background: '#fff', cursor: 'default'}}>
+            <EditorContent editor={editorB} />
           </div>
         </div>
       </div>
 
       <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 -1rem -1rem -1rem' }}>
         <button className="ds-btn ds-btn-ghost" disabled={conflict.resolving} onClick={() => onReject(conflict.conflictId)}>
-          <IconShield size={13} /> {conflict.status === 'resolved' ? 'Dismiss Notification' : 'Delete Conflict'}
+          <IconShield size={13} /> Delete Log
         </button>
-        {conflict.status !== 'resolved' && (
-          <button className="ds-btn ds-btn-success" disabled={conflict.resolving} onClick={handleResolveClick} style={{ padding: '6px 24px' }}>
-            <IconCheck size={14} /> Resolve & Save
-          </button>
-        )}
       </div>
     </article>
   );
@@ -318,6 +275,16 @@ const ConflictsPage: React.FC = () => {
     setResolving(conflictId, true);
     try {
       const conflict = details.get(conflictId);
+      
+      // If already resolved, simply dismiss from UI without backend operations
+      if (conflict && conflict.status === 'resolved') {
+        markConflictResolved(conflictId);
+        setDetails(prev => { const n = new Map(prev); n.delete(conflictId); return n; });
+        notify.success('Notification dismissed.');
+        setSelectedConflictId(null);
+        return;
+      }
+
       await ConflictService.reject(conflictId);
       markConflictResolved(conflictId);
       
@@ -325,7 +292,7 @@ const ConflictsPage: React.FC = () => {
       await pushResolutionToMatchmaker(conflictId);
       
       if (conflict) {
-        const olderConflicts = [...details.values()].filter(c => c.fileId === conflict.fileId && c.conflictId !== conflictId);
+        const olderConflicts = [...details.values()].filter(c => c.fileId === conflict.fileId && c.conflictId !== conflictId && c.status !== 'resolved');
         for (const older of olderConflicts) {
           try {
             await ConflictService.reject(older.conflictId);
@@ -373,11 +340,18 @@ const ConflictsPage: React.FC = () => {
 
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Delete ${selectedIds.size} selected conflict(s)?`)) return;
+    if (!window.confirm(`Delete/Dismiss ${selectedIds.size} selected conflict(s)?`)) return;
 
     for (const id of selectedIds) {
       setResolving(id, true);
       try {
+        const conflict = details.get(id);
+        if (conflict && conflict.status === 'resolved') {
+            markConflictResolved(id);
+            setDetails(prev => { const n = new Map(prev); n.delete(id); return n; });
+            continue;
+        }
+
         await ConflictService.reject(id);
         markConflictResolved(id);
         await pushResolutionToMatchmaker(id);
@@ -386,7 +360,7 @@ const ConflictsPage: React.FC = () => {
         console.error(`Failed to delete conflict ${id}`, err);
       }
     }
-    notify.success(`Deleted ${selectedIds.size} conflict(s).`);
+    notify.success(`Processed ${selectedIds.size} conflict(s).`);
     setSelectedIds(new Set());
   };
 
@@ -394,8 +368,8 @@ const ConflictsPage: React.FC = () => {
     <>
       <div className="ds-topbar">
         <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/')}><IconArrowLeft size={14} /> Files</button>
-        <span className="ds-topbar-title">Conflict Resolution</span>
-        {allConflictsList.length > 0 && <span className="ds-badge ds-badge-red">{allConflictsList.length} pending</span>}
+        <span className="ds-topbar-title">Conflict Log</span>
+        {allConflictsList.length > 0 && <span className="ds-badge ds-badge-red">{allConflictsList.length} logs</span>}
         <div className="ds-topbar-actions">
           {selectedIds.size > 0 && (
             <button className="ds-btn ds-btn-ghost" style={{ color: 'var(--red)' }} onClick={handleDeleteSelected}>

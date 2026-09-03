@@ -17,7 +17,7 @@ import mockAuthService, { getDisplayName } from '@/services/mockAuthService';
 
 /** Component to ping the Next.js matchmaker with heartbeat */
 const GlobalHeartbeat: React.FC = () => {
-  const { localNodeId, isAdmin } = useElectronSync();
+  const { localNodeId, isAdmin, currentRoom } = useElectronSync();
 
   useEffect(() => {
     if (!localNodeId || isAdmin) return; // Admins don't need to heartbeat
@@ -29,7 +29,16 @@ const GlobalHeartbeat: React.FC = () => {
         await fetch(`${_base}/api/lobby/heartbeat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nodeId: localNodeId })
+          body: JSON.stringify({ 
+            nodeId: localNodeId,
+            hostedRoom: currentRoom?.isOwner ? {
+              otp: currentRoom.otp,
+              roomName: currentRoom.name,
+              hostIp: currentRoom.hostIp || '127.0.0.1',
+              hostPort: currentRoom.hostPort || 9000,
+              hostType: currentRoom.hostType || 'desktop'
+            } : null
+          })
         });
       } catch (err) {
         // ignore errors if server is down
@@ -39,7 +48,7 @@ const GlobalHeartbeat: React.FC = () => {
     pingHeartbeat();
     const interval = setInterval(pingHeartbeat, 30000); // every 30 seconds
     return () => clearInterval(interval);
-  }, [localNodeId, isAdmin]);
+  }, [localNodeId, isAdmin, currentRoom]);
 
   return null;
 };

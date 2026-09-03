@@ -305,14 +305,13 @@ class RoomService {
 
     const urlsToTry = Array.from(new Set([
       getMatchmakerUrl(),
-      'http://localhost:3000/api/lobby',
-      'https://docusync-pnc.vercel.app/api/lobby',
+      'http://localhost:3000/api/lobby'
     ]));
 
     for (const baseUrl of urlsToTry) {
       try {
         const res = await fetch(`${baseUrl}/files?otp=${encodeURIComponent(roomId)}`, {
-          signal: AbortSignal.timeout(1000),
+          signal: AbortSignal.timeout(5000), // Extended timeout so Matchmaker queries don't arbitrarily abort
         });
         if (res.ok) {
           const data = await res.json();
@@ -341,8 +340,7 @@ class RoomService {
   static async shareFileToRoom(roomId: string, file: Record<string, unknown>): Promise<void> {
     const urlsToTry = Array.from(new Set([
       getMatchmakerUrl(),
-      'http://localhost:3000/api/lobby',
-      'https://docusync-pnc.vercel.app/api/lobby',
+      'http://localhost:3000/api/lobby'
     ]));
 
     let lastError = 'Failed to upload to room.';

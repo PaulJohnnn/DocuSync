@@ -61,13 +61,11 @@ const InteractiveConflictEditor: React.FC<{
   const editor = useEditor({
     extensions: [StarterKit],
     content: payloadB,
+    editable: false,
   });
 
   const handleResolveClick = () => {
-    if (window.confirm('Are you sure you want to save this merged file? This will overwrite the live document and resolve the conflict.')) {
-      const html = editor?.getHTML() || '';
-      onManualResolve(html);
-    }
+    // System enforces deterministic LWW
   };
 
   const panelStyle: React.CSSProperties = {
@@ -89,16 +87,15 @@ const InteractiveConflictEditor: React.FC<{
       {/* Header */}
       <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '-1rem -1rem 0 -1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 9 }}>CONFLICT RESOLUTION</span>
+          <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 9 }}>AUTOMATIC MERGE NOTIFICATION</span>
           <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{fileName}</span>
         </div>
         <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{timestamp.toLocaleString()}</span>
       </div>
 
       <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-        Your local edits (while offline) are in the editable pane on the right. 
-        The current online version is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong> on the left.
-        Copy and paste any text you want to keep into your local edits, then click Resolve & Save.
+        This conflict log was recorded automatically favoring the most recent offline changes using the LWW deterministic resolver. 
+        The online version prior to the merge is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong> on the left for your reference.
       </div>
 
       <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
@@ -115,7 +112,7 @@ const InteractiveConflictEditor: React.FC<{
             <span>Your Local Edits (Offline)</span>
             <span style={{ fontWeight: 400, opacity: 0.8 }}>Editable</span>
           </div>
-          <div style={{...bodyStyle, background: '#fff', cursor: 'text'}}>
+          <div style={{...bodyStyle, background: '#fff', cursor: 'default'}}>
             <EditorContent editor={editor} />
           </div>
         </div>
@@ -123,10 +120,7 @@ const InteractiveConflictEditor: React.FC<{
 
       <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 -1rem -1rem -1rem' }}>
         <button className="ds-btn ds-btn-ghost" onClick={onReject}>
-          <Shield size={13} /> Delete Conflict
-        </button>
-        <button className="ds-btn ds-btn-success" onClick={handleResolveClick} style={{ padding: '6px 24px' }}>
-          <Check size={14} /> Resolve & Save
+          <Shield size={13} /> Delete Log
         </button>
       </div>
     </article>
@@ -425,32 +419,18 @@ export default function ConflictsPage() {
   };
 
   const activeConflict = conflicts.find(c => c.id === selectedConflictId);
-
   return (
     <PageShell title="Conflicts">
       <div style={{ maxWidth: 1000, margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '1rem' }}>
-          {selectedConflictId && (
-            <button onClick={() => setSelectedConflictId(null)} className="ds-btn ds-btn-ghost" style={{ padding: 8 }}>
-              <ArrowLeft size={16} /> Back to List
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className="ds-btn ds-btn-secondary" style={{ padding: '6px 12px' }} onClick={() => router.push('/app/files')}>
+              <ArrowLeft size={14} /> Back
             </button>
-          )}
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Conflict Resolution</h1>
-          {conflicts.length > 0 && !selectedConflictId && (
-            <span style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
-              {conflicts.length} pending
-            </span>
-          )}
-          {!selectedConflictId && selectedIds.length > 0 && (
-            <button
-              className="ds-btn ds-btn-ghost"
-              onClick={deleteSelectedConflicts}
-              style={{ color: 'var(--red)', marginLeft: 'auto' }}
-            >
-              <Shield size={14} /> Delete Selected ({selectedIds.length})
-            </button>
-          )}
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Conflict Log</h1>
+          </div>
+          {conflicts.length > 0 && <span className="ds-badge ds-badge-red">{conflicts.length} logs</span>}
         </div>
 
         {conflicts.length === 0 ? (
@@ -463,12 +443,13 @@ export default function ConflictsPage() {
               marginBottom: '20px',
               boxShadow: '0 0 24px rgba(34, 197, 94, 0.2)'
             }}>
-              <CheckCircle size={48} strokeWidth={1.5} />
+              <div style={{ fontSize: 52, marginBottom: 16 }}>✅</div>
             </div>
-            <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>All conflicts resolved</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-              You do not have any pending local offline conflicts.
+            <h2 style={{ fontSize: 16, fontWeight: 500, color: 'var(--t2)', marginBottom: 8 }}>All conflicts resolved</h2>
+            <p style={{ color: 'var(--t3)', fontSize: 13, maxWidth: 360, margin: '0 auto 24px', lineHeight: 1.7 }}>
+              No recorded logs. The LWW resolver will notify you if concurrent edits create a conflict.
             </p>
+            <button className="ds-btn ds-btn-primary" onClick={() => router.push('/app/files')}>Back to Files</button>
           </div>
         ) : !selectedConflictId ? (
           <div className="ds-card" style={{ padding: 0, overflow: 'hidden' }}>

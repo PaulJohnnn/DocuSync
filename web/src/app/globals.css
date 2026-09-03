@@ -286,3 +286,27 @@ body {
 .collaboration-cursor__selection {
   border-radius: 2px;
 }
+
+/* TipTap Table Styles */
+.tiptap table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 12px 0;
+  overflow: hidden;
+}
+
+.tiptap td, .tiptap th {
+  min-width: 1em;
+  border: 1px solid var(--b2);
+  padding: 6px 8px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.tiptap th {
+  font-weight: bold;
+  text-align: left;
+  background-color: var(--b1);
+}

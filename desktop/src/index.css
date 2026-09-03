@@ -1060,24 +1060,47 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); }
   min-height: 480px;
   font-family: 'Georgia', 'Times New Roman', serif;
   font-size: 15px;
-  line-height: 1.9;
+  line-height: 1.5;
   color: #1a1a2e;
 }
 
-.ProseMirror > * + * { margin-top: 0.75em; }
-.ProseMirror p { margin: 0 0 0.6em; }
+.ProseMirror > * + * { margin-top: 0.2em; }
+.ProseMirror p { margin: 0 0 0.3em; }
 
-.ProseMirror h1 { font-size: 1.8rem; font-weight: 800; margin: 1.4em 0 0.5em; color: #09090b; }
-.ProseMirror h2 { font-size: 1.3rem; font-weight: 700; margin: 1.2em 0 0.4em; color: #18181b; }
-.ProseMirror h3 { font-size: 1.1rem; font-weight: 700; margin: 1em 0 0.3em; color: #18181b; }
+.ProseMirror h1 { font-size: 1.8rem; font-weight: 800; margin: 1.0em 0 0.2em; color: #09090b; text-align: center; }
+.ProseMirror h2 { font-size: 1.3rem; font-weight: 700; margin: 0.8em 0 0.2em; color: #18181b; }
+.ProseMirror h3 { font-size: 1.1rem; font-weight: 700; margin: 0.6em 0 0.2em; color: #18181b; }
 
-.ProseMirror ul, .ProseMirror ol { padding-left: 1.6em; margin: 0.5em 0; }
-.ProseMirror li { margin: 0.25em 0; }
+.ProseMirror ul, .ProseMirror ol { padding-left: 1.6em; margin: 0.3em 0; }
+.ProseMirror li { margin: 0.15em 0; }
 
 .ProseMirror blockquote {
   border-left: 3px solid #f59e0b; padding: 0.4em 1em;
-  margin: 0.8em 0; color: #52525b; font-style: italic;
+  margin: 0.5em 0; color: #52525b; font-style: italic;
   background: #fafaf9; border-radius: 0 4px 4px 0;
+}
+
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.ProseMirror td, .ProseMirror th {
+  min-width: 1em;
+  border: 1px solid #d1d5db;
+  padding: 6px 8px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.ProseMirror th {
+  font-weight: bold;
+  text-align: left;
+  background-color: #f3f4f6;
 }
 
 .ProseMirror code {

@@ -58,7 +58,7 @@ export default function EditorPage() {
   // Read save timestamp synchronously so the poll guard is active immediately,
   // before any useEffect fires. useRef(fn) does NOT lazy-init like useState.
   const _initSaveTs = typeof window !== 'undefined'
-    ? Number(localStorage.getItem(`docusync_save_ts_${fileId}`) || 0)
+    ? Number(uGet(`docusync_save_ts_${fileId}`) || 0)
     : 0;
   const lastSyncedAt = useRef(_initSaveTs);
   const channelRef = useRef<any>(null);
@@ -76,9 +76,9 @@ export default function EditorPage() {
     let nodeIndex = 1;
     try {
       // Force alternating assignment between 1 and 2 to guarantee distinct slots for up to 2 tabs.
-      const lastAssigned = parseInt(localStorage.getItem('docusync_last_assigned_index') || '2', 10);
+      const lastAssigned = parseInt(uGet('docusync_last_assigned_index') || '2', 10);
       nodeIndex = lastAssigned === 1 ? 2 : 1;
-      localStorage.setItem('docusync_last_assigned_index', String(nodeIndex));
+      uSet('docusync_last_assigned_index', String(nodeIndex));
     } catch {}
     
     // Safety fallback
@@ -273,7 +273,7 @@ export default function EditorPage() {
       setContentAndRef(found.content);
       lastSave.current = found.content;
       // Restore the last save time so poll won't overwrite with older remote
-      const savedTs = localStorage.getItem(`docusync_save_ts_${fileId}`);
+      const savedTs = uGet(`docusync_save_ts_${fileId}`);
       if (savedTs) {
         const ts = Number(savedTs);
         lastLocalSaveTime.current = ts;
@@ -284,31 +284,7 @@ export default function EditorPage() {
     const savedNodeId = sessionStorage.getItem('docusync_node_id');
     if (savedNodeId) localNodeIdRef.current = savedNodeId;
 
-    // Always fetch latest canonical snapshot from Matchmaker on mount to ensure fresh content on rejoin
-    try {
-      // If we are definitely offline, do not attempt to fetch from server
-      if (typeof window !== 'undefined' && navigator.onLine === false) {
-        return;
-      }
-      
-      const storedRoomStr = uGet('current_room');
-      if (storedRoomStr) {
-        const room = JSON.parse(storedRoomStr);
-        const otp = room.otp || room.id;
-        if (otp) {
-          fetch(`/api/lobby/doc?otp=${otp}&fileId=${fileId}`)
-            .then(res => res.ok ? res.json() : null)
-            .then(data => {
-              if (data?.snapshot?.content) {
-                setContentAndRef(data.snapshot.content);
-                lastSave.current = data.snapshot.content;
-                updateLocalStorageFile(fileId, data.snapshot.content);
-              }
-            })
-            .catch(() => {});
-        }
-      }
-    } catch (e) {}
+    // Strictly rely on the Desktop Host via WebSockets for the canonical snapshot.
   }, [fileId, updateLocalStorageFile]);
 
   const getRoomHostInfo = useCallback((): any | null => {
@@ -417,74 +393,7 @@ export default function EditorPage() {
         } catch (e) {}
       }
 
-      if (!directSuccess && otp) {
-        try {
-          const res = await fetch('/api/lobby/doc', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              otp,
-              fileId,
-              authorNodeId: localNodeIdRef.current,
-              authorName: localNodeIdRef.current.slice(0, 8),
-              content: contentToSave,
-              vectorClock: vectorClockSnapshot,
-              deltaSize,
-              isOfflineReconnect: offlineQueue
-            }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.escalated) {
-              const conflict = {
-                id: `web-conflict-${Date.now()}`,
-                fileId: fileId,
-                localContent: contentToSave,
-                serverContent: data.serverContent || data.content || '',
-                timestamp: Date.now()
-              };
-              let conflicts = [];
-              try {
-                const stored = uGet('docusync_web_conflicts');
-                if (stored) conflicts = JSON.parse(stored);
-              } catch (e) {}
-              conflicts.push(conflict);
-              uSet('docusync_web_conflicts', JSON.stringify(conflicts));
-
-              setSyncStatusMsg('Conflict Detected! Check menu.');
-              if (explicit) {
-                toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
-              }
-              setOfflineQueue(false);
-              hasPendingChangesRef.current = false;
-              return;
-            }
-            
-            if (data.lwwResolved) {
-              if (explicit) {
-                toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
-              }
-            }
-            setSyncStatusMsg(`Synced ✓`);
-            setOfflineQueue(false);
-            console.log('[OfflineQueue] Reset to false after sync');
-            hasPendingChangesRef.current = false;
-          } else if (res.status === 409) {
-            const data = await res.json();
-            setSyncStatusMsg('Conflict detected via LWW! Fetching latest...');
-            if (data.currentVersion?.content) {
-              setContentAndRef(data.currentVersion.content);
-              lastSave.current = data.currentVersion.content;
-            }
-          } else {
-            setSyncStatusMsg('Sync failed — queued for retry');
-            setOfflineQueue(true);
-          }
-        } catch (err) {
-          setSyncStatusMsg('Host unavailable');
-          setOfflineQueue(true);
-        }
-      } else if (!directSuccess) {
+      if (!directSuccess) {
         setSyncStatusMsg('Sync failed — queued for retry');
         setOfflineQueue(true);
       }
@@ -539,46 +448,7 @@ export default function EditorPage() {
           }
         }
 
-        // Step 2: Poll Matchmaker (works when Desktop is on different network)
-        const res = await fetch(`/api/lobby/doc?otp=${otp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
-        if (!res.ok) return;
-        const data = await res.json();
 
-        if (data.unchanged || !data.snapshot?.content) return;
-        const snap = data.snapshot;
-        console.log('[POLL MATCHMAKER]', 'server content:', snap.content, 'will overwrite local:', !(isTypingRef.current || hasPendingChangesRef.current));
-
-        // Skip our own pushes
-        if (snap.authorNodeId === localNodeIdRef.current) return;
-
-        // Skip if we've already applied this snapshot version
-        if (snap.seq && snap.seq <= lastAcceptedSeq.current) return;
-
-        // Apply the remote snapshot
-        lastAcceptedSeq.current = snap.seq || 0;
-        lastSyncedAt.current = snap.committedAt || Date.now();
-
-        // Update editor content
-        isApplyingRemoteRef.current = true;
-        setContentAndRef(snap.content);
-        lastSave.current = snap.content;
-        setSaved(true);
-        setSyncStatusMsg('↓ Synced from peer');
-        setTimeout(() => { isApplyingRemoteRef.current = false; }, 500);
-
-        // Persist to local storage
-        try {
-          const stored = uGet('files');
-          if (stored) {
-            const files: FileRecord[] = JSON.parse(stored);
-            const idx = files.findIndex(f => f.id === fileId);
-            if (idx >= 0) {
-              files[idx].content = snap.content;
-              files[idx].updatedAt = new Date().toISOString();
-              uSet('files', JSON.stringify(files));
-            }
-          }
-        } catch {}
       } catch {}
     };
 
@@ -713,15 +583,21 @@ export default function EditorPage() {
             <button className="ds-btn" onClick={() => {
               const origName = file.name || 'document';
               const ext = origName.split('.').pop()?.toLowerCase() || '';
-              // Block .docx downloads — content was extracted as plain text
+
               if (ext === 'docx' || ext === 'doc') {
-                alert(
-                  'DOCX round-trip saving is not yet supported.\n' +
-                  'The file was converted to plain text when opened.\n' +
-                  'Please save as a .txt file instead, or open the original .docx in Word directly.'
-                );
+                const wordHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset="utf-8"><title>${origName}</title></head><body>${content}</body></html>`;
+                const blob = new Blob([wordHtml], { type: 'application/msword' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = origName.replace(/\.docx?$/, '.doc');
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
                 return;
               }
+
               const isHtml = ext === 'html' || ext === 'htm';
               let contentForDownload = content;
               if (!isHtml) {

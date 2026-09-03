@@ -652,9 +652,35 @@ export function registerIPCHandlers(services: EngineServices): void {
         filePath = firstArg as string | undefined;
       }
 
-      // If a valid fileId was provided and is already open, return it immediately.
-      if (fileId !== undefined && filePath) {
-        const content = fileContents.get(fileId) ?? '';
+      // If a valid fileId was provided, look it up locally
+      if (fileId !== undefined) {
+        if (!filePath) {
+          // If in-memory map is lost (e.g. after restart), search the Downloads folder Fallback
+          let recoveredPath: string | undefined;
+          if (args[1] && typeof args[1] === 'string') {
+            const fileName = args[1];
+            const docuSyncDir = path.join(app.getPath('downloads'), 'DocuSync');
+            const possiblePath = path.join(docuSyncDir, fileName);
+            if (fs.existsSync(possiblePath)) {
+              recoveredPath = possiblePath;
+              openFiles.set(fileId, possiblePath);
+              filePath = possiblePath;
+            }
+          }
+          if (!filePath) {
+            throw new Error('File not open locally. File must be imported from the network.');
+          }
+        }
+        
+        let content = fileContents.get(fileId) ?? '';
+        if (!content && filePath) {
+           // Lazily load from disk if map is cold
+           if (fs.existsSync(filePath)) {
+               content = fs.readFileSync(filePath, 'utf-8');
+               fileContents.set(fileId, content);
+           }
+        }
+        
         const ext = path.extname(filePath).toLowerCase();
         return {
           fileId,
@@ -679,17 +705,10 @@ export function registerIPCHandlers(services: EngineServices): void {
             { name: 'All Files', extensions: ['*'] },
           ],
         };
-        // Bring the main window to the foreground so the dialog appears on top
-        const mainWindow = BrowserWindow.getAllWindows()[0];
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-          mainWindow.moveTop();
-        }
-        console.log('[IPC] file:open → showing open dialog...');
-        const result = mainWindow
-          ? await dialog.showOpenDialog(mainWindow, options)
-          : await dialog.showOpenDialog(options);
+        console.log('[IPC] file:open → showing open dialog asynchronously (unattached)...');
+        // Do NOT pass mainWindow to showOpenDialog because it freezes Windows IPC bridges in async handlers
+        const result = await dialog.showOpenDialog(options);
+          
         console.log('[IPC] file:open → dialog result:', result);
 
         if (result.canceled || result.filePaths.length === 0) {
@@ -716,13 +735,23 @@ export function registerIPCHandlers(services: EngineServices): void {
       if (ext === '.doc') {
         throw new Error('Legacy .doc files are not supported. Please save the document as .docx and try again.');
       } else if (ext === '.docx') {
-        // Parse Word documents as plain text using mammoth
+        // Parse Word documents preserving HTML structure for TipTap
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const mammoth = require('mammoth');
         const buffer = await fs.promises.readFile(filePath);
-        const result = await mammoth.extractRawText({ buffer });
-        content = result.value;
-        console.log(`[IPC] file:open (docx) → extracted ${content.length} chars from ${filePath}`);
+        if (buffer.length === 0) {
+          content = '';
+          console.warn(`[IPC] file:open (docx) → file is 0 bytes, treating as empty string to avoid JSZip crash.`);
+        } else {
+          try {
+            const result = await mammoth.convertToHtml({ buffer });
+            content = result.value;
+            console.log(`[IPC] file:open (docx) → extracted HTML of ${content.length} chars from ${filePath}`);
+          } catch (mammothErr: any) {
+            console.error('[IPC] Mammoth parsing error. The .docx file is corrupt or zero-byte initialized.', mammothErr);
+            throw new Error(`The file '${path.basename(filePath)}' is corrupt or not a valid Word Document. Please select a valid file.`);
+          }
+        }
       } else if (ext === '.rtf') {
         // Robust RTF parsing: properly strip structural groups by tracking brace depth
         const rawRtf = await fs.promises.readFile(filePath, 'utf-8');
@@ -2091,15 +2120,16 @@ export function registerIPCHandlers(services: EngineServices): void {
         const iface = interfaces[devName];
         if (!iface) continue;
 
-        const isVirtual = devName.toLowerCase().includes('vmware') || 
+        const isVirtual = (devName.toLowerCase().includes('vmware') || 
                           devName.toLowerCase().includes('virtual') || 
                           devName.toLowerCase().includes('vethernet') ||
-                          devName.toLowerCase().includes('wsl');
+                          devName.toLowerCase().includes('wsl')) && !devName.toLowerCase().includes('direct');
                           
         const isPreferred = devName.toLowerCase().includes('wi-fi') || 
                             devName.toLowerCase().includes('wifi') || 
                             devName.toLowerCase().includes('hotspot') ||
-                            devName.toLowerCase().includes('ethernet');
+                            devName.toLowerCase().includes('ethernet') ||
+                            devName.toLowerCase().includes('local area connection*');
 
         for (const alias of iface) {
           if (alias.family === 'IPv4' && !alias.internal) {

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { LobbyEntry } from '../store';
 
+export const dynamic = 'force-dynamic';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
@@ -25,7 +27,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Lobby not found' }, { status: 404, headers: corsHeaders });
   }
 
-  return NextResponse.json({ files: lobby.files || [] }, { headers: corsHeaders });
+  const activeFiles = (lobby.files || []).filter((f) => !f.isDeleted);
+  return NextResponse.json({ files: activeFiles }, { headers: corsHeaders });
 }
 
 export async function POST(request: Request) {

@@ -9,6 +9,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import {
   IconArrowLeft, IconBold, IconItalic, IconStrikethrough,
@@ -18,6 +22,7 @@ import { formatBytes, basename } from '@docusync/shared/utils/formatters';
 import { notify } from '@docusync/shared/utils/notifications';
 import SyncService from '@/services/SyncService';
 import { toast } from 'sonner';
+import { File } from 'lucide-react';
 
 import { Extension } from '@tiptap/core';
 import { diffWords } from 'diff';
@@ -157,6 +162,7 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
   const [peersNotified, setPeersNotified] = useState(0);
   const [conflictBannerDismissed, setConflictBannerDismissed] = useState(false);
   const [incomingBanner, setIncomingBanner] = useState<string | null>(null);
+  const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef<boolean>(false);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -175,6 +181,7 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
   const myNodeId = localNodeId || `anon-${Math.random().toString(36).slice(2, 8)}`;
   const roomOtp = currentRoom?.id;
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [pasteError, setPasteError] = useState(false);
 
   // ── Remote Cursors ─────────────────────────────────────────────────────────
   const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor & { lastUpdate: number }>>({});
@@ -224,11 +231,29 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Placeholder.configure({ placeholder: 'Start writing… (auto-saves every 500 ms)' }),
+      Placeholder.configure({ placeholder: 'Start writing your document...' }),
       RemoteCursorsExtension.configure({ cursors: Object.values(remoteCursors) }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
     ],
     content: initialContent,
-    editorProps: { attributes: { class: 'ProseMirror', 'data-testid': 'tiptap-editor' } },
+    editorProps: { 
+      attributes: { class: 'ProseMirror', 'data-testid': 'tiptap-editor' },
+      handlePaste: (view, event) => {
+        const items = event.clipboardData?.items;
+        if (items) {
+          for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image/') === 0) {
+              setPasteError(true);
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+    },
     onUpdate: ({ editor }) => {
       isTypingRef.current = true;
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -256,10 +281,13 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
       
       if (lwwResolved) {
         toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
+        setSyncStatusMsg(`Synced ✓`);
       } else {
         setIncomingBanner('↓ Remote edit received');
+        setSyncStatusMsg(`↓ Live Synced`);
         setTimeout(() => setIncomingBanner(null), 4000);
       }
+      setTimeout(() => setSyncStatusMsg(null), 3000);
     });
     return unsub;
   }, [fileId, editor]);
@@ -394,8 +422,10 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
                     const maxPos = editor.state.doc.content.size;
                     editor.commands.setTextSelection(Math.min(from, maxPos - 1));
                     setIncomingBanner(`↓ Synced from peer`);
+                    setSyncStatusMsg(`↓ Live Synced`);
                     setTimeout(() => { isApplyingRemoteRef.current = false; }, 500);
                     setTimeout(() => setIncomingBanner(null), 4000);
+                    setTimeout(() => setSyncStatusMsg(null), 3000);
                   }
                 }
               }
@@ -532,8 +562,11 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
       }
 
       lastContent.current = html;
+      setSyncStatusMsg('↑ Pushed');
+      setTimeout(() => setSyncStatusMsg(null), 3000);
       if (forceSync) notify.saved(savedDeltaSize, savedPeersNotified);
     } catch (err) {
+      setSyncStatusMsg('Sync failed');
       if (forceSync) notify.error(`Check-In failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally { setSaving(false); setSyncing(false); }
   }, [fileId, roomOtp, myNodeId, vectorClock]);
@@ -591,9 +624,14 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
         </button>
         <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
             {filePath ? basename(filePath) : `File #${fileId}`}
             {saving && <span style={{ color: 'var(--amber)', fontSize: 11, fontWeight: 400, marginLeft: 8 }}>checking in…</span>}
+            {syncStatusMsg && !saving && (
+              <span style={{ fontSize: 11, color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: 4, marginLeft: 8, fontWeight: 500 }}>
+                {syncStatusMsg}
+              </span>
+            )}
           </div>
           {filePath && (
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -711,6 +749,35 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
         </div>
       )}
 
+      {/* Unsupported Media Modal */}
+      {pasteError && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16,
+            padding: '40px 56px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)', width: 480, maxWidth: '90%',
+            animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: 16, borderRadius: '50%', marginBottom: 16 }}>
+              <File style={{ color: '#ef4444' }} size={32} />
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--text-primary)', textAlign: 'center' }}>Unsupported Media</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 12, marginBottom: 20, textAlign: 'center', lineHeight: 1.6 }}>
+              Pasting images or binary objects directly into the editor is not supported.<br/><br/>
+              DocuSync's real-time engine only synchronizes text and document structures to ensure maximum performance across peers.
+            </p>
+            <button className="ds-btn ds-btn-primary" style={{ width: '100%', justifyContent: 'center', height: 44, fontSize: 14 }} onClick={() => setPasteError(false)}>
+              Understood
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Editor */}
       {editor && (
         <>
@@ -751,15 +818,21 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
                   if (!editor) return;
                   const origName = filePath ? filePath.split(/[\\/]/).pop() || `document_${fileId}` : `document_${fileId}`;
                   const ext = origName.split('.').pop()?.toLowerCase() || '';
-                  // Block .docx downloads — content is plain text extracted by mammoth
+
                   if (ext === 'docx' || ext === 'doc') {
-                    alert(
-                      'DOCX round-trip saving is not yet supported.\n' +
-                      'The file was converted to plain text when opened.\n' +
-                      'Please save as a .txt file instead, or open the original .docx in Word directly.'
-                    );
+                    const wordHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset="utf-8"><title>${origName}</title></head><body>${editor.getHTML()}</body></html>`;
+                    const blob = new Blob([wordHtml], { type: 'application/msword' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = origName.replace(/\.docx?$/, '.doc');
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
                     return;
                   }
+
                   const isHtml = ext === 'html' || ext === 'htm';
                   const contentForDownload = isHtml ? editor.getHTML() : editor.getText({ blockSeparator: '\n' });
                   const mimeType = isHtml ? 'text/html' : 'text/plain;charset=utf-8';
@@ -782,7 +855,7 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
 
           {/* Editor sheet — white with shadow + remote cursor overlays */}
           <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg-base)', padding: '24px' }}>
-            <div style={{ position: 'relative', background: '#fff', maxWidth: 760, margin: '0 auto', borderRadius: 12, boxShadow: '0 2px 20px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
+            <div style={{ position: 'relative', background: '#fff', maxWidth: 960, margin: '0 auto', borderRadius: 12, boxShadow: '0 2px 20px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
               <EditorContent editor={editor} style={{ minHeight: 480 }} />
             </div>
           </div>

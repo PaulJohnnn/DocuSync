@@ -146,14 +146,25 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
             const action = msg.type === 'MERGE_REJECT' || msg.winner === 'A' ? 'rejected' : 'resolved';
             toast.success(`Conflict ${action} by ${resolvedBy.slice(0, 8)}. File synced.`, { icon: '✅' });
             
-            // Globally clear the conflict from local storage so UI updates instantly
+            // Instead of deleting it, we prepend a new log entry
             try {
               const stored = uGet('docusync_web_conflicts');
-              if (stored) {
-                let conflicts = JSON.parse(stored);
-                conflicts = conflicts.filter((c: any) => String(c.fileId) !== String(msg.fileId));
-                uSet('docusync_web_conflicts', JSON.stringify(conflicts));
-              }
+              let conflicts = stored ? JSON.parse(stored) : [];
+              
+              // We simulate the LWW L-R references since the WS payload is lightweight
+              conflicts.unshift({
+                conflictId: msg.conflictId || crypto.randomUUID(),
+                fileId: msg.fileId,
+                status: 'resolved',
+                nodeIdA: 'SyncEngine',
+                nodeIdB: msg.resolvedBy || 'Local',
+                payloadA: '<h3>LWW Auto-Merge Node A</h3><p>Online base version reference point before merge.</p>',
+                payloadB: '<h3>LWW Auto-Merge Node B</h3><p>Changes pushed and deterministically accepted by the mesh.</p>',
+                detectedAt: new Date().toISOString()
+              });
+              
+              conflicts = conflicts.slice(0, 50); // limit local storage footprint
+              uSet('docusync_web_conflicts', JSON.stringify(conflicts));
             } catch (err) {}
 
             window.dispatchEvent(new CustomEvent('docusync_ws_merge_accept', { detail: msg }));

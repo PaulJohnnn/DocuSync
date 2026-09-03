@@ -1,0 +1,25 @@
+﻿eed232e Fix VectorClock Node Count Mismatch & Refactor Matchmaker Documents
+24749d2 refactor(web): migrate file queue and rooms to localStorage to guarantee offline persistence across tabs
+09f1219 fix(desktop/web): fix desktop live collab destructuring mismatch and implement robust global web offline conflict flushing
+1e3d7d8 fix: add auto-save to Desktop App Editor
+0e89226 feat: interactive Diff Viewer and overwrite warning in desktop History Tab
+73e6be6 fix: remove redundant History modal from Editor UI in favor of existing History tab
+c042565 Implement final conflict & history plan: auto-conflict on Web App reconnect, remove Web App history button, add Desktop history tab with Undo/Revert capabilities
+04fc2ad chore: sync
+f978c3f chore: push local db changes
+21de4a2 Fix Desktop save & offline isolation: preserve local disk edits on reopen, update room file cache on save, and add 2s timeouts to WebRTC signaling to prevent Desktop freeze when Web App goes offline
+2f90be3 Fix duplicate refreshStatus identifier in ElectronSyncContext.tsx
+a55b7b5 feat: relay Matchmaker offline conflicts to Desktop natively
+1e04bb9 feat: robust offline editing and caching
+6319154 Fix Web App offline edit persistence: invoke saveFile on typing timeout so offline edits are saved locally and pushed on reconnect to trigger conflict
+eca62ea Fix Web App reconnect conflict: pass explicit || offlineQueue as isOfflineReconnect so rejoining online triggers conflict notification
+122a344 Fix Desktop offline room view: cache room files locally in RoomService so room workspace stays responsive and files remain visible offline
+b5eff9c Fix Web App pushToHost: allow Matchmaker fallback when hostIp is empty so Web App syncs and triggers offline conflicts
+671296a Fix real offline mode: eliminate network timeout hangs when WiFi is off, allow offline edits, and trigger conflict on reconnect
+c8399e9 Fix echo loop: prevent remote snapshot applications from triggering local debounced saves that overwrite typed text
+7e9f85a Revert "Add real offline-online edit conflict detection and propagation across Web and Desktop"
+126d383 Add real offline-online edit conflict detection and propagation across Web and Desktop
+1c08ffe Fix empty file rejoin bug: sync room doc to Redis lobby list, update local storage files array on save, and fetch latest snapshot on editor mount
+896acb2 Fix Desktop editor persistence on close and conflict resolution history sync
+22955a0 Fix cross-device text sync: 1) Always load fresh room content on file import, 2) Protect active typing against remote snapshot overwrites
+bad0fa9 Final verification polish: push latest updates and optimizations

@@ -131,6 +131,8 @@ export default function FilesPage() {
   const [currentRoom, setCurrentRoom] = useState<{ id: string; name: string; otp?: string; hostIp?: string; hostPort?: number } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isPeersOpen, setIsPeersOpen] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [uploadError, setUploadError] = useState<{ filename: string, reason: string } | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -157,9 +159,13 @@ export default function FilesPage() {
     else input.accept = '*/*';
 
     input.onchange = async (e) => {
+      setSharing(true);
       document.body.removeChild(input);
       const selectedFiles = (e.target as HTMLInputElement).files;
-      if (!selectedFiles || selectedFiles.length === 0) return;
+      if (!selectedFiles || selectedFiles.length === 0) {
+        setSharing(false);
+        return;
+      }
 
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
@@ -168,7 +174,10 @@ export default function FilesPage() {
         const ext = file.name.split('.').pop()?.toLowerCase() || '';
         const REJECTED_TYPES = ['png', 'jpg', 'jpeg', 'mp4', 'mp3', 'exe', 'zip', 'gif', 'webp', 'bmp', 'ico', 'pdf', 'rar', '7z', 'tar', 'gz', 'dmg', 'iso', 'bin', 'dll', 'so', 'class', 'pyc'];
         if (REJECTED_TYPES.includes(ext)) {
-          toast.error(`Binary files (${file.name}) are not supported. DocuSync's delta engine operates on text streams.`, { duration: 5000 });
+          setUploadError({
+            filename: file.name,
+            reason: `This is a binary file format (.${ext}). DocuSync's collaborative engine requires text-based formats (like Word Documents) to safely stream real-time differences.`
+          });
           continue;
         }
 
@@ -224,6 +233,7 @@ export default function FilesPage() {
         }
       }
       setRoomTick(t => t + 1);
+      setSharing(false);
     };
     input.style.display = 'none';
     document.body.appendChild(input);
@@ -363,6 +373,68 @@ export default function FilesPage() {
                 {isLeaving ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Leaving...</> : 'Yes, Leave Room'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Error Modal */}
+      {uploadError && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            background: 'var(--bg)', border: '1px solid var(--b1)', borderRadius: 16,
+            padding: '40px 56px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)', width: 480, maxWidth: '90%',
+            animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}>
+            <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: 16, borderRadius: '50%', marginBottom: 16 }}>
+              <File style={{ color: '#ef4444' }} size={32} />
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--t1)', textAlign: 'center' }}>Incompatible File Type</h2>
+            <p style={{ color: 'var(--t2)', fontSize: 14, marginTop: 12, marginBottom: 20, textAlign: 'center', lineHeight: 1.6 }}>
+              The file <strong>"{uploadError.filename}"</strong> cannot be processed.<br/><br/>
+              {uploadError.reason}
+            </p>
+            <div style={{
+              background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: 8, padding: '12px 16px', display: 'flex', flexDirection: 'column', width: '100%', marginBottom: 24
+            }}>
+              <strong style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--t3)', letterSpacing: '0.05em', marginBottom: 8 }}>Accepted Formats:</strong>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {['.docx', '.doc', '.txt', '.md', '.html', '.json', '.csv'].map(typ => (
+                  <span key={typ} style={{ background: 'var(--s2)', padding: '4px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600, color: 'var(--t2)' }}>{typ}</span>
+                ))}
+              </div>
+            </div>
+            <button className="ds-btn ds-btn-primary" style={{ width: '100%', justifyContent: 'center', height: 44, fontSize: 14 }} onClick={() => setUploadError(null)}>
+              Understood
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Global Sharing/Processing Modal */}
+      {sharing && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            background: 'var(--bg)', border: '1px solid var(--b1)', borderRadius: 16,
+            padding: '36px 56px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+            animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}>
+            <Loader2 size={48} style={{ animation: 'spin 1s linear infinite', color: 'var(--acc)', marginBottom: 20 }} />
+            <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, color: 'var(--t1)' }}>Processing File...</h2>
+            <p style={{ color: 'var(--t3)', fontSize: 14, marginTop: 8, marginBottom: 0, textAlign: 'center' }}>
+              Parsing contents to broadcast to room peers.<br/>Please wait.
+            </p>
           </div>
         </div>
       )}

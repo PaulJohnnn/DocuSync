@@ -152,7 +152,7 @@ export interface DocuSyncBridge {
    * @param filePathOrId - Optional absolute path to the file or numeric file ID.
    * @returns IPCResponse containing `{ fileId, filePath, fileName, content, extension, sizeBytes }`.
    */
-  openFile(filePathOrId?: string | number): Promise<IPCResponse>;
+  openFile: (filePathOrId?: string | number, fallbackFileName?: string) => Promise<IPCResponse>;
 
   /**
    * Imports a file from the room memory into the local system.
@@ -463,8 +463,8 @@ const docuSyncBridge: DocuSyncBridge = {
 
   // ── File Operations ──────────────────────────────────────────────────
 
-  openFile(filePathOrId?: string | number): Promise<IPCResponse> {
-    return ipcRenderer.invoke(CH_FILE_OPEN, filePathOrId);
+  openFile(filePathOrId?: string | number, fallbackFileName?: string): Promise<IPCResponse> {
+    return ipcRenderer.invoke(CH_FILE_OPEN, filePathOrId, fallbackFileName);
   },
 
   importRoomFile(fileName: string, content: string, fileId?: number): Promise<IPCResponse> {

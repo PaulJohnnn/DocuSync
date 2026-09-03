@@ -49,9 +49,42 @@ class FileService {
    */
   static async open(): Promise<FileRecord> {
     if (!window.docuSync) throw new ServiceError('FileService.open', 'IPC bridge not available.');
-    const result = await window.docuSync.openFile();
-    if (!result.success) throw new ServiceError('FileService.open', result.error ?? 'Failed to open file.');
-    return result.data as FileRecord;
+    
+    // CRITICAL FIX: Use HTML file input to bypass Electron native dialog deadlocks on Windows.
+    // The File object in Electron's Chromium runtime contains the real filesystem `.path`.
+    return new Promise((resolve, reject) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.css,.html,.docx';
+      
+      input.onchange = async (e: any) => {
+        document.body.removeChild(input); // Clean up immediately after selection
+        const file = e.target?.files?.[0];
+        if (!file || !file.path) {
+          reject(new ServiceError('FileService.open', 'No file selected or path unavailable.'));
+          return;
+        }
+        
+        try {
+          // Pass the chosen path to the IPC handler so Node.js can read/extract the contents
+          const result = await window.docuSync.openFile(file.path);
+          if (!result.success) reject(new ServiceError('FileService.open', result.error ?? 'Failed to read file.'));
+          else resolve(result.data as FileRecord);
+        } catch (err: any) {
+          reject(new ServiceError('FileService.open', err.message));
+        }
+      };
+      
+      // Handle cancellation silently
+      input.oncancel = () => {
+        if (document.body.contains(input)) document.body.removeChild(input);
+        reject(new Error('File open cancelled by user.'));
+      };
+      
+      input.style.display = 'none';
+      document.body.appendChild(input);
+      input.click();
+    });
   }
 
   /**

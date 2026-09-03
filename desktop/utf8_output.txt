@@ -1,0 +1,915 @@
+﻿node.exe : npm warn 
+config ignoring 
+workspace config at 
+C:\Users\Paul John Pal
+amara\Downloads\Thesis
+Sync\desktop/.npmrc
+At line:1 char:1
++ & "C:\Program Files\
+nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (npm warn c   
+ onfig...\desktop/    
+.npmrc:String) []    
+, RemoteException
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+
+> docusync@1.0.6 test
+> jest --config jest.config.ts
+
+PASS unit tests/unit/l
+ww-resolver.test.ts
+FAIL unit tests/unit/v
+ector-clock.test.ts
+  ΓùÅ VectorClock ΓÇö 
+merge() ΓÇ║ should 
+throw on node count 
+mismatch
+
+    expect(received).t
+oThrow()
+
+    Received function 
+did not throw
+
+    [0m [90m 113 
+|[39m     
+[36mconst[39m b 
+[33m=[39m createVect
+orClock([35m2[39m[3
+3m,[39m [35m0[39m)
+[33m;[39m
+     [90m 114 |[39m
+    [31m[1m>[22m[3
+9m[90m 115 |[39m    
+ expect(() 
+[33m=>[39m a[33m.[
+39mmerge(b))[33m.[39
+mtoThrow()[33m;[39m
+     [90m     |[39m 
+                      
+       
+[31m[1m^[22m[39m
+     [90m 116 |[39m 
+  })[33m;[39m
+     [90m 117 |[39m 
+})[33m;[39m
+     [90m 118 
+|[39m[0m
+
+      at 
+Object.<anonymous> (te
+sts/unit/vector-clock.
+test.ts:115:30)
+
+  ΓùÅ VectorClock ΓÇö 
+edge cases ΓÇ║ should 
+reject nodeIndex out 
+of range
+
+    expect(received).t
+oThrow(expected)
+
+    Expected 
+constructor: 
+RangeError
+
+    Received function 
+did not throw
+
+    [0m [90m 394 
+|[39m
+     [90m 395 |[39m 
+  it([32m'should 
+reject nodeIndex out 
+of range'[39m[33m,[
+39m () [33m=>[39m {
+    [31m[1m>[22m[3
+9m[90m 396 |[39m    
+ expect(() 
+[33m=>[39m createVec
+torClock([35m3[39m[
+33m,[39m [35m3[39m)
+)[33m.[39mtoThrow([
+33mRangeError[39m)[3
+3m;[39m
+     [90m     |[39m 
+                      
+                    
+[31m[1m^[22m[39m
+     [90m 397 |[39m 
+    expect(() 
+[33m=>[39m createVec
+torClock([35m3[39m[
+33m,[39m [33m-[39m
+[35m1[39m))[33m.[39
+mtoThrow([33mRangeErr
+or[39m)[33m;[39m
+     [90m 398 |[39m 
+  })[33m;[39m
+     [90m 399 |[39m 
+})[33m;[39m[0m
+
+      at 
+Object.<anonymous> (te
+sts/unit/vector-clock.
+test.ts:396:43)
+
+PASS integration tests
+/integration/sync-scen
+ario.test.ts
+PASS unit tests/unit/e
+vent-log.test.ts
+PASS unit tests/unit/s
+ync-flicker.test.ts
+  ΓùÅ Console
+
+    console.log
+      === SCENARIO 5: 
+Rapid Offline -> 
+Online -> Offline 
+Flicker Workload ===
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:8:13)
+
+    console.log
+      
+      --- 2 Peers ---
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:11:15)
+
+    console.log
+      ΓöîΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+      Γöé (index)     
+          Γöé Values 
+Γöé
+      Γö£ΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöñ
+      Γöé peerCount   
+          Γöé 2      
+Γöé
+      Γöé 
+conflictDetectionRate 
+Γöé 100    Γöé
+      Γöé 
+dataLossRate          
+Γöé 0      Γöé
+      Γöé 
+consistencyRate       
+Γöé 100    Γöé
+      Γöé 
+resolutionTimeMs      
+Γöé 0.1841 Γöé
+      Γöé 
+trueCollisions        
+Γöé 0      Γöé
+      Γöé 
+falsePositives        
+Γöé 0      Γöé
+      ΓööΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:12:15)
+
+    console.log
+      
+      [Verification] 
+Flicker Steps & 
+Duplicate Vector 
+Clock Checks:
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:13:15)
+
+    console.log
+      ΓöîΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+ö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+      Γöé (index) Γöé 
+step                  
+                      
+ Γöé outcome     Γöé 
+hostClockAfter        
+                      
+                      
+                      
+                      
+            Γöé
+      Γö£ΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+ö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöñ
+      Γöé 0       Γöé 
+'1. Push Edit 1 
+(before flicker 
+disconnect)' Γöé 
+'merged'    Γöé '{"nod
+eCount":2,"nodeIndex":
+0,"root":{"counter":0,
+"children":[{"counter"
+:3,"children":[]},{"co
+unter":2,"children":[]
+}]}}' Γöé
+      Γöé 1       Γöé 
+'2. Late Resend of 
+Edit 1 (duplicate 
+check)' Γöé 'ignored' 
+  Γöé '{"nodeCount":2,
+"nodeIndex":0,"root":{
+"counter":0,"children"
+:[{"counter":3,"childr
+en":[]},{"counter":2,"
+children":[]}]}}' Γöé
+      Γöé 2       Γöé 
+'3. Push Edit 2 
+(reconnected)'        
+       Γöé 
+'escalated' Γöé '{"nod
+eCount":2,"nodeIndex":
+0,"root":{"counter":0,
+"children":[{"counter"
+:3,"children":[]},{"co
+unter":2,"children":[]
+}]}}' Γöé
+      ΓööΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+ö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:14:15)
+
+    console.log
+      
+      --- 5 Peers ---
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:11:15)
+
+    console.log
+      ΓöîΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+      Γöé (index)     
+          Γöé Values 
+Γöé
+      Γö£ΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöñ
+      Γöé peerCount   
+          Γöé 5      
+Γöé
+      Γöé 
+conflictDetectionRate 
+Γöé 100    Γöé
+      Γöé 
+dataLossRate          
+Γöé 0      Γöé
+      Γöé 
+consistencyRate       
+Γöé 100    Γöé
+      Γöé 
+resolutionTimeMs      
+Γöé 0.129  Γöé
+      Γöé 
+trueCollisions        
+Γöé 0      Γöé
+      Γöé 
+falsePositives        
+Γöé 0      Γöé
+      ΓööΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:12:15)
+
+    console.log
+      
+      [Verification] 
+Flicker Steps & 
+Duplicate Vector 
+Clock Checks:
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:13:15)
+
+    console.log
+      ΓöîΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+ö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÉ
+      Γöé (index) Γöé 
+step                  
+                      
+ Γöé outcome     Γöé 
+hostClockAfter        
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+                      
+        Γöé
+      Γö£ΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+ö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöñ
+      Γöé 0       Γöé 
+'1. Push Edit 1 
+(before flicker 
+disconnect)' Γöé 
+'merged'    Γöé '{"nod
+eCount":5,"nodeIndex":
+0,"root":{"counter":0,
+"children":[{"counter"
+:3,"children":[]},{"co
+unter":2,"children":[]
+},{"counter":0,"childr
+en":[]},{"counter":0,"
+children":[]},{"counte
+r":0,"children":[]}]}}
+' Γöé
+      Γöé 1       Γöé 
+'2. Late Resend of 
+Edit 1 (duplicate 
+check)' Γöé 'ignored' 
+  Γöé '{"nodeCount":5,
+"nodeIndex":0,"root":{
+"counter":0,"children"
+:[{"counter":3,"childr
+en":[]},{"counter":2,"
+children":[]},{"counte
+r":0,"children":[]},{"
+counter":0,"children":
+[]},{"counter":0,"chil
+dren":[]}]}}' Γöé
+      Γöé 2       Γöé 
+'3. Push Edit 2 
+(reconnected)'        
+       Γöé 
+'escalated' Γöé '{"nod
+eCount":5,"nodeIndex":
+0,"root":{"counter":0,
+"children":[{"counter"
+:3,"children":[]},{"co
+unter":2,"children":[]
+},{"counter":0,"childr
+en":[]},{"counter":0,"
+children":[]},{"counte
+r":0,"children":[]}]}}
+' Γöé
+      ΓööΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+ö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓ
+öÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö
+ÇΓöÇΓöÇΓöÿ
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:14:15)
+
+    console.log
+      
+      [Dedup Test] 
+Step 1 - Push Edit 1: 
+outcome=merged
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:49:13)
+
+    console.log
+      [Dedup Test] 
+Step 2 - Mobile Edit 
+on server: 
+outcome=escalated
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:65:13)
+
+    console.log
+      [Dedup Test] 
+Server clock BEFORE 
+mobile edit: {"nodeCou
+nt":3,"nodeIndex":0,"r
+oot":{"counter":0,"chi
+ldren":[{"counter":1,"
+children":[]},{"counte
+r":1,"children":[]},{"
+counter":0,"children":
+[]}]}}
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:75:13)
+
+    console.log
+      [Dedup Test] 
+Server clock AFTER  
+mobile edit: {"nodeCou
+nt":3,"nodeIndex":0,"r
+oot":{"counter":0,"chi
+ldren":[{"counter":3,"
+children":[]},{"counte
+r":1,"children":[]},{"
+counter":1,"children":
+[]}]}}
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:76:13)
+
+    console.log
+      [Dedup Test] 
+Step 3 - Resend of 
+Edit 1 (stale clock, 
+Mobile moved global 
+clock): 
+outcome=ignored
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:85:13)
+
+    console.log
+      [Dedup Test] 
+PASS ΓÇö resend 
+correctly 
+deduplicated as 
+'ignored', not 
+'escalated'.
+
+      at 
+Object.<anonymous> (te
+sts/unit/sync-flicker.
+test.ts:91:13)
+
+PASS stress tests/stre
+ss/performance.test.ts
+ (5.112 s)
+  ΓùÅ Console
+
+    console.log
+      
+        [LATENCY] 
+avg=1.38ms, 
+min=0.73ms, 
+max=4.18ms, p95=2.18ms
+
+      at 
+Object.<anonymous> (te
+sts/stress/performance
+.test.ts:169:13)
+
+    console.log
+      
+        [THROUGHPUT] 
+1212.18 events/sec 
+(0.08s for 100 events)
+
+      at 
+Object.<anonymous> (te
+sts/stress/performance
+.test.ts:212:13)
+
+    console.log
+      
+        [CONFLICT 
+DETECTION] 30/30 = 
+100%
+
+      at 
+Object.<anonymous> (te
+sts/stress/performance
+.test.ts:263:13)
+
+    console.log
+      
+        [DATA LOSS] 
+0/50 = 0% loss
+
+      at 
+Object.<anonymous> (te
+sts/stress/performance
+.test.ts:310:13)
+
+    console.log
+      
+        [CONCURRENT 
+USERS] 15 nodes, 14 
+merges, all slots 
+valid
+
+      at 
+Object.<anonymous> (te
+sts/stress/performance
+.test.ts:372:13)
+
+    console.log
+      
+        [CONSISTENCY] 
+100/100 = 100%
+
+      at 
+Object.<anonymous> (te
+sts/stress/performance
+.test.ts:418:13)
+
+    console.log
+      
+      
+      ΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò
+ÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò
+ÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò
+ÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉ
+
+      at 
+Object.<anonymous> (te
+sts/stress/performance
+.test.ts:431:11)
+
+    console.log
+        ISO/IEC 25010 
+PERFORMANCE METRICS 
+REPORT
+
+      at 
+Object.<anonymous> (te
+sts/stress/performance
+.test.ts:432:11)
+
+    console.log
+      ΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò
+ÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò
+ÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò
+ÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉ
+
+      at 
+Object.<anonymous> (te
+sts/stress/performance
+.test.ts:433:11)
+
+    console.log
+      {
+        "testSuite": 
+"stress",
+        "timestamp": "
+2026-09-01T08:58:53.73
+3Z",
+        "results": {
+          "latency": {
+            "avgMs": 
+1.38,
+            "minMs": 
+0.73,
+            "maxMs": 
+4.18,
+            "p95Ms": 
+2.18,
+            
+"passedTarget": true
+          },
+          
+"throughput": {
+            
+"eventsPerSec": 
+1212.18,
+            
+"passedTarget": true
+          },
+          "conflictDet
+ectionRate": {
+            
+"percentage": 100,
+            
+"passedTarget": true
+          },
+          
+"dataLossRate": {
+            
+"percentage": 0,
+            
+"passedTarget": true
+          },
+          
+"concurrentUsers": {
+            
+"nodesSimulated": 15,
+            
+"mergeOperations": 14,
+            
+"passedTarget": true
+          },
+          
+"consistencyRate": {
+            
+"percentage": 100,
+            
+"passedTarget": true
+          }
+        }
+      }
+
+      at 
+Object.<anonymous> (te
+sts/stress/performance
+.test.ts:434:11)
+
+    console.log
+      ΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò
+ÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò
+ÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò
+ÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓ
+òÉ
+
+      at 
+Object.<anonymous> (te
+sts/stress/performance
+.test.ts:435:11)
+
+PASS unit tests/unit/d
+elta-encoder.test.ts 
+(7.494 s)
+
+Test Suites: 1 
+failed, 6 passed, 7 
+total
+Tests:       2 
+failed, 72 passed, 74 
+total
+Snapshots:   0 total
+Time:        8.427 s, 
+estimated 11 s
+Ran all test suites 
+in 3 projects.
+npm error Lifecycle 
+script `test` failed 
+with error:
+npm error code 1
+npm error path 
+C:\Users\Paul John Pal
+amara\Downloads\Thesis
+Sync\desktop
+npm error workspace 
+docusync@1.0.6
+npm error location 
+C:\Users\Paul John Pal
+amara\Downloads\Thesis
+Sync\desktop
+npm error command 
+failed
+npm error command C:\W
+INDOWS\system32\cmd.ex
+e /d /s /c jest 
+--config 
+jest.config.ts
