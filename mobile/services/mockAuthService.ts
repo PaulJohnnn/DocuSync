@@ -34,7 +34,8 @@ async function getApiBase(): Promise<string> {
     if (!res.ok) throw new Error('Discovery failed');
     const data = await res.json();
     if (data.success && data.ip) {
-      _apiBase = `http://${data.ip}:3000/api/auth`;
+      const port = data.port || '3000';
+      _apiBase = `http://${data.ip}:${port}/api/auth`;
       return _apiBase;
     }
   } catch (err) {

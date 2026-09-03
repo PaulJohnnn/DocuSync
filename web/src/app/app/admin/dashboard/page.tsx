@@ -84,7 +84,11 @@ export default function AdminDashboardPage() {
           fetch('https://docusync-pnc.vercel.app/api/discovery', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workspace: 'admin', ip: data.ip })
+            body: JSON.stringify({ 
+              workspace: 'admin', 
+              ip: data.ip,
+              port: window.location.port || '3000'
+            })
           }).catch(err => console.error('Failed to broadcast IP to discovery service', err));
         }
       }).catch(err => console.error('Failed to fetch local IP', err));

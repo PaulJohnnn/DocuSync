@@ -21,7 +21,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Not found' }, { status: 404, headers: corsHeaders });
     }
     const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return NextResponse.json({ success: true, ip: data.ip, updatedAt: data.updatedAt }, { headers: corsHeaders });
+    return NextResponse.json({ success: true, ip: data.ip, port: data.port, updatedAt: data.updatedAt }, { headers: corsHeaders });
   } catch (err) {
     console.error('Failed to get discovery info', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: corsHeaders });
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { workspace = 'admin', ip } = body;
+    const { workspace = 'admin', ip, port } = body;
 
     if (!ip) {
       return NextResponse.json({ error: 'IP address is required' }, { status: 400, headers: corsHeaders });
@@ -39,6 +39,7 @@ export async function POST(req: Request) {
 
     const data = {
       ip,
+      port: port || '3000',
       updatedAt: new Date().toISOString(),
     };
 
