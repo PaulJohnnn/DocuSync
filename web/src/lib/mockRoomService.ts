@@ -93,7 +93,7 @@ export async function listRooms(): Promise<Room[]> {
   try {
     const MATCHMAKER = process.env.NODE_ENV === 'development'
       ? '/api/lobby'
-      : 'https://docusync-pnc.vercel.app/api/lobby';
+      : 'https://docusync-dusky.vercel.app/api/lobby';
       
     const res = await fetch(`${MATCHMAKER}/list`);
     if (res.ok) {
@@ -128,7 +128,7 @@ export async function createRoom(name: string): Promise<Room> {
   try {
     const MATCHMAKER = process.env.NODE_ENV === 'development'
       ? '/api/lobby'
-      : 'https://docusync-pnc.vercel.app/api/lobby';
+      : 'https://docusync-dusky.vercel.app/api/lobby';
       
     const res = await fetch(`${MATCHMAKER}/create`, {
       method: 'POST',
@@ -185,7 +185,7 @@ export async function joinRoom(otp: string): Promise<Room> {
 
   const urlsToTry = Array.from(new Set([
     '/api/lobby',
-    'https://docusync-pnc.vercel.app/api/lobby'
+    'https://docusync-dusky.vercel.app/api/lobby'
   ]));
 
   let apiData: any = null;

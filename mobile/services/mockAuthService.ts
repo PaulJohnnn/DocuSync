@@ -19,7 +19,7 @@ const SESSION_KEY = '@docusync/auth_user';
 
 // Dynamic API Base Discovery
 let _apiBase: string | null = null;
-const DISCOVERY_URL = 'https://docusync-pnc.vercel.app/api/discovery?workspace=admin';
+const DISCOVERY_URL = 'https://docusync-dusky.vercel.app/api/discovery?workspace=admin';
 
 async function getApiBase(): Promise<string> {
   if (_apiBase) return _apiBase;

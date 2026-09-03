@@ -447,7 +447,7 @@ export default function HomePage() {
                   padding: '4px 12px', fontSize: 11, color: 'var(--t3)',
                   textAlign: 'center', border: '1px solid var(--b1)',
                 }}>
-                  🔒 docusync-pnc.vercel.app/app/files
+                  🔒 docusync-dusky.vercel.app/app/files
                 </div>
               </div>
               {/* App iframe */}

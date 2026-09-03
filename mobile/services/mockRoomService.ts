@@ -84,7 +84,7 @@ export async function createRoom(name: string): Promise<Room> {
   let isMatchmakerSuccess = false;
 
   try {
-    const MATCHMAKER = process.env.EXPO_PUBLIC_MATCHMAKER_URL || 'https://docusync-pnc.vercel.app/api/lobby';
+    const MATCHMAKER = process.env.EXPO_PUBLIC_MATCHMAKER_URL || 'https://docusync-dusky.vercel.app/api/lobby';
       
     const res = await fetch(`${MATCHMAKER}/create`, {
       method: 'POST',
@@ -134,7 +134,7 @@ export async function joinRoom(otp: string): Promise<Room> {
     throw err;
   }
 
-  const MATCHMAKER_URL = process.env.EXPO_PUBLIC_MATCHMAKER_URL || 'https://docusync-pnc.vercel.app/api/lobby';
+  const MATCHMAKER_URL = process.env.EXPO_PUBLIC_MATCHMAKER_URL || 'https://docusync-dusky.vercel.app/api/lobby';
 
   let apiRoomName: string | null = null;
   let apiHostIp: string | undefined;

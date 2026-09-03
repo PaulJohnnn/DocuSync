@@ -293,7 +293,7 @@ npm run dev
 ```
 
 **Running Web (live):**
-Open: [https://docusync-pnc.vercel.app](https://docusync-pnc.vercel.app)
+Open: [https://docusync-dusky.vercel.app](https://docusync-dusky.vercel.app)
 
 **Running Mobile:**
 ```bash
@@ -342,7 +342,7 @@ npm run test:evidence
 - Consistency: 100% (target ≥ 95%)  
 
 **GitHub:** [https://github.com/PaulJohnnn/DocuSync](https://github.com/PaulJohnnn/DocuSync)  
-**Web App:** [https://docusync-pnc.vercel.app](https://docusync-pnc.vercel.app)  
+**Web App:** [https://docusync-dusky.vercel.app](https://docusync-dusky.vercel.app)  
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## SECTION 11 — PANEL DEFENSE Q&A

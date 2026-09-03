@@ -184,7 +184,7 @@ const HistoryPage: React.FC = () => {
       if (currentRoom) {
         const otp = currentRoom.otp || currentRoom.id;
         try {
-          const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+          const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-dusky.vercel.app');
           await fetch(`${_WEB_BASE}/api/lobby/doc`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

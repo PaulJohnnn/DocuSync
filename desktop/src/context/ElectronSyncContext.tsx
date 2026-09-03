@@ -271,7 +271,7 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
   // ── Poll matchmaker for offline conflicts ────────────────────────────────
   useEffect(() => {
     const _WEB_BASE = import.meta.env.VITE_WEB_URL
-      || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+      || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-dusky.vercel.app');
     const MATCHMAKER_CONFLICTS = `${_WEB_BASE}/api/lobby/conflicts`;
 
     const pollConflicts = async () => {
@@ -317,7 +317,7 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
     if (roomOtp.startsWith('direct-')) return;
 
     const _WEB_BASE = import.meta.env.VITE_WEB_URL
-      || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+      || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-dusky.vercel.app');
     const MATCHMAKER_SIGNAL = `${_WEB_BASE}/api/lobby/signal`;
 
     const manager = new WebRTCManager(MATCHMAKER_SIGNAL, roomOtp, localNodeId);
@@ -351,7 +351,7 @@ export const ElectronSyncProvider: React.FC<{ children: ReactNode }> = ({
   // ── Poll matchmaker for cross-device peer count and WebRTC mesh ──────────
   useEffect(() => {
     const _WEB_BASE = import.meta.env.VITE_WEB_URL
-      || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+      || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-dusky.vercel.app');
     const MATCHMAKER = `${_WEB_BASE}/api/lobby`;
 
     const pollMatchmaker = async () => {

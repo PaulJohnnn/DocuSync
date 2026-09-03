@@ -16,7 +16,7 @@ const FOOTER_LINKS = {
     { label: 'Conflicts', href: '/app/conflicts' },
     { label: 'Sync Rooms', href: '/app/peers' },
     { label: 'Windows',  href: '/download' },
-    { label: 'Web App',  href: 'https://docusync-pnc.vercel.app', external: true },
+    { label: 'Web App',  href: 'https://docusync-dusky.vercel.app', external: true },
     { label: 'Mobile',   href: 'https://expo.dev/go', external: true },
     { label: 'GitHub',   href: 'https://github.com/PaulJohnnn/DocuSync', external: true },
   ],

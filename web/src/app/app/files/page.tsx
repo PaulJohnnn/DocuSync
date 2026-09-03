@@ -65,7 +65,7 @@ export default function FilesPage() {
 
   const MATCHMAKER_URL = process.env.NODE_ENV === 'development'
     ? '/api/lobby'
-    : 'https://docusync-pnc.vercel.app/api/lobby';
+    : 'https://docusync-dusky.vercel.app/api/lobby';
 
   // Load local files for editing
   useEffect(() => {

@@ -96,7 +96,7 @@ const _WEB_BASE = (typeof import.meta !== 'undefined' && import.meta.env.VITE_WE
   ? import.meta.env.VITE_WEB_URL
   : (typeof import.meta !== 'undefined' && import.meta.env.DEV)
     ? 'http://localhost:3000'
-    : 'https://docusync-pnc.vercel.app';
+    : 'https://docusync-dusky.vercel.app';
 const MATCHMAKER = `${_WEB_BASE}/api/lobby`;
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -404,7 +404,7 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
         // ── Primary: Poll Matchmaker for changes from ALL peers ─────────
         if (roomOtp) {
           try {
-            const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+            const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-dusky.vercel.app');
             const mmRes = await fetch(`${_WEB_BASE}/api/lobby/doc?otp=${roomOtp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
             if (mmRes.ok) {
               const mmData = await mmRes.json();
@@ -526,7 +526,7 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
       if (roomOtp && fileId !== null) {
         try {
           const deltaSize = new Blob([html]).size;
-          const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-pnc.vercel.app');
+          const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-dusky.vercel.app');
           const url = `${_WEB_BASE}/api/lobby/doc`;
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 2000);

@@ -180,7 +180,7 @@ const FilesPage: React.FC = () => {
               ? import.meta.env.VITE_WEB_URL
               : (typeof import.meta !== 'undefined' && import.meta.env.DEV)
                 ? 'http://localhost:3000'
-                : 'https://docusync-pnc.vercel.app';
+                : 'https://docusync-dusky.vercel.app';
             const res = await fetch(`${_WEB_BASE}/api/lobby/doc?otp=${otp}&fileId=${explicitId}`);
             if (res.ok) {
               const data = await res.json();
@@ -228,7 +228,7 @@ const FilesPage: React.FC = () => {
       const targetName = encodeURIComponent(file.fileName || file.name || '');
       const MATCHMAKER_URL = import.meta.env.VITE_WEB_URL
         ? `${import.meta.env.VITE_WEB_URL}/api/lobby`
-        : 'https://docusync-pnc.vercel.app/api/lobby';
+        : 'https://docusync-dusky.vercel.app/api/lobby';
       const res = await fetch(`${MATCHMAKER_URL}/files?otp=${code}&fileId=${targetId}&fileName=${targetName}`, {
         method: 'DELETE',
       });

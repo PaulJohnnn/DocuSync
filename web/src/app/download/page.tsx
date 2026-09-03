@@ -90,7 +90,7 @@ export default function DownloadPage() {
             </div>
             
             <div style={{ marginTop: 'auto' }}>
-              <Link href="https://docusync-pnc.vercel.app" target="_blank" rel="noopener noreferrer" className="btn-green" style={{
+              <Link href="https://docusync-dusky.vercel.app" target="_blank" rel="noopener noreferrer" className="btn-green" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 background: '#22c55e', color: '#fff', borderRadius: 10, height: 48,
                 fontSize: 15, fontWeight: 600, textDecoration: 'none', transition: 'background 0.15s',

@@ -199,7 +199,7 @@ const ConflictsPage: React.FC = () => {
     ? import.meta.env.VITE_WEB_URL
     : (typeof import.meta !== 'undefined' && import.meta.env.DEV)
       ? 'http://localhost:3000'
-      : 'https://docusync-pnc.vercel.app';
+      : 'https://docusync-dusky.vercel.app';
   const MATCHMAKER = `${_WEB_BASE}/api/lobby`;
 
   const pushResolutionToMatchmaker = async (conflictId: string, customPayload?: string) => {

@@ -39,12 +39,12 @@ function getApiBase(): string {
   }
   if (import.meta.env.VITE_WEB_URL) return `${import.meta.env.VITE_WEB_URL}/api/auth`;
   if (import.meta.env.DEV) return 'http://localhost:3000/api/auth';
-  return 'https://docusync-pnc.vercel.app/api/auth';
+  return 'https://docusync-dusky.vercel.app/api/auth';
 }
 
 const API_BASE_STATIC = import.meta.env.VITE_WEB_URL
   ? `${import.meta.env.VITE_WEB_URL}/api/auth`
-  : (import.meta.env.DEV ? 'http://localhost:3000/api/auth' : 'https://docusync-pnc.vercel.app/api/auth');
+  : (import.meta.env.DEV ? 'http://localhost:3000/api/auth' : 'https://docusync-dusky.vercel.app/api/auth');
 
 
 async function authFetch(path: string = '', options: RequestInit = {}): Promise<Response> {
@@ -56,7 +56,7 @@ async function authFetch(path: string = '', options: RequestInit = {}): Promise<
   const urlsToTry = [
     `${primary}${path}`,
     `http://localhost:3000/api/auth${path}`,
-    `https://docusync-pnc.vercel.app/api/auth${path}`
+    `https://docusync-dusky.vercel.app/api/auth${path}`
   ];
   const uniqueUrls = Array.from(new Set(urlsToTry));
 

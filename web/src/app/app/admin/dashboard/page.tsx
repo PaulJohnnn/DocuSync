@@ -81,7 +81,7 @@ export default function AdminDashboardPage() {
       .then(res => res.json())
       .then(data => {
         if (data.ip) {
-          fetch('https://docusync-pnc.vercel.app/api/discovery', {
+          fetch('https://docusync-dusky.vercel.app/api/discovery', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
