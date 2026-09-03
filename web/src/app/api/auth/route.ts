@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-const DB_FILE = path.join(process.cwd(), 'mock-db.json');
+import { redis } from '@/lib/redis';
 
 const DEFAULT_USERS = [
   {
@@ -25,26 +22,26 @@ const DEFAULT_USERS = [
   },
 ];
 
-function getDb() {
+async function getDb() {
   try {
-    if (!fs.existsSync(DB_FILE)) {
+    const raw = await redis.get('auth_db');
+    if (!raw) {
       const initialDb = { users: DEFAULT_USERS, pending: [] };
-      fs.writeFileSync(DB_FILE, JSON.stringify(initialDb, null, 2), 'utf8');
+      await redis.set('auth_db', initialDb);
       return initialDb;
     }
-    const raw = fs.readFileSync(DB_FILE, 'utf8');
-    return JSON.parse(raw);
+    return typeof raw === 'string' ? JSON.parse(raw) : raw;
   } catch (err) {
-    console.error('Failed to read mock DB', err);
+    console.error('Failed to read mock DB from redis', err);
     return { users: DEFAULT_USERS, pending: [] };
   }
 }
 
-function saveDb(data: any) {
+async function saveDb(data: any) {
   try {
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+    await redis.set('auth_db', data);
   } catch (err) {
-    console.error('Failed to save mock DB', err);
+    console.error('Failed to save mock DB to redis', err);
   }
 }
 
@@ -62,7 +59,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const action = url.searchParams.get('action');
 
-  const db = getDb();
+  const db = await getDb();
 
   if (action === 'sync') {
     return NextResponse.json({ users: db.users, pending: db.pending }, { headers: corsHeaders });
@@ -75,7 +72,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { action } = body;
-    const db = getDb();
+    const db = await getDb();
 
     if (action === 'login') {
       const { email, pin } = body;
