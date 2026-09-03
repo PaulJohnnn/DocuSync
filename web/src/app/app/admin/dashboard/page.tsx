@@ -75,6 +75,24 @@ export default function AdminDashboardPage() {
     const unsubscribe = mockAuthService.subscribeToDatabaseChanges(() => {
       loadData(false);
     });
+
+    // Register local IP for network discovery
+    fetch('/api/local-ip')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ip) {
+          fetch('https://docusync-pnc.vercel.app/api/discovery', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              workspace: 'admin', 
+              ip: data.ip,
+              port: window.location.port || '3000'
+            })
+          }).catch(err => console.error('Failed to broadcast IP to discovery service', err));
+        }
+      }).catch(err => console.error('Failed to fetch local IP', err));
+
     return unsubscribe;
   }, []);
 

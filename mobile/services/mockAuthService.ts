@@ -17,16 +17,40 @@ export interface AuthUser {
 
 const SESSION_KEY = '@docusync/auth_user';
 
-// On physical device or Android emulator, localhost might need to be specific.
-// Next.js web server runs on port 3000 (not 3001).
-const API_BASE = Platform.OS === 'web' 
-  ? 'http://localhost:3000/api/auth' 
-  : 'http://10.222.101.177:3000/api/auth';
+// Dynamic API Base Discovery
+let _apiBase: string | null = null;
+const DISCOVERY_URL = 'https://docusync-pnc.vercel.app/api/discovery?workspace=admin';
+
+async function getApiBase(): Promise<string> {
+  if (_apiBase) return _apiBase;
+  
+  if (Platform.OS === 'web') {
+    _apiBase = 'http://localhost:3000/api/auth';
+    return _apiBase;
+  }
+
+  try {
+    const res = await fetch(DISCOVERY_URL);
+    if (!res.ok) throw new Error('Discovery failed');
+    const data = await res.json();
+    if (data.success && data.ip) {
+      const port = data.port || '3000';
+      _apiBase = `http://${data.ip}:${port}/api/auth`;
+      return _apiBase;
+    }
+  } catch (err) {
+    console.warn('Failed to auto-discover local server IP', err);
+  }
+  
+  // Fallback to localhost if discovery fails entirely
+  return 'http://localhost:3000/api/auth';
+}
 
 // ── Auth methods ───────────────────────────────────────────────────────────
 
 export async function login(email: string, pin: string): Promise<AuthUser> {
-  const res = await fetch(API_BASE, {
+  const apiBase = await getApiBase();
+  const res = await fetch(apiBase, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'login', email, pin })
@@ -41,7 +65,8 @@ export async function login(email: string, pin: string): Promise<AuthUser> {
 }
 
 export async function requestAccount(email: string): Promise<'verified'> {
-  const res = await fetch(API_BASE, {
+  const apiBase = await getApiBase();
+  const res = await fetch(apiBase, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'request', email })
@@ -56,7 +81,8 @@ export async function requestAccount(email: string): Promise<'verified'> {
 }
 
 export async function cancelRequest(email: string): Promise<void> {
-  await fetch(API_BASE, {
+  const apiBase = await getApiBase();
+  await fetch(apiBase, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'cancel_request', email })
@@ -78,7 +104,8 @@ export async function logout() {
 
 export async function checkApprovalStatus(email: string): Promise<string | null> {
   try {
-    const res = await fetch(`${API_BASE}?action=sync`);
+    const apiBase = await getApiBase();
+    const res = await fetch(`${apiBase}?action=sync`);
     if (res.ok) {
       const data = await res.json();
       const user = (data.users || []).find((u: any) => u.email.toLowerCase() === email.toLowerCase());
