@@ -2478,19 +2478,5 @@
     "ip": "127.0.0.1",
     "port": 9000,
     "nodeId": "web-1787717748699"
-  },
-  "auth_db": {
-    "users": [
-      {
-        "id": "user-002",
-        "email": "admin",
-        "name": "Admin",
-        "pin": "admin",
-        "isAdmin": true,
-        "createdAt": "2025-01-01T08:00:00Z",
-        "status": "active"
-      }
-    ],
-    "pending": []
   }
 }

@@ -23,7 +23,7 @@ interface HostMetrics {
 }
 
 const MATCHMAKER_KEY = '@docusync/matchmaker_url';
-const DEFAULT_MATCHMAKER = 'https://docusync-pnc.vercel.app/api/lobby';
+const DEFAULT_MATCHMAKER = 'http://10.127.60.142:3000';
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
