@@ -2,17 +2,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
-import { ArrowLeft, Save, RefreshCw, Clock, WifiOff, Wifi, History as HistoryIcon, FileDown, LogOut, Download } from 'lucide-react';
+import { ArrowLeft, Clock } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { uGet, uSet } from '@/lib/userStorage';
 import { useWebSync } from '@/context/WebSyncContext';
 import { useSyncState } from '@/context/SyncStateContext';
 const TipTapEditor = dynamic(() => import('@/components/TipTapEditor'), { ssr: false });
 import type { RemoteCursor } from '@/components/TipTapEditor';
-import { diffWords } from 'diff';
 import { toast } from 'sonner';
 // ── Matchmaker URL ─────────────────────────────────────────────────────────
-const MATCHMAKER_URL = process.env.NODE_ENV === 'development'
+const _MATCHMAKER_URL = process.env.NODE_ENV === 'development'
   ? '/api/lobby'
   : 'https://docusync-pnc.vercel.app/api/lobby';
 
@@ -47,8 +46,8 @@ export default function EditorPage() {
 
   
   const setContentAndRef = (v: string) => { currentContentRef.current = v; setContent(v); };
-  const [saved, setSaved] = useState(true);
-  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [_saved, setSaved] = useState(true);
+  const [_showSaveConfirm, _setShowSaveConfirm] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [syncStatusMsg, setSyncStatusMsg] = useState('Ready');
@@ -64,8 +63,8 @@ export default function EditorPage() {
   const channelRef = useRef<any>(null);
   const currentContentRef = useRef('');
   const localNodeIdRef = useRef(`web-${Math.floor(Math.random()*10000)}`);
-  const syncDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const _syncDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const _typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
   const hasPendingChangesRef = useRef(false);
   const isPushingRef = useRef(false);
@@ -101,7 +100,7 @@ export default function EditorPage() {
   const localVectorClockRef = useRef<any>(createInitialWebClock());
 
   const { peers, pushCursor } = useWebSync();
-  const connectedPeersCount = peers.filter((p) => p.status === 'connected').length;
+  const _connectedPeersCount = peers.filter((p) => p.status === 'connected').length;
 
   // ── Remote Cursors ─────────────────────────────────────────────────────────
   const cursorThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -259,7 +258,7 @@ export default function EditorPage() {
           uSet('files', JSON.stringify(files));
         }
       }
-    } catch (e) {}
+    } catch (_e) {}
   }, []);
 
   // ── Load file from local storage ──────────────────────────────────────────
@@ -325,7 +324,7 @@ export default function EditorPage() {
     setSyncStatusMsg('Syncing...');
 
     try {
-      const deltaSize = new Blob([contentToSave]).size;
+      const _deltaSize = new Blob([contentToSave]).size;
       const now = Date.now();
       lastSyncedAt.current = now;
 
@@ -367,7 +366,7 @@ export default function EditorPage() {
               try {
                 const stored = uGet('docusync_web_conflicts');
                 if (stored) conflicts = JSON.parse(stored);
-              } catch (e) {}
+              } catch (_e) {}
               conflicts.push(conflict);
               uSet('docusync_web_conflicts', JSON.stringify(conflicts));
               
@@ -390,23 +389,24 @@ export default function EditorPage() {
               hasPendingChangesRef.current = false;
             }
           }
-        } catch (e) {}
+        } catch (_e) {}
       }
 
       if (!directSuccess) {
         setSyncStatusMsg('Sync failed — queued for retry');
         setOfflineQueue(true);
       }
-    } catch (e) {
+    } catch (_e) {
       setSyncStatusMsg('Host unavailable');
       setOfflineQueue(true);
     } finally {
       setSyncing(false);
     }
-  }, [fileId, getRoomHostInfo, getSyncBaseUrl, offlineQueue, syncState]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileId, getRoomHostInfo, getSyncBaseUrl, offlineQueue, syncState, updateLocalStorageFile]);
 
   // ── Track last accepted seq to avoid re-applying same snapshot ───────────
-  const lastAcceptedSeq = useRef<number>(0);
+  const _lastAcceptedSeq = useRef<number>(0);
 
   // ── Poll Matchmaker for remote updates ───────────────────────────────────
   useEffect(() => {
@@ -522,7 +522,7 @@ export default function EditorPage() {
   }, [saveFile]);
 
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = (_e: BeforeUnloadEvent) => {
       saveFile(currentContentRef.current, true);
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -651,7 +651,7 @@ export default function EditorPage() {
             content={content} 
             onChange={handleContentChange} 
             cursors={Object.values(remoteCursors)}
-            onSelectionUpdate={(from, to) => {
+            onSelectionUpdate={(from, _to) => {
               if (cursorThrottleRef.current) return;
               cursorThrottleRef.current = setTimeout(() => { cursorThrottleRef.current = null; }, 200);
               pushCursor(fileId, from, 1);

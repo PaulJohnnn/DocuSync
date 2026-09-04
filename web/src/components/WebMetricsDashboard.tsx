@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { uGet } from '@/lib/userStorage';
 import {
   Activity, Shield, Server,
-  AlertTriangle, CheckCircle, Play, RefreshCw
+  CheckCircle, RefreshCw
 } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell,

@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
-import { Shield, Check, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Shield, ArrowLeft } from 'lucide-react';
 import { uGet, uSet, uRemove } from '@/lib/userStorage';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -55,7 +55,7 @@ const InteractiveConflictEditor: React.FC<{
   onManualResolve: (customPayload: string) => void;
   onReject: () => void;
   fileName: string;
-}> = ({ fileId, payloadA, payloadB, timestamp, onManualResolve, onReject, fileName }) => {
+}> = ({ fileId: _fileId, payloadA, payloadB, timestamp, onManualResolve: _onManualResolve, onReject, fileName }) => {
   const { highlightedA } = useMemo(() => computeWordDiff(payloadA, payloadB), [payloadA, payloadB]);
 
   const editor = useEditor({
@@ -64,7 +64,7 @@ const InteractiveConflictEditor: React.FC<{
     editable: false,
   });
 
-  const handleResolveClick = () => {
+  const _handleResolveClick = () => {
     // System enforces deterministic LWW
   };
 
@@ -148,7 +148,7 @@ export default function ConflictsPage() {
             setConflicts([{ ...JSON.parse(old), id: 'legacy' }]);
           }
         }
-      } catch (e) {}
+      } catch (_e) {}
     };
     checkConflicts();
     const iv = setInterval(checkConflicts, 2000);
@@ -194,8 +194,8 @@ export default function ConflictsPage() {
           uSet('files', JSON.stringify(files));
         }
       }
-    } catch (e) {
-      console.error(e);
+    } catch (_e) {
+      console.error(_e);
     }
 
     // ── Push resolution to Matchmaker so Desktop & all room peers update ──
@@ -214,7 +214,7 @@ export default function ConflictsPage() {
             const file = files.find((f: any) => String(f.id) === String(conflict.fileId));
             if (file && file.vectorClock) mergedClock = { ...file.vectorClock };
           }
-        } catch (e) {}
+        } catch (_e) {}
         
         fetch('/api/lobby/doc', {
           method: 'POST',
@@ -258,7 +258,7 @@ export default function ConflictsPage() {
         // Tell Matchmaker to clear the conflict so other peers don't keep it
         fetch(`/api/lobby/conflicts?otp=${otp}&conflictId=${conflict.id}`, { method: 'DELETE' }).catch(() => {});
       }
-    } catch (e) {}
+    } catch (_e) {}
 
     // ── Record event in History ──
     try {
@@ -273,7 +273,7 @@ export default function ConflictsPage() {
         type: 'conflict-resolve',
       });
       uSet('docusync_history', JSON.stringify(history));
-    } catch (e) {}
+    } catch (_e) {}
     
     // Remove from array (also handle backward compat deletion)
     const updatedConflicts = conflicts.filter(c => c.id !== selectedConflictId);
@@ -300,7 +300,7 @@ export default function ConflictsPage() {
         type: 'conflict-delete',
       });
       uSet('docusync_history', JSON.stringify(history));
-    } catch (e) {}
+    } catch (_e) {}
 
     // Tell Matchmaker and Desktop Host to clear it
     try {
@@ -333,7 +333,7 @@ export default function ConflictsPage() {
         };
         pushToHostDirectly();
       }
-    } catch (e) {}
+    } catch (_e) {}
 
     const updatedConflicts = conflicts.filter(c => c.id !== selectedConflictId);
     setConflicts(updatedConflicts);
@@ -342,7 +342,7 @@ export default function ConflictsPage() {
     setSelectedConflictId(null);
   };
 
-  const deleteSelectedConflicts = () => {
+  const _deleteSelectedConflicts = () => {
     if (selectedIds.length === 0) return;
     if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} conflict(s)?`)) return;
 
@@ -393,7 +393,7 @@ export default function ConflictsPage() {
         }
       });
       uSet('docusync_history', JSON.stringify(history));
-    } catch (e) {}
+    } catch (_e) {}
 
     const updatedConflicts = conflicts.filter(c => !selectedIds.includes(c.id));
     setConflicts(updatedConflicts);

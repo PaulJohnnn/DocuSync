@@ -1,12 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
-  FolderOpen, AlertTriangle, Clock, Users, Wifi, Settings, BarChart2, LogOut
+  FolderOpen, AlertTriangle, Users, Wifi, Settings, BarChart2
 } from 'lucide-react';
 import OnlineStatusPill from './OnlineStatusPill';
-import mockAuthService from '@/lib/mockAuthService';
 import { uGet } from '@/lib/userStorage';
 
 const NAV_ITEMS = [
@@ -39,7 +38,7 @@ export default function Sidebar() {
         } else {
           setConflictCount(0);
         }
-      } catch (e) {}
+      } catch (_e) {}
     };
     
     checkConflicts();

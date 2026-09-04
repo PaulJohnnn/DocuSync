@@ -1,0 +1,128 @@
+﻿node.exe : npm warn 
+config ignoring 
+workspace config at 
+C:\Users\Paul John Pal
+amara\Downloads\Thesis
+Sync\web/.npmrc
+At line:1 char:1
++ & "C:\Program Files\
+nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (npm warn c   
+ onfig...Sync\web/    
+.npmrc:String) []    
+, RemoteException
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+
+> web@0.1.0 build
+> next build
+
+  Γû▓ Next.js 14.2.35
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ Γ£ô Compiled successfully
+   Linting and checking validity of types ...
+
+./src/app/app/editor/[id]/page.tsx
+103:9  Warning: 'connectedPeersCount' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+525:33  Warning: 'e' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules
+   Collecting page data ...
+   Generating static pages (0/29) ...
+   Generating static pages (7/29) 
+   Generating static pages (14/29) 
+The width(-1) and 
+height(-1) of chart 
+should be greater 
+than 0,
+       please check 
+the style of 
+container, or the 
+props width(100%) and 
+height(100%),
+       or add a 
+minWidth(0) or 
+minHeight(undefined) 
+or use 
+aspect(undefined) to 
+control the
+       height and 
+width.
+The width(-1) and 
+height(-1) of chart 
+should be greater 
+than 0,
+       please check 
+the style of 
+container, or the 
+props width(100%) and 
+height(100%),
+       or add a 
+minWidth(0) or 
+minHeight(undefined) 
+or use 
+aspect(undefined) to 
+control the
+       height and 
+width.
+   Generating static pages (21/29) 
+ Γ£ô Generating static pages (29/29)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+Γöî Γùï /                                    142 B          87.6 kB
+Γö£ Γùï /_not-found                          873 B          88.3 kB
+Γö£ ╞Æ /api/admin/delete-group              0 B                0 B
+Γö£ ╞Æ /api/admin/generate                  0 B                0 B
+Γö£ ╞Æ /api/admin/session-log               0 B                0 B
+Γö£ ╞Æ /api/admin/stats                     0 B                0 B
+Γö£ ╞Æ /api/admin/verify                    0 B                0 B
+Γö£ ╞Æ /api/auth                            0 B                0 B
+Γö£ ╞Æ /api/discovery                       0 B                0 B
+Γö£ ╞Æ /api/lobby/conflicts                 0 B                0 B
+Γö£ ╞Æ /api/lobby/create                    0 B                0 B
+Γö£ ╞Æ /api/lobby/cursors                   0 B                0 B
+Γö£ ╞Æ /api/lobby/files                     0 B                0 B
+Γö£ ╞Æ /api/lobby/heartbeat                 0 B                0 B
+Γö£ ╞Æ /api/lobby/join                      0 B                0 B
+Γö£ ╞Æ /api/lobby/list                      0 B                0 B
+Γö£ ╞Æ /api/lobby/reset                     0 B                0 B
+Γö£ ╞Æ /api/lobby/signal                    0 B                0 B
+Γö£ Γùï /api/local-ip                        0 B                0 B
+Γö£ ╞Æ /api/parse-docx                      0 B                0 B
+Γö£ Γùï /app/admin/dashboard                 7.36 kB         105 kB
+Γö£ Γùï /app/benchmark                       3.45 kB         106 kB
+Γö£ Γùï /app/conflicts                       138 kB          241 kB
+Γö£ ╞Æ /app/editor/[id]                     6.6 kB          122 kB
+Γö£ Γùï /app/files                           5.94 kB         111 kB
+Γö£ ╞Æ /app/history/[id]                    5.55 kB         108 kB
+Γö£ Γùï /app/login                           8.04 kB        95.5 kB
+Γö£ Γùï /app/metrics                         115 kB          217 kB
+Γö£ Γùï /app/peers                           9.99 kB         112 kB
+Γö£ Γùï /app/settings                        6.24 kB         111 kB
+Γö£ Γùï /app/welcome                         142 B          87.6 kB
+Γö£ Γùï /download                            176 B          96.3 kB
+Γöö Γùï /home                                11.1 kB         107 kB
++ First Load JS shared by all            87.5 kB
+  Γö£ chunks/364-a537b12f0ddcdb01.js       31.7 kB
+  Γö£ chunks/618f8807-fde00951ae2c6021.js  53.6 kB
+  Γöö other shared chunks (total)          2.12 kB
+
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+

@@ -50,7 +50,7 @@ function getMockRedis() {
       const store = readStore();
       return store[key] || null;
     },
-    set: async (key: string, value: any, options?: any) => { 
+    set: async (key: string, value: any, _options?: any) => { 
       const store = readStore();
       store[key] = value;
       writeStore(store);
@@ -87,7 +87,7 @@ function getMockRedis() {
       if (end === -1) return list.slice(start);
       return list.slice(start, end + 1);
     },
-    expire: async (key: string, seconds: number) => {
+    expire: async (_key: string, _seconds: number) => {
       // Mock expire (file-backed mock doesn't run background GC)
       return 1;
     },

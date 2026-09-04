@@ -196,7 +196,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
             window.dispatchEvent(new CustomEvent('docusync_ws_cursor', { detail: msg }));
           }
           if (msg.type === 'PEER_LIST') {
-            setPeers((prev) => {
+            setPeers((_prev) => {
               const connected = msg.peers.map((p: any) => ({
                 id: p.nodeId,
                 address: p.address,

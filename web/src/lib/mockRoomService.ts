@@ -123,7 +123,7 @@ export async function listRooms(): Promise<Room[]> {
 export async function createRoom(name: string): Promise<Room> {
   if (!name.trim()) throw new Error('Room name cannot be empty.');
   let otp = genOTP();
-  let isMatchmakerSuccess = false;
+  let _isMatchmakerSuccess = false;
 
   try {
     const MATCHMAKER = process.env.NODE_ENV === 'development'
@@ -145,7 +145,7 @@ export async function createRoom(name: string): Promise<Room> {
       const data = await res.json();
       if (data.success && data.otp) {
         otp = data.otp;
-        isMatchmakerSuccess = true;
+        _isMatchmakerSuccess = true;
       }
     }
   } catch {

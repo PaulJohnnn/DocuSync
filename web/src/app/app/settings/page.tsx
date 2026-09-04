@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import PageShell from '@/components/PageShell';
 import { useTheme } from '@/components/ThemeProvider';
-import { Moon, Sun, Palette, Info, Settings as SettingsIcon, User, Trash, BarChart2, Cpu, FolderSync, Database, ShieldCheck, ShieldAlert, FileText, FileCode, FileJson, FileType as FileTypeIcon, File, FileImage, FileSpreadsheet, FileArchive, LogOut } from 'lucide-react';
+import { Moon, Sun, Palette, Info, Settings as SettingsIcon, User, Trash, Cpu, FolderSync, Database, ShieldCheck, ShieldAlert, FileText, FileCode, FileJson, FileType as FileTypeIcon, File, FileImage, FileSpreadsheet, FileArchive, LogOut } from 'lucide-react';
 import { logout } from '@/lib/mockAuthService';
 
 const SUPPORTED_TYPES = ['.txt', '.md', '.docx', '.rtf', '.csv', '.json', '.xml', '.html', '.tex'];

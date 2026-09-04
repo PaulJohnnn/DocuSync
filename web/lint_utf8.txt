@@ -1,0 +1,61 @@
+npm warn config ignoring workspace config at C:\Users\Paul John Palamara\Downloads\ThesisSync\web/.npmrc
+
+./src/app/app/editor/[id]/page.tsx
+5:21  Warning: 'Save' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:27  Warning: 'RefreshCw' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:45  Warning: 'WifiOff' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:54  Warning: 'Wifi' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:71  Warning: 'HistoryIcon' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:84  Warning: 'FileDown' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:94  Warning: 'LogOut' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+5:102  Warning: 'Download' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:10  Warning: 'diffWords' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+15:7  Warning: 'MATCHMAKER_URL' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+50:10  Warning: 'saved' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+51:10  Warning: 'showSaveConfirm' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+51:27  Warning: 'setShowSaveConfirm' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+67:9  Warning: 'syncDebounce' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+68:9  Warning: 'typingTimeout' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+104:9  Warning: 'connectedPeersCount' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+262:14  Warning: 'e' is defined but never used. Allowed unused caught errors must match /^_|^err$|^error$/u.  @typescript-eslint/no-unused-vars
+328:13  Warning: 'deltaSize' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+370:24  Warning: 'e' is defined but never used. Allowed unused caught errors must match /^_|^err$|^error$/u.  @typescript-eslint/no-unused-vars
+393:18  Warning: 'e' is defined but never used. Allowed unused caught errors must match /^_|^err$|^error$/u.  @typescript-eslint/no-unused-vars
+400:14  Warning: 'e' is defined but never used. Allowed unused caught errors must match /^_|^err$|^error$/u.  @typescript-eslint/no-unused-vars
+406:6  Warning: React Hook useCallback has a missing dependency: 'updateLocalStorageFile'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+409:9  Warning: 'lastAcceptedSeq' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+525:33  Warning: 'e' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+654:39  Warning: 'to' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/app/app/files/page.tsx
+11:10  Warning: 'toast' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+106:20  Warning: 'e' is defined but never used. Allowed unused caught errors must match /^_|^err$|^error$/u.  @typescript-eslint/no-unused-vars
+129:6  Warning: React Hook useEffect has a missing dependency: 'MATCHMAKER_URL'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+399:32  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+399:55  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./src/app/app/history/[id]/page.tsx
+6:45  Warning: 'RotateCcw' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/app/app/peers/page.tsx
+363:13  Warning: 'MATCHMAKER_URL' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/app/app/settings/page.tsx
+5:75  Warning: 'BarChart2' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/Sidebar.tsx
+4:23  Warning: 'useRouter' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+6:30  Warning: 'Clock' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+6:71  Warning: 'LogOut' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+9:8  Warning: 'mockAuthService' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+42:16  Warning: 'e' is defined but never used. Allowed unused caught errors must match /^_|^err$|^error$/u.  @typescript-eslint/no-unused-vars
+
+./src/components/TipTapEditor.tsx
+44:23  Warning: 'oldState' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+206:23  Error: `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`.  react/no-unescaped-entities
+
+./src/components/WebMetricsDashboard.tsx
+6:3  Warning: 'AlertTriangle' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+6:31  Warning: 'Play' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules
