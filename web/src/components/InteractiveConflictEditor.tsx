@@ -127,4 +127,4 @@ const InteractiveConflictEditor: React.FC<{
   );
 };
 
-// ── Page Component ────────────────────────────────────────────────────────────export default InteractiveConflictEditor;
+export default InteractiveConflictEditor;
