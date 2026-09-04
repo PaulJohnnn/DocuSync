@@ -82,61 +82,16 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    
-    const handleOffline = () => {
-      setSyncStateRaw('offline');
-      setPendingEdits(1); // Give it a count of 1 so the UI says "1 edit queued" if they type, or just let page.tsx handle it.
-    };
-    
-    // We intentionally do NOT auto-reconnect on 'online'. 
-    // We wait for the user to click the "Reconnect" button in the OfflineBanner, 
-    // or we could auto-call reconnect(). Let's auto-call reconnect() after a short delay if they come back online.
-    const handleOnline = () => {
-      // Small delay to ensure network is fully stable
-      setTimeout(() => {
-        if (reconnectCallbackRef.current) {
-          reconnect();
-        } else {
-          setSyncStateRaw('online');
-        }
-      }, 1500);
-    };
-
-    window.addEventListener('offline', handleOffline);
-    window.addEventListener('online', handleOnline);
-
-    // Initial check
-    if (!navigator.onLine) {
-      handleOffline();
-    }
-
-    return () => {
-      window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('online', handleOnline);
-    };
-  }, []);
-
+  // Moved registerReconnectCallback and reconnect above useEffect to satisfy eslint hoisting
   const registerReconnectCallback = useCallback((fn: (() => Promise<void>) | null) => {
     reconnectCallbackRef.current = fn;
   }, []);
 
-  /**
-   * Called by OfflineBanner's "Reconnect" button.
-   * If the editor has registered a real flush callback, call it (this triggers
-   * saveFile(currentContent, true) with isOfflineReconnect: true via pushToHost).
-   * Always clears the dev offline flag and transitions UI state to syncing/online.
-   */
   const reconnect = useCallback(async () => {
     if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = false;
     if (pendingTimer.current) clearInterval(pendingTimer.current);
     setSyncStateRaw('syncing');
     setPendingEdits(0);
-
-    // We previously processed 'hasPendingOfflineEdit' files here, but this is now delegated 
-    // entirely to the 'reconnectCallbackRef' (which points to pushToHost in page.tsx) 
-    // to avoid duplicating pushes and conflicts.
 
     if (reconnectCallbackRef.current) {
       try {
@@ -149,6 +104,37 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
     setSyncStateRaw('synced');
     setTimeout(() => setSyncStateRaw('online'), 2500);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const handleOffline = () => {
+      setSyncStateRaw('offline');
+      setPendingEdits(1);
+    };
+    
+    const handleOnline = () => {
+      setTimeout(() => {
+        if (reconnectCallbackRef.current) {
+          reconnect();
+        } else {
+          setSyncStateRaw('online');
+        }
+      }, 1500);
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
+    if (!navigator.onLine) {
+      handleOffline();
+    }
+
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [reconnect]);
 
   // ── Dev-only helpers — unchanged, still used by DevSyncToggle ──────────────
 

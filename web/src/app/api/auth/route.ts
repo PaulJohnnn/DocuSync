@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 
+export const dynamic = 'force-dynamic';
+
 const DEFAULT_USERS = [
   {
     id: 'user-001',

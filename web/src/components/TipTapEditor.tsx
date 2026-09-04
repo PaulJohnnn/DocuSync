@@ -41,7 +41,7 @@ const RemoteCursorsExtension = Extension.create({
         key: new PluginKey('remoteCursors'),
         state: {
           init: () => DecorationSet.empty,
-          apply: (tr, oldState) => {
+          apply: (tr, _oldState) => {
             const cursors = this.options.cursors;
             const decorations: Decoration[] = [];
             const docSize = tr.doc.nodeSize;
@@ -125,6 +125,18 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       attributes: {
         class: 'tiptap',
       },
+      handleDrop: (view, event, _slice, _moved) => {
+        const items = event.dataTransfer?.items;
+        if (items) {
+          for (let i = 0; i < items.length; i++) {
+            if (items[i].type.indexOf('image/') === 0) {
+              setPasteError(true);
+              return true;
+            }
+          }
+        }
+        return false;
+      },
       handlePaste: (view, event) => {
         const items = event.clipboardData?.items;
         if (items) {
@@ -203,7 +215,7 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
             <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--t1)', textAlign: 'center' }}>Unsupported Media</h2>
             <p style={{ color: 'var(--t2)', fontSize: 14, marginTop: 12, marginBottom: 20, textAlign: 'center', lineHeight: 1.6 }}>
               Pasting images or binary objects directly into the editor is not supported.<br/><br/>
-              DocuSync's real-time engine only synchronizes text and document structures to ensure maximum performance across peers.
+              DocuSync&apos;s real-time engine only synchronizes text and document structures to ensure maximum performance across peers.
             </p>
             <button className="ds-btn ds-btn-primary" style={{ width: '100%', justifyContent: 'center', height: 44, fontSize: 14 }} onClick={() => setPasteError(false)}>
               Understood

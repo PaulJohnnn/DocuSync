@@ -8,7 +8,7 @@ import {
   LogOut, Loader2, ArrowLeft
 } from 'lucide-react';
 import { uGet, uSet, uRemove } from '@/lib/userStorage';
-import { toast } from 'sonner';
+// Removed unused sonner toast
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -103,7 +103,7 @@ export default function FilesPage() {
         if (cachedStr && roomFiles.length === 0) {
           try {
             setRoomFiles(JSON.parse(cachedStr));
-          } catch (e) {}
+          } catch (_e) {}
         }
         
         // If we are definitely offline (no network at all), skip fetching to avoid throwing
@@ -126,6 +126,7 @@ export default function FilesPage() {
     fetchRoomFiles();
     const iv = setInterval(fetchRoomFiles, 2000);
     return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomFiles.length]);
 
   const [currentRoom, setCurrentRoom] = useState<{ id: string; name: string; otp?: string; hostIp?: string; hostPort?: number } | null>(null);
@@ -396,7 +397,7 @@ export default function FilesPage() {
             </div>
             <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--t1)', textAlign: 'center' }}>Incompatible File Type</h2>
             <p style={{ color: 'var(--t2)', fontSize: 14, marginTop: 12, marginBottom: 20, textAlign: 'center', lineHeight: 1.6 }}>
-              The file <strong>"{uploadError.filename}"</strong> cannot be processed.<br/><br/>
+              The file <strong>&quot;{uploadError.filename}&quot;</strong> cannot be processed.<br/><br/>
               {uploadError.reason}
             </p>
             <div style={{
