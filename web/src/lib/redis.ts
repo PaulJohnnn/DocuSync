@@ -99,8 +99,8 @@ function getRedis(): any {
   if (_redis) return _redis;
   if (_mockRedis) return _mockRedis;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url = process.env.UPSTASH_REDIS_REST_URL || 'https://choice-colt-108453.upstash.io';
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || 'gQAAAAAAAaelAAIgcDE5N2MxZjkxNDY1YTY0NjNjODA2ODE2NmE5ODc2MTkxMA';
 
   if (!url || !token || url.startsWith('PASTE_')) {
     return getMockRedis();
