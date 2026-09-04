@@ -393,8 +393,36 @@ export default function EditorPage() {
       }
 
       if (!directSuccess) {
-        setSyncStatusMsg('Sync failed — queued for retry');
-        setOfflineQueue(true);
+        // Fallback to Matchmaker Cloud if local IP is blocked (Mixed Content) or offline
+        if (room && otp) {
+          try {
+            const mmRes = await fetch(`${_MATCHMAKER_URL}/doc`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                otp,
+                fileId,
+                authorNodeId: localNodeIdRef.current,
+                content: contentToSave,
+                vectorClock: vectorClockSnapshot,
+                committedAt: Date.now()
+              }),
+            });
+            if (mmRes.ok) {
+              setSyncStatusMsg(`Cloud Synced ✓`);
+              setOfflineQueue(false);
+              hasPendingChangesRef.current = false;
+              directSuccess = true;
+            }
+          } catch (e) {
+            // Matchmaker also failed
+          }
+        }
+        
+        if (!directSuccess) {
+          setSyncStatusMsg('Sync failed — queued for retry');
+          setOfflineQueue(true);
+        }
       }
     } catch (_e) {
       setSyncStatusMsg('Host unavailable');
@@ -577,7 +605,7 @@ export default function EditorPage() {
           <div style={{ display: 'flex', gap: 8 }}>
             
             <button className="ds-btn ds-btn-ghost" onClick={() => router.push(`/app/history/${fileId}`)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-              <Clock size={14} /> History
+              <Clock size={14} /> History Conflict
             </button>
 
             <button className="ds-btn" onClick={() => {
@@ -655,6 +683,22 @@ export default function EditorPage() {
               if (cursorThrottleRef.current) return;
               cursorThrottleRef.current = setTimeout(() => { cursorThrottleRef.current = null; }, 200);
               pushCursor(fileId, from, 1);
+            }}
+            onUndo={(discardedContent) => {
+              try {
+                const conflict = {
+                  id: `undo-${Date.now()}`,
+                  fileId: fileId,
+                  localContent: discardedContent,
+                  serverContent: content,
+                  timestamp: Date.now()
+                };
+                let conflicts = [];
+                const stored = uGet('docusync_web_conflicts');
+                if (stored) conflicts = JSON.parse(stored);
+                conflicts.push(conflict);
+                uSet('docusync_web_conflicts', JSON.stringify(conflicts));
+              } catch (e) {}
             }}
           />
         </div>

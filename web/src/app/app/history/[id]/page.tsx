@@ -6,6 +6,7 @@ import {
   Clock, FileEdit, GitMerge, AlertTriangle, ArrowLeft, Activity, RefreshCw, Scale, FilePlus, Trash2
 } from 'lucide-react';
 import { uGet, uSet } from '@/lib/userStorage';
+import InteractiveConflictEditor from '@/components/InteractiveConflictEditor';
 
 interface HistoryEntry {
   eventId: string;
@@ -36,6 +37,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [restoring, setRestoring] = useState<Record<string, boolean>>({});
+  const [activeConflict, setActiveConflict] = useState<any>(null);
 
   const fetchHistory = useCallback(async () => {
     if (fileId === 'all') {
@@ -79,7 +81,22 @@ export default function HistoryPage() {
 
   useEffect(() => {
     fetchHistory();
-  }, [fetchHistory]);
+    const checkConflicts = () => {
+      try {
+        const stored = uGet('docusync_web_conflicts');
+        if (stored) {
+          const arr = JSON.parse(stored);
+          const conflict = arr.find((c: any) => String(c.fileId) === String(fileId));
+          setActiveConflict(conflict || null);
+        } else {
+          setActiveConflict(null);
+        }
+      } catch (_e) {}
+    };
+    checkConflicts();
+    const iv = setInterval(checkConflicts, 2000);
+    return () => clearInterval(iv);
+  }, [fetchHistory, fileId]);
 
   const handleRestore = async (eventId: string) => {
     setRestoring(prev => ({ ...prev, [eventId]: true }));
@@ -145,6 +162,37 @@ export default function HistoryPage() {
     }
   };
 
+  const resolveAndReturn = (customPayload: string) => {
+    try {
+      const stored = uGet('files');
+      if (stored) {
+        const files = JSON.parse(stored);
+        const idx = files.findIndex((f: any) => String(f.id) === String(fileId));
+        if (idx >= 0) {
+          files[idx].content = customPayload;
+          files[idx].updatedAt = new Date().toISOString();
+          uSet('files', JSON.stringify(files));
+        }
+      }
+    } catch (e) {}
+    
+    rejectConflict();
+    router.push(`/app/editor/${fileId}`);
+  };
+
+  const rejectConflict = () => {
+    try {
+      const stored = uGet('docusync_web_conflicts');
+      if (stored) {
+        let arr = JSON.parse(stored);
+        arr = arr.filter((c: any) => String(c.fileId) !== String(fileId));
+        uSet('docusync_web_conflicts', JSON.stringify(arr));
+        if (arr.length === 0) uSet('docusync_web_conflict', '');
+      }
+    } catch (e) {}
+    setActiveConflict(null);
+  };
+
   return (
     <PageShell>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -160,6 +208,20 @@ export default function HistoryPage() {
           </div>
         </div>
       </div>
+
+      {activeConflict && (
+        <div style={{ marginBottom: 40 }}>
+          <InteractiveConflictEditor
+            fileId={activeConflict.fileId}
+            fileName={fileName}
+            payloadA={activeConflict.localContent}
+            payloadB={activeConflict.serverContent}
+            timestamp={new Date(activeConflict.timestamp)}
+            onManualResolve={resolveAndReturn}
+            onReject={rejectConflict}
+          />
+        </div>
+      )}
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--t3)' }}>

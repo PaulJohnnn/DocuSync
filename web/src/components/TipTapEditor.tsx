@@ -92,9 +92,10 @@ interface Props {
   onChange: (content: string) => void;
   cursors?: RemoteCursor[];
   onSelectionUpdate?: (from: number, to: number) => void;
+  onUndo?: (discardedContent: string) => void;
 }
 
-export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate }: Props) {
+export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate, onUndo }: Props) {
   const initialized = useRef(false);
   const [pasteError, setPasteError] = useState(false);
 
@@ -145,6 +146,14 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
               setPasteError(true);
               return true; // prevent TipTap from processing it
             }
+          }
+        }
+        return false;
+      },
+      handleKeyDown: (view, event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
+          if (onUndo) {
+            onUndo(view.dom.innerHTML);
           }
         }
         return false;

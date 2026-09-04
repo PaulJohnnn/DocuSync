@@ -8,7 +8,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import { toast } from 'sonner';
 import {
-  Files, FileEdit, AlertTriangle, Clock,
+  Files, FileEdit, Clock,
   Network, BarChart2, Settings, Search, Lock, ShieldCheck, Activity, LogOut
 } from 'lucide-react';
 
@@ -21,7 +21,6 @@ interface NavItem {
 
 const WORKSPACE_NAV: NavItem[] = [
   { to: '/',          icon: <Files size={16} />,         label: 'Room',      id: 'nav-files'     },
-  { to: '/conflicts', icon: <AlertTriangle size={16} />, label: 'Conflicts', id: 'nav-conflicts' },
   { to: '/peers',     icon: <Network size={16} />,       label: 'Peers',     id: 'nav-peers'     },
 ];
 
@@ -104,9 +103,6 @@ const Sidebar: React.FC = () => {
     >
       <span className="ds-sidebar-item-icon">{item.icon}</span>
       <span>{item.label}</span>
-      {item.to === '/conflicts' && pendingConflicts > 0 && (
-        <span className="ds-nav-badge">{pendingConflicts}</span>
-      )}
     </NavLink>
   );
 

@@ -2,8 +2,6 @@
 import Sidebar from './Sidebar';
 import RightPanel from './RightPanel';
 import OfflineBanner from './OfflineBanner';
-import DevSyncToggle from './DevSyncToggle';
-
 export default function PageShell({ children }: { children: React.ReactNode; title?: string }) {
   return (
     <>
@@ -19,7 +17,6 @@ export default function PageShell({ children }: { children: React.ReactNode; tit
         </div>
       </main>
       <RightPanel />
-      <DevSyncToggle />
     </>
   );
 }
