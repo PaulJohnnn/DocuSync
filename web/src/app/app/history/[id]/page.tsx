@@ -201,7 +201,7 @@ export default function HistoryPage() {
             <ArrowLeft size={14} /> Back
           </button>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>History</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Conflict History</h1>
             <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>
               {fileName || `File ID: ${fileId}`} • {events.length} event{events.length !== 1 ? 's' : ''}
             </p>
@@ -217,7 +217,7 @@ export default function HistoryPage() {
             payloadA={activeConflict.localContent}
             payloadB={activeConflict.serverContent}
             timestamp={new Date(activeConflict.timestamp)}
-            onManualResolve={resolveAndReturn}
+            onRestore={() => resolveAndReturn(activeConflict.localContent)}
             onReject={rejectConflict}
           />
         </div>

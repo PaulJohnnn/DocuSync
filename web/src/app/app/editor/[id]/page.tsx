@@ -605,7 +605,7 @@ export default function EditorPage() {
           <div style={{ display: 'flex', gap: 8 }}>
             
             <button className="ds-btn ds-btn-ghost" onClick={() => router.push(`/app/history/${fileId}`)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-              <Clock size={14} /> History Conflict
+              <Clock size={14} /> Conflict History
             </button>
 
             <button className="ds-btn" onClick={() => {

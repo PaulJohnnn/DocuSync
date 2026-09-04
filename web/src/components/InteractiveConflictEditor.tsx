@@ -4,9 +4,6 @@ import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import { Shield, ArrowLeft } from 'lucide-react';
 import { uGet, uSet, uRemove } from '@/lib/userStorage';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-
 // ── Word-level diff engine (Match Desktop exactly) ────────────────────────────
 
 function stripHtml(html: string): string {
@@ -52,21 +49,11 @@ const InteractiveConflictEditor: React.FC<{
   payloadA: string;
   payloadB: string;
   timestamp: Date;
-  onManualResolve: (customPayload: string) => void;
+  onRestore: () => void;
   onReject: () => void;
   fileName: string;
-}> = ({ fileId: _fileId, payloadA, payloadB, timestamp, onManualResolve: _onManualResolve, onReject, fileName }) => {
+}> = ({ fileId: _fileId, payloadA, payloadB, timestamp, onRestore, onReject, fileName }) => {
   const { highlightedA } = useMemo(() => computeWordDiff(payloadA, payloadB), [payloadA, payloadB]);
-
-  const editor = useEditor({
-    extensions: [StarterKit],
-    content: payloadB,
-    editable: false,
-  });
-
-  const _handleResolveClick = () => {
-    // System enforces deterministic LWW
-  };
 
   const panelStyle: React.CSSProperties = {
     flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
@@ -109,18 +96,19 @@ const InteractiveConflictEditor: React.FC<{
 
         <div style={{...panelStyle, border: '1px solid var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }}>
           <div style={headerStyle('var(--accent)', 'rgba(16,185,129,0.06)')}>
-            <span>Your Local Edits (Offline)</span>
-            <span style={{ fontWeight: 400, opacity: 0.8 }}>Editable</span>
+            <span>Auto-Resolved State</span>
+            <span style={{ fontWeight: 400, opacity: 0.8 }}>Read-Only Reference</span>
           </div>
-          <div style={{...bodyStyle, background: '#fff', cursor: 'default'}}>
-            <EditorContent editor={editor} />
-          </div>
+          <div style={{...bodyStyle, background: '#fff', cursor: 'default'}} dangerouslySetInnerHTML={{ __html: payloadB }} />
         </div>
       </div>
 
-      <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 -1rem -1rem -1rem' }}>
+      <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', margin: '0 -1rem -1rem -1rem', gap: '12px' }}>
         <button className="ds-btn ds-btn-ghost" onClick={onReject}>
-          <Shield size={13} /> Delete Log
+          <Shield size={13} /> Dismiss Log
+        </button>
+        <button className="ds-btn ds-btn-primary" onClick={onRestore}>
+          Restore version
         </button>
       </div>
     </article>
