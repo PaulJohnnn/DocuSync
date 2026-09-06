@@ -13,10 +13,9 @@ function LogoMark() {
 const FOOTER_LINKS = {
   App: [
     { label: 'Room',      href: '/app/files' },
-    { label: 'Conflicts', href: '/app/conflicts' },
     { label: 'Sync Rooms', href: '/app/peers' },
     { label: 'Windows',  href: '/download' },
-    { label: 'Web App',  href: 'https://docusync-dusky.vercel.app', external: true },
+    { label: 'Web App',  href: '/', external: true },
     { label: 'Mobile',   href: 'https://expo.dev/go', external: true },
     { label: 'GitHub',   href: 'https://github.com/PaulJohnnn/DocuSync', external: true },
   ],
@@ -24,7 +23,7 @@ const FOOTER_LINKS = {
 
 export default function Footer() {
   return (
-    <footer style={{
+    <footer className="dark" style={{
       background: '#080c14',
       borderTop: '1px solid rgba(255,255,255,0.06)',
       padding: 'clamp(32px,5vw,48px) clamp(20px,5vw,64px) 32px',
