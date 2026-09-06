@@ -515,12 +515,23 @@ export default function FilesPage() {
             boxShadow: '0 10px 25px rgba(0,0,0,0.1)', padding: 8, minWidth: 260, zIndex: 50,
             animation: 'slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}>
-            {connectedPeers.length === 0 && (
-              <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--t3)', fontStyle: 'italic', textAlign: 'center' }}>
-                No other users connected
+            {/* Current User */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+              borderRadius: 8, marginTop: 4, transition: 'background 0.15s',
+              background: 'var(--s1)'
+            }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>
+                  You
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--t3)' }}>
+                  🌐 Web App • Online
+                </div>
               </div>
-            )}
-            
+            </div>
+
             {/* Peers */}
             {connectedPeers.map((p, i) => {
               const isOnline = p.status === 'connected';
