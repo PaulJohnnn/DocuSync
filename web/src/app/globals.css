@@ -88,12 +88,19 @@ body {
   font-size: 16px;
   font-weight: 500;
   text-decoration: none;
-  transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .btn-hero-ghost:hover, .cta-ghost:hover {
   background: var(--s2);
   border-color: var(--b3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+}
+
+.btn-hero-ghost:active, .cta-ghost:active {
+  transform: scale(0.97);
+  box-shadow: none;
 }
 
 /* App layout (non-public routes) locks overflow on the wrapper div */
@@ -230,20 +237,34 @@ body {
   background: var(--s1);
   color: var(--t1);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 .ds-btn:hover {
   background: var(--s2);
   border-color: var(--b2);
+  transform: translateY(-1.5px);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+}
+.ds-btn:active {
+  transform: scale(0.97);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 .ds-btn-primary {
   background: var(--acc);
   border-color: var(--acc);
   color: #fff;
+  box-shadow: 0 4px 14px rgba(79, 125, 248, 0.3);
 }
 .ds-btn-primary:hover {
   background: var(--acc2);
   border-color: var(--acc2);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(79, 125, 248, 0.4);
+}
+.ds-btn-primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px rgba(79, 125, 248, 0.3);
 }
 .ds-badge {
   display: inline-flex;
