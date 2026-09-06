@@ -24,7 +24,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
       setTheme(saved);
       document.documentElement.className = saved;
     } else {
-      document.documentElement.className = 'dark';
+      document.documentElement.className = 'light';
     }
   }, []);
 
