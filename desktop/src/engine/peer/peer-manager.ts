@@ -615,10 +615,14 @@ export class PeerManager {
                   mergedVc.merge(incomingVc);
                   mergedVc.increment();
 
-                  // 2. Resolve conflict giving winner to 'B' (the incoming edit)
+                  // 2. Resolve conflict giving winner to the latest timestamp
+                  const serverCommittedAt = latestEvent ? new Date(latestEvent.createdAt).getTime() : 0;
+                  const incomingCommittedAt = body.committedAt || Date.now();
+                  const winner = incomingCommittedAt >= serverCommittedAt ? 'B' : 'A';
+
                   const autoResult = await this.config.lwwResolver.autoResolve(
                     resolveResult.conflictId,
-                    'B',
+                    winner,
                     this.config.localNodeId, // System auto-resolves it
                     mergedVc.toJSON()
                   );
