@@ -46,12 +46,7 @@ function GreenCheck({ children }: { children: React.ReactNode }) {
 }
 
 // ── Data ──────────────────────────────────────────────────────
-const METRICS = [
-  { num: '1.51ms', label: 'Avg Latency',       sub: 'Target: < 50ms',   color: '#4f7df8' },
-  { num: '1,010/s', label: 'Throughput',        sub: 'Target: ≥ 10/s',   color: '#22c55e' },
-  { num: '100%',   label: 'Conflict Detection', sub: 'Target: > 95%',    color: '#7c3aed' },
-  { num: '0%',     label: 'Data Loss',          sub: 'Target: 0%',       color: '#f59e0b' },
-];
+
 
 const PROBLEMS = [
   {
@@ -259,34 +254,7 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Metrics */}
-          <div className="metrics-grid scroll-hidden" style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4,1fr)',
-            gap: 16, width: '100%', maxWidth: 820, margin: '0 auto',
-          }}>
-            {METRICS.map((m, i) => (
-              <div key={m.num} style={{
-                background: 'var(--s1)',
-                border: '1px solid var(--b1)',
-                borderRadius: 16, padding: '22px 16px', textAlign: 'left',
-                transition: 'border-color 0.25s ease, background 0.25s ease, transform 0.25s ease',
-                animation: `count-up 0.6s ease ${0.1 * i}s both`,
-              }} className="metric-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: m.color }} />
-                  <div style={{ fontSize: 11, color: 'var(--t1)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>
-                    {m.label}
-                  </div>
-                </div>
-                <div style={{ fontSize: 32, fontWeight: 700, color: 'var(--t1)', marginBottom: 12, fontVariantNumeric: 'tabular-nums', textAlign: 'left' }}>
-                  {m.num}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--t2)', textAlign: 'left' }}>
-                  {m.sub.toLowerCase()}
-                </div>
-              </div>
-            ))}
-          </div>
+
         </div>
 
         {/* Scroll indicator */}
@@ -592,12 +560,6 @@ export default function HomePage() {
           .platforms-grid { grid-template-columns: 1fr !important; max-width: 480px !important; margin: 0 auto !important; }
           .algo-grid      { grid-template-columns: 1fr !important; }
           .problem-grid   { grid-template-columns: 1fr !important; }
-        }
-        @media (max-width: 768px) {
-          .metrics-grid       { grid-template-columns: repeat(2,1fr) !important; }
-        }
-        @media (max-width: 480px) {
-          .metrics-grid     { grid-template-columns: repeat(2,1fr) !important; }
         }
       `}</style>
     </div>
