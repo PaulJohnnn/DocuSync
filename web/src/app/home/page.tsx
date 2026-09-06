@@ -148,9 +148,6 @@ const COMPARISON = [
 
 const RESEARCHERS = [
   { name: 'Paul John G. Palamara', role: 'Solo Developer',  initials: 'PJ', grad: 'linear-gradient(135deg,#4f7df8,#7c3aed)' },
-  { name: 'Bajado, John Benedict B.', role: 'Co-Researcher', initials: 'JB', grad: 'linear-gradient(135deg,#7c3aed,#9b6ff5)' },
-  { name: 'Palma, John Lloyd P.', role: 'Co-Researcher',    initials: 'JL', grad: 'linear-gradient(135deg,#22c55e,#4f7df8)' },
-  { name: 'Venancio, Zyra P.',    role: 'Co-Researcher',    initials: 'ZV', grad: 'linear-gradient(135deg,#f59e0b,#ef4444)' },
 ];
 
 // ── Page ──────────────────────────────────────────────────────
@@ -655,7 +652,7 @@ export default function HomePage() {
           </div>
 
           <div className="researchers-grid scroll-hidden" style={{
-            display: 'grid', gridTemplateColumns: 'repeat(4,1fr)',
+            display: 'grid', gridTemplateColumns: 'repeat(1, 280px)', justifyContent: 'center',
             gap: 14, marginBottom: 48,
           }}>
             {RESEARCHERS.map((r) => (
@@ -772,12 +769,10 @@ export default function HomePage() {
         }
         @media (max-width: 768px) {
           .metrics-grid       { grid-template-columns: repeat(2,1fr) !important; }
-          .researchers-grid   { grid-template-columns: repeat(2,1fr) !important; }
           .hero-ctas          { flex-direction: column !important; align-items: stretch !important; }
           .hero-ctas a        { justify-content: center !important; }
         }
         @media (max-width: 480px) {
-          .researchers-grid { grid-template-columns: 1fr !important; }
           .metrics-grid     { grid-template-columns: repeat(2,1fr) !important; }
         }
       `}</style>
