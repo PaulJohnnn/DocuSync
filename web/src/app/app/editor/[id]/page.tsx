@@ -476,7 +476,25 @@ export default function EditorPage() {
           }
         }
 
-
+        // Step 2: Fallback to Matchmaker Cloud
+        try {
+          const mmRes = await fetch(`${_MATCHMAKER_URL}/doc?otp=${otp}&fileId=${fileId}&since=${_lastAcceptedSeq.current}`);
+          if (mmRes.ok) {
+            const data = await mmRes.json();
+            if (!data.upToDate && data.content && data.authorNodeId !== localNodeIdRef.current) {
+              if (!(isTypingRef.current || hasPendingChangesRef.current) && data.content !== currentContentRef.current) {
+                setContentAndRef(data.content);
+                lastSave.current = data.content;
+                setSaved(true);
+                setSyncStatusMsg('☁ Live synced from cloud');
+                _lastAcceptedSeq.current = data.snapshot?.committedAt || Date.now();
+                lastSyncedAt.current = Date.now();
+              }
+            }
+          }
+        } catch (e) {
+          // Both direct and cloud failed
+        }
       } catch {}
     };
 
