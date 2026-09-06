@@ -151,12 +151,16 @@ export default function HistoryPage() {
           const result = await res.json();
           if (res.ok && result.success && result.data?.content) {
             finalContent = result.data.content;
+          } else {
+            console.error("Restore API failed:", result);
           }
-        } catch (_e) {}
+        } catch (fetchErr) {
+          console.error("Fetch to /sync/restore failed:", fetchErr);
+        }
       }
 
       if (!finalContent) {
-        throw new Error("Could not retrieve full content to restore.");
+        throw new Error("Failed to fetch. The host is unreachable or did not return the restored content.");
       }
 
       try {
@@ -323,14 +327,9 @@ export default function HistoryPage() {
                           className="ds-btn ds-btn-primary ds-btn-animate"
                           onClick={() => handleRestore(ev.eventId, ev.fullContent)}
                           disabled={restoring[ev.eventId]}
-                          style={{ padding: '6px 12px', fontSize: 12, gap: 6 }}
+                          style={{ padding: '6px 16px', fontSize: 13, gap: 6 }}
                         >
-                          {restoring[ev.eventId] ? (
-                            <RefreshCw size={12} className="spin" />
-                          ) : (
-                            <Undo2 size={12} />
-                          )}
-                          Restore
+                          {restoring[ev.eventId] ? 'Restoring...' : 'Restore'}
                         </button>
                       </div>
                     </div>
@@ -377,7 +376,7 @@ export default function HistoryPage() {
                   setViewFullEvent(null);
                 }}
               >
-                <Undo2 size={14} /> Restore This Version
+                Restore This Version
               </button>
             </div>
           </div>

@@ -65,49 +65,49 @@ const InteractiveConflictEditor: React.FC<{
     display: 'flex', flexDirection: 'column', gap: 2,
   });
   const bodyStyle: React.CSSProperties = {
-    padding: '12px 14px', flex: 1, overflowY: 'auto', maxHeight: 360, minHeight: 260,
-    fontSize: 12, lineHeight: 1.7, color: 'var(--text-primary)', background: 'var(--bg-card)',
+    padding: '16px 20px', flex: 1, overflowY: 'auto', minHeight: 320,
+    fontSize: 14, lineHeight: 1.8, color: 'var(--text-primary)', background: 'var(--bg-card)',
   };
 
   return (
-    <article className="ds-card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <article className="ds-card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* Header */}
-      <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '-1rem -1rem 0 -1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 9 }}>AUTOMATIC MERGE NOTIFICATION</span>
-          <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{fileName}</span>
+      <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '-1rem -1rem 0 -1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 10 }}>AUTOMATIC MERGE NOTIFICATION</span>
+          <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{fileName}</span>
         </div>
-        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{timestamp.toLocaleString()}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{timestamp.toLocaleString()}</span>
       </div>
 
-      <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-        This conflict log was recorded automatically favoring the most recent offline changes using the LWW deterministic resolver. 
-        The online version prior to the merge is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 4px', borderRadius: 4}}>yellow</strong> on the left for your reference.
+      <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+        This conflict log was recorded automatically favoring the most recent offline changes. 
+        The online version prior to the merge is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 6px', borderRadius: 4}}>yellow</strong> on the left.
       </div>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'stretch' }}>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
         <div style={panelStyle}>
           <div style={headerStyle('#ca8a04', 'rgba(234,179,8,0.06)')}>
-            <span>Current Online Version</span>
-            <span style={{ fontWeight: 400, opacity: 0.8 }}>Read-Only Reference</span>
+            <span style={{ fontSize: 13 }}>Current Online Version</span>
+            <span style={{ fontWeight: 400, opacity: 0.8, fontSize: 11 }}>Read-Only Reference</span>
           </div>
           <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedA }} />
         </div>
 
         <div style={{...panelStyle, border: '1px solid var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }}>
           <div style={headerStyle('var(--accent)', 'rgba(16,185,129,0.06)')}>
-            <span>Auto-Resolved State</span>
-            <span style={{ fontWeight: 400, opacity: 0.8 }}>Read-Only Reference</span>
+            <span style={{ fontSize: 13 }}>Auto-Resolved State</span>
+            <span style={{ fontWeight: 400, opacity: 0.8, fontSize: 11 }}>Read-Only Reference</span>
           </div>
           <div style={{...bodyStyle, background: '#fff', cursor: 'default'}} dangerouslySetInnerHTML={{ __html: payloadB }} />
         </div>
       </div>
 
-      <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', margin: '0 -1rem -1rem -1rem', gap: '12px' }}>
+      <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '16px 20px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', margin: '0 -1rem -1rem -1rem', gap: '12px' }}>
         <button className="ds-btn ds-btn-ghost" onClick={onReject}>
-          <Shield size={13} /> Dismiss Log
+          <Shield size={14} /> Dismiss Log
         </button>
-        <button className="ds-btn ds-btn-primary" onClick={onRestore}>
+        <button className="ds-btn ds-btn-primary" onClick={onRestore} style={{ transition: 'all 0.2s ease', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px) scale(1.02)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}>
           Restore version
         </button>
       </div>
