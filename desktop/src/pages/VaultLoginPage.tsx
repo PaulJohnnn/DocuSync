@@ -486,15 +486,11 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         {loading ? (
           <>
             <svg width="18" height="18" viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite' }} fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56" strokeLinecap="round" /></svg>
-            Unlocking…
+            Logging in…
           </>
         ) : (
           <>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-            Unlock Workspace
+            Log In
           </>
         )}
       </button>
@@ -684,31 +680,26 @@ export default function VaultLoginPage() {
         }}>
           <div style={{ width: '100%', maxWidth: 480 }}>
             <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
-              <div style={{
-                width: 48, height: 48, borderRadius: 12,
-                background: '#eef2ff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0
-              }}>
-                {mode === 'signup' ? (
+              {mode === 'signup' && (
+                <div style={{
+                  width: 48, height: 48, borderRadius: 12,
+                  background: '#eef2ff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0
+                }}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                     <circle cx="9" cy="7" r="4" />
                     <line x1="19" y1="8" x2="19" y2="14" />
                     <line x1="16" y1="11" x2="22" y2="11" />
                   </svg>
-                ) : (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
-                )}
-              </div>
+                </div>
+              )}
               <div>
-                <h2 style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', lineHeight: 1.2, marginBottom: 6 }}>
-                  {mode === 'signup' ? 'Create Local Profile' : 'Unlock Workspace'}
+                <h2 style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2, marginBottom: 6 }}>
+                  {mode === 'signup' ? 'Create Local Profile' : 'Log In'}
                 </h2>
-                <p style={{ fontSize: 14, color: '#64748b', lineHeight: 1.5 }}>
+                <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                   {mode === 'signup' ? 'Request a local profile to begin collaborating securely.' : 'Access your local encrypted workspace to begin collaborating securely.'}
                 </p>
               </div>

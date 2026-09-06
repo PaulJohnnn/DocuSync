@@ -25,7 +25,7 @@ const FOOTER_LINKS = {
 export default function Footer() {
   return (
     <footer style={{
-      background: 'var(--bg)',
+      background: 'var(--bg2)',
       borderTop: '1px solid var(--b1)',
       padding: '64px clamp(20px,5vw,64px) 32px',
     }}>

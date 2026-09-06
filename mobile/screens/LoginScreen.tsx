@@ -141,12 +141,14 @@ export default function LoginScreen() {
         }}>
           
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
-            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#eef2ff', justifyContent: 'center', alignItems: 'center', marginRight: 16 }}>
-              <Ionicons name={mode === 'signup' && !signupSuccess ? "person-add" : mode === 'unlock' ? "lock-closed" : "checkmark-circle"} size={20} color="#4f46e5" />
-            </View>
+            {mode === 'signup' && (
+              <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#eef2ff', justifyContent: 'center', alignItems: 'center', marginRight: 16 }}>
+                <Ionicons name={!signupSuccess ? "person-add" : "checkmark-circle"} size={20} color="#4f46e5" />
+              </View>
+            )}
             <View>
               <Text style={{ fontSize: 20, fontWeight: '800', color: '#0f172a' }}>
-                {mode === 'signup' && !signupSuccess ? 'Create Local Profile' : mode === 'unlock' ? 'Unlock Workspace' : 'Profile Status'}
+                {mode === 'signup' && !signupSuccess ? 'Create Local Profile' : mode === 'unlock' ? 'Log In' : 'Profile Status'}
               </Text>
               <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
                 {mode === 'signup' && !signupSuccess ? 'Request a profile from the administrator.' : mode === 'unlock' ? 'Access your local encrypted workspace.' : 'Your request status.'}
@@ -236,8 +238,7 @@ export default function LoginScreen() {
               <TouchableOpacity style={styles.primaryBtn} onPress={handleUnlock} disabled={loading}>
                 {loading ? <ActivityIndicator color="#fff" /> : (
                   <>
-                    <Ionicons name="lock-open-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-                    <Text style={styles.primaryBtnText}>Unlock Workspace</Text>
+                    <Text style={styles.primaryBtnText}>Log In</Text>
                   </>
                 )}
               </TouchableOpacity>
