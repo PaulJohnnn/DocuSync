@@ -11,6 +11,9 @@ import ClientLayoutWrapper from '@/components/ClientLayoutWrapper';
 import { WebSyncProvider } from '@/context/WebSyncContext';
 import { SyncStateProvider } from '@/context/SyncStateContext';
 import { Toaster } from 'sonner';
+import { Inter } from "next/font/google";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export default function RootLayout({
   children,
