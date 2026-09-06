@@ -136,19 +136,7 @@ const PLATFORMS = [
   },
 ];
 
-const COMPARISON = [
-  { feature: 'Conflict Detection',    gdrive: 'None (LWW only)',      gdocs: 'Server-dependent',   ds: '100% via Vector Clocks' },
-  { feature: 'Data Loss on Conflict', gdrive: 'One version deleted',  gdocs: 'Requires internet',  ds: 'Both versions preserved' },
-  { feature: 'Works Offline',         gdrive: 'Limited',              gdocs: 'No real-time sync',   ds: 'Fully offline-first' },
-  { feature: 'Central Server',        gdrive: 'Google servers',       gdocs: 'Google servers',      ds: 'No — pure P2P' },
-  { feature: 'Text File Merging',     gdrive: 'No merge, stores only',gdocs: '.gdoc only',          ds: '9 text formats' },
-  { feature: 'Avg Sync Latency',      gdrive: 'Network-dependent',   gdocs: 'Network-dependent',  ds: '1.51ms local' },
-  { feature: 'Privacy',               gdrive: 'Google can access',    gdocs: 'Google can access',   ds: 'Files never leave device' },
-];
 
-const RESEARCHERS = [
-  { name: 'Paul John G. Palamara', role: 'Solo Developer',  initials: 'PJ', grad: 'linear-gradient(135deg,#4f7df8,#7c3aed)' },
-];
 
 // ── Page ──────────────────────────────────────────────────────
 export default function HomePage() {
@@ -581,169 +569,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════════════════════════
-          SECTION 6 — COMPARISON TABLE
-      ══════════════════════════════════════════════════════════ */}
-      <section style={{ background: 'var(--bg2)', padding: '100px clamp(20px,5vw,64px)' }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <div className="scroll-hidden" style={{ textAlign: 'center', marginBottom: 56 }}>
-            <SectionLabel>COMPARISON</SectionLabel>
-            <h2 style={{ fontSize: 'clamp(26px,4vw,40px)', fontWeight: 700, color: 'var(--t1)', marginBottom: 14 }}>
-              DocuSync vs The Alternatives
-            </h2>
-            <p style={{ fontSize: 16, color: 'var(--t2)' }}>
-              See how our hybrid approach outperforms existing solutions.
-            </p>
-          </div>
 
-          <div className="scroll-hidden" style={{ overflowX: 'auto', borderRadius: 16, border: '1px solid var(--b1)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
-              <thead>
-                <tr style={{ background: 'var(--s1)' }}>
-                  {['Feature', 'Google Drive', 'Google Docs', 'DocuSync'].map((h, i) => (
-                    <th key={h} style={{
-                      padding: '14px 20px', textAlign: 'left',
-                      fontSize: 12, fontWeight: 700, letterSpacing: '0.06em',
-                      textTransform: 'uppercase',
-                      color: i === 3 ? '#4f7df8' : 'var(--t3)',
-                      borderBottom: '1px solid var(--b1)',
-                      background: i === 3 ? 'rgba(79,125,248,0.06)' : 'transparent',
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARISON.map((row) => (
-                  <tr key={row.feature} style={{ borderBottom: '1px solid var(--s1)' }}>
-                    <td style={{ padding: '14px 20px', fontSize: 14, fontWeight: 600, color: 'var(--t1)' }}>
-                      {row.feature}
-                    </td>
-                    <td style={{ padding: '14px 20px', fontSize: 13, color: 'var(--t2)' }}>{row.gdrive}</td>
-                    <td style={{ padding: '14px 20px', fontSize: 13, color: 'var(--t2)' }}>{row.gdocs}</td>
-                    <td style={{
-                      padding: '14px 20px', fontSize: 13, color: '#22c55e', fontWeight: 500,
-                      background: 'rgba(79,125,248,0.04)',
-                    }}>{row.ds}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════
-          SECTION 7 — THESIS INFORMATION
-      ══════════════════════════════════════════════════════════ */}
-      <section style={{ background: 'var(--bg)', padding: '100px clamp(20px,5vw,64px)', textAlign: 'center' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
-          <div className="scroll-hidden">
-            <SectionLabel>THESIS RESEARCH · 2026</SectionLabel>
-            <h2 style={{
-              fontSize: 'clamp(18px,3vw,28px)', fontWeight: 600, color: 'var(--t1)',
-              maxWidth: 720, margin: '0 auto 14px', lineHeight: 1.45,
-            }}>
-              A Comparative Evaluation of Operational Transformation and Replicated Data Types
-              to Hybrid Conflict Resolution Algorithm
-            </h2>
-            <p style={{ fontSize: 14, color: 'var(--t2)', marginBottom: 48 }}>
-              Pamantasan ng Cabuyao · College of Computing Studies · BS Computer Science
-            </p>
-          </div>
-
-          <div className="researchers-grid scroll-hidden" style={{
-            display: 'grid', gridTemplateColumns: 'repeat(1, 280px)', justifyContent: 'center',
-            gap: 14, marginBottom: 48,
-          }}>
-            {RESEARCHERS.map((r) => (
-              <div key={r.name} style={{
-                background: 'var(--s1)',
-                border: '1px solid var(--b1)',
-                borderRadius: 12, padding: '20px 16px',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-                transition: 'border-color 0.2s ease, transform 0.2s ease',
-              }} className="researcher-card">
-                <div style={{
-                  width: 44, height: 44, borderRadius: '50%',
-                  background: r.grad,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 14, fontWeight: 700, color: '#fff',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-                }}>{r.initials}</div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--t1)', marginBottom: 3 }}>{r.name}</p>
-                  <p style={{ fontSize: 11, color: 'var(--t2)' }}>{r.role}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="scroll-hidden">
-            <span style={{
-              display: 'inline-flex', alignItems: 'center',
-              background: 'rgba(79,125,248,0.08)', border: '1px solid rgba(79,125,248,0.30)',
-              color: '#4f7df8', borderRadius: 20, padding: '8px 20px',
-              fontSize: 12, fontWeight: 600, marginBottom: 20,
-            }}>
-              📋 Evaluated against ISO/IEC 25010:2023
-            </span>
-            <br />
-            <Link href="/metrics" style={{
-              display: 'inline-flex', alignItems: 'center', marginTop: 16,
-              border: '1px solid rgba(79,125,248,0.40)', color: '#4f7df8',
-              background: 'rgba(79,125,248,0.08)',
-              borderRadius: 8, height: 42, padding: '0 20px',
-              fontSize: 13, fontWeight: 600, textDecoration: 'none',
-              transition: 'background 0.15s',
-            }} className="metrics-btn">
-              View Full Metrics →
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════
-          SECTION 8 — FINAL CTA
-      ══════════════════════════════════════════════════════════ */}
-      <section style={{
-        background: 'linear-gradient(135deg,rgba(79,125,248,0.12),rgba(124,58,237,0.12))',
-        borderTop: '1px solid rgba(79,125,248,0.20)',
-        padding: '80px clamp(20px,5vw,64px)', textAlign: 'center',
-      }}>
-        <div className="scroll-hidden" style={{ maxWidth: 680, margin: '0 auto' }}>
-          <h2 style={{ fontSize: 'clamp(24px,4vw,40px)', fontWeight: 700, color: 'var(--t1)', marginBottom: 14 }}>
-            Ready to Experience P2P Sync?
-          </h2>
-          <p style={{ fontSize: 16, color: 'var(--t2)', marginBottom: 40, lineHeight: 1.7 }}>
-            No account. No server. No subscription.<br />
-            Just pure peer-to-peer file synchronization.
-          </p>
-          <div className="hero-ctas" style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/download" style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              background: '#4f7df8', color: '#fff',
-              borderRadius: 12, height: 52, padding: '0 32px',
-              fontSize: 16, fontWeight: 600, textDecoration: 'none',
-              boxShadow: '0 8px 32px rgba(79,125,248,0.40)',
-              transition: 'background 0.15s',
-            }} className="cta-primary">
-              ⬇ Download for Windows
-            </Link>
-            <Link href="/app/welcome" className="cta-ghost">
-              Try Web App →
-            </Link>
-            <Link href="https://github.com/PaulJohnnn/DocuSync" target="_blank" rel="noopener noreferrer"
-              style={{
-                display: 'inline-flex', alignItems: 'center',
-                color: 'var(--t2)', fontSize: 15, fontWeight: 500,
-                textDecoration: 'none', padding: '0 8px', height: 52,
-                transition: 'color 0.15s',
-              }} className="cta-text-link">
-              View on GitHub ↗
-            </Link>
-          </div>
-        </div>
-      </section>
 
       {/* ── Responsive & hover styles ── */}
       <style>{`
@@ -769,8 +595,6 @@ export default function HomePage() {
         }
         @media (max-width: 768px) {
           .metrics-grid       { grid-template-columns: repeat(2,1fr) !important; }
-          .hero-ctas          { flex-direction: column !important; align-items: stretch !important; }
-          .hero-ctas a        { justify-content: center !important; }
         }
         @media (max-width: 480px) {
           .metrics-grid     { grid-template-columns: repeat(2,1fr) !important; }
