@@ -10,6 +10,8 @@ import { useSyncState } from '@/context/SyncStateContext';
 const TipTapEditor = dynamic(() => import('@/components/TipTapEditor'), { ssr: false });
 import type { RemoteCursor } from '@/components/TipTapEditor';
 import { toast } from 'sonner';
+import { computeSignatureMerge } from '@/engine/delta/signature-merge';
+
 // ── Matchmaker URL ─────────────────────────────────────────────────────────
 const _MATCHMAKER_URL = process.env.NODE_ENV === 'development'
   ? '/api/lobby'
@@ -69,6 +71,10 @@ export default function EditorPage() {
   const hasPendingChangesRef = useRef(false);
   const isPushingRef = useRef(false);
   const queuedContentRef = useRef<string | null>(null);
+  
+  // Track offline baseline for signature merge
+  const offlineBaselineRef = useRef<string>('');
+  
   // Same ts for lastLocalSaveTime — the poll guard uses this to block old snapshots
   const lastLocalSaveTime = useRef<number>(_initSaveTs);
   const createInitialWebClock = () => {
@@ -303,7 +309,7 @@ export default function EditorPage() {
   }, []);
 
   // ── Push content to Host ──────────────────────────────────────────────────
-  const pushToHost = useCallback(async (contentToSave: string, vectorClockSnapshot: Record<string, number>, explicit = false) => {
+  const pushToHost = useCallback(async (contentToSave: string, vectorClockSnapshot: Record<string, number>, explicit = false, isSessionEnd = false) => {
     // Instantly update local storage representation of the file so rejoining file displays new content
     updateLocalStorageFile(fileId, contentToSave);
 
@@ -405,7 +411,8 @@ export default function EditorPage() {
                 authorNodeId: localNodeIdRef.current,
                 content: contentToSave,
                 vectorClock: vectorClockSnapshot,
-                committedAt: Date.now()
+                committedAt: Date.now(),
+                isSessionEnd
               }),
             });
             if (mmRes.ok) {
@@ -467,6 +474,25 @@ export default function EditorPage() {
                   setSaved(true);
                   setSyncStatusMsg('↓ Live synced from host');
                   lastSyncedAt.current = Date.now();
+                } else if (hasPendingChangesRef.current && currentContentRef.current !== data.content) {
+                  // We have offline/pending changes AND the server has new changes. Conflict!
+                  const original = offlineBaselineRef.current || lastSave.current;
+                  const merged = computeSignatureMerge(original, data.content, currentContentRef.current);
+                  if (merged !== currentContentRef.current) {
+                    setContentAndRef(merged);
+                    setSyncStatusMsg('Merged Signature Edit ✓');
+                    toast.success('Offline edits merged automatically');
+                    // Store conflict for UI badge
+                    const storedConflicts = JSON.parse(uGet('docusync_web_conflicts') || '[]');
+                    storedConflicts.push({
+                      fileId,
+                      timestamp: Date.now(),
+                      localContent: currentContentRef.current,
+                      serverContent: data.content,
+                      mergedContent: merged
+                    });
+                    uSet('docusync_web_conflicts', JSON.stringify(storedConflicts));
+                  }
                 }
               }
               return; // successfully polled direct host
@@ -489,6 +515,26 @@ export default function EditorPage() {
                 setSyncStatusMsg('☁ Live synced from cloud');
                 _lastAcceptedSeq.current = data.snapshot?.committedAt || Date.now();
                 lastSyncedAt.current = Date.now();
+              } else if (hasPendingChangesRef.current && currentContentRef.current !== data.content) {
+                // Conflict in cloud Matchmaker
+                const original = offlineBaselineRef.current || lastSave.current;
+                const merged = computeSignatureMerge(original, data.content, currentContentRef.current);
+                if (merged !== currentContentRef.current) {
+                  setContentAndRef(merged);
+                  setSyncStatusMsg('Merged Signature Edit ☁');
+                  toast.success('Offline edits merged via cloud');
+                  // Push conflict event to Redis via Matchmaker History API later
+                  // And store locally for badge
+                  const storedConflicts = JSON.parse(uGet('docusync_web_conflicts') || '[]');
+                  storedConflicts.push({
+                    fileId,
+                    timestamp: Date.now(),
+                    localContent: currentContentRef.current,
+                    serverContent: data.content,
+                    mergedContent: merged
+                  });
+                  uSet('docusync_web_conflicts', JSON.stringify(storedConflicts));
+                }
               }
             }
           }
@@ -504,8 +550,8 @@ export default function EditorPage() {
 
 
 
-  const saveFile = useCallback(async (contentToSave: string, forcePush = false) => {
-    if (contentToSave === lastSave.current && !forcePush) return;
+  const saveFile = useCallback(async (contentToSave: string, forcePush = false, isSessionEnd = false) => {
+    if (contentToSave === lastSave.current && !forcePush && !isSessionEnd) return;
     
     if (isPushingRef.current) {
       queuedContentRef.current = contentToSave;
@@ -539,7 +585,7 @@ export default function EditorPage() {
     console.log('[VC SHAPE]', JSON.stringify(localVectorClockRef.current, null, 2));
 
     console.log('[SEND]', JSON.stringify(localVectorClockRef.current));
-    await pushToHost(contentToSave, localVectorClockRef.current, forcePush);
+    await pushToHost(contentToSave, localVectorClockRef.current, forcePush, isSessionEnd);
     } finally {
       isPushingRef.current = false;
       if (queuedContentRef.current !== null) {
@@ -569,16 +615,16 @@ export default function EditorPage() {
 
   useEffect(() => {
     const handleBeforeUnload = (_e: BeforeUnloadEvent) => {
-      saveFile(currentContentRef.current, true);
+      saveFile(currentContentRef.current, true, _connectedPeersCount === 0);
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (hasPendingChangesRef.current) {
-        saveFile(currentContentRef.current, true);
+      if (hasPendingChangesRef.current || _connectedPeersCount === 0) {
+        saveFile(currentContentRef.current, true, _connectedPeersCount === 0);
       }
     };
-  }, [saveFile]);
+  }, [saveFile, _connectedPeersCount]);
 
   useEffect(() => {
     if (isOnline && hasPendingChangesRef.current) {
@@ -621,10 +667,31 @@ export default function EditorPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            
-            <button className="ds-btn ds-btn-ghost" onClick={() => router.push(`/app/history/${fileId}`)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+           <div className="ds-topbar-actions">
+            {/* Conflict History Icon with Badge */}
+            <button className="ds-btn ds-btn-ghost" onClick={() => router.push(`/app/history/${fileId}`)} style={{ position: 'relative' }}>
               <Clock size={14} /> Conflict History
+              {(() => {
+                try {
+                  const storedConflicts = JSON.parse(uGet('docusync_web_conflicts') || '[]');
+                  const activeConflicts = storedConflicts.filter((c: any) => String(c.fileId) === String(fileId));
+                  if (activeConflicts.length > 0) {
+                    return (
+                      <div style={{
+                        position: 'absolute', top: -6, right: -6, background: '#ef4444', color: '#fff',
+                        fontSize: 10, fontWeight: 700, width: 16, height: 16, borderRadius: '50%',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 0 0 2px var(--bg)'
+                      }}>
+                        {activeConflicts.length}
+                      </div>
+                    );
+                  }
+                } catch (e) {}
+                return null;
+              })()}
             </button>
+            </div>
 
             <button className="ds-btn" onClick={() => {
               const origName = file.name || 'document';

@@ -21,6 +21,7 @@ interface HistoryEntry {
 
 const EVENT_ICONS: Record<string, { icon: React.ElementType; color: string; bg: string; label: string }> = {
   'edit': { icon: FileEdit, color: 'var(--acc)', bg: 'var(--acb)', label: 'Edit' },
+  'session-snapshot': { icon: RefreshCw, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', label: 'Session Checkpoint' },
   'merge': { icon: GitMerge, color: 'var(--pur)', bg: 'rgba(168, 85, 247, 0.15)', label: 'Merge' },
   'conflict-resolve': { icon: Scale, color: 'var(--amb)', bg: 'var(--amb-bg)', label: 'Conflict Resolved' },
   'restore': { icon: FilePlus, color: 'var(--grn)', bg: 'rgba(16, 185, 129, 0.15)', label: 'Restore' },
@@ -50,9 +51,6 @@ export default function HistoryPage() {
     try {
       const roomStr = uGet('current_room');
       const room = roomStr ? JSON.parse(roomStr) : null;
-      if (!room || !room.hostIp) {
-        throw new Error('No active room connection found. Are you in a session?');
-      }
 
       const filesStr = uGet('files');
       if (filesStr) {
@@ -61,15 +59,46 @@ export default function HistoryPage() {
         if (f) setFileName(f.name);
       }
 
-      const baseUrl = `http://${room.hostIp}:${room.port || 9000}`;
-      const res = await fetch(`${baseUrl}/sync/history?fileId=${fileId}`);
-      const result = await res.json();
-      
-      if (result.success && result.data) {
-        const sorted = [...result.data.entries].sort((a: any, b: any) => b.logicalTimestamp - a.logicalTimestamp);
+      let fetchedData = null;
+      let hostError = null;
+
+      // 1. Try fetching from direct host if available
+      if (room && room.hostIp) {
+        try {
+          const baseUrl = `http://${room.hostIp}:${room.port || 9000}`;
+          const res = await fetch(`${baseUrl}/sync/history?fileId=${fileId}`);
+          if (res.ok) {
+            const result = await res.json();
+            if (result.success && result.data) {
+              fetchedData = result.data.entries;
+            }
+          }
+        } catch (e: any) {
+          hostError = e;
+        }
+      }
+
+      // 2. Fallback to Cloud Matchmaker History API
+      if (!fetchedData && room && room.otp) {
+        try {
+          const mmRes = await fetch(`/api/lobby/history?otp=${room.otp}&fileId=${fileId}`);
+          if (mmRes.ok) {
+            const result = await mmRes.json();
+            if (result.success && result.data) {
+              fetchedData = result.data.entries;
+            }
+          }
+        } catch (e) {
+          // Cloud failed too
+        }
+      }
+
+      if (fetchedData) {
+        const sorted = [...fetchedData].sort((a: any, b: any) => b.logicalTimestamp - a.logicalTimestamp);
         setEvents(sorted);
+        setErrorMsg('');
       } else {
-        throw new Error(result.error || 'Failed to fetch history');
+        throw new Error(hostError?.message || 'Failed to fetch history from host or cloud.');
       }
     } catch (err: any) {
       setErrorMsg(err.message || String(err));

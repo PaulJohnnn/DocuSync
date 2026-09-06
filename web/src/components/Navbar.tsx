@@ -9,7 +9,6 @@ function LogoMark() {
     <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
       <rect width="28" height="28" rx="8" fill="#4f7df8"/>
       <path d="M7.5 10h13M7.5 14h9M7.5 18h9" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
-      <circle cx="19.5" cy="18.5" r="4.5" fill="#22c55e"/>
     </svg>
   );
 }

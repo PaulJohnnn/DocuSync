@@ -6,7 +6,4 @@
   <rect x="250" y="320" width="524" height="90" rx="45" fill="#ffffff" />
   <rect x="250" y="470" width="460" height="90" rx="45" fill="#ffffff" />
   <rect x="250" y="620" width="380" height="90" rx="45" fill="#ffffff" />
-  
-  <!-- Green circle in bottom right -->
-  <circle cx="700" cy="700" r="180" fill="#22c55e" />
 </svg>

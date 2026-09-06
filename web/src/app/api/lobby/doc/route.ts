@@ -48,7 +48,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { otp, fileId, content, authorNodeId, vectorClock, seq, committedAt } = body;
+    const { otp, fileId, content, authorNodeId, vectorClock, seq, committedAt, isSessionEnd } = body;
 
     if (!otp || !fileId || content === undefined) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers: corsHeaders });
@@ -76,6 +76,23 @@ export async function POST(request: Request) {
 
     // Store for 24 hours
     await redis.set(key, snapshot, { ex: 60 * 60 * 24 });
+    
+    // Record history event
+    const historyEvent = {
+      eventId: Date.now().toString(),
+      fileId,
+      nodeId: authorNodeId,
+      eventType: isSessionEnd ? 'session-snapshot' : 'edit',
+      logicalTimestamp: incomingCommittedAt,
+      payloadPreview: content.substring(0, 100), // Preview only to save space
+      fullContent: content, // Keep full content for conflict diff viewing
+      createdAt: new Date().toISOString(),
+      isCompacted: false,
+    };
+    const historyKey = `doc_history:${otp}:${fileId}`;
+    await redis.lpush(historyKey, JSON.stringify(historyEvent));
+    // Trim history to 50 items
+    await redis.ltrim(historyKey, 0, 49);
 
     return NextResponse.json({ success: true, snapshot }, { headers: corsHeaders });
   } catch (err) {

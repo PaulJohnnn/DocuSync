@@ -487,7 +487,7 @@ export default function FilesPage() {
         </button>
       </div>
 
-      {/* Active Peers Dropdown */}
+      {/* Active Users Dropdown */}
       <div style={{ marginBottom: 28, position: 'relative' }}>
         <div 
           onClick={() => setIsPeersOpen(!isPeersOpen)}
@@ -500,7 +500,7 @@ export default function FilesPage() {
           onMouseEnter={e => e.currentTarget.style.background = 'var(--s2)'}
           onMouseLeave={e => e.currentTarget.style.background = 'var(--s1)'}
         >
-          ACTIVE PEERS ({connectedPeers.length + 1})
+          ACTIVE USERS ({connectedPeers.length + 1})
           <span style={{ fontSize: 10, transform: isPeersOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▼</span>
         </div>
 
@@ -513,7 +513,7 @@ export default function FilesPage() {
           }}>
             {connectedPeers.length === 0 && (
               <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--t3)', fontStyle: 'italic', textAlign: 'center' }}>
-                No other peers connected
+                No other users connected
               </div>
             )}
             
@@ -536,7 +536,7 @@ export default function FilesPage() {
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--grn)' : 'var(--t3)' }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>
-                      {p.displayName || p.id?.split(':')[0] || 'Peer'}
+                      {p.displayName || p.id?.split(':')[0] || 'User'}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--t3)' }}>
                       {appIcon} {appName} • {isOnline ? 'Online' : 'Offline'}
