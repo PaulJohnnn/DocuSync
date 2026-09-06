@@ -181,7 +181,7 @@ const RoomCard: React.FC<{
 
   return (
     <div style={{
-      background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 14,
+      background: 'var(--bg-card)', border: '1.5px solid var(--border)', borderRadius: 14,
       padding: '16px 20px', transition: 'all 0.2s',
       boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
     }}
@@ -286,7 +286,7 @@ const RoomCard: React.FC<{
             onClick={onDelete}
             style={{
               width: 34, height: 34, borderRadius: 8, border: '1px solid #fecaca',
-              background: '#fff', cursor: 'pointer', color: '#ef4444',
+              background: 'var(--bg-card)', cursor: 'pointer', color: '#ef4444',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
             title="Leave / delete room"
@@ -389,7 +389,7 @@ export default function RoomsPage() {
   };
 
   const cardStyle: React.CSSProperties = {
-    background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 18,
+    background: 'var(--bg-card)', border: '1.5px solid var(--border)', borderRadius: 18,
     padding: '32px', boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
     maxWidth: 480, width: '100%', margin: '0 auto',
   };
@@ -410,7 +410,7 @@ export default function RoomsPage() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={handleJoinStart} style={{
                   padding: '9px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                  background: '#f8fafc', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer',
+                  background: 'var(--bg-card)', color: '#1e293b', border: '1.5px solid var(--border)', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: 6,
                 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -456,7 +456,7 @@ export default function RoomsPage() {
                   <span style={{ fontSize: 11, color: '#94a3b8' }}>(You can create a room below)</span>
                 </p>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                  <button onClick={handleJoinStart} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
+                  <button onClick={handleJoinStart} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: 'var(--bg-card)', color: '#475569', border: '1.5px solid var(--border)', cursor: 'pointer' }}>
                     Join with code
                   </button>
                   <button onClick={handleCreateStart} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, background: 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)', color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 2px 10px rgba(79,70,229,0.3)' }}>
@@ -507,12 +507,12 @@ export default function RoomsPage() {
                 maxLength={40}
                 style={{
                   width: '100%', padding: '13px 16px', borderRadius: 12, fontSize: 15, fontWeight: 500,
-                  border: `1.5px solid ${roomNameError ? '#ef4444' : '#e2e8f0'}`,
+                  border: `1.5px solid ${roomNameError ? '#ef4444' : 'var(--border)'}`,
                   outline: 'none', fontFamily: 'inherit', color: '#0f172a',
-                  boxSizing: 'border-box',
+                  boxSizing: 'border-box', background: 'var(--bg-card)',
                 }}
                 onFocus={e => { e.target.style.borderColor = '#818cf8'; e.target.style.boxShadow = '0 0 0 3px rgba(129,140,248,0.15)'; }}
-                onBlur={e => { e.target.style.borderColor = roomNameError ? '#ef4444' : '#e2e8f0'; e.target.style.boxShadow = 'none'; }}
+                onBlur={e => { e.target.style.borderColor = roomNameError ? '#ef4444' : 'var(--border)'; e.target.style.boxShadow = 'none'; }}
               />
               {roomNameError && <p style={{ marginTop: 4, fontSize: 12, color: '#ef4444' }}>{roomNameError}</p>}
             </div>
@@ -590,7 +590,7 @@ export default function RoomsPage() {
             }}>
               <span>Enter Workspace</span> <ArrowRight size={16} />
             </button>
-            <button onClick={() => setView('list')} style={{ width: '100%', padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 600, background: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
+            <button onClick={() => setView('list')} style={{ width: '100%', padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 600, background: 'var(--bg-card)', color: '#475569', border: '1.5px solid var(--border)', cursor: 'pointer' }}>
               Back to Room List
             </button>
           </div>
@@ -669,7 +669,7 @@ export default function RoomsPage() {
             }}>
               Enter Workspace →
             </button>
-            <button onClick={() => setView('list')} style={{ width: '100%', padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 600, background: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
+            <button onClick={() => setView('list')} style={{ width: '100%', padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 600, background: 'var(--bg-card)', color: '#475569', border: '1.5px solid var(--border)', cursor: 'pointer' }}>
               Back to Room List
             </button>
           </div>
@@ -700,7 +700,7 @@ export default function RoomsPage() {
             }}>
               Try Again
             </button>
-            <button onClick={() => setView('list')} style={{ width: '100%', padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 600, background: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
+            <button onClick={() => setView('list')} style={{ width: '100%', padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 600, background: 'var(--bg-card)', color: '#475569', border: '1.5px solid var(--border)', cursor: 'pointer' }}>
               Back to Room List
             </button>
           </div>
@@ -716,13 +716,13 @@ export default function RoomsPage() {
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
         }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: '28px', maxWidth: 380, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: '28px', maxWidth: 380, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
             <h3 style={{ fontSize: 17, fontWeight: 700, color: '#0f172a', marginBottom: 8 }}>Leave this room?</h3>
             <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20, lineHeight: 1.6 }}>
               You&apos;ll lose access to this room&apos;s shared workspace. The room owner can re-invite you later.
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setDeleteConfirm(null)} style={{ flex: 1, padding: '11px', borderRadius: 10, fontSize: 14, fontWeight: 600, background: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
+              <button onClick={() => setDeleteConfirm(null)} style={{ flex: 1, padding: '11px', borderRadius: 10, fontSize: 14, fontWeight: 600, background: 'var(--bg-card)', color: '#475569', border: '1.5px solid var(--border)', cursor: 'pointer' }}>
                 Cancel
               </button>
               <button onClick={() => handleDelete(deleteConfirm)} style={{ flex: 1, padding: '11px', borderRadius: 10, fontSize: 14, fontWeight: 700, background: '#ef4444', color: '#fff', border: 'none', cursor: 'pointer' }}>

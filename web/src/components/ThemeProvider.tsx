@@ -9,18 +9,18 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: 'dark',
+  theme: 'light',
   toggleTheme: () => {},
 });
 
 export const useTheme = () => useContext(ThemeContext);
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
-    const saved = localStorage.getItem('docusync_theme') as Theme;
-    if (saved) {
+    const saved = localStorage.getItem('docusync_theme');
+    if (saved === 'dark' || saved === 'light') {
       setTheme(saved);
       document.documentElement.className = saved;
     } else {

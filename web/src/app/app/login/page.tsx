@@ -41,8 +41,8 @@ const SixDigitPin: React.FC<{
     <div style={{ marginBottom: 6 }}>
       <div style={{
         display: 'flex', alignItems: 'center',
-        border: `1.5px solid ${error ? '#ef4444' : '#e2e8f0'}`,
-        borderRadius: 12, background: '#ffffff', padding: '11px 14px',
+        border: `1.5px solid ${error ? '#ef4444' : 'var(--border)'}`,
+        borderRadius: 12, background: 'var(--bg-card)', padding: '11px 14px',
         cursor: 'text', gap: 10,
         boxShadow: error ? '0 0 0 3px rgba(239,68,68,0.12)' : undefined,
         animation: shake ? 'shake 0.4s ease' : undefined,
@@ -204,7 +204,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
                   background: copied ? '#10b981' : 'none', 
                   border: 'none', cursor: 'pointer', padding: 6, display: 'flex',
                   alignItems: 'center', justifyContent: 'center', 
-                  color: copied ? '#fff' : '#64748b',
+                  color: copied ? 'var(--bg-card)' : '#64748b',
                   borderRadius: 6,
                   transition: 'all 0.2s ease',
                   transform: copied ? 'scale(1.1)' : 'scale(1)'
@@ -239,7 +239,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
           }}
           style={{
             padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600,
-            background: '#fff', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer'
+            background: 'var(--bg-card)', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer'
           }}
         >
           Back to Unlock
@@ -256,8 +256,8 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
         </label>
         <div style={{
           display: 'flex', alignItems: 'center',
-          border: `1.5px solid ${emailError ? '#ef4444' : '#e2e8f0'}`,
-          borderRadius: 12, background: '#ffffff',
+          border: `1.5px solid ${emailError ? '#ef4444' : 'var(--border)'}`,
+          borderRadius: 12, background: 'var(--bg-card)',
           transition: 'border-color 0.2s, box-shadow 0.2s',
         }}>
           <span style={{ paddingLeft: 14, color: '#94a3b8', flexShrink: 0 }}>
@@ -286,7 +286,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
         style={{
           width: '100%', padding: '15px', borderRadius: 12, fontSize: 15, fontWeight: 700,
           background: loading ? '#a5b4fc' : 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)',
-          color: '#fff', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+          color: 'var(--bg-card)', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           boxShadow: loading ? 'none' : '0 4px 20px rgba(79,70,229,0.40)',
           marginBottom: 16,
@@ -300,7 +300,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
         onClick={onBack}
         style={{
           width: '100%', padding: '14px', borderRadius: 12, fontSize: 14, fontWeight: 600,
-          background: '#fff', color: '#64748b', border: 'none', cursor: 'pointer',
+          background: 'var(--bg-card)', color: '#64748b', border: 'none', cursor: 'pointer',
         }}
       >
         Back to Unlock
@@ -403,12 +403,12 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         </label>
         <div style={{
           display: 'flex', alignItems: 'center',
-          border: `1.5px solid ${emailError ? '#ef4444' : '#e2e8f0'}`,
-          borderRadius: 12, background: '#ffffff',
+          border: `1.5px solid ${emailError ? '#ef4444' : 'var(--border)'}`,
+          borderRadius: 12, background: 'var(--bg-card)',
           transition: 'border-color 0.2s, box-shadow 0.2s',
         }}
           onFocusCapture={e => { (e.currentTarget as HTMLElement).style.borderColor = emailError ? '#ef4444' : '#818cf8'; (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 3px rgba(129,140,248,0.15)'; }}
-          onBlurCapture={e => { (e.currentTarget as HTMLElement).style.borderColor = emailError ? '#ef4444' : '#e2e8f0'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
+          onBlurCapture={e => { (e.currentTarget as HTMLElement).style.borderColor = emailError ? '#ef4444' : 'var(--border)'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}
         >
           <span style={{ paddingLeft: 14, color: '#94a3b8', flexShrink: 0 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -488,7 +488,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
           width: '100%', padding: '15px', borderRadius: 12,
           fontSize: 15, fontWeight: 700,
           background: loading ? '#a5b4fc' : 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)',
-          color: '#fff', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+          color: 'var(--bg-card)', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           boxShadow: loading ? 'none' : '0 4px 20px rgba(79,70,229,0.40)',
           transition: 'all 0.2s', marginBottom: 16,
@@ -515,9 +515,9 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
 
       {/* Or divider */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500 }}>or</span>
-        <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
       </div>
 
       {/* Secondary CTA — Create Local Profile */}
@@ -528,13 +528,13 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         style={{
           width: '100%', padding: '14px', borderRadius: 12,
           fontSize: 15, fontWeight: 600,
-          background: '#fff', color: '#1e293b',
+          background: 'var(--bg-card)', color: '#1e293b',
           border: '1.5px solid #e2e8f0', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           transition: 'all 0.2s',
         }}
         onMouseEnter={e => { (e.currentTarget.style.borderColor = '#818cf8'); (e.currentTarget.style.color = '#4f46e5'); }}
-        onMouseLeave={e => { (e.currentTarget.style.borderColor = '#e2e8f0'); (e.currentTarget.style.color = '#1e293b'); }}
+        onMouseLeave={e => { (e.currentTarget.style.borderColor = 'var(--border)'); (e.currentTarget.style.color = '#1e293b'); }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -554,7 +554,7 @@ const HintCard: React.FC = () => {
   return (
     <div style={{
       position: 'fixed', bottom: 24, right: 24, zIndex: 100,
-      background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+      background: 'var(--bg-card)', border: '1px solid #e2e8f0', borderRadius: 12,
       boxShadow: '0 4px 20px rgba(0,0,0,0.1)', overflow: 'hidden',
       maxWidth: 280, fontSize: 12,
     }}>
@@ -600,7 +600,7 @@ export default function UnlockWorkspacePage() {
     }}>
       <div style={{
         display: 'flex', flex: 1, width: '100%',
-        background: '#ffffff',
+        background: 'var(--bg-card)',
         overflow: 'hidden', position: 'relative'
       }}>
         {/* ── Left panel ──────────────────────────────────────────────── */}
@@ -744,7 +744,7 @@ export default function UnlockWorkspacePage() {
         {/* ── Right panel ─────────────────────────────────────────────── */}
         <div style={{
           flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '80px', background: '#ffffff',
+          padding: '80px', background: 'var(--bg-card)',
         }}>
           <div style={{ width: '100%', maxWidth: 480 }}>
             {/* Header */}
