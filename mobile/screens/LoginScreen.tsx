@@ -28,7 +28,6 @@ const DocuSyncLogo = ({ size = 80 }) => (
       <Rect x="22" y="28" width="56" height="12" rx="6" fill="white" />
       <Rect x="22" y="48" width="56" height="12" rx="6" fill="white" />
       <Rect x="22" y="68" width="32" height="12" rx="6" fill="white" />
-      <Circle cx="70" cy="70" r="18" fill="#22c55e" />
     </Svg>
   </View>
 );

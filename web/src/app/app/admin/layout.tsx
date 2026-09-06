@@ -68,7 +68,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <rect x="22" y="28" width="56" height="12" rx="6" fill="white" />
               <rect x="22" y="48" width="56" height="12" rx="6" fill="white" />
               <rect x="22" y="68" width="32" height="12" rx="6" fill="white" />
-              <circle cx="70" cy="70" r="18" fill="#22c55e" />
             </svg>
           </div>
           <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>

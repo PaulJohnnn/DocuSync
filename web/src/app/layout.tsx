@@ -3,7 +3,7 @@ import "./globals.css";
 import ThemeProvider from '@/components/ThemeProvider';
 
 export const metadata: Metadata = {
-  title: "DocuSync — Web Edition",
+  title: "DocuSyncHomepage",
   description: "Hybrid P2P File Synchronization Engine — Web Client",
 };
 
