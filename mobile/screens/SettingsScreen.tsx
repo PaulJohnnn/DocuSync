@@ -23,7 +23,7 @@ interface HostMetrics {
 }
 
 const MATCHMAKER_KEY = '@docusync/matchmaker_url';
-const DEFAULT_MATCHMAKER = 'https://docusync-dusky.vercel.app/api/lobby';
+const DEFAULT_MATCHMAKER = 'https://docusync-ajlqc4bys-paul-palamaras-projects.vercel.app/api/lobby';
 
 export default function SettingsScreen() {
   const navigation = useNavigation();

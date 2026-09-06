@@ -123,52 +123,75 @@ export default function EditorScreen({ route, navigation }: any) {
     setSyncing(true);
     setSyncStatusMsg('Syncing...');
 
-    try {
-      const baseUrl = await getSyncBaseUrl();
-      if (!baseUrl) {
-        setSyncStatusMsg("Couldn't find host address — try rejoining the room");
-        return;
-      }
+      let directSuccess = false;
+      try {
+        const baseUrl = await getSyncBaseUrl();
+        if (baseUrl) {
+          const res = await fetch(`${baseUrl}/sync/push`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileId,
+              authorNodeId: localNodeIdRef.current,
+              authorName: localNodeIdRef.current.slice(0, 8),
+              nodeId: localNodeIdRef.current,
+              content: contentToSave,
+              vectorClock: localVectorClockRef.current,
+            }),
+          });
 
-      const res = await fetch(`${baseUrl}/sync/push`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileId,
-          authorNodeId: localNodeIdRef.current,
-          authorName: localNodeIdRef.current.slice(0, 8),
-          nodeId: localNodeIdRef.current,
-          content: contentToSave,
-          vectorClock: localVectorClockRef.current,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.vectorClock) {
-          localVectorClockRef.current = data.vectorClock;
-        }
-        if (data.escalated || data.conflict) {
-          setEscalated(true);
-          setSyncStatusMsg('Conflict — sent to owner for review');
-          setTimeout(() => setEscalated(false), 5000);
-        } else {
-          if (data.lwwResolved) {
-            setLwwToastVisible(true);
-            setTimeout(() => setLwwToastVisible(false), 4000);
+          if (res.ok) {
+            directSuccess = true;
+            const data = await res.json();
+            if (data.vectorClock) localVectorClockRef.current = data.vectorClock;
+            if (data.escalated || data.conflict) {
+              setEscalated(true);
+              setSyncStatusMsg('Conflict — sent to owner for review');
+              setTimeout(() => setEscalated(false), 5000);
+            } else {
+              if (data.lwwResolved) {
+                setLwwToastVisible(true);
+                setTimeout(() => setLwwToastVisible(false), 4000);
+              }
+              const time = new Date().toLocaleTimeString();
+              setSyncStatusMsg(`Synced ✓ (v${data.seq || '?'}) at ${time}`);
+              setOfflineQueue(false);
+            }
           }
-          const time = new Date().toLocaleTimeString();
-          setSyncStatusMsg(`Synced ✓ (v${data.seq || '?'}) at ${time}`);
-          setOfflineQueue(false);
         }
-      } else {
-        setSyncStatusMsg('Host unavailable — edits saving locally');
-        setOfflineQueue(true);
+      } catch (e) {
+        console.error('[Mobile Sync] Direct push failed:', e);
       }
-    } catch (e) {
-      console.error('[Mobile Sync] Push failed:', e);
-      setSyncStatusMsg('Host unavailable — edits saving locally');
-      setOfflineQueue(true);
+
+      if (!directSuccess) {
+        // Fallback to Matchmaker Cloud
+        try {
+          const MATCHMAKER = await AsyncStorage.getItem('@docusync/matchmaker_url') || 'https://docusync-ajlqc4bys-paul-palamaras-projects.vercel.app/api/lobby';
+          const mmRes = await fetch(`${MATCHMAKER}/doc`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              otp,
+              fileId,
+              content: contentToSave,
+              vectorClock: localVectorClockRef.current,
+              authorNodeId: localNodeIdRef.current,
+              authorName: localNodeIdRef.current.slice(0, 8),
+            }),
+          });
+          
+          if (mmRes.ok) {
+            setSyncStatusMsg(`☁ Saved to cloud`);
+            setOfflineQueue(false);
+          } else {
+            setSyncStatusMsg('Offline — queued for sync');
+            setOfflineQueue(true);
+          }
+        } catch (mmErr) {
+          setSyncStatusMsg('Offline — queued for sync');
+          setOfflineQueue(true);
+        }
+      }
     } finally {
       setSyncing(false);
     }
@@ -186,13 +209,12 @@ export default function EditorScreen({ route, navigation }: any) {
       try {
         const baseUrl = await getSyncBaseUrl();
         if (!baseUrl) {
-          setSyncStatusMsg("Couldn't find host address — try rejoining the room");
-          return;
+          throw new Error('no_host');
         }
 
         const url = `${baseUrl}/sync/status?fileId=${fileId}`;
         const res = await fetch(url);
-        if (!res.ok) return;
+        if (!res.ok) throw new Error('host_down');
         const data = await res.json();
 
         if (data.unchanged || !data.snapshot) {
@@ -228,8 +250,41 @@ export default function EditorScreen({ route, navigation }: any) {
           } catch {}
         }
       } catch {
-        // Fetch failed — host is unreachable or down
-        setSyncStatusMsg('Host unavailable — edits saving locally');
+        // Fetch failed — host is unreachable or down. Fallback to Matchmaker Cloud
+        try {
+          const MATCHMAKER = await AsyncStorage.getItem('@docusync/matchmaker_url') || 'https://docusync-ajlqc4bys-paul-palamaras-projects.vercel.app/api/lobby';
+          const mmRes = await fetch(`${MATCHMAKER}/doc?otp=${otp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
+          if (mmRes.ok) {
+            const data = await mmRes.json();
+            if (!data.upToDate && data.content && data.authorNodeId !== localNodeIdRef.current) {
+              if (isTypingRef.current) return;
+              lastSyncedAt.current = data.snapshot?.committedAt || Date.now();
+              setContent(data.content);
+              lastSave.current = data.content;
+              setSaved(true);
+              setSyncStatusMsg(`☁ Live synced from cloud`);
+
+              // Update local storage
+              try {
+                const stored = await uGet('files');
+                if (stored) {
+                  const files: FileRecord[] = JSON.parse(stored);
+                  const idx = files.findIndex(f => f.id === fileId);
+                  if (idx >= 0) {
+                    files[idx].content = data.content;
+                    files[idx].updatedAt = new Date().toISOString();
+                    files[idx].size = data.content.length;
+                    await uSet('files', JSON.stringify(files));
+                  }
+                }
+              } catch {}
+            }
+          } else {
+            setSyncStatusMsg('Host unavailable — edits saving locally');
+          }
+        } catch (mmErr) {
+          setSyncStatusMsg('Host unavailable — edits saving locally');
+        }
       }
     };
 
