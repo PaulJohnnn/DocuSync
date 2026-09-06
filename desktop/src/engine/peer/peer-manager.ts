@@ -600,6 +600,37 @@ export class PeerManager {
                 resolveResult.conflictId = conflictId;
               } else {
                 resolveResult = await this.config.lwwResolver.resolve(eventA, eventB, this.config.vectorClock, incomingVc);
+                
+                if (resolveResult.outcome === 'escalated' && resolveResult.conflictId) {
+                  console.log(`[PeerManager] Intercepting online concurrent edit. Applying silent LWW instead of conflict history.`);
+                  
+                  try {
+                    await this.config.lwwResolver['prisma'].conflict.delete({ where: { conflictId: resolveResult.conflictId } });
+                  } catch (e) {}
+
+                  const serverCommittedAt = latestEvent ? new Date(latestEvent.createdAt).getTime() : 0;
+                  const incomingCommittedAt = body.committedAt || Date.now();
+                  
+                  if (incomingCommittedAt >= serverCommittedAt) {
+                    // b-wins: Incoming edit wins. Apply it locally exactly like 'dominated'
+                    try { this.config.vectorClock.merge(incomingVc); } catch {}
+                    let newContent = remoteContent || localContent;
+                    if (delta) {
+                      try {
+                        const decoded = decodeDelta(localContent, delta);
+                        newContent = decoded.content;
+                      } catch {}
+                    }
+                    if (this.config.onDeltaApplied) {
+                      await this.config.onDeltaApplied(fileId, newContent, crypto.randomUUID(), this.config.localNodeId, this.config.vectorClock.toJSON(), 'merge', true);
+                    }
+                    resolveResult.outcome = 'b-wins'; // Skip 'escalated' block
+                  } else {
+                    // a-wins: Server edit wins. Do nothing locally (discard incoming)
+                    resolveResult.outcome = 'a-wins'; // Skip 'escalated' block
+                  }
+                  resolveResult.conflictId = null;
+                }
               }
 
               if (resolveResult.outcome === 'escalated') {
@@ -608,59 +639,25 @@ export class PeerManager {
                 if (resolveResult.conflictId) {
                   this._metrics.conflictEscalatedAt.set(resolveResult.conflictId, Date.now());
                   
-                  console.log(`[PeerManager] Auto-resolving conflict ${resolveResult.conflictId} favoring incoming offline edit...`);
+                  console.log(`[PeerManager] Escalate conflict ${resolveResult.conflictId} - awaiting manual user resolution in UI`);
                   
-                  // 1. Merge and increment clocks
-                  const mergedVc = this.config.vectorClock.clone();
-                  mergedVc.merge(incomingVc);
-                  mergedVc.increment();
-
-                  // 2. Resolve conflict giving winner to the latest timestamp
-                  const serverCommittedAt = latestEvent ? new Date(latestEvent.createdAt).getTime() : 0;
-                  const incomingCommittedAt = body.committedAt || Date.now();
-                  const winner = incomingCommittedAt >= serverCommittedAt ? 'B' : 'A';
-
-                  const autoResult = await this.config.lwwResolver.autoResolve(
-                    resolveResult.conflictId,
-                    winner,
-                    this.config.localNodeId, // System auto-resolves it
-                    mergedVc.toJSON()
-                  );
-
-                  // 3. Apply changes locally as if it's a normal merge
-                  this.config.vectorClock = mergedVc;
-                  let newContent = remoteContent || localContent;
-                  if (delta) {
-                    try {
-                      const decoded = decodeDelta(localContent, delta);
-                      newContent = decoded.content;
-                    } catch {}
-                  }
-
-                  if (this.config.onDeltaApplied) {
-                    await this.config.onDeltaApplied(fileId, newContent, autoResult.resolutionEvent.eventId, this.config.localNodeId, mergedVc.toJSON(), 'merge', true);
-                  }
-
-                  // 4. Relay MERGE_ACCEPT to any connected WebSockets
-                  this.broadcast(autoResult.mergeAcceptMessage as any);
-                  
-                  // 5. Notify the Desktop UI solely as a "Notification" 
                   if (this.config.onConflictNotified) {
                     await this.config.onConflictNotified(
                       resolveResult.conflictId,
                       fileId,
-                      `Automatic offline merge recorded between ${nodeId} and ${this.config.localNodeId} (Incoming priority)`
+                      `Offline conflict detected between ${nodeId} and ${this.config.localNodeId}`
                     );
                   }
                 }
                 
-                // Return immediate success to the HTTP pusher
+                // Return conflict status to the HTTP pusher
                 this._metrics.pushSuccessCount++;
                 this._metrics.pushTotalLatencyMs += Date.now() - pushT0;
                 res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ 
-                  merged: true,
-                  lwwResolved: true,
+                  merged: false,
+                  conflict: true,
+                  conflictId: resolveResult.conflictId,
                   vectorClock: this.config.vectorClock.toJSON()
                 }));
                 return;
