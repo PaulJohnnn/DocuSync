@@ -41,11 +41,11 @@ const SixDigitPin: React.FC<{
       <div style={{
         display: 'flex', alignItems: 'center',
         border: `1.5px solid ${error ? '#ef4444' : 'var(--border)'}`,
-        borderRadius: 12, background: 'var(--bg-card)', padding: '11px 14px',
+        borderRadius: 12, background: '#f8fafc', padding: '11px 14px',
         cursor: 'text', gap: 10,
         boxShadow: error ? '0 0 0 3px rgba(239,68,68,0.12)' : undefined,
         animation: shake ? 'shake 0.4s ease' : undefined,
-        transition: 'border-color 0.2s',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
       }}
         onClick={() => inputRef.current?.focus()}
         onFocus={() => inputRef.current?.focus()}
@@ -238,10 +238,15 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
           }}
           style={{
             padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600,
-            background: 'var(--bg-card)', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer'
+            background: 'var(--bg-card)', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1.5px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+          onMouseDown={e => e.currentTarget.style.transform = 'scale(0.97)'}
+          onMouseUp={e => e.currentTarget.style.transform = 'translateY(-1.5px)'}
         >
-          Back to Unlock
+          Back
         </button>
       </div>
     );
@@ -256,7 +261,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
         <div style={{
           display: 'flex', alignItems: 'center',
           border: `1.5px solid ${emailError ? '#ef4444' : 'var(--border)'}`,
-          borderRadius: 12, background: 'var(--bg-card)',
+          borderRadius: 12, background: '#f8fafc',
           transition: 'border-color 0.2s, box-shadow 0.2s',
         }}>
           <span style={{ paddingLeft: 14, color: '#94a3b8', flexShrink: 0 }}>
@@ -287,9 +292,13 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
           background: loading ? '#a5b4fc' : 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)',
           color: '#ffffff', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          boxShadow: loading ? 'none' : '0 4px 20px rgba(79,70,229,0.40)',
-          marginBottom: 16,
+          boxShadow: loading ? 'none' : '0 4px 20px rgba(79,70,229,0.3)',
+          marginBottom: 16, transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
+        onMouseEnter={e => { if(!loading) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+        onMouseLeave={e => { if(!loading) e.currentTarget.style.transform = 'none'; }}
+        onMouseDown={e => { if(!loading) e.currentTarget.style.transform = 'scale(0.98)'; }}
+        onMouseUp={e => { if(!loading) e.currentTarget.style.transform = 'translateY(-2px)'; }}
       >
         {loading ? 'Requesting...' : 'Request Local Profile'}
       </button>
@@ -300,9 +309,14 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
         style={{
           width: '100%', padding: '14px', borderRadius: 12, fontSize: 14, fontWeight: 600,
           background: 'var(--bg-card)', color: '#64748b', border: 'none', cursor: 'pointer',
+          transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
+        onMouseEnter={e => { e.currentTarget.style.color = '#334155'; e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+        onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.transform = 'none'; }}
+        onMouseDown={e => e.currentTarget.style.transform = 'scale(0.97)'}
+        onMouseUp={e => e.currentTarget.style.transform = 'translateY(-1px)'}
       >
-        Back to Unlock
+        Back
       </button>
     </form>
   );
@@ -394,7 +408,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
   }
 
   return (
-    <form onSubmit={handleUnlock} noValidate>
+    <form onSubmit={handleUnlock} noValidate style={{ animation: 'fadeInUp 0.3s ease' }}>
       {/* Email field */}
       <div style={{ marginBottom: 20 }}>
         <label htmlFor="unlock-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>
@@ -403,7 +417,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         <div style={{
           display: 'flex', alignItems: 'center',
           border: `1.5px solid ${emailError ? '#ef4444' : 'var(--border)'}`,
-          borderRadius: 12, background: 'var(--bg-card)',
+          borderRadius: 12, background: '#f8fafc',
           transition: 'border-color 0.2s, box-shadow 0.2s',
         }}
           onFocusCapture={e => { (e.currentTarget as HTMLElement).style.borderColor = emailError ? '#ef4444' : '#818cf8'; (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 3px rgba(129,140,248,0.15)'; }}
@@ -489,12 +503,14 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
           background: loading ? '#a5b4fc' : 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)',
           color: '#ffffff', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          boxShadow: loading ? 'none' : '0 4px 20px rgba(79,70,229,0.40)',
-          transition: 'all 0.2s', marginBottom: 16,
-          letterSpacing: '0.01em',
+          boxShadow: loading ? 'none' : '0 4px 20px rgba(79,70,229,0.3)',
+          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          marginBottom: 24,
         }}
-        onMouseEnter={e => { if (!loading) (e.currentTarget.style.transform = 'translateY(-1px)'); }}
-        onMouseLeave={e => { (e.currentTarget.style.transform = 'translateY(0)'); }}
+        onMouseEnter={e => { if(!loading) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+        onMouseLeave={e => { if(!loading) e.currentTarget.style.transform = 'none'; }}
+        onMouseDown={e => { if(!loading) e.currentTarget.style.transform = 'scale(0.98)'; }}
+        onMouseUp={e => { if(!loading) e.currentTarget.style.transform = 'translateY(-2px)'; }}
       >
         {loading ? (
           <>
@@ -526,10 +542,12 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
           background: 'var(--bg-card)', color: '#1e293b',
           border: '1.5px solid #e2e8f0', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          transition: 'all 0.2s',
+          transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
-        onMouseEnter={e => { (e.currentTarget.style.borderColor = '#818cf8'); (e.currentTarget.style.color = '#4f46e5'); }}
-        onMouseLeave={e => { (e.currentTarget.style.borderColor = 'var(--border)'); (e.currentTarget.style.color = '#1e293b'); }}
+        onMouseEnter={e => { (e.currentTarget.style.borderColor = '#818cf8'); (e.currentTarget.style.color = '#4f46e5'); (e.currentTarget.style.transform = 'translateY(-1.5px)'); }}
+        onMouseLeave={e => { (e.currentTarget.style.borderColor = 'var(--border)'); (e.currentTarget.style.color = '#1e293b'); (e.currentTarget.style.transform = 'none'); }}
+        onMouseDown={e => e.currentTarget.style.transform = 'scale(0.97)'}
+        onMouseUp={e => e.currentTarget.style.transform = 'translateY(-1.5px)'}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -543,46 +561,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
   );
 }
 
-// ── Hint card (shows mock credentials) ────────────────────────────────────
-const HintCard: React.FC = () => {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{
-      position: 'fixed', bottom: 24, right: 24, zIndex: 100,
-      background: 'var(--bg-card)', border: '1px solid #e2e8f0', borderRadius: 12,
-      boxShadow: '0 4px 20px rgba(0,0,0,0.1)', overflow: 'hidden',
-      maxWidth: 280, fontSize: 12,
-    }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', padding: '8px 14px', background: '#f8fafc', border: 'none',
-          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          fontSize: 12, fontWeight: 600, color: '#4f46e5',
-        }}
-      >
-        <span>🧪 Mock Credentials (DEV)</span>
-        <span>{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div style={{ padding: '10px 14px', borderTop: '1px solid #f1f5f9' }}>
-          <div style={{ marginBottom: 6 }}>
-            <strong style={{ color: '#64748b' }}>User:</strong>
-            <div style={{ fontFamily: 'monospace', background: '#f8fafc', padding: '4px 8px', borderRadius: 6, marginTop: 3 }}>
-              alice@docusync.local / PIN: 123456
-            </div>
-          </div>
-          <div>
-            <strong style={{ color: '#64748b' }}>Admin:</strong>
-            <div style={{ fontFamily: 'monospace', background: '#f8fafc', padding: '4px 8px', borderRadius: 6, marginTop: 3 }}>
-              admin / PIN: admin
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+
 
 export default function UnlockWorkspacePage() {
   const [mode, setMode] = useState<'unlock' | 'signup'>('unlock');
@@ -778,8 +757,6 @@ export default function UnlockWorkspacePage() {
           </div>
         </div>
       </div>
-
-      <HintCard />
 
       <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
