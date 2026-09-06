@@ -286,7 +286,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
         style={{
           width: '100%', padding: '15px', borderRadius: 12, fontSize: 15, fontWeight: 700,
           background: loading ? '#a5b4fc' : 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)',
-          color: 'var(--bg-card)', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+          color: '#ffffff', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           boxShadow: loading ? 'none' : '0 4px 20px rgba(79,70,229,0.40)',
           marginBottom: 16,
@@ -488,7 +488,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
           width: '100%', padding: '15px', borderRadius: 12,
           fontSize: 15, fontWeight: 700,
           background: loading ? '#a5b4fc' : 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)',
-          color: 'var(--bg-card)', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+          color: '#ffffff', border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           boxShadow: loading ? 'none' : '0 4px 20px rgba(79,70,229,0.40)',
           transition: 'all 0.2s', marginBottom: 16,
