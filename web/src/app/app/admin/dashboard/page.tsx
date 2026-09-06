@@ -81,7 +81,7 @@ export default function AdminDashboardPage() {
       .then(res => res.json())
       .then(data => {
         if (data.ip) {
-          fetch('https://docusync-dusky.vercel.app/api/discovery', {
+          fetch('/api/discovery', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -643,3 +643,4 @@ const Users = ({ size, color }: { size: number, color: string }) => (
     <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
   </svg>
 );
+

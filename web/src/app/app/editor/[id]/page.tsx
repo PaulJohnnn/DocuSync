@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 // ── Matchmaker URL ─────────────────────────────────────────────────────────
 const _MATCHMAKER_URL = process.env.NODE_ENV === 'development'
   ? '/api/lobby'
-  : 'https://docusync-pnc.vercel.app/api/lobby';
+  : '/api/lobby';
 
 function incrementVectorClock(vcJson: any, targetNodeIndex: number) {
   if (!vcJson || !vcJson.root) return vcJson;

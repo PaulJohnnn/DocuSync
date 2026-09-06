@@ -360,7 +360,7 @@ export default function RoomsPage() {
     setJoinError('');
     setView('join_loading');
     try {
-      const _MATCHMAKER_URL = 'https://docusync-dusky.vercel.app/api/lobby';
+      const _MATCHMAKER_URL = '/api/lobby';
       const room = await mockRoomService.joinRoom(otpInput);
       setJoinedRoom(room);
       setRooms(prev => {
@@ -745,3 +745,4 @@ export default function RoomsPage() {
     </PageShell>
   );
 }
+
