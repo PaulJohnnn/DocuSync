@@ -4,131 +4,73 @@ export function computeSignatureMerge(originalHtml: string, onlineHtml: string, 
   if (originalHtml === offlineHtml) return onlineHtml;
   if (originalHtml === onlineHtml) return offlineHtml;
 
-  // The Signature Merge rule: 
-  // We extract exactly what the online user *appended* relative to the original.
-  // And we append that to the offline user's HTML.
-
-  // We are working with HTML strings (from TipTap).
-  // E.g. Original: "<p>hello maam</p>"
-  // Online: "<p>hello maam goodmorning did you eat?</p>"
-  // Offline: "<p>hello maam good day</p>"
-
-  // To do this reliably with HTML, we can parse the text content out, 
-  // but it's simpler and more robust to use string diffing on the raw HTML.
-  // Since the user is appending text to the end of a line, it usually means 
-  // inserting text just before the final `</p>`.
-
-  // Let's use the 'diff' library to find what was added in `onlineHtml`.
-  const diffs = Diff.diffChars(originalHtml, onlineHtml);
+  // Simple HTML stripper
+  const stripHtml = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
   
-  // We want to find additions at the end of the document.
-  // In HTML, an addition at the end is often right before the last closing tag, 
-  // or it might include new tags.
-  
-  // Let's collect all added chunks from the online edit.
-  // However, the rule is "whatever the online user *appended* to the very end of the original text".
-  // A simple heuristic for "appended to the end" is to find the common prefix,
-  // then whatever remains in `online` is the appended part, and whatever remains in `original` is the deleted part (likely just closing tags).
-  
-  let i = 0;
-  while (i < originalHtml.length && i < onlineHtml.length && originalHtml[i] === onlineHtml[i]) {
-    i++;
-  }
-
-  // i is the divergence point.
-  // The online addition is from i to the end.
-  const onlineSuffix = onlineHtml.substring(i);
-  const originalSuffix = originalHtml.substring(i);
-
-  // If the original suffix is just something like "</p>" or " " and the online suffix is " goodmorning</p>",
-  // we want to extract the actual added content.
-  // Actually, if we just look at the divergence:
-  // original: ...</p>
-  // online: ... goodmorning</p>
-  // divergence happens at '<' (of </p>) vs ' ' (of  goodmorning).
-  // So onlineSuffix = " goodmorning</p>"
-  // originalSuffix = "</p>"
-
-  // If we just take the offlineHtml, and find where it ends,
-  // if it's TipTap, it probably ends with </p>.
-  // We want to append " goodmorning" before the </p> if possible, or just append the whole online addition properly.
-
-  // A safer approach using Diff library:
-  // Diff original and online.
-  const wordDiffs = Diff.diffWords(originalHtml, onlineHtml);
-  
-  // Find all additions in the online version
-  let onlineAddedChunks = '';
-  for (let j = wordDiffs.length - 1; j >= 0; j--) {
-    const part = wordDiffs[j];
-    if (part.added) {
-      // Prepend to our collected additions (if they are at the end)
-      onlineAddedChunks = part.value + onlineAddedChunks;
-    } else if (part.removed) {
-      continue;
-    } else {
-      // If we hit unchanged text, we stop collecting if we only care about appendages.
-      // But maybe we want ALL additions? The user explicitly said:
-      // "whatever the online user *appended* to the very end of the original text"
-      
-      // If we see unchanged text, and it's just closing tags like </p>, we can ignore it.
-      // If it's actual text, we stop.
-      const isJustClosingTags = /^<\/[^>]+>$/.test(part.value.trim());
-      if (!isJustClosingTags) {
-        break; // Stop collecting, we only want the suffix additions
-      }
-    }
-  }
-
-  // Now we have what the online user added at the end (onlineAddedChunks).
-  // E.g., " goodmorning did you eat?"
-  
-  // Now we need to append this to the offlineHtml.
-  // We should inject it before the last closing tags of offlineHtml.
-  // Find the last closing tag in offlineHtml.
-  const lastClosingTagMatch = offlineHtml.match(/(<\/[^>]+>)+$/);
-  
-  if (lastClosingTagMatch && onlineAddedChunks) {
-    const closingTags = lastClosingTagMatch[0];
-    const baseHtml = offlineHtml.substring(0, offlineHtml.length - closingTags.length);
-    
-    // We append the added chunks and then restore the closing tags.
-    // Wait, what if the added chunk ALREADY contains closing tags?
-    // If onlineAddedChunks was parsed from HTML, it might be raw text, or it might have tags.
-    // To be perfectly safe and simple, let's just use diff-match-patch logic or a basic replace.
-  }
-
-  // Let's do a much simpler approach that perfectly satisfies the user's specific text examples.
-  // We strip HTML to find the exact text difference, and just append it.
-  function stripHtml(html: string) {
-    return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
-  }
-
   const origText = stripHtml(originalHtml);
   const onlineText = stripHtml(onlineHtml);
+  const offlineText = stripHtml(offlineHtml);
+
+  // We perform a 3-way merge on words.
+  // diff3 algorithms can be complex, but we can approximate it by applying online diffs to the offline text.
+  // Actually, standard diff3 requires applying a patch. Let's use Diff.diffWords to generate a patch.
   
+  const patch = Diff.createPatch('doc', origText, onlineText, '', '');
+  const applyResult = Diff.applyPatch(offlineText, patch);
+  
+  if (applyResult) {
+    // If patch applied cleanly, wrap in <p> and return
+    return `<p>${applyResult}</p>`;
+  }
+  
+  // If patch fails (conflict), we manually combine the additions.
+  // A simple heuristic for text merging: 
+  // 1. Find the online suffix addition if it's an append.
   if (onlineText.startsWith(origText) && onlineText.length > origText.length) {
     const appendedText = onlineText.substring(origText.length);
-    
-    // Now we have exactly what was appended: e.g. " goodmorning did you eat?"
-    // We need to append this to the offline HTML.
-    // Find where the text ends in offlineHtml and insert it.
-    
-    // Find the last text node or closing tag
     const match = offlineHtml.match(/(<\/[^>]+>)+$/);
     if (match) {
       const closingTags = match[0];
       const baseHtml = offlineHtml.substring(0, offlineHtml.length - closingTags.length);
       return baseHtml + appendedText + closingTags;
+    }
+    return offlineHtml + appendedText;
+  }
+
+  // 2. If it's not a simple append, we concatenate the changes or just return the offline version with a warning.
+  // The user specifically wanted:
+  // orig: "im happy with you always"
+  // online: "im happy with you always because im comfortable with you "
+  // offline: "im very happy with you my love, always"
+  // merged: "im very happy with you my love, always because im comfortable with you "
+  
+  // In this case, online appended text, but offline modified the middle.
+  // To solve this, let's check if the online diff is purely an addition at the END of the word diffs.
+  const onlineDiffs = Diff.diffWords(origText, onlineText);
+  let onlineAppendedWords = '';
+  
+  // Find trailing additions in online
+  for (let i = onlineDiffs.length - 1; i >= 0; i--) {
+    if (onlineDiffs[i].added) {
+      onlineAppendedWords = onlineDiffs[i].value + onlineAppendedWords;
+    } else if (onlineDiffs[i].removed) {
+      // Ignored
     } else {
-      return offlineHtml + appendedText;
+      break;
     }
   }
 
-  // Fallback if it wasn't a strict append:
-  // If the user's rule fails, fallback to a standard diff combination
-  // (Offline takes priority, but we try to preserve online additions)
-  // For now, if we can't find a strict appendage, just return offline
-  // and they will have to resolve it via the conflict UI.
+  if (onlineAppendedWords.trim().length > 0) {
+    // Inject the trailing addition into offlineHtml before the closing p tag
+    const match = offlineHtml.match(/(<\/[^>]+>)+$/);
+    if (match) {
+      const closingTags = match[0];
+      const baseHtml = offlineHtml.substring(0, offlineHtml.length - closingTags.length);
+      return baseHtml + onlineAppendedWords + closingTags;
+    }
+    return offlineHtml + onlineAppendedWords;
+  }
+
+  // Fallback: If we really can't merge safely, keep offline
   return offlineHtml;
 }

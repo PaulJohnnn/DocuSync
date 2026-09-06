@@ -3,10 +3,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import {
-  Clock, FileEdit, GitMerge, AlertTriangle, ArrowLeft, Activity, RefreshCw, Scale, FilePlus, Trash2
+  Clock, FileEdit, GitMerge, AlertTriangle, ArrowLeft, Activity, RefreshCw, Scale, FilePlus, Trash2, Undo2, Eye, X
 } from 'lucide-react';
 import { uGet, uSet } from '@/lib/userStorage';
+import { idbGetFile, idbSaveFile } from '@/lib/idb';
 import InteractiveConflictEditor from '@/components/InteractiveConflictEditor';
+
+// Helper to strip HTML
+function stripHtml(html: string) {
+  if (!html) return '';
+  return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+}
 
 interface HistoryEntry {
   eventId: string;
@@ -15,6 +22,7 @@ interface HistoryEntry {
   eventType: 'edit' | 'merge' | 'conflict-resolve' | 'restore' | 'delete' | string;
   logicalTimestamp: number;
   payloadPreview: string | null;
+  fullContent?: string;
   createdAt: string;
   isCompacted: boolean;
 }
@@ -39,6 +47,7 @@ export default function HistoryPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [restoring, setRestoring] = useState<Record<string, boolean>>({});
   const [activeConflict, setActiveConflict] = useState<any>(null);
+  const [viewFullEvent, setViewFullEvent] = useState<HistoryEntry | null>(null);
 
   const fetchHistory = useCallback(async () => {
     if (fileId === 'all') {
@@ -62,7 +71,6 @@ export default function HistoryPage() {
       let fetchedData = null;
       let hostError = null;
 
-      // 1. Try fetching from direct host if available
       if (room && room.hostIp) {
         try {
           const baseUrl = `http://${room.hostIp}:${room.port || 9000}`;
@@ -78,7 +86,6 @@ export default function HistoryPage() {
         }
       }
 
-      // 2. Fallback to Cloud Matchmaker History API
       if (!fetchedData && room && room.otp) {
         try {
           const mmRes = await fetch(`/api/lobby/history?otp=${room.otp}&fileId=${fileId}`);
@@ -89,7 +96,6 @@ export default function HistoryPage() {
             }
           }
         } catch (e) {
-          // Cloud failed too
         }
       }
 
@@ -127,44 +133,42 @@ export default function HistoryPage() {
     return () => clearInterval(iv);
   }, [fetchHistory, fileId]);
 
-  const handleRestore = async (eventId: string) => {
+  const handleRestore = async (eventId: string, contentToRestore?: string) => {
     setRestoring(prev => ({ ...prev, [eventId]: true }));
     try {
       const roomStr = uGet('current_room');
       const room = roomStr ? JSON.parse(roomStr) : null;
-      if (!room || !room.hostIp) {
-        throw new Error('No active room connection found.');
-      }
-      const baseUrl = `http://${room.hostIp}:${room.port || 9000}`;
-      
-      const res = await fetch(`${baseUrl}/sync/restore`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId: Number(fileId), eventId: eventId }) // fixed from commitId
-      });
-      const result = await res.json();
-      if (!res.ok || !result.success) {
-         throw new Error(result.error || 'Failed to restore version');
+      let finalContent = contentToRestore;
+
+      if (room && room.hostIp) {
+        try {
+          const baseUrl = `http://${room.hostIp}:${room.port || 9000}`;
+          const res = await fetch(`${baseUrl}/sync/restore`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileId: Number(fileId), eventId: eventId })
+          });
+          const result = await res.json();
+          if (res.ok && result.success && result.data?.content) {
+            finalContent = result.data.content;
+          }
+        } catch (_e) {}
       }
 
-      // Update local storage so EditorPage has the correct content instantly
-      try {
-        const stored = uGet('files');
-        if (stored) {
-          const files = JSON.parse(stored);
-          const idx = files.findIndex((f: any) => String(f.id) === String(fileId));
-          if (idx >= 0 && result.data?.content) {
-            files[idx].content = result.data.content;
-            files[idx].updatedAt = new Date().toISOString();
-            uSet('files', JSON.stringify(files));
-          }
-        }
-      } catch (e) {
-        console.error('Failed to update local storage after restore:', e);
+      if (!finalContent) {
+        throw new Error("Could not retrieve full content to restore.");
       }
+
+      try {
+        const stored = await idbGetFile(String(fileId));
+        if (stored) {
+          stored.content = finalContent;
+          stored.updatedAt = new Date().toISOString();
+          await idbSaveFile(stored);
+        }
+      } catch (e) {}
       
-      // Push the restored content to Matchmaker to keep the server snapshot fresh
-      if (room && room.otp && result.data?.content) {
+      if (room && room.otp) {
         try {
           await fetch('/api/lobby/doc', {
             method: 'POST',
@@ -174,14 +178,12 @@ export default function HistoryPage() {
               fileId: String(fileId),
               authorNodeId: 'web-client',
               authorName: 'Web User',
-              content: result.data.content,
-              vectorClock: result.data.vectorClock || {},
-              deltaSize: result.data.content.length,
+              content: finalContent,
+              vectorClock: {},
+              isDone: true
             })
           });
-        } catch (e) {
-          console.error('Failed to push restored content to Matchmaker:', e);
-        }
+        } catch (e) {}
       }
 
       router.push(`/app/editor/${fileId}`);
@@ -191,17 +193,13 @@ export default function HistoryPage() {
     }
   };
 
-  const resolveAndReturn = (customPayload: string) => {
+  const resolveAndReturn = async (customPayload: string) => {
     try {
-      const stored = uGet('files');
+      const stored = await idbGetFile(String(fileId));
       if (stored) {
-        const files = JSON.parse(stored);
-        const idx = files.findIndex((f: any) => String(f.id) === String(fileId));
-        if (idx >= 0) {
-          files[idx].content = customPayload;
-          files[idx].updatedAt = new Date().toISOString();
-          uSet('files', JSON.stringify(files));
-        }
+        stored.content = customPayload;
+        stored.updatedAt = new Date().toISOString();
+        await idbSaveFile(stored);
       }
     } catch (e) {}
     
@@ -305,43 +303,45 @@ export default function HistoryPage() {
                       <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
                         Node: <span style={{ fontFamily: 'monospace', color: 'var(--t2)' }}>{ev.nodeId.slice(0, 12)}…</span>
                       </div>
-                      
-                      {ev.payloadPreview && (
-                        <div style={{
-                          fontSize: 11, color: 'var(--t2)', marginTop: 8, padding: '6px 8px',
-                          background: 'var(--s2)', borderRadius: 6, fontFamily: 'monospace',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                        }}>
-                          {ev.payloadPreview}
-                        </div>
-                      )}
                     </div>
                     
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 12, color: 'var(--t3)' }}>
-                          {new Date(ev.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--t3)', fontFamily: 'monospace', opacity: 0.7, marginTop: 2 }}>
-                          {new Date(ev.createdAt).toLocaleDateString()}
-                        </div>
+                    <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                      <div style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 500, textAlign: 'right' }}>
+                        {new Date(ev.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <br />
+                        <span style={{ fontSize: 9 }}>{new Date(ev.createdAt).toLocaleDateString()}</span>
                       </div>
-                      
-                      {ev.eventType === 'delete' ? (
-                        <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 600, padding: '4px 8px', background: 'rgba(239,68,68,0.1)', borderRadius: 6 }}>
-                          🗑️ Deleted
-                        </span>
-                      ) : (
-                        <button 
-                          className="ds-btn" 
-                          onClick={() => handleRestore(ev.eventId)}
-                          disabled={restoring[ev.eventId]}
-                          style={{ background: 'transparent', border: '1px solid var(--b2)', padding: '4px 10px', fontSize: 11, fontWeight: 600 }}
+                      <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                        <button
+                          className="ds-btn ds-btn-ghost"
+                          onClick={() => setViewFullEvent(ev)}
+                          style={{ padding: '6px 10px', fontSize: 11, gap: 4 }}
                         >
-                          {restoring[ev.eventId] ? '⏳ Restoring…' : '⏪ Restore'}
+                          <Eye size={12} /> View
                         </button>
-                      )}
+                        <button
+                          className="ds-btn ds-btn-primary ds-btn-animate"
+                          onClick={() => handleRestore(ev.eventId, ev.fullContent)}
+                          disabled={restoring[ev.eventId]}
+                          style={{ padding: '6px 12px', fontSize: 12, gap: 6 }}
+                        >
+                          {restoring[ev.eventId] ? (
+                            <RefreshCw size={12} className="spin" />
+                          ) : (
+                            <Undo2 size={12} />
+                          )}
+                          Restore
+                        </button>
+                      </div>
                     </div>
+                  </div>
+
+                  <div style={{
+                    marginTop: 12, padding: 12, background: 'var(--b1)', borderRadius: 8,
+                    fontSize: 13, color: 'var(--t2)', overflowX: 'auto',
+                    border: '1px solid var(--b2)', wordBreak: 'break-word'
+                  }}>
+                    {stripHtml(ev.fullContent || ev.payloadPreview || '')}
                   </div>
                 </div>
               </div>
@@ -349,6 +349,53 @@ export default function HistoryPage() {
           })}
         </div>
       )}
+
+      {viewFullEvent && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
+        }}>
+          <div className="ds-card" style={{
+            background: 'var(--bg-card)', width: '100%', maxWidth: 700, maxHeight: '80vh',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--b1)' }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Snapshot Content</h3>
+              <button onClick={() => setViewFullEvent(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t2)' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ padding: 20, overflowY: 'auto', flex: 1, fontSize: 14, color: 'var(--t1)', lineHeight: 1.6 }}>
+              <div dangerouslySetInnerHTML={{ __html: viewFullEvent.fullContent || '' }} />
+            </div>
+            <div style={{ padding: '16px 20px', borderTop: '1px solid var(--b1)', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button className="ds-btn ds-btn-ghost" onClick={() => setViewFullEvent(null)}>Close</button>
+              <button
+                className="ds-btn ds-btn-primary ds-btn-animate"
+                onClick={() => {
+                  handleRestore(viewFullEvent.eventId, viewFullEvent.fullContent);
+                  setViewFullEvent(null);
+                }}
+              >
+                <Undo2 size={14} /> Restore This Version
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .ds-btn-animate {
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .ds-btn-animate:hover:not(:disabled) {
+          transform: translateY(-1px) scale(1.02);
+          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+        }
+        .ds-btn-animate:active:not(:disabled) {
+          transform: translateY(0) scale(0.98);
+        }
+      `}} />
     </PageShell>
   );
 }

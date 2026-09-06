@@ -5,6 +5,7 @@ import PageShell from '@/components/PageShell';
 import { ArrowLeft, Clock } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { uGet, uSet } from '@/lib/userStorage';
+import { idbGetFile, idbSaveFile } from '@/lib/idb';
 import { useWebSync } from '@/context/WebSyncContext';
 import { useSyncState } from '@/context/SyncStateContext';
 const TipTapEditor = dynamic(() => import('@/components/TipTapEditor'), { ssr: false });
@@ -45,6 +46,7 @@ export default function EditorPage() {
   const { syncState, registerReconnectCallback } = useSyncState();
   const [file, setFile] = useState<FileRecord | null>(null);
   const [content, setContent] = useState('');
+
 
   
   const setContentAndRef = (v: string) => { currentContentRef.current = v; setContent(v); };
@@ -178,18 +180,16 @@ export default function EditorPage() {
           localVectorClockRef.current.nodeIndex = myIdx;
         }
         
-        try {
-          const stored = uGet('files');
-          if (stored) {
-            const files: FileRecord[] = JSON.parse(stored);
-            const idx = files.findIndex(f => f.id === fileId);
-            if (idx >= 0) {
-              files[idx].content = msg.content;
-              files[idx].updatedAt = new Date().toISOString();
-              uSet('files', JSON.stringify(files));
+        (async () => {
+          try {
+            const f = await idbGetFile(fileId);
+            if (f) {
+              f.content = msg.content;
+              f.updatedAt = new Date().toISOString();
+              await idbSaveFile(f);
             }
-          }
-        } catch {}
+          } catch {}
+        })();
       }
     };
     window.addEventListener('docusync_ws_delta', handleDelta);
@@ -252,39 +252,39 @@ export default function EditorPage() {
     };
   }, [syncState]);
 
-  const updateLocalStorageFile = useCallback((fileIdToUpdate: string, newContent: string) => {
+  const updateLocalStorageFile = useCallback(async (fileIdToUpdate: string, newContent: string) => {
     try {
-      const stored = uGet('files');
-      if (stored) {
-        const files: FileRecord[] = JSON.parse(stored);
-        const idx = files.findIndex(f => String(f.id) === String(fileIdToUpdate));
-        if (idx >= 0) {
-          files[idx].content = newContent;
-          files[idx].updatedAt = new Date().toISOString();
-          uSet('files', JSON.stringify(files));
-        }
+      const f = await idbGetFile(fileIdToUpdate);
+      if (f) {
+        f.content = newContent;
+        f.updatedAt = new Date().toISOString();
+        await idbSaveFile(f);
       }
     } catch (_e) {}
   }, []);
 
   // ── Load file from local storage ──────────────────────────────────────────
   useEffect(() => {
-    const stored = uGet('files');
-    if (!stored) return;
-    const files: FileRecord[] = JSON.parse(stored);
-    const found = files.find(f => String(f.id) === String(fileId));
-    if (found) {
-      setFile(found);
-      setContentAndRef(found.content);
-      lastSave.current = found.content;
-      // Restore the last save time so poll won't overwrite with older remote
-      const savedTs = uGet(`docusync_save_ts_${fileId}`);
-      if (savedTs) {
-        const ts = Number(savedTs);
-        lastLocalSaveTime.current = ts;
-        lastSyncedAt.current = ts;
+    (async () => {
+      try {
+        const found = await idbGetFile(String(fileId));
+        if (found) {
+          setFile(found);
+          setContentAndRef(found.content || '');
+          lastSave.current = found.content || '';
+          
+          // Restore the last save time so poll won't overwrite with older remote
+          const savedTs = uGet(`docusync_save_ts_${fileId}`);
+          if (savedTs) {
+            const ts = Number(savedTs);
+            lastLocalSaveTime.current = ts;
+            lastSyncedAt.current = ts;
+          }
+        }
+      } catch (e) {
+        console.error("IDB load error:", e);
       }
-    }
+    })();
 
     const savedNodeId = sessionStorage.getItem('docusync_node_id');
     if (savedNodeId) localNodeIdRef.current = savedNodeId;
@@ -412,7 +412,8 @@ export default function EditorPage() {
                 content: contentToSave,
                 vectorClock: vectorClockSnapshot,
                 committedAt: Date.now(),
-                isSessionEnd
+                isSessionEnd,
+                isDone: explicit
               }),
             });
             if (mmRes.ok) {

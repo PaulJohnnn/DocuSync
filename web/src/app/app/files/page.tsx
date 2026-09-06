@@ -8,6 +8,7 @@ import {
   LogOut, Loader2, ArrowLeft
 } from 'lucide-react';
 import { uGet, uSet, uRemove } from '@/lib/userStorage';
+import { idbGetFiles, idbSaveFile, idbDeleteFile } from '@/lib/idb';
 // Removed unused sonner toast
 
 function formatBytes(bytes: number): string {
@@ -69,13 +70,16 @@ export default function FilesPage() {
 
   // Load local files for editing
   useEffect(() => {
-    const stored = uGet('files');
-    if (stored) setLocalFiles(JSON.parse(stored));
+    idbGetFiles().then(files => {
+      if (files) setLocalFiles(files);
+    });
   }, []);
 
   const saveLocalFiles = useCallback((newFiles: FileRecord[]) => {
     setLocalFiles(newFiles);
-    uSet('files', JSON.stringify(newFiles));
+    // Note: this function previously saved the entire array. 
+    // Now we will rely on individual saves, but for simplicity here we save them all.
+    Promise.all(newFiles.map(f => idbSaveFile(f)));
   }, []);
 
   // Poll peers

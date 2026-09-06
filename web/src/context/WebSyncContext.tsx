@@ -11,6 +11,7 @@ import React, {
 } from 'react';
 import { toast } from 'sonner';
 import { uGet, uSet } from '@/lib/userStorage';
+import { idbGetFile, idbSaveFile } from '@/lib/idb';
 import * as mockAuthService from '@/lib/mockAuthService';
 
 export interface PeerInfo {
@@ -176,17 +177,14 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
             // Globally update the file content in local storage so Editor has latest state
             try {
               if (msg.content) {
-                const stored = uGet('files');
-                if (stored) {
-                  const files = JSON.parse(stored);
-                  const idx = files.findIndex((f: any) => String(f.id) === String(msg.fileId));
-                  if (idx >= 0) {
-                    files[idx].content = msg.content;
-                    files[idx].updatedAt = new Date().toISOString();
-                    if (msg.vectorClockJson) files[idx].vectorClock = msg.vectorClockJson;
-                    uSet('files', JSON.stringify(files));
+                idbGetFile(String(msg.fileId)).then(f => {
+                  if (f) {
+                    f.content = msg.content;
+                    f.updatedAt = new Date().toISOString();
+                    if (msg.vectorClockJson) f.vectorClock = msg.vectorClockJson;
+                    idbSaveFile(f);
                   }
-                }
+                });
               }
             } catch (err) {}
 
