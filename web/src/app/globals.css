@@ -343,22 +343,9 @@ body {
   box-shadow: inset 0 2px 8px rgba(0,0,0,0.03);
 }
 .ds-editor-page-view .ProseMirror {
-  width: 816px;
-  min-height: 1056px;
-  background-color: #ffffff;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
   margin: 0 auto;
-  padding: 96px;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    #ffffff 0px,
-    #ffffff 1036px,
-    #f1f5f9 1036px,
-    #f1f5f9 1056px
-  );
-  background-size: 100% 1056px;
-  background-attachment: local;
   color: #000;
+  /* Pagination extension will handle dimensions and gaps */
 }
 @media (max-width: 880px) {
   .ds-editor-page-view .ProseMirror {
