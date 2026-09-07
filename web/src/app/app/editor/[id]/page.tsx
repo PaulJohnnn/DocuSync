@@ -242,7 +242,12 @@ export default function EditorPage() {
         console.log('[Online Flusher] Network reconnected! Waiting for user to click Reconnect...');
       }
     };
-    const goOffline = () => setIsOnline(false);
+    const goOffline = () => {
+      setIsOnline(false);
+      if (currentContentRef.current) {
+        uSet('docusync_offline_base', currentContentRef.current);
+      }
+    };
 
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
@@ -350,6 +355,7 @@ export default function EditorPage() {
               content: contentToSave,
               vectorClock: vectorClockSnapshot,
               isOfflineReconnect: offlineQueue,
+              baseContent: offlineQueue ? uGet('docusync_offline_base') : undefined,
             }),
           });
           if (res.ok) {
@@ -408,6 +414,7 @@ export default function EditorPage() {
               }
               setSyncStatusMsg(`Synced ✓`);
               setOfflineQueue(false);
+              uSet('docusync_offline_base', '');
               console.log('[OfflineQueue] Reset to false after sync');
               hasPendingChangesRef.current = false;
             }

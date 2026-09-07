@@ -40,6 +40,7 @@ import { EventLogService } from '../log-sync/event-log';
 import { decode as decodeDelta } from '../delta/delta-decoder';
 import { VectorClock } from '../vector-clock/vector-clock';
 import type { VectorClockJSON } from '../vector-clock/vector-clock';
+import { diff_match_patch } from 'diff-match-patch';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -595,9 +596,56 @@ export class PeerManager {
               let resolveResult: any = { outcome: 'escalated' };
               
               if (isOfflineReconnect) {
-                console.log(`[PeerManager] Forcing auto-resolve pipeline for Offline Reconnect`);
-                const conflictId = await this.config.lwwResolver.escalateToOwner(eventA, eventB);
-                resolveResult.conflictId = conflictId;
+                console.log(`[PeerManager] Processing Offline Reconnect`);
+                let autoMergedContent = null;
+                if (body.baseContent) {
+                  try {
+                    const dmp = new diff_match_patch();
+                    const patch = dmp.patch_make(body.baseContent, remoteContent || localContent);
+                    const [newText, results] = dmp.patch_apply(patch, localContent);
+                    if (results.every((r: boolean) => r === true)) {
+                      autoMergedContent = newText;
+                      console.log('[PeerManager] Offline 3-way merge successful');
+                    } else {
+                      console.log('[PeerManager] 3-way merge had overlaps. Escalating to manual conflict.');
+                    }
+                  } catch (e: any) {
+                    console.log('[PeerManager] 3-way merge failed:', e?.message);
+                  }
+                }
+
+                if (autoMergedContent !== null) {
+                  // Merge Success
+                  try { this.config.vectorClock.merge(incomingVc); } catch {}
+                  
+                  if (this.config.onDeltaApplied) {
+                    await this.config.onDeltaApplied(fileId, autoMergedContent, crypto.randomUUID(), this.config.localNodeId, this.config.vectorClock.toJSON(), 'merge', true);
+                  }
+
+                  // Record it in Conflict History for transparency
+                  const conflictId = crypto.randomUUID();
+                  await this.config.lwwResolver.recordConflict(conflictId, fileId, this.config.localNodeId, nodeId, localContent, remoteContent || localContent, this.config.vectorClock.toJSON(), incomingVc.toJSON());
+                  if (this.config.onConflictNotified) {
+                    await this.config.onConflictNotified(conflictId, fileId, `Automatic 3-way merge recorded between ${nodeId} and ${this.config.localNodeId}`);
+                  }
+
+                  // Return conflict: true so web app records it and reverts editor to autoMergedContent
+                  this._metrics.pushSuccessCount++;
+                  this._metrics.pushTotalLatencyMs += Date.now() - pushT0;
+                  res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ 
+                    merged: false, // Let web app trigger the conflict revert
+                    conflict: true,
+                    conflictId: conflictId,
+                    serverContent: autoMergedContent,
+                    vectorClock: this.config.vectorClock.toJSON()
+                  }));
+                  return;
+                } else {
+                  console.log(`[PeerManager] Forcing auto-resolve pipeline for Offline Reconnect`);
+                  const conflictId = await this.config.lwwResolver.escalateToOwner(eventA, eventB);
+                  resolveResult.conflictId = conflictId;
+                }
               } else {
                 resolveResult = await this.config.lwwResolver.resolve(eventA, eventB, this.config.vectorClock, incomingVc);
                 
