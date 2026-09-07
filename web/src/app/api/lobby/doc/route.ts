@@ -79,21 +79,34 @@ export async function POST(request: Request) {
     
     // Only record history if the user explicitly saves or a conflict resolves
     if (isSessionEnd || isDone) {
-      const historyEvent = {
-        eventId: Date.now().toString(),
-        fileId,
-        nodeId: authorNodeId,
-        eventType: isSessionEnd ? 'session-snapshot' : 'edit',
-        logicalTimestamp: incomingCommittedAt,
-        payloadPreview: content.substring(0, 100), // Preview only to save space
-        fullContent: content, // Keep full content for conflict diff viewing
-        createdAt: new Date().toISOString(),
-        isCompacted: false,
-      };
       const historyKey = `doc_history:${otp}:${fileId}`;
-      await redis.lpush(historyKey, JSON.stringify(historyEvent));
-      // Trim history to 50 items
-      await redis.ltrim(historyKey, 0, 49);
+      let skipLog = false;
+      const latestStr = await redis.lindex(historyKey, 0);
+      if (latestStr) {
+        try {
+          const latest = JSON.parse(latestStr as string);
+          if (latest.fullContent === content) {
+            skipLog = true;
+          }
+        } catch (e) {}
+      }
+
+      if (!skipLog) {
+        const historyEvent = {
+          eventId: Date.now().toString(),
+          fileId,
+          nodeId: authorNodeId,
+          eventType: isSessionEnd ? 'session-snapshot' : 'edit',
+          logicalTimestamp: incomingCommittedAt,
+          payloadPreview: content.substring(0, 100), // Preview only to save space
+          fullContent: content, // Keep full content for conflict diff viewing
+          createdAt: new Date().toISOString(),
+          isCompacted: false,
+        };
+        await redis.lpush(historyKey, JSON.stringify(historyEvent));
+        // Trim history to 50 items
+        await redis.ltrim(historyKey, 0, 49);
+      }
     }
 
     return NextResponse.json({ success: true, snapshot }, { headers: corsHeaders });

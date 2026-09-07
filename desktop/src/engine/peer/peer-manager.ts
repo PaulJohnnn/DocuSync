@@ -527,6 +527,12 @@ export class PeerManager {
               }
             } catch {}
 
+            if (newContent === localContent) {
+              res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ merged: true, upToDate: true, vectorClock: this.config.vectorClock.toJSON() }));
+              return;
+            }
+
             const eventId = crypto.randomUUID();
             try {
               await this.config.eventLog.appendEvent({
@@ -567,7 +573,7 @@ export class PeerManager {
             return;
           } else {
             // concurrent OR forced offline reconnect - escalate
-            if (isOfflineReconnect && remoteContent === localContent) {
+            if (remoteContent === localContent) {
               // Same content, no need to flag conflict
               res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ merged: true, upToDate: true, vectorClock: this.config.vectorClock.toJSON() }));
@@ -592,15 +598,13 @@ export class PeerManager {
             };
 
             try {
-              // If it's explicitly an offline reconnect with divergence, FORCE the escalation check
               let resolveResult: any = { outcome: 'escalated' };
               
-              if (isOfflineReconnect) {
-                console.log(`[PeerManager] Processing Offline Reconnect`);
+              if (body.baseContent) {
+                console.log(`[PeerManager] Processing Concurrent Edit via 3-way merge`);
                 let autoMergedContent = null;
-                if (body.baseContent) {
-                  try {
-                    const dmp = new diff_match_patch();
+                try {
+                  const dmp = new diff_match_patch();
                     const patch = dmp.patch_make(body.baseContent, remoteContent || localContent);
                     const [newText, results] = dmp.patch_apply(patch, localContent);
                     if (results.every((r: boolean) => r === true)) {
@@ -612,7 +616,6 @@ export class PeerManager {
                   } catch (e: any) {
                     console.log('[PeerManager] 3-way merge failed:', e?.message);
                   }
-                }
 
                 if (autoMergedContent !== null) {
                   // Merge Success

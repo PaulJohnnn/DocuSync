@@ -46,10 +46,26 @@ export default function EditorPage() {
   const { syncState, registerReconnectCallback } = useSyncState();
   const [file, setFile] = useState<FileRecord | null>(null);
   const [content, setContent] = useState('');
-
-
+  const [margin, setMargin] = useState('96');
+  const [rawTipTapHtml, setRawTipTapHtml] = useState('');
   
-  const setContentAndRef = (v: string) => { currentContentRef.current = v; setContent(v); };
+  const currentMarginRef = useRef('96');
+  const currentRawHtmlRef = useRef('');
+
+  const setContentAndRef = (v: string) => { 
+    currentContentRef.current = v; 
+    setContent(v); 
+    const match = v.match(/^<div data-margin="([^"]+)">([\s\S]*)<\/div>$/);
+    if (match) {
+      setMargin(match[1]);
+      currentMarginRef.current = match[1];
+      setRawTipTapHtml(match[2]);
+      currentRawHtmlRef.current = match[2];
+    } else {
+      setRawTipTapHtml(v);
+      currentRawHtmlRef.current = v;
+    }
+  };
   const [_saved, setSaved] = useState(true);
   const [_showSaveConfirm, _setShowSaveConfirm] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -628,8 +644,9 @@ export default function EditorPage() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleContentChange = useCallback((newContent: string) => {
-    if (isApplyingRemoteRef.current) return; // Do not trigger save when applying remote content
-    setContentAndRef(newContent);
+    if (isApplyingRemoteRef.current) return;
+    const wrapped = `<div data-margin="${currentMarginRef.current}">${newContent}</div>`;
+    setContentAndRef(wrapped);
     setSaved(false);
     isTypingRef.current = true;
     hasPendingChangesRef.current = true;
@@ -637,7 +654,22 @@ export default function EditorPage() {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false;
-      saveFile(newContent);
+      saveFile(wrapped);
+    }, 1000);
+  }, [saveFile]);
+
+  const handleMarginChange = useCallback((newMargin: string) => {
+    if (isApplyingRemoteRef.current) return;
+    const wrapped = `<div data-margin="${newMargin}">${currentRawHtmlRef.current}</div>`;
+    setContentAndRef(wrapped);
+    setSaved(false);
+    isTypingRef.current = true;
+    hasPendingChangesRef.current = true;
+    
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      saveFile(wrapped);
     }, 1000);
   }, [saveFile]);
 
@@ -790,8 +822,10 @@ export default function EditorPage() {
         <div className="ds-editor-page-wrapper" style={{ flex: 1, borderRadius: 12, border: '1px solid var(--b1)' }}>
           <div className="ds-editor-page-view">
             <TipTapEditor 
-              content={content} 
+              content={rawTipTapHtml} 
               onChange={handleContentChange} 
+              margin={margin}
+              onMarginChange={handleMarginChange}
               cursors={Object.values(remoteCursors)}
               onSelectionUpdate={(from, _to) => {
                 if (cursorThrottleRef.current) return;

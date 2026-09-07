@@ -93,12 +93,13 @@ interface Props {
   cursors?: RemoteCursor[];
   onSelectionUpdate?: (from: number, to: number) => void;
   onUndo?: (discardedContent: string) => void;
+  margin: string;
+  onMarginChange: (m: string) => void;
 }
 
-export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate, onUndo }: Props) {
+export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate, onUndo, margin, onMarginChange }: Props) {
   const initialized = useRef(false);
   const [pasteError, setPasteError] = useState(false);
-  const [margin, setMargin] = useState('96');
 
   const editor = useEditor({
     extensions: [
@@ -263,7 +264,7 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
           <span style={{ fontSize: 12, color: 'var(--t2)', fontWeight: 500 }}>Margin:</span>
           <select 
             value={margin} 
-            onChange={(e) => setMargin(e.target.value)}
+            onChange={(e) => onMarginChange(e.target.value)}
             style={{ background: 'var(--bg)', border: '1px solid var(--b1)', color: 'var(--t1)', borderRadius: 4, padding: '4px 8px', fontSize: 12, outline: 'none', cursor: 'pointer' }}
           >
             <option value="48">Narrow (48px)</option>

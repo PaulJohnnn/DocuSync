@@ -355,8 +355,9 @@ export default function HistoryPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
         }}>
           <div className="ds-card" style={{
-            background: 'var(--bg-card)', width: '100%', maxWidth: 700, maxHeight: '80vh',
-            display: 'flex', flexDirection: 'column', overflow: 'hidden'
+            background: 'var(--bg)', width: '100%', maxWidth: 700, maxHeight: '80vh',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', border: '1px solid var(--b1)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--b1)' }}>
               <h3 style={{ margin: 0, fontSize: 16 }}>Snapshot Content</h3>
