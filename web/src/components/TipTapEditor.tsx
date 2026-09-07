@@ -190,7 +190,7 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
   if (!editor) return null;
 
   const ToolBtn = ({ onClick, active, children }: { onClick: () => void; active?: boolean; children: React.ReactNode }) => (
-    <button onClick={onClick} style={{
+    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onClick} style={{
       background: active ? 'var(--acb)' : 'transparent',
       border: active ? '1px solid var(--acbr)' : '1px solid transparent',
       borderRadius: 6, padding: '5px 7px', cursor: 'pointer',
