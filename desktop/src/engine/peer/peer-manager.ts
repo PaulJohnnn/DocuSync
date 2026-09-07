@@ -658,6 +658,7 @@ export class PeerManager {
                   merged: false,
                   conflict: true,
                   conflictId: resolveResult.conflictId,
+                  serverContent: remoteContent || localContent,
                   vectorClock: this.config.vectorClock.toJSON()
                 }));
                 return;

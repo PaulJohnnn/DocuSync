@@ -360,12 +360,13 @@ export default function EditorPage() {
               localVectorClockRef.current = data.vectorClock;
               localVectorClockRef.current.nodeIndex = myIdx;
             }
-            if (data.escalated) {
+            if (data.escalated || data.conflict) {
+              const serverContent = data.serverContent || data.content || '';
               const conflict = {
                 id: `web-conflict-${Date.now()}`,
                 fileId: fileId,
                 localContent: contentToSave,
-                serverContent: data.serverContent || data.content || '',
+                serverContent: serverContent,
                 timestamp: Date.now()
               };
               let conflicts = [];
@@ -376,6 +377,22 @@ export default function EditorPage() {
               conflicts.push(conflict);
               uSet('docusync_web_conflicts', JSON.stringify(conflicts));
               
+              // Revert the editor to the stable server state to prevent stomping over it
+              if (serverContent && serverContent !== currentContentRef.current) {
+                setContentAndRef(serverContent);
+                lastSave.current = serverContent;
+                setSaved(true);
+                // Also update IndexedDB
+                try {
+                  const f = await idbGetFile(fileId);
+                  if (f) {
+                    f.content = serverContent;
+                    f.updatedAt = new Date().toISOString();
+                    await idbSaveFile(f);
+                  }
+                } catch (err) {}
+              }
+
               setSyncStatusMsg('Conflict Detected! Check menu.');
               if (explicit) {
                 toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
