@@ -98,6 +98,7 @@ interface Props {
 export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate, onUndo }: Props) {
   const initialized = useRef(false);
   const [pasteError, setPasteError] = useState(false);
+  const [margin, setMargin] = useState('96');
 
   const editor = useEditor({
     extensions: [
@@ -257,7 +258,25 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
         <ToolBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })}><AlignRight size={14} /></ToolBtn>
         <div style={{ width: 1, height: 20, background: 'var(--b1)', margin: '0 4px' }} />
         <ToolBtn onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')}><Highlighter size={14} /></ToolBtn>
+        <div style={{ width: 1, height: 20, background: 'var(--b1)', margin: '0 4px' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
+          <span style={{ fontSize: 12, color: 'var(--t2)', fontWeight: 500 }}>Margin:</span>
+          <select 
+            value={margin} 
+            onChange={(e) => setMargin(e.target.value)}
+            style={{ background: 'var(--bg)', border: '1px solid var(--b1)', color: 'var(--t1)', borderRadius: 4, padding: '4px 8px', fontSize: 12, outline: 'none', cursor: 'pointer' }}
+          >
+            <option value="48">Narrow (48px)</option>
+            <option value="96">Normal (96px)</option>
+            <option value="144">Wide (144px)</option>
+          </select>
+        </div>
       </div>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .ds-editor-page-view .ProseMirror {
+          padding: ${margin}px !important;
+        }
+      `}} />
       <EditorContent editor={editor} />
     </div>
   );
