@@ -784,33 +784,35 @@ export default function EditorPage() {
         {/* Save Confirm Modal removed */}
 
         {/* Editor */}
-        <div style={{ flex: 1, background: 'var(--bg2)', borderRadius: 12, border: '1px solid var(--b1)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <TipTapEditor 
-            content={content} 
-            onChange={handleContentChange} 
-            cursors={Object.values(remoteCursors)}
-            onSelectionUpdate={(from, _to) => {
-              if (cursorThrottleRef.current) return;
-              cursorThrottleRef.current = setTimeout(() => { cursorThrottleRef.current = null; }, 200);
-              pushCursor(fileId, from, 1);
-            }}
-            onUndo={(discardedContent) => {
-              try {
-                const conflict = {
-                  id: `undo-${Date.now()}`,
-                  fileId: fileId,
-                  localContent: discardedContent,
-                  serverContent: content,
-                  timestamp: Date.now()
-                };
-                let conflicts = [];
-                const stored = uGet('docusync_web_conflicts');
-                if (stored) conflicts = JSON.parse(stored);
-                conflicts.push(conflict);
-                uSet('docusync_web_conflicts', JSON.stringify(conflicts));
-              } catch (e) {}
-            }}
-          />
+        <div className="ds-editor-page-wrapper" style={{ flex: 1, borderRadius: 12, border: '1px solid var(--b1)' }}>
+          <div className="ds-editor-page-view">
+            <TipTapEditor 
+              content={content} 
+              onChange={handleContentChange} 
+              cursors={Object.values(remoteCursors)}
+              onSelectionUpdate={(from, _to) => {
+                if (cursorThrottleRef.current) return;
+                cursorThrottleRef.current = setTimeout(() => { cursorThrottleRef.current = null; }, 200);
+                pushCursor(fileId, from, 1);
+              }}
+              onUndo={(discardedContent) => {
+                try {
+                  const conflict = {
+                    id: `undo-${Date.now()}`,
+                    fileId: fileId,
+                    localContent: discardedContent,
+                    serverContent: content,
+                    timestamp: Date.now()
+                  };
+                  let conflicts = [];
+                  const stored = uGet('docusync_web_conflicts');
+                  if (stored) conflicts = JSON.parse(stored);
+                  conflicts.push(conflict);
+                  uSet('docusync_web_conflicts', JSON.stringify(conflicts));
+                } catch (e) {}
+              }}
+            />
+          </div>
         </div>
 
         {/* Footer */}

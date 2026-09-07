@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
-import { Shield, ArrowLeft } from 'lucide-react';
+import { Shield, ArrowLeft, Maximize2, Minimize2 } from 'lucide-react';
 import { uGet, uSet, uRemove } from '@/lib/userStorage';
 // ── Word-level diff engine (Match Desktop exactly) ────────────────────────────
 
@@ -54,6 +54,7 @@ const InteractiveConflictEditor: React.FC<{
   fileName: string;
 }> = ({ fileId: _fileId, payloadA, payloadB, timestamp, onRestore, onReject, fileName }) => {
   const { highlightedA } = useMemo(() => computeWordDiff(payloadA, payloadB), [payloadA, payloadB]);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const panelStyle: React.CSSProperties = {
     flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
@@ -70,14 +71,24 @@ const InteractiveConflictEditor: React.FC<{
   };
 
   return (
-    <article className="ds-card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <article className="ds-card" style={{ 
+      overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '16px',
+      ...(isExpanded ? {
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999,
+        margin: 0, borderRadius: 0, maxHeight: '100vh',
+      } : {})
+    }}>
       {/* Header */}
       <div style={{ background: 'var(--bg-sidebar)', borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '-1rem -1rem 0 -1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 10 }}>AUTOMATIC MERGE NOTIFICATION</span>
           <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{fileName}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{timestamp.toLocaleString()}</span>
+          <button className="ds-btn ds-btn-ghost" style={{ padding: '6px' }} onClick={() => setIsExpanded(!isExpanded)} title={isExpanded ? "Collapse" : "Expand Fullscreen"}>
+            {isExpanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
         </div>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{timestamp.toLocaleString()}</span>
       </div>
 
       <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
