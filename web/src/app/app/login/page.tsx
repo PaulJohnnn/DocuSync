@@ -152,7 +152,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
-      setEmailError('Email is required.');
+      setEmailError('Username is required.');
       return;
     }
     setLoading(true);
@@ -256,7 +256,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
     <form onSubmit={handleSignup} noValidate style={{ animation: 'fadeInUp 0.3s ease' }}>
       <div style={{ marginBottom: 20 }}>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>
-          Desired Local Identifier (Email)
+          Desired Local Identifier (Username)
         </label>
         <div style={{
           display: 'flex', alignItems: 'center',
@@ -271,10 +271,10 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
             </svg>
           </span>
           <input
-            type="email"
+            type="text"
             value={email}
-            placeholder="Enter your email"
-            onChange={e => { setEmail(e.target.value); if (emailError) setEmailError(''); }}
+            placeholder="Enter your username"
+            onChange={e => { setEmail(e.target.value.toLowerCase()); if (emailError) setEmailError(''); }}
             style={{
               flex: 1, border: 'none', outline: 'none', background: 'transparent',
               padding: '13px 12px', fontSize: 14, color: '#0f172a', fontFamily: 'inherit',
@@ -354,7 +354,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     let hasErr = false;
-    if (!email) { setEmailError('Email is required.'); hasErr = true; }
+    if (!email) { setEmailError('Username is required.'); hasErr = true; }
     if (pin.length < 5) { setPinError('PIN must be at least 5 characters.'); hasErr = true; }
     if (hasErr) { triggerShake(); return; }
 
@@ -409,10 +409,10 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
 
   return (
     <form onSubmit={handleUnlock} noValidate style={{ animation: 'fadeInUp 0.3s ease' }}>
-      {/* Email field */}
+      {/* Username field */}
       <div style={{ marginBottom: 20 }}>
         <label htmlFor="unlock-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>
-          Local Identifier (Email)
+          Local Identifier (Username)
         </label>
         <div style={{
           display: 'flex', alignItems: 'center',
@@ -431,11 +431,11 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
           </span>
           <input
             id="unlock-email"
-            type="email"
+            type="text"
             value={email}
-            placeholder="Enter your email"
-            onChange={e => { setEmail(e.target.value); if (emailError) setEmailError(''); }}
-            autoComplete="email"
+            placeholder="Enter your username"
+            onChange={e => { setEmail(e.target.value.toLowerCase()); if (emailError) setEmailError(''); }}
+            autoComplete="username"
             style={{
               flex: 1, border: 'none', outline: 'none', background: 'transparent',
               padding: '13px 12px', fontSize: 14, color: '#0f172a', fontFamily: 'inherit',
