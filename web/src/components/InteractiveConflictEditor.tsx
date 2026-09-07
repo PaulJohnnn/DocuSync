@@ -83,6 +83,7 @@ const InteractiveConflictEditor: React.FC<{
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className="ds-badge ds-badge-red" style={{ textTransform: 'uppercase', letterSpacing: '0.04em', fontSize: 10 }}>AUTOMATIC MERGE NOTIFICATION</span>
           <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{fileName}</span>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{timestamp.toLocaleString()}</span>
           <button className="ds-btn ds-btn-ghost" style={{ padding: '6px' }} onClick={() => setIsExpanded(!isExpanded)} title={isExpanded ? "Collapse" : "Expand Fullscreen"}>
