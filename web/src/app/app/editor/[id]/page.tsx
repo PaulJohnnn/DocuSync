@@ -179,6 +179,7 @@ export default function EditorPage() {
           localVectorClockRef.current = msg.vectorClockJson;
           localVectorClockRef.current.nodeIndex = myIdx;
         }
+        uSet('docusync_offline_base', msg.content);
         
         (async () => {
           try {
@@ -414,8 +415,8 @@ export default function EditorPage() {
               }
               setSyncStatusMsg(`Synced ✓`);
               setOfflineQueue(false);
-              uSet('docusync_offline_base', '');
-              console.log('[OfflineQueue] Reset to false after sync');
+              uSet('docusync_offline_base', contentToSave);
+              console.log('[OfflineQueue] Reset to false after sync. Base updated.');
               hasPendingChangesRef.current = false;
             }
           }
@@ -443,6 +444,7 @@ export default function EditorPage() {
             if (mmRes.ok) {
               setSyncStatusMsg(`Cloud Synced ✓`);
               setOfflineQueue(false);
+              uSet('docusync_offline_base', contentToSave);
               hasPendingChangesRef.current = false;
               directSuccess = true;
             }
@@ -499,6 +501,7 @@ export default function EditorPage() {
                   setSaved(true);
                   setSyncStatusMsg('↓ Live synced from host');
                   lastSyncedAt.current = Date.now();
+                  uSet('docusync_offline_base', data.content);
                 } else if (hasPendingChangesRef.current && currentContentRef.current !== data.content) {
                   // We have offline/pending changes AND the server has new changes. Conflict!
                   const original = offlineBaselineRef.current || lastSave.current;

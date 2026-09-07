@@ -629,6 +629,19 @@ export class PeerManager {
                     await this.config.onConflictNotified(conflictId, fileId, `Automatic 3-way merge recorded between ${nodeId} and ${this.config.localNodeId}`);
                   }
 
+                  // Broadcast the merge result so online Web Socket clients get it instantly
+                  this.broadcast({
+                    type: 'DELTA_PUSH',
+                    eventId: crypto.randomUUID(),
+                    nodeId: this.config.localNodeId,
+                    fileId,
+                    deltaBase64: '',
+                    content: autoMergedContent,
+                    logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+                    vectorClockJson: this.config.vectorClock.toJSON(),
+                    timestamp: new Date().toISOString(),
+                  } as any);
+
                   // Return conflict: true so web app records it and reverts editor to autoMergedContent
                   this._metrics.pushSuccessCount++;
                   this._metrics.pushTotalLatencyMs += Date.now() - pushT0;
@@ -638,7 +651,8 @@ export class PeerManager {
                     conflict: true,
                     conflictId: conflictId,
                     serverContent: autoMergedContent,
-                    vectorClock: this.config.vectorClock.toJSON()
+                    vectorClock: this.config.vectorClock.toJSON(),
+                    conflictMessage: 'Automatic 3-way merge applied.'
                   }));
                   return;
                 } else {
@@ -672,6 +686,20 @@ export class PeerManager {
                     if (this.config.onDeltaApplied) {
                       await this.config.onDeltaApplied(fileId, newContent, crypto.randomUUID(), this.config.localNodeId, this.config.vectorClock.toJSON(), 'merge', true);
                     }
+
+                    // Broadcast the LWW result so online Web Socket clients get it instantly
+                    this.broadcast({
+                      type: 'DELTA_PUSH',
+                      eventId: crypto.randomUUID(),
+                      nodeId: this.config.localNodeId,
+                      fileId,
+                      deltaBase64: '',
+                      content: newContent,
+                      logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+                      vectorClockJson: this.config.vectorClock.toJSON(),
+                      timestamp: new Date().toISOString(),
+                    } as any);
+
                     resolveResult.outcome = 'b-wins'; // Skip 'escalated' block
                   } else {
                     // a-wins: Server edit wins. Do nothing locally (discard incoming)
