@@ -10,7 +10,7 @@ import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
-import PaginationPlus, { PAGE_SIZES } from 'tiptap-pagination-plus';
+import { PaginationPlus, PAGE_SIZES } from 'tiptap-pagination-plus';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Quote, Code,
