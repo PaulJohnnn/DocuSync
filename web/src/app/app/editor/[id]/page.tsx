@@ -372,7 +372,7 @@ export default function EditorPage() {
               content: contentToSave,
               vectorClock: vectorClockSnapshot,
               isOfflineReconnect: offlineQueue,
-              baseContent: offlineQueue ? uGet('docusync_offline_base') : undefined,
+              baseContent: uGet('docusync_offline_base'),
             }),
           });
           if (res.ok) {
