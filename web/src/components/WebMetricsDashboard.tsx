@@ -239,42 +239,6 @@ export default function WebMetricsDashboard() {
   return (
     <div style={{ animation: 'fadeIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: 24 }}>
       
-      {/* Top Controls Bar */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '16px 20px', background: 'var(--s1, #181d28)', borderRadius: 14,
-        border: '1px solid var(--b1, rgba(255,255,255,0.08))', flexWrap: 'wrap', gap: 12
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 12, height: 12, borderRadius: '50%',
-            background: hostError ? '#ef4444' : '#22c55e',
-            boxShadow: hostError ? '0 0 10px #ef4444' : '0 0 10px #22c55e'
-          }} />
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--t1, #fff)' }}>
-              {hostError ? 'Host Engine Disconnected' : `Live P2P Engine Connected (${hostAddr})`}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--t3, #8a94a6)' }}>
-              Real-time Thesis Evaluation Stream · Polling interval: 3.0s
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-
-          <button
-            onClick={fetchHostMetrics}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 12px', borderRadius: 8, border: '1px solid var(--b1)',
-              background: 'transparent', color: 'var(--t2)', fontSize: 12, cursor: 'pointer',
-            }}
-          >
-            <RefreshCw size={14} /> Refresh
-          </button>
-        </div>
-      </div>
 
       {/* ── LIVE INTERACTIVE TELEMETRY STREAM (Recharts AreaChart) ───────────── */}
       <div style={{

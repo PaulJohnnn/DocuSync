@@ -454,8 +454,8 @@ export default function FilesPage() {
           >
             <ArrowLeft size={14} /> Back
           </button>
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>{currentRoom.name}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0, lineHeight: 1 }}>{currentRoom.name}</h1>
             <button 
               onClick={() => {
                 navigator.clipboard.writeText(currentRoom.otp || currentRoom.id);
@@ -465,7 +465,6 @@ export default function FilesPage() {
                 background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: 20,
                 padding: '4px 12px', fontSize: 11, fontWeight: 600, color: '#64748b',
                 fontFamily: 'monospace', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                marginTop: 4
               }}
             >
               <span>OTP: {currentRoom.otp || currentRoom.id}</span>

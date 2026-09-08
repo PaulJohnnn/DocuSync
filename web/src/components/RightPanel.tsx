@@ -17,7 +17,7 @@ export default function RightPanel() {
   const [tab, setTab] = useState<Tab>('engine');
   const [counters, setCounters] = useState({ events: 0, merges: 0, deltas: 0, conflicts: 0 });
   const [vcState, setVcState] = useState<number[]>([0, 0, 0]);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [history, setHistory] = useState<any[]>([]);
 
   useEffect(() => {
@@ -48,21 +48,9 @@ export default function RightPanel() {
         }
       } catch {}
       
-      // Fallback to demo animation if host is unreachable or not in a room
-      setCounters(c => {
-        const next = {
-          events: c.events + Math.floor(Math.random() * 3),
-          merges: c.merges + (Math.random() > 0.7 ? 1 : 0),
-          deltas: c.deltas + Math.floor(Math.random() * 2),
-          conflicts: c.conflicts + (Math.random() > 0.95 ? 1 : 0),
-        };
-        setHistory(h => {
-          const newH = [...h, { time: Date.now(), ...next }].slice(-15);
-          return newH;
-        });
-        return next;
-      });
-      setVcState(v => v.map(x => x + (Math.random() > 0.6 ? 1 : 0)));
+      // Instead of fake random math, just stay idle if not connected
+      setCounters(c => c);
+      setVcState(v => v);
     };
 
     fetchCounters();

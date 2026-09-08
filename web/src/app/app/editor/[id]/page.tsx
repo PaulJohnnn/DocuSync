@@ -723,7 +723,16 @@ export default function EditorPage() {
             </button>
             <div>
               <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{file.name}</h1>
-              <p style={{ fontSize: 11, color: 'var(--t3)' }}>{syncStatusMsg}</p>
+              <p style={{ fontSize: 11, color: 'var(--t3)', margin: 0 }}>{syncStatusMsg}</p>
+            </div>
+            {/* Active Users Badge */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginLeft: 16,
+              background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: 12,
+              padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--t2)'
+            }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--grn)' }} />
+              Users: {_connectedPeersCount + 1}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
