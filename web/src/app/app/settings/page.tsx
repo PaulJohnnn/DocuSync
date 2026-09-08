@@ -71,23 +71,26 @@ export default function SettingsPage() {
 
   return (
     <PageShell>
-      <div style={{ maxWidth: 800, margin: '0 auto', paddingBottom: 40 }}>
+      <div style={{ maxWidth: 900, margin: '0 auto', paddingBottom: 40, paddingTop: 20 }}>
         
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-          <div style={{ padding: 10, background: 'var(--s1)', borderRadius: 12, border: '1px solid var(--b1)' }}>
-            <SettingsIcon size={24} style={{ color: 'var(--acc)' }} />
-          </div>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Settings</h1>
-            <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>Manage appearance and node parameters</p>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: '3rem', alignItems: 'flex-start' }}>
           
-          {/* Left Sidebar Tabs */}
-          <div style={{ width: '240px', display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
+          {/* Left Sidebar (Header + Tabs) */}
+          <div style={{ width: '260px', display: 'flex', flexDirection: 'column', gap: '2rem', flexShrink: 0, position: 'sticky', top: 20 }}>
+            
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ padding: 10, background: 'var(--s1)', borderRadius: 12, border: '1px solid var(--b1)' }}>
+                <SettingsIcon size={24} style={{ color: 'var(--acc)' }} />
+              </div>
+              <div>
+                <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Settings</h1>
+                <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>Manage parameters</p>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <button
               onClick={() => setActiveTab('account')}
               style={{
