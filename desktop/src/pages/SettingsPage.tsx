@@ -144,16 +144,24 @@ const SettingsPage: React.FC = () => {
 
   return (
     <>
-      <div className="ds-topbar">
-        <span style={{ color: 'var(--ds-accent)' }}><SettingsIcon size={20} /></span>
-        <span className="ds-topbar-title" style={{ fontSize: '1.25rem' }}>Settings</span>
-        <span className="ds-topbar-subtitle" style={{ fontSize: '0.9rem' }}>Preferences & Engine</span>
-      </div>
-
       <div className="ds-main-scroll ds-page-enter" style={{ display: 'flex', gap: '2rem', padding: '1.5rem', alignItems: 'flex-start' }}>
         
-        {/* Left Sidebar Tabs */}
-        <div style={{ width: '240px', display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
+        {/* Left Sidebar */}
+        <div style={{ width: '260px', display: 'flex', flexDirection: 'column', gap: '2rem', flexShrink: 0, position: 'sticky', top: 20 }}>
+          
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ padding: 10, background: 'var(--ds-accent-bg)', borderRadius: 12, border: '1px solid var(--ds-border)' }}>
+              <SettingsIcon size={24} style={{ color: 'var(--ds-accent)' }} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--ds-text)', margin: 0 }}>Settings</h1>
+              <p style={{ fontSize: 13, color: 'var(--ds-text3)', margin: '4px 0 0' }}>Preferences & Engine</p>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           {['account', 'system', 'files', 'about'].map(tab => (
             <button
               key={tab}
@@ -174,6 +182,7 @@ const SettingsPage: React.FC = () => {
               {tab === 'about' && <><Info size={18} /> About DocuSync</>}
             </button>
           ))}
+          </div>
         </div>
 
         {/* Right Content Area */}

@@ -83,6 +83,10 @@ export interface PeerRoom {
   name: string;
   otp?: string;
   isHost?: boolean;
+  isOwner?: boolean;
+  hostIp?: string;
+  hostPort?: number;
+  hostType?: string;
 }
 
 /**

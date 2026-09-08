@@ -12,17 +12,9 @@ const RightPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('engine');
   const { vectorClock, pendingConflicts } = useElectronSync();
 
-  const [logEvents, setLogEvents] = useState(12);
-  const [clockTick, setClockTick] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
-  useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      setLogEvents((v) => v + 1);
-      setClockTick((v) => v + 1);
-    }, 3000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, []);
+  // Fake counters removed as requested
 
   const counters = (() => {
     try {
@@ -33,7 +25,7 @@ const RightPanel: React.FC = () => {
         }
       }
     } catch { /* ignore */ }
-    return [clockTick, 0, 0];
+    return [0, 0, 0];
   })();
 
   const tabs: { key: Tab; label: string }[] = [
@@ -44,53 +36,39 @@ const RightPanel: React.FC = () => {
 
   const algoCards = [
     {
-      color: 'var(--accent)',
-      bg:    'var(--accent-light)',
-      label: 'Log-Based Sync',
-      stats: [
-        { label: 'Events',  value: String(logEvents) },
-        { label: 'Status',  value: 'Active',         valueColor: 'var(--green)' },
-        { label: 'Chunks',  value: '1'               },
-        { label: 'Mode',    value: 'Delta'            },
-      ],
-    },
-    {
-      color: 'var(--purple)',
-      bg:    'var(--purple-light)',
-      label: 'Vector Clocks',
-      stats: [
-        { label: 'N0 (local)', value: String(counters[0] ?? 0), valueColor: 'var(--accent)' },
-        { label: 'N1',         value: String(counters[1] ?? 0), valueColor: 'var(--purple)' },
-        { label: 'N2',         value: String(counters[2] ?? 0), valueColor: 'var(--teal)'   },
-        { label: 'Nodes',      value: '3'                       },
-      ],
-    },
-    {
-      color: 'var(--green)',
-      bg:    'var(--green-light)',
-      label: 'Delta Encoding',
-      stats: [
-        { label: 'BW Saved', value: '0 B'          },
-        { label: 'Algo',     value: 'Myers O(ND)'  },
-        { label: 'Encoding', value: 'Base64'        },
-        { label: 'Last Δ',   value: '—', valueColor: 'var(--text-muted)' },
-      ],
-    },
-    {
       color: 'var(--amber)',
       bg:    'var(--amber-light)',
       label: 'LWW Resolver',
       stats: [
-        { label: 'Resolved', value: '0',            valueColor: 'var(--green)' },
         { label: 'Pending',  value: String(pendingConflicts), valueColor: pendingConflicts > 0 ? 'var(--red)' : undefined },
         { label: 'Policy',   value: 'LWW + Owner'  },
-        { label: 'Mode',     value: 'Auto'          },
       ],
     },
   ];
 
   return (
-    <aside className="ds-right-panel">
+    <>
+      <button 
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        style={{
+          position: 'fixed', right: isCollapsed ? 0 : 320, top: '50%', transform: 'translateY(-50%)',
+          zIndex: 1000, background: 'var(--s1)', border: '1px solid var(--b1)', borderRight: 'none',
+          padding: '12px 8px', borderRadius: '8px 0 0 8px', cursor: 'pointer',
+          color: 'var(--t2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '-2px 0 8px rgba(0,0,0,0.2)', transition: 'right 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+        }}
+      >
+        <span style={{ transform: isCollapsed ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s', fontSize: 16 }}>
+          ➔
+        </span>
+      </button>
+
+      <aside className="ds-right-panel" style={{ 
+        transform: isCollapsed ? 'translateX(100%)' : 'translateX(0)',
+        position: 'fixed', right: 0, top: 0, height: '100vh',
+        transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 999,
+        background: 'var(--bg)', borderLeft: '1px solid var(--b1)'
+      }}>
       {/* ── Tab bar ── */}
       <div className="ds-right-tabs">
         {tabs.map((t) => (
@@ -108,17 +86,7 @@ const RightPanel: React.FC = () => {
       {/* ── Content ── */}
       <div className="ds-right-content">
 
-        {/* ENGINE */}
-        {activeTab === 'engine' && (
-          <div style={{
-            fontSize: 9, fontWeight: 700, color: 'var(--amber)',
-            background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)',
-            borderRadius: 5, padding: '4px 8px', marginBottom: 8,
-            textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'center',
-          }}>
-            ⚠ Illustrative counters — for live thesis metrics see Metrics page
-          </div>
-        )}
+
         {activeTab === 'engine' && algoCards.map((card) => (
           <div
             key={card.label}
@@ -275,6 +243,7 @@ const RightPanel: React.FC = () => {
         )}
       </div>
     </aside>
+    </>
   );
 };
 

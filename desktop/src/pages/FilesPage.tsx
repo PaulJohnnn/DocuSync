@@ -290,6 +290,12 @@ const FilesPage: React.FC = () => {
           <ArrowLeft size={13} /> Back
         </button>
         <span className="ds-topbar-title">{currentRoom.name}</span>
+        <span style={{ 
+          background: 'var(--accent)', color: 'white', padding: '2px 8px', 
+          borderRadius: 12, fontSize: 11, fontWeight: 600, marginLeft: 8, marginRight: 8
+        }}>
+          {Math.max(connectedPeers.length, Math.max(0, matchmakerPeerCount - 1)) + 1} Active Users
+        </span>
         <button
           onClick={() => {
             navigator.clipboard.writeText(currentRoom.otp || currentRoom.id);

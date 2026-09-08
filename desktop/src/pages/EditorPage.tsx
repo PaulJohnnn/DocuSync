@@ -626,6 +626,12 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
             {filePath ? basename(filePath) : `File #${fileId}`}
+            <span style={{ 
+              background: 'var(--accent)', color: 'white', padding: '2px 8px', 
+              borderRadius: 12, fontSize: 11, fontWeight: 600, marginLeft: 12 
+            }}>
+              {Math.max(connectedPeers.length, Math.max(0, matchmakerPeerCount - 1)) + 1} Active Users
+            </span>
             {saving && <span style={{ color: 'var(--amber)', fontSize: 11, fontWeight: 400, marginLeft: 8 }}>checking in…</span>}
             {syncStatusMsg && !saving && (
               <span style={{ fontSize: 11, color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: 4, marginLeft: 8, fontWeight: 500 }}>
