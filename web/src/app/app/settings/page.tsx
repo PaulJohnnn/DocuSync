@@ -75,7 +75,7 @@ export default function SettingsPage() {
         
         <div style={{ display: 'flex', gap: '3rem', alignItems: 'flex-start' }}>
           
-          {/* Left Sidebar (Header + Tabs) */}
+          {/* Left Sidebar */}
           <div style={{ width: '260px', display: 'flex', flexDirection: 'column', gap: '2rem', flexShrink: 0, position: 'sticky', top: 20 }}>
             
             {/* Header */}
@@ -154,6 +154,7 @@ export default function SettingsPage() {
             </button>
 
 
+            </div>
           </div>
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0, animation: 'fadeIn 0.3s ease' }}>
