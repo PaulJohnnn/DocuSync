@@ -156,25 +156,20 @@ export default function SettingsPage() {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0, animation: 'fadeIn 0.3s ease' }}>
             
             {activeTab === 'account' && (
-              <>
-                <section className="ds-card" style={{ overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--b1)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ color: 'var(--acc)', display: 'flex', alignItems: 'center', padding: 6, background: 'var(--acb)', borderRadius: 8 }}><Palette size={16} /></span>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--t1)' }}>Appearance</div>
-                    <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 2 }}>Customize your Web UI theme</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+                <section>
+                  <div style={{ marginBottom: 16 }}>
+                    <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--t1)', margin: 0 }}>Appearance</h2>
+                    <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>Customize your Web UI theme.</p>
                   </div>
-                </div>
-                <div style={{ padding: '20px' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '16px', background: 'var(--s2)', borderRadius: 12, border: '1px solid var(--b1)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      {isDark ? <Moon size={20} style={{ color: 'var(--acc)' }} /> : <Sun size={20} style={{ color: 'var(--amb)' }} />}
+                  <div className="ds-card" style={{ padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{ padding: 10, background: 'var(--s2)', borderRadius: 10, border: '1px solid var(--b1)' }}>
+                        {isDark ? <Moon size={20} style={{ color: 'var(--acc)' }} /> : <Sun size={20} style={{ color: 'var(--amb)' }} />}
+                      </div>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)' }}>{isDark ? 'Dark Mode' : 'Light Mode'}</div>
-                        <div style={{ fontSize: 12, color: 'var(--t3)' }}>Toggle between light and dark aesthetics</div>
+                        <div style={{ fontSize: 13, color: 'var(--t2)', marginTop: 2 }}>Toggle between light and dark aesthetics.</div>
                       </div>
                     </div>
                     {/* Bouncing Toggle */}
@@ -196,49 +191,41 @@ export default function SettingsPage() {
                       }} />
                     </button>
                   </div>
-                </div>
-              </section>
+                </section>
 
-              <section className="ds-card" style={{ overflow: 'hidden', marginBottom: 24 }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--b1)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ color: 'var(--red, #ef4444)', display: 'flex', alignItems: 'center', padding: 6, background: 'rgba(239, 68, 68, 0.1)', borderRadius: 8 }}><LogOut size={16} /></span>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--t1)' }}>Account</div>
-                    <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 2 }}>Manage your current session</div>
+                <section>
+                  <div style={{ marginBottom: 16 }}>
+                    <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--t1)', margin: 0 }}>Account Session</h2>
+                    <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>Manage your current active session.</p>
                   </div>
-                </div>
-                <div style={{ padding: '20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: 'var(--s2)', borderRadius: 12, border: '1px solid var(--b1)' }}>
+                  <div className="ds-card" style={{ padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)' }}>Log Out</div>
-                      <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 4 }}>End your current web session safely.</div>
+                      <div style={{ fontSize: 13, color: 'var(--t2)', marginTop: 4 }}>End your current web session safely.</div>
                     </div>
                     <button
                       onClick={() => {
                         logout();
                         window.location.href = '/app/login';
                       }}
-                      style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: 'rgb(239, 68, 68)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      style={{ background: 'var(--bg)', border: '1px solid var(--b1)', color: 'var(--t1)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem', transition: 'all 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'var(--bg)'}
                     >
                       Log Out
                     </button>
                   </div>
-                </div>
-              </section>
+                </section>
 
-              <section className="ds-card" style={{ overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--b1)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ color: 'var(--red, #ef4444)', display: 'flex', alignItems: 'center', padding: 6, background: 'rgba(239, 68, 68, 0.1)', borderRadius: 8 }}><Trash size={16} /></span>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--t1)' }}>Reset Application Data</div>
-                    <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 2 }}>Clear all local data and restore to a fresh state</div>
+                <section>
+                  <div style={{ marginBottom: 16 }}>
+                    <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--red, #ef4444)', margin: 0 }}>Danger Zone</h2>
+                    <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>Irreversible destructive actions.</p>
                   </div>
-                </div>
-                <div style={{ padding: '20px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: 'var(--s2)', borderRadius: 12, border: '1px solid var(--b1)' }}>
+                  <div style={{ border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 12, background: 'rgba(239, 68, 68, 0.02)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--t1)' }}>Factory Reset</div>
-                      <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 4 }}>Wipe all settings, sessions, and files locally.</div>
+                      <div style={{ fontSize: 13, color: 'var(--t2)', marginTop: 4 }}>Wipe all settings, sessions, and files locally.</div>
                     </div>
                     <button
                       onClick={() => {
@@ -247,14 +234,15 @@ export default function SettingsPage() {
                           window.location.reload();
                         }
                       }}
-                      style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: 'rgb(239, 68, 68)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: 'rgb(239, 68, 68)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'}
                     >
-                      Clear All Data
+                      Reset App
                     </button>
                   </div>
-                </div>
-              </section>
-              </>
+                </section>
+              </div>
             )}
 
             {activeTab === 'system' && (

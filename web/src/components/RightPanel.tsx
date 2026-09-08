@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { uGet } from '@/lib/userStorage';
-import { Activity, Clock, Zap, Shield, Hash, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Activity, Clock, Zap, Shield, Hash, PanelRightClose, PanelRightOpen, BarChart2 } from 'lucide-react';
+import { ResponsiveContainer, LineChart, Line } from 'recharts';
 
 type Tab = 'engine' | 'clocks' | 'delta';
 
@@ -17,6 +18,7 @@ export default function RightPanel() {
   const [counters, setCounters] = useState({ events: 0, merges: 0, deltas: 0, conflicts: 0 });
   const [vcState, setVcState] = useState<number[]>([0, 0, 0]);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchCounters = async () => {
@@ -47,12 +49,19 @@ export default function RightPanel() {
       } catch {}
       
       // Fallback to demo animation if host is unreachable or not in a room
-      setCounters(c => ({
-        events: c.events + Math.floor(Math.random() * 3),
-        merges: c.merges + (Math.random() > 0.7 ? 1 : 0),
-        deltas: c.deltas + Math.floor(Math.random() * 2),
-        conflicts: c.conflicts + (Math.random() > 0.95 ? 1 : 0),
-      }));
+      setCounters(c => {
+        const next = {
+          events: c.events + Math.floor(Math.random() * 3),
+          merges: c.merges + (Math.random() > 0.7 ? 1 : 0),
+          deltas: c.deltas + Math.floor(Math.random() * 2),
+          conflicts: c.conflicts + (Math.random() > 0.95 ? 1 : 0),
+        };
+        setHistory(h => {
+          const newH = [...h, { time: Date.now(), ...next }].slice(-15);
+          return newH;
+        });
+        return next;
+      });
       setVcState(v => v.map(x => x + (Math.random() > 0.6 ? 1 : 0)));
     };
 
@@ -163,6 +172,21 @@ export default function RightPanel() {
                   <span style={{ color: c.color, fontWeight: 600, fontFamily: 'monospace' }}>{c.value}</span>
                 </div>
               ))}
+            </div>
+
+            {/* Mini Chart */}
+            <div className="ds-card" style={{ padding: '12px 12px 4px 12px', marginTop: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--t3)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                <BarChart2 size={12} /> Sync Activity
+              </div>
+              <div style={{ width: '100%', height: 60 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={history}>
+                    <Line type="monotone" dataKey="events" stroke="var(--acc)" strokeWidth={2} dot={false} isAnimationActive={false} />
+                    <Line type="monotone" dataKey="deltas" stroke="var(--pur)" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
         )}

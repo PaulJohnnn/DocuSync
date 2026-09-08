@@ -39,7 +39,7 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
   }
 
   return (
-    <div className="app-layout" style={{ display: 'flex' }}>
+    <div className="app-layout" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       {children}
     </div>
   );

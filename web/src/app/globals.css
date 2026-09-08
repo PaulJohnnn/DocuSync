@@ -333,7 +333,7 @@ body {
 }
 /* Paginated Print Layout */
 .ds-editor-page-wrapper {
-  background-color: #f1f5f9; /* Slate 100 */
+  background-color: #f1f5f9; /* Slate 100 desk */
   padding: 40px 0;
   min-height: calc(100vh - 120px);
   display: flex;
@@ -343,9 +343,23 @@ body {
   box-shadow: inset 0 2px 8px rgba(0,0,0,0.03);
 }
 .ds-editor-page-view .ProseMirror {
+  width: 794px; /* A4 Width */
+  min-height: 1123px; /* A4 Height */
   margin: 0 auto;
+  padding: 96px 80px;
   color: #000;
-  /* Pagination extension will handle dimensions and gaps */
+  background-color: #ffffff;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 1083px, /* 1123 - 40px gap */
+    #f1f5f9 1083px,
+    #f1f5f9 1123px
+  );
+  background-size: 100% 1123px;
+  background-attachment: local;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
+  border-radius: 2px;
 }
 @media (max-width: 880px) {
   .ds-editor-page-view .ProseMirror {
