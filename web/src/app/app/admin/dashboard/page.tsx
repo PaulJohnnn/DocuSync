@@ -300,113 +300,13 @@ export default function AdminDashboardPage() {
             <div style={{ fontSize: 24, fontWeight: 800, color: '#fff' }}>{activeUsers.length}</div>
             <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Active</div>
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 16, padding: '12px 24px', textAlign: 'center', minWidth: 120, backdropFilter: 'blur(10px)' }}>
-            <div style={{ fontSize: 24, fontWeight: 800, color: pendingRequests.length > 0 ? '#f87171' : '#fff' }}>{pendingRequests.length}</div>
-            <div style={{ fontSize: 12, color: pendingRequests.length > 0 ? '#fca5a5' : '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Pending</div>
-          </div>
         </div>
       </div>
 
 
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', maxWidth: 800, margin: '0 auto', gap: 40 }}>
         
-        {/* Pending Requests Column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10, margin: 0, color: '#f8fafc' }}>
-              <div style={{ background: 'rgba(239,68,68,0.1)', padding: 6, borderRadius: 8 }}>
-                <Clock size={18} color="#f87171" />
-              </div>
-              Pending Requests
-              {pendingRequests.length > 0 && (
-                <span style={{
-                  background: 'linear-gradient(135deg, #ef4444, #b91c1c)', color: '#fff', fontSize: 12, padding: '2px 10px',
-                  borderRadius: 99, fontWeight: 800, marginLeft: 4, boxShadow: '0 2px 8px rgba(239,68,68,0.4)'
-                }}>
-                  {pendingRequests.length}
-                </span>
-              )}
-            </h2>
-          </div>
-
-          <div style={{
-            background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, 
-            overflow: 'hidden', backdropFilter: 'blur(20px)', minHeight: 400,
-            boxShadow: '0 20px 40px -20px rgba(0,0,0,0.5)'
-          }}>
-            {loading ? (
-              <div style={{ padding: 60, textAlign: 'center', color: '#64748b', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                <div className="ds-spinner" style={{ width: 32, height: 32, borderTopColor: '#6366f1' }} />
-                <span>Syncing Database...</span>
-              </div>
-            ) : pendingRequests.length === 0 ? (
-              <div style={{ padding: '80px 40px', textAlign: 'center', color: '#64748b', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-                  <Activity size={32} color="#475569" strokeWidth={1.5} />
-                </div>
-                <h3 style={{ margin: '0 0 8px 0', color: '#e2e8f0', fontSize: 18, fontWeight: 600 }}>All Caught Up</h3>
-                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, maxWidth: 260 }}>There are no pending profile requests at this moment.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {pendingRequests.map((req, i) => (
-                  <div key={req.id} style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '20px 24px', borderBottom: i === pendingRequests.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.04)',
-                    transition: 'background 0.2s', cursor: 'default'
-                  }} className="hover-row">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                      <div style={{
-                        width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, rgba(239,68,68,0.1), rgba(245,158,11,0.1))',
-                        color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 18, fontWeight: 700, border: '1px solid rgba(239,68,68,0.2)'
-                      }}>
-                        {req.email.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, color: '#f8fafc', fontSize: 15, marginBottom: 4 }}>{req.email}</div>
-                        <div style={{ fontSize: 12, color: '#64748b', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <Clock size={12} />
-                          Requested {new Date(req.requestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        onClick={() => handleReject(req.id)}
-                        style={{
-                          background: 'rgba(255,255,255,0.05)', border: 'none', color: '#94a3b8',
-                          width: 36, height: 36, borderRadius: 10, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all 0.2s'
-                        }}
-                        className="btn-reject"
-                        title="Deny Request"
-                      >
-                        <X size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleApprove(req.id)}
-                        style={{
-                          background: 'linear-gradient(135deg, #22c55e, #16a34a)', border: 'none', color: '#fff',
-                          height: 36, padding: '0 16px', borderRadius: 10, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13,
-                          boxShadow: '0 4px 12px rgba(34,197,94,0.3)', transition: 'all 0.2s'
-                        }}
-                        className="btn-approve"
-                      >
-                        <Check size={16} strokeWidth={3} />
-                        Approve
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
         {/* Active Users Column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
