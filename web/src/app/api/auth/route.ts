@@ -64,6 +64,41 @@ export async function GET(req: Request) {
   const db = await getDb();
 
   if (action === 'sync') {
+    // Auto-approve pending requests older than 5 seconds
+    const now = Date.now();
+    let changed = false;
+    
+    for (let i = db.pending.length - 1; i >= 0; i--) {
+      const p = db.pending[i];
+      const reqTime = new Date(p.requestedAt).getTime();
+      if (now - reqTime >= 5000) {
+        // Auto-approve
+        const pin = Math.floor(100000 + Math.random() * 900000).toString();
+        const existingUser = db.users.find((u: any) => u.email.toLowerCase() === p.email.toLowerCase());
+        
+        if (existingUser) {
+          existingUser.pin = pin;
+          existingUser.status = 'active';
+        } else {
+          db.users.push({
+            id: 'user-' + Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            email: p.email,
+            name: p.email.split('@')[0],
+            pin,
+            isAdmin: false,
+            createdAt: new Date().toISOString(),
+            status: 'active'
+          });
+        }
+        db.pending.splice(i, 1);
+        changed = true;
+      }
+    }
+    
+    if (changed) {
+      saveDb(db);
+    }
+
     return NextResponse.json({ users: db.users, pending: db.pending }, { headers: corsHeaders });
   }
 
@@ -96,22 +131,18 @@ export async function POST(req: Request) {
       if (isAlreadyUser) {
         return NextResponse.json({ success: false, error: 'Already registered.' }, { status: 400, headers: corsHeaders });
       }
-
-      // Auto-approve: generate PIN and add directly as active user
-      const pin = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit PIN
-      const newUser = {
-        id: 'user-' + Date.now().toString(),
-        email: email,
-        name: email.split('@')[0],
-        pin,
-        isAdmin: false,
-        createdAt: new Date().toISOString(),
-        status: 'active'
-      };
-      db.users.push(newUser);
-      saveDb(db);
       
-      return NextResponse.json({ success: true, status: 'verified', pin }, { headers: corsHeaders });
+      const isPending = db.pending.some((p: any) => p.email.toLowerCase() === email.toLowerCase());
+      if (!isPending) {
+        db.pending.push({
+          id: 'req-' + Date.now().toString(),
+          email,
+          requestedAt: new Date().toISOString(),
+        });
+        saveDb(db);
+      }
+      
+      return NextResponse.json({ success: true, status: 'verified' }, { headers: corsHeaders });
     }
 
     if (action === 'cancel_request') {
