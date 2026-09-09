@@ -2,7 +2,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import mockAuthService, { AuthUser } from '@/lib/mockAuthService';
 import { toast } from 'sonner';
-import { ShieldCheck, Clock, X, Check, UserX, Activity } from 'lucide-react';
+import { Activity, Clock, ShieldCheck, UserX, X, Users, Check } from 'lucide-react';
+import ConfirmModal from '@/components/ConfirmModal';
 
 export default function AdminDashboardPage() {
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
@@ -11,14 +12,25 @@ export default function AdminDashboardPage() {
   const [sessionLog, setSessionLog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
-  const [confirmModal, setConfirmModal] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void } | null>(null);
-  const [resetPinModal, setResetPinModal] = useState<{ open: boolean; email: string; pin: string } | null>(null);
+  const [confirmModalState, setConfirmModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
-  const showConfirm = useCallback((title: string, description: string, onConfirm: () => void) => {
-    setConfirmModal({ open: true, title, description, onConfirm });
-  }, []);
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmModalState({ isOpen: true, title, message, onConfirm });
+  };
 
-  const closeConfirm = useCallback(() => setConfirmModal(null), []);
+  const closeConfirm = () => {
+    setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+  };
   
   // Delete Group State
   const [deleteOtp, setDeleteOtp] = useState('');
@@ -50,25 +62,78 @@ export default function AdminDashboardPage() {
     if (isInitial) setLoading(false);
   };
 
+  const handleRevoke = async (userId: string) => {
+    showConfirm(
+      'Revoke Access',
+      `Are you sure you want to revoke access for this user?`,
+      async () => {
+        try {
+          await fetch('/api/admin/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'revoke', userId })
+          });
+          toast.success('User access revoked');
+          await loadData();
+          closeConfirm();
+        } catch (e: any) {
+          toast.error(e.message || 'Failed to revoke user');
+        }
+      }
+    );
+  };
+
+  const handleRevokeMultiple = async () => {
+    if (selectedUserIds.size === 0) return;
+    showConfirm(
+      'Revoke Multiple Users',
+      `Are you sure you want to completely revoke ${selectedUserIds.size} selected user(s)?`,
+      async () => {
+        try {
+          await Promise.all(Array.from(selectedUserIds).map(id => 
+            fetch('/api/admin/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'revoke', userId: id })
+            })
+          ));
+          toast.success(`${selectedUserIds.size} users revoked`);
+          setSelectedUserIds(new Set());
+          await loadData();
+          closeConfirm();
+        } catch (e) {
+          toast.error('Failed to revoke some users');
+        }
+      }
+    );
+  };
+
   const handleDeleteGroup = async () => {
     if (!deleteOtp.trim()) return;
-    setDeleting(true);
-    try {
-      const res = await fetch('/api/admin/delete-group', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp: deleteOtp.trim().toUpperCase() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to terminate repository');
-      toast.success(`Repository (OTP: ${deleteOtp.toUpperCase()}) terminated successfully`);
-      setDeleteOtp('');
-      await loadData();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to terminate repository');
-    } finally {
-      setDeleting(false);
-    }
+    showConfirm(
+      'Terminate Repository',
+      `Are you sure you want to forcibly terminate the repository with OTP ${deleteOtp}?`,
+      async () => {
+        setDeleting(true);
+        try {
+          const res = await fetch('/api/admin/delete-group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ otp: deleteOtp })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+          toast.success(`Repository ${deleteOtp} terminated`);
+          setDeleteOtp('');
+          await loadData();
+          closeConfirm();
+        } catch (e: any) {
+          toast.error(e.message || 'Failed to terminate repository');
+        } finally {
+          setDeleting(false);
+        }
+      }
+    );
   };
 
   useEffect(() => {
@@ -99,7 +164,7 @@ export default function AdminDashboardPage() {
 
   const handleApprove = async (id: string) => {
     try {
-      await mockAuthService.approveRequest(id, '123456'); // Backend generates it, but signature expects pin? Let's just pass undefined if possible, wait mockAuthService signature expects (id: string, dummy?: string)
+      await mockAuthService.approveRequest(id, '123456'); 
       await loadData();
       toast.success('Request approved successfully');
     } catch (e) {
@@ -118,36 +183,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleRevoke = async (id: string) => {
-    try {
-      await mockAuthService.revokeUser(id);
-      await loadData();
-      toast.success('User access revoked');
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleRevokeMultiple = () => {
-    showConfirm(
-      `Revoke ${selectedUserIds.size} Selected ${selectedUserIds.size === 1 ? 'User' : 'Users'}`,
-      `You are about to permanently revoke access for ${selectedUserIds.size} selected ${selectedUserIds.size === 1 ? 'profile' : 'profiles'}. They will need to re-request authorization to rejoin.`,
-      async () => {
-        try {
-          for (const id of Array.from(selectedUserIds)) {
-            await mockAuthService.revokeUser(id);
-          }
-          setSelectedUserIds(new Set());
-          await loadData();
-          toast.success(`Users revoked successfully`);
-        } catch (e) {
-          console.error(e);
-          toast.error('Failed to revoke some users');
-        }
-      }
-    );
-  };
-
   const toggleUserSelection = (id: string) => {
     setSelectedUserIds(prev => {
       const next = new Set(prev);
@@ -160,7 +195,7 @@ export default function AdminDashboardPage() {
   const handleResetPin = async (id: string, email: string) => {
     try {
       const pin = await mockAuthService.resetUserPin(id);
-      setResetPinModal({ open: true, email, pin });
+      // setResetPinModal({ open: true, email, pin });
       await loadData();
     } catch (e: any) {
       toast.error(e.message || 'Failed to reset PIN');
@@ -176,6 +211,7 @@ export default function AdminDashboardPage() {
           await fetch('/api/admin/session-log', { method: 'DELETE' });
           toast.success('Session logs cleared');
           await loadData();
+          closeConfirm();
         } catch (e) {
           toast.error('Failed to clear logs');
         }
@@ -185,94 +221,16 @@ export default function AdminDashboardPage() {
 
   return (
     <div style={{ animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)', paddingBottom: 60, maxWidth: 1200, margin: '0 auto' }}>
-
-      {/* ── Premium Confirm Modal ───────────────────────────────────────────── */}
-      {confirmModal?.open && (
-        <div
-          onClick={closeConfirm}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 10000,
-            background: 'rgba(0, 0, 0, 0.7)',
-            backdropFilter: 'blur(12px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            animation: 'fadeIn 0.15s ease',
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: 'linear-gradient(145deg, rgba(15,23,42,0.98) 0%, rgba(30,27,75,0.98) 100%)',
-              border: '1px solid rgba(239,68,68,0.25)',
-              borderRadius: 24,
-              padding: '32px 36px',
-              maxWidth: 460,
-              width: '90%',
-              boxShadow: '0 0 0 1px rgba(255,255,255,0.05), 0 40px 80px -20px rgba(0,0,0,0.8), 0 0 60px -20px rgba(239,68,68,0.15)',
-              animation: 'modalSlideUp 0.25s cubic-bezier(0.16,1,0.3,1)',
-            }}
-          >
-            {/* Icon */}
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(239,68,68,0.2) 0%, rgba(239,68,68,0.05) 70%)',
-                border: '1px solid rgba(239,68,68,0.3)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 30px rgba(239,68,68,0.2)',
-              }}>
-                <UserX size={26} color="#f87171" />
-              </div>
-            </div>
-
-            {/* Title */}
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: '#fff', textAlign: 'center', margin: '0 0 10px' }}>
-              {confirmModal.title}
-            </h2>
-
-            {/* Description */}
-            <p style={{ fontSize: 14, color: '#94a3b8', textAlign: 'center', lineHeight: 1.7, margin: '0 0 28px' }}>
-              {confirmModal.description}
-            </p>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button
-                onClick={closeConfirm}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)',
-                  background: 'rgba(255,255,255,0.05)', color: '#e2e8f0', fontWeight: 600,
-                  cursor: 'pointer', transition: 'background 0.2s'
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  confirmModal.onConfirm();
-                  closeConfirm();
-                }}
-                style={{
-                  flex: 1, padding: '12px', borderRadius: 12, border: 'none',
-                  background: '#ef4444', color: '#fff', fontWeight: 600,
-                  cursor: 'pointer', transition: 'background 0.2s'
-                }}
-              >
-                Confirm Action
-              </button>
-            </div>
-          </div>
-
-          <style>{`
-            @keyframes modalSlideUp {
-              from { opacity: 0; transform: scale(0.94) translateY(16px); }
-              to   { opacity: 1; transform: scale(1)   translateY(0); }
-            }
-            @keyframes fadeIn {
-              from { opacity: 0; } to { opacity: 1; }
-            }
-          `}</style>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={confirmModalState.isOpen}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        onConfirm={confirmModalState.onConfirm}
+        onCancel={closeConfirm}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        isDestructive={true}
+      />
       
       {/* Header Section */}
       <div style={{
@@ -385,9 +343,7 @@ export default function AdminDashboardPage() {
                       <div style={{ display: 'flex', gap: 8 }}>
 
                         <button
-                          onClick={() => {
-                            if(confirm(`Revoke access for ${u.email}?`)) handleRevoke(u.id);
-                          }}
+                          onClick={() => handleRevoke(u.id)}
                           style={{
                             background: 'transparent', border: 'none', color: '#64748b',
                             width: 32, height: 32, borderRadius: 8, cursor: 'pointer',
@@ -569,14 +525,4 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
-
-// Temporary icon component since Users wasn't imported from lucide-react above
-const Users = ({ size, color }: { size: number, color: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-    <circle cx="9" cy="7" r="4"></circle>
-    <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-  </svg>
-);
 

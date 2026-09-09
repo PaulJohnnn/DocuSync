@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import PageShell from '@/components/PageShell';
 import { useTheme } from '@/components/ThemeProvider';
-import { Moon, Sun, Palette, Info, Settings as SettingsIcon, User, Trash, Cpu, FolderSync, Database, ShieldCheck, ShieldAlert, FileText, FileCode, FileJson, FileType as FileTypeIcon, File, FileImage, FileSpreadsheet, FileArchive, LogOut } from 'lucide-react';
+import { Moon, Sun, Info, Settings as SettingsIcon, User, Cpu, FolderSync, Database, ShieldCheck, ShieldAlert, FileText, FileCode, FileJson, FileType as FileTypeIcon, File, FileImage, FileSpreadsheet, FileArchive } from 'lucide-react';
+import ConfirmModal from '@/components/ConfirmModal';
 import { logout } from '@/lib/mockAuthService';
 
 const SUPPORTED_TYPES = ['.txt', '.md', '.docx', '.rtf', '.csv', '.json', '.xml', '.html', '.tex'];
@@ -47,6 +48,26 @@ const ExtTag: React.FC<{ ext: string; rejected?: boolean }> = ({ ext, rejected =
 export default function SettingsPage() {
   const [nodeId, setNodeId] = useState<string>('Loading…');
   const [activeTab, setActiveTab] = useState<'account' | 'system' | 'files' | 'about'>('account');
+  const [confirmModalState, setConfirmModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmModalState({ isOpen: true, title, message, onConfirm });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+  };
+
   const CONFIG_ROWS = [
     { setting: 'Node ID',              value: nodeId },
     { setting: 'WS Port',              value: 'N/A (Web Node)' },
@@ -71,6 +92,16 @@ export default function SettingsPage() {
 
   return (
     <PageShell>
+      <ConfirmModal
+        isOpen={confirmModalState.isOpen}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        onConfirm={confirmModalState.onConfirm}
+        onCancel={closeConfirm}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        isDestructive={true}
+      />
       <div style={{ maxWidth: 900, margin: '0 auto', paddingBottom: 40, paddingTop: 20 }}>
         
         <div style={{ display: 'flex', gap: '3rem', alignItems: 'flex-start' }}>
@@ -233,10 +264,14 @@ export default function SettingsPage() {
                     </div>
                     <button
                       onClick={() => {
-                        if (window.confirm("Are you sure you want to completely wipe DocuSync data? This cannot be undone.")) {
-                          localStorage.clear();
-                          window.location.reload();
-                        }
+                        showConfirm(
+                          "Factory Reset",
+                          "Are you sure you want to completely wipe DocuSync data? This cannot be undone.",
+                          () => {
+                            localStorage.clear();
+                            window.location.reload();
+                          }
+                        );
                       }}
                       style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: 'rgb(239, 68, 68)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)'}

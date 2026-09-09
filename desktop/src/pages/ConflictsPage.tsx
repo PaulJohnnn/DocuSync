@@ -11,6 +11,7 @@ import { ServiceError } from '@/services/errors/ServiceError';
 import { notify } from '@docusync/shared/utils/notifications';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import ConfirmModal from '@/components/ConfirmModal';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -118,6 +119,26 @@ const ConflictsPage: React.FC = () => {
   const { conflictQueue, pendingConflicts, markConflictResolved, refreshStatus, currentRoom, localNodeId, vectorClock } = useElectronSync();
   const [details, setDetails] = useState<Map<string, ConflictDetail>>(new Map());
   const [selectedConflictId, setSelectedConflictId] = useState<string | null>(null);
+
+  const [confirmModalState, setConfirmModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmModalState({ isOpen: true, title, message, onConfirm });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+  };
 
   const buildFallbackDetail = useCallback((conflict: PendingConflict): ConflictDetail => ({
     conflictId: conflict.conflictId, fileId: conflict.fileId, summary: conflict.summary,
@@ -340,32 +361,48 @@ const ConflictsPage: React.FC = () => {
 
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`Delete/Dismiss ${selectedIds.size} selected conflict(s)?`)) return;
+    
+    showConfirm(
+      'Delete Selected Conflicts',
+      `Are you sure you want to delete/dismiss ${selectedIds.size} selected conflict(s)?`,
+      async () => {
+        for (const id of selectedIds) {
+          setResolving(id, true);
+          try {
+            const conflict = details.get(id);
+            if (conflict && conflict.status === 'resolved') {
+                markConflictResolved(id);
+                setDetails(prev => { const n = new Map(prev); n.delete(id); return n; });
+                continue;
+            }
 
-    for (const id of selectedIds) {
-      setResolving(id, true);
-      try {
-        const conflict = details.get(id);
-        if (conflict && conflict.status === 'resolved') {
+            await ConflictService.reject(id);
             markConflictResolved(id);
+            await pushResolutionToMatchmaker(id);
             setDetails(prev => { const n = new Map(prev); n.delete(id); return n; });
-            continue;
+          } catch (err) {
+            console.error(`Failed to delete conflict ${id}`, err);
+          }
         }
-
-        await ConflictService.reject(id);
-        markConflictResolved(id);
-        await pushResolutionToMatchmaker(id);
-        setDetails(prev => { const n = new Map(prev); n.delete(id); return n; });
-      } catch (err) {
-        console.error(`Failed to delete conflict ${id}`, err);
+        notify.success(`Processed ${selectedIds.size} conflict(s).`);
+        setSelectedIds(new Set());
+        closeConfirm();
       }
-    }
-    notify.success(`Processed ${selectedIds.size} conflict(s).`);
-    setSelectedIds(new Set());
+    );
   };
 
   return (
     <>
+      <ConfirmModal
+        isOpen={confirmModalState.isOpen}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        onConfirm={confirmModalState.onConfirm}
+        onCancel={closeConfirm}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        isDestructive={true}
+      />
       <div className="ds-topbar">
         <button className="ds-btn ds-btn-ghost" onClick={() => navigate('/')}><IconArrowLeft size={14} /> Files</button>
         <span className="ds-topbar-title">Conflict Log</span>

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
+import ConfirmModal from '@/components/ConfirmModal';
 import {
   FolderOpen, FileText, FileCode, FileImage, File,
   Trash2, FileJson, FileType, FileSpreadsheet, FileArchive,
@@ -59,6 +60,25 @@ export default function FilesPage() {
   const router = useRouter();
   const [connectedPeers, setConnectedPeers] = useState<any[]>([]);
   const [roomFiles, setRoomFiles] = useState<any[]>([]);
+  const [confirmModalState, setConfirmModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmModalState({ isOpen: true, title, message, onConfirm });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+  };
   const [roomTick, setRoomTick] = useState(0);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -284,26 +304,43 @@ export default function FilesPage() {
   };
 
   const handleDeleteRoomFile = async (f: any) => {
-    if (!currentRoom || !confirm(`Delete "${f.fileName || f.name}" from room?`)) return;
-    try {
-      const code = (currentRoom as any).otp || currentRoom.id;
-      const targetId = f.fileId || f.id || '';
-      const targetName = encodeURIComponent(f.fileName || f.name || '');
-      const res = await fetch(`/api/lobby/files?otp=${code}&fileId=${targetId}&fileName=${targetName}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        setRoomTick(t => t + 1);
-      } else {
-        alert('Failed to delete file.');
+    if (!currentRoom) return;
+    showConfirm(
+      'Delete Room File',
+      `Are you sure you want to delete "${f.fileName || f.name}" from the active room?`,
+      async () => {
+        try {
+          const code = (currentRoom as any).otp || currentRoom.id;
+          const targetId = f.fileId || f.id || '';
+          const targetName = encodeURIComponent(f.fileName || f.name || '');
+          const res = await fetch(`/api/lobby/files?otp=${code}&fileId=${targetId}&fileName=${targetName}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            setRoomTick(t => t + 1);
+            closeConfirm();
+          } else {
+            alert('Failed to delete file.');
+          }
+        } catch (err) { console.error(err); }
       }
-    } catch (err) { console.error(err); }
+    );
   };
 
   // ── No room joined ─────────────────────────────────────────────────────────
   if (!currentRoom) {
     return (
       <PageShell>
+        <ConfirmModal
+          isOpen={confirmModalState.isOpen}
+          title={confirmModalState.title}
+          message={confirmModalState.message}
+          onConfirm={confirmModalState.onConfirm}
+          onCancel={closeConfirm}
+          confirmText="Confirm"
+          cancelText="Cancel"
+          isDestructive={true}
+        />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Room Workspace</h1>

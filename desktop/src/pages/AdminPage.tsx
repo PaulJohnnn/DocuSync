@@ -13,6 +13,7 @@ import AdminService, { type SessionLogEntry, type GenerateAccountResult } from '
 import { formatTimestampRelative } from '@docusync/shared/utils/formatters';
 import { notify } from '@docusync/shared/utils/notifications';
 import mockAuthService, { type AuthUser } from '@/services/mockAuthService';
+import ConfirmModal from '@/components/ConfirmModal';
 
 interface AdminStats {
   rooms: any[];
@@ -38,6 +39,26 @@ const AdminPage: React.FC = () => {
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [revoking, setRevoking] = useState(false);
   const [resetPinModal, setResetPinModal] = useState<{ open: boolean; email: string; pin: string } | null>(null);
+
+  const [confirmModalState, setConfirmModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmModalState({ isOpen: true, title, message, onConfirm });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+  };
 
   const fetchStats = useCallback(async () => {
     const data = await AdminService.getStats();
@@ -70,6 +91,16 @@ const AdminPage: React.FC = () => {
 
   return (
     <>
+      <ConfirmModal
+        isOpen={confirmModalState.isOpen}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        onConfirm={confirmModalState.onConfirm}
+        onCancel={closeConfirm}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        isDestructive={true}
+      />
       <div className="ds-topbar">
         <span style={{ color: 'var(--ds-accent)' }}><ShieldCheck size={16} /></span>
         <span className="ds-topbar-title">Admin Dashboard</span>
@@ -148,15 +179,21 @@ const AdminPage: React.FC = () => {
                       style={{ background: 'var(--ds-red)', color: 'white', border: 'none' }}
                       disabled={deleting || deleteOtp.trim().length === 0}
                       onClick={async () => {
-                        if (!window.confirm(`Are you sure you want to forcibly delete group ${deleteOtp}?`)) return;
-                        setDeleting(true);
-                        try {
-                          await AdminService.deleteGroup(deleteOtp);
-                          notify.success(`Group ${deleteOtp} deleted`);
-                          setDeleteOtp('');
-                          fetchStats();
-                        } catch (err: any) { notify.error(err.message); }
-                        finally { setDeleting(false); }
+                        showConfirm(
+                          'Terminate Group',
+                          `Are you sure you want to forcibly delete group ${deleteOtp}?`,
+                          async () => {
+                            setDeleting(true);
+                            try {
+                              await AdminService.deleteGroup(deleteOtp);
+                              notify.success(`Group ${deleteOtp} deleted`);
+                              setDeleteOtp('');
+                              fetchStats();
+                              closeConfirm();
+                            } catch (err: any) { notify.error(err.message); }
+                            finally { setDeleting(false); }
+                          }
+                        );
                       }}
                     >
                       {deleting ? 'Deleting...' : 'Terminate Group'}
@@ -182,17 +219,23 @@ const AdminPage: React.FC = () => {
                     style={{ background: 'var(--ds-red)', color: 'white', border: 'none', padding: '6px 12px', fontSize: '0.75rem' }}
                     disabled={revoking}
                     onClick={async () => {
-                      if (!window.confirm(`Revoke completely ${selectedUserIds.size} selected users?`)) return;
-                      setRevoking(true);
-                      try {
-                        for (const id of Array.from(selectedUserIds)) {
-                          await mockAuthService.revokeUser(id);
+                      showConfirm(
+                        'Revoke Multiple Users',
+                        `Are you sure you want to completely revoke ${selectedUserIds.size} selected users?`,
+                        async () => {
+                          setRevoking(true);
+                          try {
+                            for (const id of Array.from(selectedUserIds)) {
+                              await mockAuthService.revokeUser(id);
+                            }
+                            notify.success(`Revoked ${selectedUserIds.size} users`);
+                            setSelectedUserIds(new Set());
+                            fetchStats();
+                            closeConfirm();
+                          } catch (err: any) { notify.error(err.message); }
+                          finally { setRevoking(false); }
                         }
-                        notify.success(`Revoked ${selectedUserIds.size} users`);
-                        setSelectedUserIds(new Set());
-                        fetchStats();
-                      } catch (err: any) { notify.error(err.message); }
-                      finally { setRevoking(false); }
+                      );
                     }}
                   >
                     {revoking ? 'Revoking...' : `Revoke Selected (${selectedUserIds.size})`}
@@ -316,14 +359,20 @@ const AdminPage: React.FC = () => {
                     className="ds-btn"
                     style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--ds-red)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '6px 12px', fontSize: '0.75rem' }}
                     onClick={async () => {
-                      if (!window.confirm('Are you sure you want to permanently clear the global session logs?')) return;
-                      try {
-                        await AdminService.clearSessionLog();
-                        notify.success('Session logs cleared');
-                        fetchStats();
-                      } catch (e: any) {
-                        notify.error('Failed to clear logs');
-                      }
+                      showConfirm(
+                        'Clear Session Logs',
+                        'Are you sure you want to permanently clear the global session logs?',
+                        async () => {
+                          try {
+                            await AdminService.clearSessionLog();
+                            notify.success('Session logs cleared');
+                            fetchStats();
+                            closeConfirm();
+                          } catch (e: any) {
+                            notify.error('Failed to clear logs');
+                          }
+                        }
+                      );
                     }}
                   >
                     Clear Logs

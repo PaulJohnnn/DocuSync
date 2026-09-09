@@ -23,6 +23,7 @@ import { notify } from '@docusync/shared/utils/notifications';
 import SyncService from '@/services/SyncService';
 import { toast } from 'sonner';
 import { File } from 'lucide-react';
+import ConfirmModal from '@/components/ConfirmModal';
 
 import { Extension } from '@tiptap/core';
 import { diffWords } from 'diff';
@@ -351,6 +352,26 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
 
   const performSaveRef = useRef<((html: string, explicit?: boolean) => Promise<void>) | null>(null);
 
+  const [confirmModalState, setConfirmModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmModalState({ isOpen: true, title, message, onConfirm });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+  };
+
   const isApplyingRemoteRef = useRef(false);
 
   useEffect(() => {
@@ -584,15 +605,20 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
   }, [editor, performSave]);
 
   const handleDeleteGroup = useCallback(async () => {
-    if (window.confirm("WARNING: This will permanently terminate the active session and disconnect all users. Are you sure?")) {
-      try {
-        await SyncService.terminateSession();
-        notify.success('Session terminated.');
-        navigate('/');
-      } catch {
-        notify.error('Failed to terminate session.');
+    showConfirm(
+      'Terminate Session',
+      'WARNING: This will permanently terminate the active session and disconnect all users. Are you sure?',
+      async () => {
+        try {
+          await SyncService.terminateSession();
+          notify.success('Session terminated.');
+          navigate('/');
+          closeConfirm();
+        } catch {
+          notify.error('Failed to terminate session.');
+        }
       }
-    }
+    );
   }, [navigate]);
 
   // ── Clock display ─────────────────────────────────────────────────────────
@@ -609,6 +635,16 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <ConfirmModal
+        isOpen={confirmModalState.isOpen}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        onConfirm={confirmModalState.onConfirm}
+        onCancel={closeConfirm}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        isDestructive={true}
+      />
       {/* Topbar — sub navigation bar for editor */}
       <div style={{
         height: 46, background: 'var(--bg-sidebar)',

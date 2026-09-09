@@ -17,6 +17,7 @@ import { ServiceError } from '@/services/errors/ServiceError';
 import { notify } from '@docusync/shared/utils/notifications';
 import { basename, formatSize } from '@docusync/shared/utils/formatters';
 import { uRemove } from '@/utils/userStorage';
+import ConfirmModal from '@/components/ConfirmModal';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,26 @@ const FilesPage: React.FC = () => {
   const [sharing, setSharing] = useState(false);
   const [uploadError, setUploadError] = useState<{ filename: string, reason: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [confirmModalState, setConfirmModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmModalState({ isOpen: true, title, message, onConfirm });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+  };
 
   // Listen for remote deletes
   useEffect(() => {
@@ -221,35 +242,42 @@ const FilesPage: React.FC = () => {
   }, []);
 
   const handleDeleteRoomFile = useCallback(async (file: any) => {
-    if (!currentRoom || !confirm(`Delete "${file.fileName || file.name}" from room?`)) return;
-    try {
-      const code = currentRoom.otp || currentRoom.id;
-      const targetId = file.fileId || file.id || '';
-      const targetName = encodeURIComponent(file.fileName || file.name || '');
-      const MATCHMAKER_URL = import.meta.env.VITE_WEB_URL
-        ? `${import.meta.env.VITE_WEB_URL}/api/lobby`
-        : 'https://docusync-dusky.vercel.app/api/lobby';
-      const res = await fetch(`${MATCHMAKER_URL}/files?otp=${code}&fileId=${targetId}&fileName=${targetName}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        if (targetId) {
-          try {
-            await FileService.deleteFile(Number(targetId));
-          } catch (e) {
-            console.error('Failed to create local delete event:', e);
+    if (!currentRoom) return;
+    showConfirm(
+      'Delete Room File',
+      `Are you sure you want to delete "${file.fileName || file.name}" from the active room?`,
+      async () => {
+        try {
+          const code = currentRoom.otp || currentRoom.id;
+          const targetId = file.fileId || file.id || '';
+          const targetName = encodeURIComponent(file.fileName || file.name || '');
+          const MATCHMAKER_URL = import.meta.env.VITE_WEB_URL
+            ? `${import.meta.env.VITE_WEB_URL}/api/lobby`
+            : 'https://docusync-dusky.vercel.app/api/lobby';
+          const res = await fetch(`${MATCHMAKER_URL}/files?otp=${code}&fileId=${targetId}&fileName=${targetName}`, {
+            method: 'DELETE',
+          });
+          if (res.ok) {
+            if (targetId) {
+              try {
+                await FileService.deleteFile(Number(targetId));
+              } catch (e) {
+                console.error('Failed to create local delete event:', e);
+              }
+            }
+            setRoomFiles(prev => prev.filter(f => {
+              const idMatch = targetId && String(f.fileId ?? f.id) === String(targetId);
+              const nameMatch = (f.fileName || f.name) === decodeURIComponent(targetName);
+              return !(idMatch || nameMatch);
+            }));
+            notify.success('File deleted from room');
+            closeConfirm();
           }
+        } catch {
+          notify.error('Failed to delete file from room');
         }
-        setRoomFiles(prev => prev.filter(f => {
-          const idMatch = targetId && String(f.fileId ?? f.id) === String(targetId);
-          const nameMatch = (f.fileName || f.name) === decodeURIComponent(targetName);
-          return !(idMatch || nameMatch);
-        }));
-        notify.success('File deleted from room');
       }
-    } catch {
-      notify.error('Failed to delete file');
-    }
+    );
   }, [currentRoom]);
 
   // ── No room → prompt to go to Peers ──────────────────────────────────────
@@ -279,7 +307,17 @@ const FilesPage: React.FC = () => {
 
   // ── Room workspace view ───────────────────────────────────────────────────
   return (
-    <React.Fragment>
+    <div className="ds-page" style={{ position: 'relative' }}>
+      <ConfirmModal
+        isOpen={confirmModalState.isOpen}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        onConfirm={confirmModalState.onConfirm}
+        onCancel={closeConfirm}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        isDestructive={true}
+      />
       {/* Topbar */}
       <div className="ds-topbar">
         <button
@@ -587,7 +625,7 @@ const FilesPage: React.FC = () => {
           </div>
         )}
       </div>
-    </React.Fragment>
+    </div>
   );
 };
 

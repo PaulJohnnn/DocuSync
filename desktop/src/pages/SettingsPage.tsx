@@ -13,6 +13,7 @@ import {
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
+import ConfirmModal from '@/components/ConfirmModal';
 
 import { encode } from '@docusync/shared/engine/delta/delta-encoder';
 import { VectorClock } from '@docusync/shared/engine/vector-clock/vector-clock';
@@ -92,6 +93,26 @@ const SettingsPage: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
+  const [confirmModalState, setConfirmModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmModalState({ isOpen: true, title, message, onConfirm });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModalState(prev => ({ ...prev, isOpen: false }));
+  };
+
   // Cache management state
   const [cacheRowCount, setCacheRowCount] = useState<number | null>(null);
   const [cleanupResult, setCleanupResult] = useState<{ deletedCount: number; totalAfter: number } | null>(null);
@@ -144,6 +165,16 @@ const SettingsPage: React.FC = () => {
 
   return (
     <>
+      <ConfirmModal
+        isOpen={confirmModalState.isOpen}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        onConfirm={confirmModalState.onConfirm}
+        onCancel={closeConfirm}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        isDestructive={true}
+      />
       <div className="ds-main-scroll ds-page-enter" style={{ display: 'flex', gap: '2rem', padding: '1.5rem', alignItems: 'flex-start' }}>
         
         {/* Left Sidebar */}
@@ -254,10 +285,14 @@ const SettingsPage: React.FC = () => {
                   </div>
                   <button
                     onClick={() => {
-                      if (window.confirm("Are you sure you want to completely wipe DocuSync data? This cannot be undone.")) {
-                        localStorage.clear();
-                        window.location.reload();
-                      }
+                      showConfirm(
+                        "Factory Reset",
+                        "Are you sure you want to completely wipe DocuSync data? This cannot be undone.",
+                        () => {
+                          localStorage.clear();
+                          window.location.reload();
+                        }
+                      );
                     }}
                     style={{
                       background: 'var(--ds-red-bg)', border: '1px solid var(--ds-red-border)',
