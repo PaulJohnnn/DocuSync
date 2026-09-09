@@ -131,6 +131,8 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
 
   const [approvedPin, setApprovedPin] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [waitTimer, setWaitTimer] = useState(0);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 
   useEffect(() => {
     if (!success) return;
@@ -145,8 +147,15 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
         if (pin) setApprovedPin(pin);
       });
     });
+
+    const timerInterval = setInterval(() => {
+      setWaitTimer(prev => prev + 1);
+    }, 1000);
     
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      clearInterval(timerInterval);
+    };
   }, [success, email]);
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -229,25 +238,93 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
             <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 24, lineHeight: 1.5 }}>
               Your profile request for <strong>{email}</strong> has been logged locally. Please contact the device administrator to approve this profile.
             </p>
+            <div style={{ padding: '16px', background: '#f1f5f9', borderRadius: 12, marginBottom: 24 }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+                {Math.floor(waitTimer / 60)}:{(waitTimer % 60).toString().padStart(2, '0')}
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>
+                Waiting for Approval
+              </div>
+              {waitTimer > 10 && (
+                <div style={{ marginTop: 12, padding: 12, background: '#fee2e2', color: '#b91c1c', borderRadius: 8, fontSize: 13, fontWeight: 500 }}>
+                  Taking too long? We recommend sending another request for automatic approval secureness.
+                  <button 
+                    onClick={() => { setWaitTimer(0); setSuccess(false); }}
+                    style={{ background: 'none', border: 'none', color: '#dc2626', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', marginTop: 4, display: 'block', width: '100%' }}
+                  >
+                    Cancel & Try Again
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         )}
-        <button
-          onClick={() => {
-            if (!approvedPin) mockAuthService.cancelRequest(email);
-            onBack();
-          }}
-          style={{
-            padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600,
-            background: 'var(--bg-card)', color: '#1e293b', border: '1.5px solid #e2e8f0', cursor: 'pointer',
-            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-          }}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1.5px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)'; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
-          onMouseDown={e => e.currentTarget.style.transform = 'scale(0.97)'}
-          onMouseUp={e => e.currentTarget.style.transform = 'translateY(-1.5px)'}
-        >
-          Back
-        </button>
+        
+        {approvedPin && (
+          <button
+            onClick={() => setShowSaveConfirm(true)}
+            style={{
+              padding: '12px 24px', borderRadius: 10, fontSize: 14, fontWeight: 700,
+              background: '#16a34a', color: '#fff', border: 'none', cursor: 'pointer',
+              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)'
+            }}
+          >
+            Continue to Login
+          </button>
+        )}
+
+        {/* ── Save OTP Confirmation Modal ────────────────────────────────────── */}
+        {showSaveConfirm && (
+          <div
+            onClick={() => setShowSaveConfirm(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 10000,
+              background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(12px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: 'fadeIn 0.15s ease',
+            }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: '#ffffff', borderRadius: 24, padding: '32px',
+                maxWidth: 400, width: '90%', textAlign: 'center',
+                boxShadow: '0 20px 40px -10px rgba(0,0,0,0.3)',
+                animation: 'modalSlideUp 0.25s cubic-bezier(0.16,1,0.3,1)',
+              }}
+            >
+              <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 12, marginTop: 0 }}>
+                Did you save the OTP?
+              </h3>
+              <p style={{ fontSize: 14, color: '#475569', marginBottom: 24, lineHeight: 1.6 }}>
+                You will need this PIN to log in. Are you sure you saved it?
+              </p>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={() => setShowSaveConfirm(false)}
+                  style={{
+                    flex: 1, padding: '12px', borderRadius: 12, border: '1.5px solid #e2e8f0',
+                    background: '#f8fafc', color: '#475569', fontWeight: 600,
+                    cursor: 'pointer', transition: 'background 0.2s'
+                  }}
+                >
+                  No, go back
+                </button>
+                <button
+                  onClick={() => onBack()}
+                  style={{
+                    flex: 1, padding: '12px', borderRadius: 12, border: 'none',
+                    background: '#0f172a', color: '#fff', fontWeight: 600,
+                    cursor: 'pointer', transition: 'background 0.2s'
+                  }}
+                >
+                  Yes, proceed
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -485,7 +562,22 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         </label>
         <button
           type="button"
-          onClick={() => setAuthError('PIN reset requires admin contact in local-first mode.')}
+          onClick={async () => {
+            if (!email) {
+              setEmailError('Please enter your username first to request a PIN reset.');
+              triggerShake();
+              return;
+            }
+            try {
+              setLoading(true);
+              await mockAuthService.requestPinRenewal(email);
+              setAuthError('PIN renewal requested. Please ask an administrator for your new PIN.');
+            } catch (err: any) {
+              setAuthError(err.message || 'Failed to request PIN renewal.');
+            } finally {
+              setLoading(false);
+            }
+          }}
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#4f46e5', fontWeight: 500 }}
         >
           Forgot PIN?

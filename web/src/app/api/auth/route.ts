@@ -125,21 +125,56 @@ export async function POST(req: Request) {
       
       const p = db.pending[idx];
       const pin = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit PIN
-      const newUser = {
-        id: 'user-' + Date.now().toString(),
-        email: p.email,
-        name: p.email.split('@')[0],
-        pin,
-        isAdmin: false,
-        createdAt: new Date().toISOString(),
-        status: 'active'
-      };
       
-      db.users.push(newUser);
+      const existingUser = db.users.find((u: any) => u.email.toLowerCase() === p.email.toLowerCase());
+      if (existingUser) {
+        existingUser.pin = pin;
+        existingUser.status = 'active';
+      } else {
+        const newUser = {
+          id: 'user-' + Date.now().toString(),
+          email: p.email,
+          name: p.email.split('@')[0],
+          pin,
+          isAdmin: false,
+          createdAt: new Date().toISOString(),
+          status: 'active'
+        };
+        db.users.push(newUser);
+      }
       db.pending.splice(idx, 1);
       saveDb(db);
       
       return NextResponse.json({ success: true, pin }, { headers: corsHeaders });
+    }
+
+    if (action === 'reset_pin') {
+      const { userId } = body;
+      const user = db.users.find((u: any) => u.id === userId);
+      if (!user) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404, headers: corsHeaders });
+      
+      const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+      user.pin = newPin;
+      saveDb(db);
+      return NextResponse.json({ success: true, pin: newPin }, { headers: corsHeaders });
+    }
+
+    if (action === 'renew_otp') {
+      const { email } = body;
+      const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
+      if (!user) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404, headers: corsHeaders });
+      
+      const isPending = db.pending.some((p: any) => p.email.toLowerCase() === email.toLowerCase());
+      if (!isPending) {
+        db.pending.push({
+          id: 'req-' + Date.now().toString(),
+          email,
+          requestedAt: new Date().toISOString(),
+          isRenew: true
+        });
+        saveDb(db);
+      }
+      return NextResponse.json({ success: true, status: 'renew_requested' }, { headers: corsHeaders });
     }
 
     if (action === 'deny') {

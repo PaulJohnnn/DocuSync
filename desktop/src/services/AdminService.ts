@@ -100,6 +100,19 @@ class AdminService {
   }
 
   /**
+   * Clears the system session activity log.
+   */
+  static async clearSessionLog(): Promise<void> {
+    const res = await adminFetch(`/session-log`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new ServiceError('AdminService.clearSessionLog', data.error ?? 'Clear log failed.');
+    }
+  }
+
+  /**
    * Fetches global stats (rooms, users) for the admin dashboard.
    */
   static async getStats(): Promise<{ rooms: any[]; users: any[]; totalRooms: number; totalUsers: number }> {

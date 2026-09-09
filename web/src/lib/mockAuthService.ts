@@ -252,6 +252,33 @@ export async function revokeUser(userId: string): Promise<void> {
   pollDatabase();
 }
 
+export async function resetUserPin(userId: string): Promise<string> {
+  const res = await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'reset_pin', userId })
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Failed to reset PIN');
+  }
+  pollDatabase();
+  return data.pin;
+}
+
+export async function requestPinRenewal(email: string): Promise<void> {
+  const res = await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'renew_otp', email })
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Failed to request PIN renewal');
+  }
+  pollDatabase();
+}
+
 export function subscribeToDatabaseChanges(callback: () => void) {
   if (typeof window === 'undefined') return () => {};
   window.addEventListener('docusync_db_update', callback);
@@ -276,6 +303,8 @@ const mockAuthService = {
   rejectRequest,
   cancelRequest,
   revokeUser,
+  resetUserPin,
+  requestPinRenewal,
   subscribeToDatabaseChanges,
 };
 

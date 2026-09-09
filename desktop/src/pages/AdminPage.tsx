@@ -37,6 +37,7 @@ const AdminPage: React.FC = () => {
   const [activeProfiles, setActiveProfiles] = useState<AuthUser[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [revoking, setRevoking] = useState(false);
+  const [resetPinModal, setResetPinModal] = useState<{ open: boolean; email: string; pin: string } | null>(null);
 
   const fetchStats = useCallback(async () => {
     const data = await AdminService.getStats();
@@ -204,27 +205,51 @@ const AdminPage: React.FC = () => {
                 <div>
                   <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                     {activeProfiles.map(p => (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 1.25rem', borderBottom: '1px solid var(--ds-border)' }}>
-                        <input 
-                          type="checkbox" 
-                          checked={selectedUserIds.has(p.id)}
-                          onChange={() => {
-                            const next = new Set(selectedUserIds);
-                            if (next.has(p.id)) next.delete(p.id);
-                            else next.add(p.id);
-                            setSelectedUserIds(next);
-                          }}
-                          style={{ cursor: 'pointer', width: 16, height: 16, accentColor: 'var(--ds-red)' }}
-                        />
-                        <div style={{
-                          width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg, #60a5fa, #2563eb)',
-                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
-                        }}>
-                          {p.name.charAt(0).toUpperCase()}
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 1.25rem', borderBottom: '1px solid var(--ds-border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedUserIds.has(p.id)}
+                            onChange={() => {
+                              const next = new Set(selectedUserIds);
+                              if (next.has(p.id)) next.delete(p.id);
+                              else next.add(p.id);
+                              setSelectedUserIds(next);
+                            }}
+                            style={{ cursor: 'pointer', width: 16, height: 16, accentColor: 'var(--ds-red)' }}
+                          />
+                          <div style={{
+                            width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg, #60a5fa, #2563eb)',
+                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
+                          }}>
+                            {p.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--ds-text)' }}>{p.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--ds-text3)' }}>{p.email}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--ds-text)' }}>{p.name}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--ds-text3)' }}>{p.email}</div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            onClick={async () => {
+                              try {
+                                const pin = await mockAuthService.resetUserPin(p.id);
+                                setResetPinModal({ open: true, email: p.email, pin });
+                                fetchStats();
+                              } catch (e: any) { notify.error(e.message || 'Failed to reset PIN'); }
+                            }}
+                            style={{
+                              background: 'transparent', border: '1px solid var(--ds-border)', color: 'var(--ds-accent)',
+                              width: 32, height: 32, borderRadius: 8, cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              transition: 'all 0.2s'
+                            }}
+                            title="Reset PIN"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+                            </svg>
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -297,12 +322,32 @@ const AdminPage: React.FC = () => {
 
             {/* Session Log */}
             <div className="ds-card" style={{ marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '1rem 1.25rem', borderBottom: '1px solid var(--ds-border)' }}>
-                <ShieldCheck size={18} color="var(--ds-accent)" />
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--ds-text)' }}>Global Session Audit Log</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--ds-text3)' }}>Recent actions across all network nodes</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', borderBottom: '1px solid var(--ds-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <ShieldCheck size={18} color="var(--ds-accent)" />
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--ds-text)' }}>Global Audit Log</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--ds-text3)' }}>Recent system activity & conflicts</div>
+                  </div>
                 </div>
+                {sessionLog.length > 0 && (
+                  <button
+                    className="ds-btn"
+                    style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--ds-red)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '6px 12px', fontSize: '0.75rem' }}
+                    onClick={async () => {
+                      if (!window.confirm('Are you sure you want to permanently clear the global session logs?')) return;
+                      try {
+                        await AdminService.clearSessionLog();
+                        notify.success('Session logs cleared');
+                        fetchStats();
+                      } catch (e: any) {
+                        notify.error('Failed to clear logs');
+                      }
+                    }}
+                  >
+                    Clear Logs
+                  </button>
+                )}
               </div>
               {sessionLog.length === 0 ? (
                 <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--ds-text3)', fontSize: '0.82rem' }}>No session logs available.</div>
@@ -327,6 +372,56 @@ const AdminPage: React.FC = () => {
           </>
         )}
       </div>
+      
+      {/* ── PIN Reset Success Modal ───────────────────────────────────────────── */}
+      {resetPinModal?.open && (
+        <div
+          onClick={() => setResetPinModal(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10000,
+            background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(12px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            animation: 'fadeIn 0.15s ease',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--ds-card-bg)',
+              border: '1px solid var(--ds-border)', borderRadius: 24, padding: '32px 36px',
+              maxWidth: 460, width: '90%', textAlign: 'center',
+              boxShadow: '0 40px 80px -20px rgba(0,0,0,0.8)',
+              animation: 'modalSlideUp 0.25s cubic-bezier(0.16,1,0.3,1)',
+            }}
+          >
+            <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--ds-accent)', marginBottom: 8, marginTop: 0 }}>PIN Reset Successful</h3>
+            <p style={{ fontSize: 13, color: 'var(--ds-text3)', marginBottom: 20 }}>
+              A new PIN has been generated for <strong>{resetPinModal.email}</strong>.
+            </p>
+            <div style={{
+              background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12,
+              padding: '20px', fontSize: 32, fontWeight: 800, color: 'var(--ds-text)', letterSpacing: '4px',
+              marginBottom: 24
+            }}>
+              {resetPinModal.pin}
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(resetPinModal.pin);
+                notify.success('PIN Copied!');
+                setResetPinModal(null);
+              }}
+              style={{
+                width: '100%', padding: '12px', borderRadius: 12, border: 'none',
+                background: 'var(--ds-accent)', color: '#fff', fontWeight: 700,
+                cursor: 'pointer', transition: 'background 0.2s'
+              }}
+            >
+              Copy & Close
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 };

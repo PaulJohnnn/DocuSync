@@ -12,6 +12,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [confirmModal, setConfirmModal] = useState<{ open: boolean; title: string; description: string; onConfirm: () => void } | null>(null);
+  const [resetPinModal, setResetPinModal] = useState<{ open: boolean; email: string; pin: string } | null>(null);
 
   const showConfirm = useCallback((title: string, description: string, onConfirm: () => void) => {
     setConfirmModal({ open: true, title, description, onConfirm });
@@ -156,6 +157,32 @@ export default function AdminDashboardPage() {
     });
   };
 
+  const handleResetPin = async (id: string, email: string) => {
+    try {
+      const pin = await mockAuthService.resetUserPin(id);
+      setResetPinModal({ open: true, email, pin });
+      await loadData();
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to reset PIN');
+    }
+  };
+
+  const handleClearLogs = async () => {
+    showConfirm(
+      'Clear Session Logs',
+      'Are you sure you want to permanently delete all global session audit logs?',
+      async () => {
+        try {
+          await fetch('/api/admin/session-log', { method: 'DELETE' });
+          toast.success('Session logs cleared');
+          await loadData();
+        } catch (e) {
+          toast.error('Failed to clear logs');
+        }
+      }
+    );
+  };
+
   return (
     <div style={{ animation: 'fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)', paddingBottom: 60, maxWidth: 1200, margin: '0 auto' }}>
 
@@ -212,33 +239,25 @@ export default function AdminDashboardPage() {
               <button
                 onClick={closeConfirm}
                 style={{
-                  flex: 1, padding: '12px 0', borderRadius: 12, fontSize: 14, fontWeight: 600,
-                  background: 'rgba(255,255,255,0.05)',
-                  color: '#94a3b8',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
+                  flex: 1, padding: '12px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.05)', color: '#e2e8f0', fontWeight: 600,
+                  cursor: 'pointer', transition: 'background 0.2s'
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.color = '#fff'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#94a3b8'; }}
               >
                 Cancel
               </button>
               <button
-                onClick={() => { confirmModal.onConfirm(); closeConfirm(); }}
-                style={{
-                  flex: 1, padding: '12px 0', borderRadius: 12, fontSize: 14, fontWeight: 700,
-                  background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                  color: '#fff',
-                  border: '1px solid rgba(239,68,68,0.4)',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 20px rgba(239,68,68,0.35)',
-                  transition: 'all 0.15s',
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  closeConfirm();
                 }}
-                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 28px rgba(239,68,68,0.55)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(239,68,68,0.35)'; e.currentTarget.style.transform = 'none'; }}
+                style={{
+                  flex: 1, padding: '12px', borderRadius: 12, border: 'none',
+                  background: '#ef4444', color: '#fff', fontWeight: 600,
+                  cursor: 'pointer', transition: 'background 0.2s'
+                }}
               >
-                Confirm Revoke
+                Confirm Action
               </button>
             </div>
           </div>
@@ -463,21 +482,38 @@ export default function AdminDashboardPage() {
                       </div>
                     </div>
                     {!u.isAdmin && (
-                      <button
-                        onClick={() => {
-                          if(confirm(`Revoke access for ${u.email}?`)) handleRevoke(u.id);
-                        }}
-                        style={{
-                          background: 'transparent', border: 'none', color: '#64748b',
-                          width: 32, height: 32, borderRadius: 8, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all 0.2s'
-                        }}
-                        className="btn-revoke"
-                        title="Revoke Access"
-                      >
-                        <UserX size={16} />
-                      </button>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => handleResetPin(u.id, u.email)}
+                          style={{
+                            background: 'transparent', border: 'none', color: '#38bdf8',
+                            width: 32, height: 32, borderRadius: 8, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 0.2s'
+                          }}
+                          className="btn-revoke"
+                          title="Reset PIN"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => {
+                            if(confirm(`Revoke access for ${u.email}?`)) handleRevoke(u.id);
+                          }}
+                          style={{
+                            background: 'transparent', border: 'none', color: '#64748b',
+                            width: 32, height: 32, borderRadius: 8, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            transition: 'all 0.2s'
+                          }}
+                          className="btn-revoke"
+                          title="Revoke Access"
+                        >
+                          <UserX size={16} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -550,9 +586,23 @@ export default function AdminDashboardPage() {
 
       {/* ── Global Session Audit Log Section ───────────────────────────────────────── */}
       <div style={{ marginTop: 24, background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 20, padding: 24, backdropFilter: 'blur(20px)' }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px 0', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span>🛡️</span> Global Session Audit Log
-        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span>🛡️</span> Global Session Audit Log
+          </h2>
+          {sessionLog.length > 0 && (
+            <button
+              onClick={handleClearLogs}
+              style={{
+                background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)',
+                padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              Clear Logs
+            </button>
+          )}
+        </div>
         {sessionLog.length === 0 ? (
           <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: 13 }}>
             No global audit logs recorded yet.
