@@ -380,6 +380,11 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
   const [authError, setAuthError] = useState('');
   const [shake, setShake] = useState(false);
   const [success, setSuccess] = useState(false);
+  
+  const [renewedPin, setRenewedPin] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+
   const { setIsAdmin } = useElectronSync();
 
   const triggerShake = () => {
@@ -448,19 +453,75 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
 
   if (success) {
     return (
-      <div style={{ textAlign: 'center', padding: '40px 0', animation: 'fadeInUp 0.4s ease' }}>
-        <div style={{
-          width: 64, height: 64, borderRadius: '50%',
-          background: 'rgba(34,197,94,0.1)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 16px',
-        }}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+      <div className="ds-vault-login-panel ds-fade-in" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(34,197,94,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+          <Check size={32} color="var(--ds-green)" />
         </div>
-        <h3 style={{ fontSize: 20, fontWeight: 700, color: '#166534', marginBottom: 8 }}>Workspace Unlocked!</h3>
-        <p style={{ fontSize: 13, color: '#4b5563' }}>Redirecting you to your files…</p>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--ds-text)', marginBottom: '0.5rem' }}>Workspace Unlocked!</h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--ds-text3)' }}>Redirecting you to your secure files…</p>
+      </div>
+    );
+  }
+
+  if (renewedPin) {
+    return (
+      <div className="ds-vault-login-panel ds-fade-in" style={{ textAlign: 'center', padding: '2rem' }}>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(34,197,94,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
+          <Check size={32} color="var(--ds-green)" />
+        </div>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--ds-text)', marginBottom: '0.5rem' }}>PIN Renewed!</h3>
+        <div style={{ fontSize: '0.8rem', color: 'var(--ds-text)', marginBottom: '1rem', lineHeight: 1.5, background: '#fef3c7', padding: '12px', borderRadius: '8px', border: '1px solid #fde68a' }}>
+          <strong>Notice:</strong> You can only change your password 1 time for this account. The next time will be next week.
+        </div>
+        <p style={{ fontSize: '0.85rem', color: 'var(--ds-text3)', marginBottom: '1rem' }}>
+          Use your new PIN below to log in.
+        </p>
+        <div style={{
+          background: 'var(--ds-bg)', border: '1px solid var(--ds-border)', borderRadius: 'var(--ds-radius-md)', padding: '1rem',
+          marginBottom: '1.5rem', fontSize: '1.5rem', fontWeight: 800, color: 'var(--ds-text)', letterSpacing: '4px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem'
+        }}>
+          <span>{renewedPin}</span>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(renewedPin);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            style={{
+              background: copied ? 'var(--ds-green)' : 'transparent', border: 'none', cursor: 'pointer', padding: '0.35rem', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: copied ? '#fff' : 'var(--ds-text3)',
+              borderRadius: 'var(--ds-radius-sm)', transition: 'all 0.2s ease', transform: copied ? 'scale(1.1)' : 'scale(1)'
+            }}
+            title="Copy PIN"
+          >
+            {copied ? <Check size={20} /> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2-2v1"></path></svg>}
+          </button>
+        </div>
+        <button
+          onClick={() => setShowSaveConfirm(true)}
+          className="ds-btn ds-btn-primary"
+          style={{ width: '100%', padding: '0.85rem' }}
+        >
+          Continue to Login
+        </button>
+
+        {showSaveConfirm && (
+          <div
+            onClick={() => setShowSaveConfirm(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}
+          >
+            <div onClick={e => e.stopPropagation()} style={{ background: 'var(--ds-card)', borderRadius: 'var(--ds-radius-lg)', padding: '2rem', maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.5)', animation: 'modalSlideUp 0.25s', border: '1px solid var(--ds-border)' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--ds-text)', marginBottom: '0.75rem', marginTop: 0 }}>Did you save the OTP?</h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--ds-text3)', marginBottom: '1.5rem', lineHeight: 1.6 }}>If you click continue without saving, you might lose access to your account since your password can only be reset once per week.</p>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                <button onClick={() => setShowSaveConfirm(false)} className="ds-btn ds-btn-ghost" style={{ flex: 1, padding: '0.75rem' }}>No, go back</button>
+                <button onClick={() => { setRenewedPin(''); setShowSaveConfirm(false); }} className="ds-btn ds-btn-primary" style={{ flex: 1, padding: '0.75rem' }}>Yes, continue</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -539,8 +600,23 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         </label>
         <button
           type="button"
-          onClick={() => setAuthError('PIN reset requires admin contact in local-first mode.')}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#4f46e5', fontWeight: 500 }}
+          onClick={async () => {
+            if (!email) {
+              setEmailError('Please enter your username first to request a PIN reset.');
+              triggerShake();
+              return;
+            }
+            try {
+              setLoading(true);
+              const newPin = await mockAuthService.requestPinRenewal(email);
+              setRenewedPin(newPin);
+            } catch (err: any) {
+              setAuthError(err.message || 'Failed to request PIN renewal.');
+            } finally {
+              setLoading(false);
+            }
+          }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--ds-accent)', fontWeight: 500 }}
         >
           Forgot PIN?
         </button>

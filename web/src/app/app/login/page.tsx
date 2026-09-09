@@ -415,6 +415,10 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
   const [shake, setShake] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  const [renewedPin, setRenewedPin] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+
   useEffect(() => {
     const prefilled = searchParams.get('email') ?? mockAuthService.getRememberedEmail();
     if (prefilled) {
@@ -480,6 +484,94 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         </div>
         <h3 style={{ fontSize: 20, fontWeight: 700, color: '#166534', marginBottom: 8 }}>Workspace Unlocked!</h3>
         <p style={{ fontSize: 13, color: '#4b5563' }}>Redirecting you to your files…</p>
+      </div>
+    );
+  }
+
+  if (renewedPin) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px 0', animation: 'fadeInUp 0.4s ease' }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%',
+          background: 'rgba(34,197,94,0.1)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px',
+        }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <h3 style={{ fontSize: 20, fontWeight: 700, color: '#166534', marginBottom: 8 }}>PIN Renewed!</h3>
+        <div style={{ fontSize: 13, color: '#4b5563', marginBottom: 16, lineHeight: 1.5, background: '#fef3c7', padding: 12, borderRadius: 8, border: '1px solid #fde68a' }}>
+          <strong>Notice:</strong> You can only change your password 1 time for this account. The next time will be next week.
+        </div>
+        <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 16 }}>
+          Use your new PIN below to log in.
+        </p>
+        <div style={{
+          background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px',
+          marginBottom: 24, fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '4px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12
+        }}>
+          <span>{renewedPin}</span>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(renewedPin);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+            style={{
+              background: copied ? '#10b981' : 'none', 
+              border: 'none', cursor: 'pointer', padding: 6, display: 'flex',
+              alignItems: 'center', justifyContent: 'center', 
+              color: copied ? 'var(--bg-card)' : '#64748b',
+              borderRadius: 6, transition: 'all 0.2s ease', transform: copied ? 'scale(1.1)' : 'scale(1)'
+            }}
+            title="Copy PIN"
+          >
+            {copied ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            )}
+          </button>
+        </div>
+        <button
+          onClick={() => setShowSaveConfirm(true)}
+          style={{
+            padding: '12px 24px', borderRadius: 10, fontSize: 14, fontWeight: 700,
+            background: '#16a34a', color: '#fff', border: 'none', cursor: 'pointer',
+            transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)'
+          }}
+        >
+          Continue to Login
+        </button>
+
+        {showSaveConfirm && (
+          <div
+            onClick={() => setShowSaveConfirm(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}
+          >
+            <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: 24, padding: '32px', maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.3)', animation: 'modalSlideUp 0.25s' }}>
+              <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 12, marginTop: 0 }}>Did you save the OTP?</h3>
+              <p style={{ fontSize: 14, color: '#475569', marginBottom: 24, lineHeight: 1.6 }}>If you click continue without saving, you might lose access to your account since your password can only be reset once per week.</p>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                <button
+                  onClick={() => setShowSaveConfirm(false)}
+                  style={{ flex: 1, padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 700, background: '#f1f5f9', color: '#64748b', border: 'none', cursor: 'pointer', transition: 'background 0.2s' }}
+                >
+                  No, go back
+                </button>
+                <button
+                  onClick={() => { setRenewedPin(''); setShowSaveConfirm(false); }}
+                  style={{ flex: 1, padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 700, background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer', transition: 'background 0.2s', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)' }}
+                >
+                  Yes, continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -570,8 +662,8 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
             }
             try {
               setLoading(true);
-              await mockAuthService.requestPinRenewal(email);
-              setAuthError('PIN renewal requested. Please ask an administrator for your new PIN.');
+              const newPin = await mockAuthService.requestPinRenewal(email);
+              setRenewedPin(newPin);
             } catch (err: any) {
               setAuthError(err.message || 'Failed to request PIN renewal.');
             } finally {

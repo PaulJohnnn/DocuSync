@@ -266,7 +266,7 @@ export async function resetUserPin(userId: string): Promise<string> {
   return data.pin;
 }
 
-export async function requestPinRenewal(email: string): Promise<void> {
+export async function requestPinRenewal(email: string): Promise<string> {
   const res = await fetch(API_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -277,6 +277,7 @@ export async function requestPinRenewal(email: string): Promise<void> {
     throw new Error(data.error || 'Failed to request PIN renewal');
   }
   pollDatabase();
+  return data.pin;
 }
 
 export function subscribeToDatabaseChanges(callback: () => void) {

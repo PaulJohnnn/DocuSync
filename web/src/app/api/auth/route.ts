@@ -201,17 +201,11 @@ export async function POST(req: Request) {
       const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
       if (!user) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404, headers: corsHeaders });
       
-      const isPending = db.pending.some((p: any) => p.email.toLowerCase() === email.toLowerCase());
-      if (!isPending) {
-        db.pending.push({
-          id: 'req-' + Date.now().toString(),
-          email,
-          requestedAt: new Date().toISOString(),
-          isRenew: true
-        });
-        saveDb(db);
-      }
-      return NextResponse.json({ success: true, status: 'renew_requested' }, { headers: corsHeaders });
+      const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+      user.pin = newPin;
+      saveDb(db);
+      
+      return NextResponse.json({ success: true, status: 'renew_approved', pin: newPin }, { headers: corsHeaders });
     }
 
     if (action === 'deny') {
