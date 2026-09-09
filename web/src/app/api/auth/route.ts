@@ -96,16 +96,22 @@ export async function POST(req: Request) {
       if (isAlreadyUser) {
         return NextResponse.json({ success: false, error: 'Already registered.' }, { status: 400, headers: corsHeaders });
       }
-      const isPending = db.pending.some((p: any) => p.email.toLowerCase() === email.toLowerCase());
-      if (!isPending) {
-        db.pending.push({
-          id: 'req-' + Date.now().toString(),
-          email,
-          requestedAt: new Date().toISOString(),
-        });
-        saveDb(db);
-      }
-      return NextResponse.json({ success: true, status: 'verified' }, { headers: corsHeaders });
+
+      // Auto-approve: generate PIN and add directly as active user
+      const pin = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit PIN
+      const newUser = {
+        id: 'user-' + Date.now().toString(),
+        email: email,
+        name: email.split('@')[0],
+        pin,
+        isAdmin: false,
+        createdAt: new Date().toISOString(),
+        status: 'active'
+      };
+      db.users.push(newUser);
+      saveDb(db);
+      
+      return NextResponse.json({ success: true, status: 'verified', pin }, { headers: corsHeaders });
     }
 
     if (action === 'cancel_request') {
