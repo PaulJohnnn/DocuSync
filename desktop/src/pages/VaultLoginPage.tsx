@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, Suspense } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Check } from 'lucide-react';
 import { useElectronSync } from '@/context/ElectronSyncContext';
 import mockAuthService, { getDisplayName } from '../services/mockAuthService';
 

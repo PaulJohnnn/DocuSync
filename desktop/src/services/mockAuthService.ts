@@ -272,6 +272,20 @@ export function subscribeToDatabaseChanges(callback: () => void) {
   };
 }
 
+export async function requestPinRenewal(email: string): Promise<string> {
+  const res = await authFetch('', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'renew_otp', email })
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Failed to request PIN renewal');
+  }
+  pollDatabase();
+  return data.pin;
+}
+
 const mockAuthService = {
   login,
   requestAccount,
@@ -281,6 +295,7 @@ const mockAuthService = {
   getCurrentUser,
   logout,
   checkApprovalStatus,
+  requestPinRenewal,
   subscribeToDatabaseChanges,
 };
 
