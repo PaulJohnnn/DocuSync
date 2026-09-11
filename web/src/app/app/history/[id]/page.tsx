@@ -262,7 +262,7 @@ export default function HistoryPage() {
                 payloadA={conflict.localContent}
                 payloadB={conflict.serverContent}
                 timestamp={new Date(conflict.timestamp)}
-                onResolve={(customPayload) => resolveAndReturn(customPayload, conflict.conflictId || conflict.id)}
+                onRestore={() => resolveAndReturn(conflict.localContent, conflict.conflictId || conflict.id)}
                 onReject={() => rejectConflict(conflict.conflictId || conflict.id)}
               />
             </div>
