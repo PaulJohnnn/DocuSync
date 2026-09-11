@@ -6,7 +6,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import {
   FolderOpen, FileText, FileCode, FileImage, File,
   Trash2, FileJson, FileType, FileSpreadsheet, FileArchive,
-  LogOut, Loader2, ArrowLeft
+  LogOut, Loader2, ArrowLeft, Upload
 } from 'lucide-react';
 import { uGet, uSet, uRemove } from '@/lib/userStorage';
 import { idbGetFiles, idbSaveFile, idbDeleteFile } from '@/lib/idb';
@@ -171,8 +171,8 @@ export default function FilesPage() {
 
   if (!isMounted) return null;
 
-  // Share file to room
-  const handleShareToRoom = async (isFolder = false) => {
+  // Upload file to room
+  const handleShareToRoom = async () => {
     const storedRoom = uGet('current_room');
     if (!storedRoom) return;
     const r = JSON.parse(storedRoom);
@@ -180,8 +180,7 @@ export default function FilesPage() {
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
-    if (isFolder) input.webkitdirectory = true;
-    else input.accept = '*/*';
+    input.accept = '*/*';
 
     input.onchange = async (e) => {
       setSharing(true);
@@ -610,11 +609,8 @@ export default function FilesPage() {
                 ROOM FILES ({activeFiles.length})
               </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="ds-btn ds-btn-primary" style={{ fontSize: 13 }} onClick={() => handleShareToRoom(false)}>
-            <FileText size={13} /> Share Files
-          </button>
-          <button className="ds-btn ds-btn-secondary" style={{ fontSize: 13 }} onClick={() => handleShareToRoom(true)}>
-            <FolderOpen size={13} /> Share Folder
+          <button className="ds-btn ds-btn-primary" style={{ fontSize: 13 }} onClick={() => handleShareToRoom()}>
+            <Upload size={13} /> Upload File
           </button>
         </div>
       </div>

@@ -46,7 +46,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [restoring, setRestoring] = useState<Record<string, boolean>>({});
-  const [activeConflict, setActiveConflict] = useState<any>(null);
+  const [activeConflicts, setActiveConflicts] = useState<any[]>([]);
   const [viewFullEvent, setViewFullEvent] = useState<HistoryEntry | null>(null);
 
   const fetchHistory = useCallback(async () => {
@@ -73,7 +73,7 @@ export default function HistoryPage() {
 
       if (room && room.hostIp) {
         try {
-          const baseUrl = `http://${room.hostIp}:${room.port || 9000}`;
+          const baseUrl = `http://${room.hostIp}:${room.hostPort || 9000}`;
           const res = await fetch(`${baseUrl}/sync/history?fileId=${fileId}`);
           if (res.ok) {
             const result = await res.json();
@@ -121,10 +121,10 @@ export default function HistoryPage() {
         const stored = uGet('docusync_web_conflicts');
         if (stored) {
           const arr = JSON.parse(stored);
-          const conflict = arr.find((c: any) => String(c.fileId) === String(fileId));
-          setActiveConflict(conflict || null);
+          const active = arr.filter((c: any) => String(c.fileId) === String(fileId));
+          setActiveConflicts(active);
         } else {
-          setActiveConflict(null);
+          setActiveConflicts([]);
         }
       } catch (_e) {}
     };
@@ -197,7 +197,7 @@ export default function HistoryPage() {
     }
   };
 
-  const resolveAndReturn = async (customPayload: string) => {
+  const resolveAndReturn = async (customPayload: string, conflictIdToRemove: string) => {
     try {
       const stored = await idbGetFile(String(fileId));
       if (stored) {
@@ -207,21 +207,33 @@ export default function HistoryPage() {
       }
     } catch (e) {}
     
-    rejectConflict();
-    router.push(`/app/editor/${fileId}`);
+    rejectConflict(conflictIdToRemove);
+    if (activeConflicts.length <= 1) {
+      router.push(`/app/editor/${fileId}`);
+    }
   };
 
-  const rejectConflict = () => {
+  const rejectConflict = (conflictIdToRemove: string) => {
     try {
       const stored = uGet('docusync_web_conflicts');
       if (stored) {
         let arr = JSON.parse(stored);
-        arr = arr.filter((c: any) => String(c.fileId) !== String(fileId));
+        arr = arr.filter((c: any) => String(c.fileId) !== String(fileId) || (c.conflictId || c.id) !== conflictIdToRemove);
         uSet('docusync_web_conflicts', JSON.stringify(arr));
         if (arr.length === 0) uSet('docusync_web_conflict', '');
+        
+        setActiveConflicts(arr.filter((c: any) => String(c.fileId) === String(fileId)));
+        
+        const roomStr = uGet('current_room');
+        const room = roomStr ? JSON.parse(roomStr) : null;
+        if (room?.otp) {
+          const _WEB_BASE = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
+          fetch(`${_WEB_BASE}/conflicts?otp=${room.otp}&conflictId=${conflictIdToRemove}`, {
+            method: 'DELETE',
+          }).catch(() => {});
+        }
       }
     } catch (e) {}
-    setActiveConflict(null);
   };
 
   return (
@@ -232,7 +244,7 @@ export default function HistoryPage() {
             <ArrowLeft size={14} /> Back
           </button>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Conflict History</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Document History</h1>
             <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>
               {fileName || `File ID: ${fileId}`} • {events.length} event{events.length !== 1 ? 's' : ''}
             </p>
@@ -240,19 +252,24 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {activeConflict && (
-        <div style={{ marginBottom: 40 }}>
-          <InteractiveConflictEditor
-            fileId={activeConflict.fileId}
-            fileName={fileName}
-            payloadA={activeConflict.localContent}
-            payloadB={activeConflict.serverContent}
-            timestamp={new Date(activeConflict.timestamp)}
-            onRestore={() => resolveAndReturn(activeConflict.localContent)}
-            onReject={rejectConflict}
-          />
+      {activeConflicts.length > 0 && (
+        <div style={{ marginBottom: 40, display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          {activeConflicts.map((conflict, idx) => (
+            <div key={conflict.conflictId || conflict.id || idx}>
+              <InteractiveConflictEditor
+                fileId={conflict.fileId}
+                fileName={fileName}
+                payloadA={conflict.localContent}
+                payloadB={conflict.serverContent}
+                timestamp={new Date(conflict.timestamp)}
+                onResolve={(customPayload) => resolveAndReturn(customPayload, conflict.conflictId || conflict.id)}
+                onReject={() => rejectConflict(conflict.conflictId || conflict.id)}
+              />
+            </div>
+          ))}
         </div>
       )}
+
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--t3)' }}>

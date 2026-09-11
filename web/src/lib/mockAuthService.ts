@@ -102,17 +102,22 @@ export async function login(email: string, pin: string): Promise<AuthUser> {
     }
 
     if (isDifferentUser) {
-      console.log('[Auth Web] New or different user logging in. Isolating workspace...');
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const k = localStorage.key(i);
-        if (k && (k.startsWith('ds_') || k.startsWith('docusync_') || k === 'files' || k === 'current_room')) {
-          localStorage.removeItem(k);
+      // Admins don't need a local workspace and shouldn't wipe the current user's workspace
+      if (!data.user.isAdmin) {
+        console.log('[Auth Web] New or different user logging in. Isolating workspace...');
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('ds_') || k.startsWith('docusync_') || k === 'files' || k === 'current_room')) {
+            localStorage.removeItem(k);
+          }
         }
       }
     }
 
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
-    localStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
+    if (!data.user.isAdmin) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
+    }
     sessionStorage.setItem('docusync_has_seen_welcome_session', 'true');
   }
   return data.user;
@@ -136,8 +141,23 @@ export async function requestAccount(email: string): Promise<'verified'> {
 
 export function getCurrentUser(): AuthUser | null {
   if (typeof window === 'undefined') return null;
-  const data = sessionStorage.getItem(SESSION_KEY);
-  return data ? JSON.parse(data) : null;
+  const sessionData = sessionStorage.getItem(SESSION_KEY);
+  if (sessionData) return JSON.parse(sessionData);
+
+  // Fallback to localStorage for persistent auto-login (Users only, Admins are session-only)
+  const localData = localStorage.getItem(SESSION_KEY);
+  if (localData) {
+    try {
+      const user = JSON.parse(localData);
+      if (user && !user.isAdmin) {
+        sessionStorage.setItem(SESSION_KEY, localData);
+        sessionStorage.setItem('docusync_has_seen_welcome_session', 'true');
+        return user;
+      }
+    } catch {}
+  }
+  
+  return null;
 }
 
 export function getRememberedEmail(): string {
@@ -158,6 +178,7 @@ export function clearRememberedEmail(): void {
 export function logout() {
   if (typeof window !== 'undefined') {
     sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_KEY);
     window.location.href = '/app/login';
   }
 }

@@ -247,6 +247,19 @@ const MetricsPage: React.FC = () => {
       const res = await fetch(`http://${hostIp}:${hostPort}/metrics`, { signal: AbortSignal.timeout(2000) });
       if (res.ok) {
         const data = await res.json();
+        
+        let webConflictsCount = 0;
+        if (room?.otp) {
+          try {
+            const mmRes = await fetch(`http://localhost:3000/api/lobby/conflicts?otp=${room.otp}`);
+            if (mmRes.ok) {
+              const mmData = await mmRes.json();
+              if (mmData.conflicts) webConflictsCount = mmData.conflicts.length;
+            }
+          } catch (e) {}
+        }
+        data.conflictsDetectedThisSession = (data.conflictsDetectedThisSession || 0) + webConflictsCount;
+
         setHostMetrics(data);
         setHostError(null);
 
@@ -257,28 +270,24 @@ const MetricsPage: React.FC = () => {
           {
             timeLabel: nowStr,
             throughput: data.throughputPerMin || 0,
-            latency: Math.round((data.avgPushLatencyMs || 2.4) * 10) / 10,
+            latency: Math.round((data.avgPushLatencyMs || 0) * 10) / 10,
           }
         ]);
-        setHostError(null);
       } else {
-        throw new Error('Fallback to baseline');
+        throw new Error('Host responded with error');
       }
     } catch {
-      setHostError(null);
-      setHostMetrics(prev => prev || {
-        pushCount: 18,
-        pushSuccessCount: 18,
-        avgPushLatencyMs: 1.5,
-        throughputPerMin: 15,
-        conflictsDetectedThisSession: 0,
-        conflictsResolvedThisSession: 0,
-        avgConflictResolveMs: 0.3,
-        eventLogRows: 48,
-        connectedPeerCount: 1,
-        pendingConflicts: 0,
-        sessionDurationMs: 180000,
-      });
+      setHostError("Disconnected from host");
+      setHostMetrics(null);
+      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setTelemetryHistory(prev => [
+        ...prev.slice(-14),
+        {
+          timeLabel: nowStr,
+          throughput: 0,
+          latency: 0,
+        }
+      ]);
     }
 
     setLastRefresh(new Date());
@@ -293,10 +302,11 @@ const MetricsPage: React.FC = () => {
 
   // ── Derived Metrics ──────────────────────────────────────────────────────
 
-  // RQ4 — Conflict & Consistency Metrics
   const totalConflicts = hostMetrics?.conflictsDetectedThisSession ?? conflictQueue.length;
   const resolvedConflicts = hostMetrics?.conflictsResolvedThisSession ?? 0;
   const totalSyncEvents = hostMetrics?.pushCount ?? eventLogRows;
+  
+  const dataConsistencyRate = hostMetrics ? (hostMetrics.pendingConflicts > 0 || pendingConflicts > 0 ? 99 : 100) : 0;
 
   const conflictDetectionRate = totalSyncEvents > 0 && totalConflicts > 0
     ? `${((totalConflicts / totalSyncEvents) * 100).toFixed(1)}%`
@@ -307,7 +317,6 @@ const MetricsPage: React.FC = () => {
     : 'No data yet';
 
   const avgResolutionMs = hostMetrics?.avgConflictResolveMs ?? null;
-  const dataConsistencyRate = pendingConflicts === 0 ? '100%' : `Diverged (${pendingConflicts} pending)`;
 
   // RQ5 — Performance Metrics
   const avgLatencyMs = hostMetrics?.avgPushLatencyMs ?? null;
@@ -430,11 +439,11 @@ const MetricsPage: React.FC = () => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
             <RadialGauge
               label="Data Consistency Rate"
-              value="100%"
-              percentage={100}
-              color="#10b981"
-              badge="Converged"
-              subtext="All connected peer vector clocks show zero unresolved causal divergence."
+              value={hostMetrics ? `${dataConsistencyRate}%` : "0%"}
+              percentage={hostMetrics ? dataConsistencyRate : 0}
+              color={hostMetrics && dataConsistencyRate === 100 ? "#10b981" : "#f59e0b"}
+              badge={hostMetrics && dataConsistencyRate === 100 ? "Converged" : "Divergent"}
+              subtext={hostMetrics && dataConsistencyRate === 100 ? "All connected peer vector clocks show zero unresolved causal divergence." : "Vector clocks indicate pending divergences."}
             />
 
             <RadialGauge
@@ -553,7 +562,7 @@ const MetricsPage: React.FC = () => {
             iconColor="var(--ds-purple)"
             iconBg="var(--ds-purple-bg)"
             title="Data Consistency Rate"
-            value={dataConsistencyRate}
+            value={`${dataConsistencyRate}%`}
             subtitle="100% when all known peers' vector clocks show no unresolved divergence"
             badge={pendingConflicts === 0 ? 'Converged' : 'Diverged'}
             badgeColor={pendingConflicts === 0 ? '#22c55e' : '#ef4444'}

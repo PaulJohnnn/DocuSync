@@ -9,7 +9,7 @@ import { useElectronSync } from '@/context/ElectronSyncContext';
 import {
   FolderOpen, FileText, FileCode, FileJson, FileType, File,
   FileImage, FileSpreadsheet, FileArchive, LogOut, Loader2, ArrowLeft,
-  Trash2, Download,
+  Trash2, Download, Upload
 } from 'lucide-react';
 import FileService from '@/services/FileService';
 import RoomService from '@/services/RoomService';
@@ -510,7 +510,7 @@ const FilesPage: React.FC = () => {
             ROOM FILES ({roomFiles.length})
           </div>
           <button className="ds-btn ds-btn-primary" style={{ fontSize: 12 }} onClick={handleShareToRoom}>
-            <FolderOpen size={13} /> Share File
+            <Upload size={13} /> Upload File
           </button>
         </div>
 

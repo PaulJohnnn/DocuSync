@@ -5,7 +5,9 @@ import { usePathname } from 'next/navigation';
 import {
   FolderOpen, Users, Wifi, Settings, BarChart2
 } from 'lucide-react';
+import { uGet, uSet } from '@/lib/userStorage';
 import OnlineStatusPill from './OnlineStatusPill';
+
 const NAV_ITEMS = [
   { href: '/app/files', label: 'Room', icon: FolderOpen },
   { href: '/app/peers', label: 'Sync Rooms', icon: Users },
@@ -18,10 +20,10 @@ export default function Sidebar() {
   const [nodeId, setNodeId] = useState('');
 
   useEffect(() => {
-    let id = sessionStorage.getItem('docusync_node_id');
+    let id = uGet('node_id');
     if (!id) {
-      id = `web-${Math.floor(Math.random() * 100000)}`;
-      sessionStorage.setItem('docusync_node_id', id);
+      id = `web-${Math.random().toString(36).substring(2, 9)}-${Date.now()}`;
+      uSet('node_id', id);
     }
     setNodeId(id);
   }, []);

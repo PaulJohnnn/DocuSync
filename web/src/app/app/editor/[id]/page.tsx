@@ -18,6 +18,35 @@ const _MATCHMAKER_URL = process.env.NODE_ENV === 'development'
   ? '/api/lobby'
   : '/api/lobby';
 
+const ConflictBadge = ({ fileId }: { fileId: string | number }) => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const updateCount = () => {
+      try {
+        const storedConflicts = JSON.parse(uGet('docusync_web_conflicts') || '[]');
+        const activeConflicts = storedConflicts.filter((c: any) => String(c.fileId) === String(fileId));
+        setCount(activeConflicts.length);
+      } catch (e) {}
+    };
+    updateCount();
+    window.addEventListener('docusync_conflicts_update', updateCount);
+    return () => window.removeEventListener('docusync_conflicts_update', updateCount);
+  }, [fileId]);
+
+  if (count === 0) return null;
+  return (
+    <div style={{
+      position: 'absolute', top: -6, right: -6, background: '#ef4444', color: '#fff',
+      fontSize: 10, fontWeight: 700, width: 16, height: 16, borderRadius: '50%',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: '0 0 0 2px var(--bg)'
+    }}>
+      {count}
+    </div>
+  );
+};
+
 function incrementVectorClock(vcJson: any, targetNodeIndex: number) {
   if (!vcJson || !vcJson.root) return vcJson;
   const clone = JSON.parse(JSON.stringify(vcJson));
@@ -392,13 +421,34 @@ export default function EditorPage() {
                 serverContent: serverContent,
                 timestamp: Date.now()
               };
-              let conflicts = [];
+              // Also update IndexedDB
               try {
-                const stored = uGet('docusync_web_conflicts');
-                if (stored) conflicts = JSON.parse(stored);
-              } catch (_e) {}
-              conflicts.push(conflict);
-              uSet('docusync_web_conflicts', JSON.stringify(conflicts));
+                const f = await idbGetFile(fileId);
+                if (f) {
+                  f.content = serverContent;
+                  f.updatedAt = new Date().toISOString();
+                  await idbSaveFile(f);
+                }
+              } catch (err) {}
+              
+              if (room?.otp) {
+                try {
+                  const _WEB_BASE = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
+                  fetch(`${_WEB_BASE}/conflicts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      otp: room?.otp,
+                      conflictId: conflict.id,
+                      fileId: conflict.fileId,
+                      localContent: conflict.localContent,
+                      serverContent: conflict.serverContent,
+                      mergedContent: conflict.serverContent,
+                      timestamp: conflict.timestamp
+                    })
+                  }).catch(() => {});
+                } catch (e) {}
+              }
               
               // Revert the editor to the stable server state to prevent stomping over it
               if (serverContent && serverContent !== currentContentRef.current) {
@@ -435,6 +485,8 @@ export default function EditorPage() {
               console.log('[OfflineQueue] Reset to false after sync. Base updated.');
               hasPendingChangesRef.current = false;
             }
+          } else {
+            hasPendingChangesRef.current = false;
           }
         } catch (_e) {}
       }
@@ -518,24 +570,29 @@ export default function EditorPage() {
                   setSyncStatusMsg('↓ Live synced from host');
                   lastSyncedAt.current = Date.now();
                   uSet('docusync_offline_base', data.content);
-                } else if (hasPendingChangesRef.current && currentContentRef.current !== data.content) {
-                  // We have offline/pending changes AND the server has new changes. Conflict!
+                } else if ((isTypingRef.current || hasPendingChangesRef.current) && currentContentRef.current !== data.content) {
+                  // We have offline/pending changes or are typing AND the server has new changes. Conflict!
                   const original = offlineBaselineRef.current || lastSave.current;
                   const merged = computeSignatureMerge(original, data.content, currentContentRef.current);
                   if (merged !== currentContentRef.current) {
                     setContentAndRef(merged);
                     setSyncStatusMsg('Merged Signature Edit ✓');
                     toast.success('Offline edits merged automatically');
-                    // Store conflict for UI badge
-                    const storedConflicts = JSON.parse(uGet('docusync_web_conflicts') || '[]');
-                    storedConflicts.push({
-                      fileId,
-                      timestamp: Date.now(),
-                      localContent: currentContentRef.current,
-                      serverContent: data.content,
-                      mergedContent: merged
-                    });
-                    uSet('docusync_web_conflicts', JSON.stringify(storedConflicts));
+                    // Push conflict to Redis so all peers receive it
+                    const conflictId = crypto.randomUUID();
+                    fetch(`${_MATCHMAKER_URL}/conflicts`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        otp,
+                        conflictId,
+                        fileId,
+                        localContent: currentContentRef.current,
+                        serverContent: data.content,
+                        mergedContent: merged,
+                        timestamp: Date.now()
+                      })
+                    }).catch(() => {});
                   }
                 }
               }
@@ -559,7 +616,7 @@ export default function EditorPage() {
                 setSyncStatusMsg('☁ Live synced from cloud');
                 _lastAcceptedSeq.current = data.snapshot?.committedAt || Date.now();
                 lastSyncedAt.current = Date.now();
-              } else if (hasPendingChangesRef.current && currentContentRef.current !== data.content) {
+              } else if ((isTypingRef.current || hasPendingChangesRef.current) && currentContentRef.current !== data.content) {
                 // Conflict in cloud Matchmaker
                 const original = offlineBaselineRef.current || lastSave.current;
                 const merged = computeSignatureMerge(original, data.content, currentContentRef.current);
@@ -567,17 +624,21 @@ export default function EditorPage() {
                   setContentAndRef(merged);
                   setSyncStatusMsg('Merged Signature Edit ☁');
                   toast.success('Offline edits merged via cloud');
-                  // Push conflict event to Redis via Matchmaker History API later
-                  // And store locally for badge
-                  const storedConflicts = JSON.parse(uGet('docusync_web_conflicts') || '[]');
-                  storedConflicts.push({
-                    fileId,
-                    timestamp: Date.now(),
-                    localContent: currentContentRef.current,
-                    serverContent: data.content,
-                    mergedContent: merged
-                  });
-                  uSet('docusync_web_conflicts', JSON.stringify(storedConflicts));
+                  // Push conflict event to Redis via Matchmaker History API
+                  const conflictId = crypto.randomUUID();
+                  fetch(`${_MATCHMAKER_URL}/conflicts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      otp,
+                      conflictId,
+                      fileId,
+                      localContent: currentContentRef.current,
+                      serverContent: data.content,
+                      mergedContent: merged,
+                      timestamp: Date.now()
+                    })
+                  }).catch(() => {});
                 }
               }
             }
@@ -739,26 +800,8 @@ export default function EditorPage() {
            <div className="ds-topbar-actions">
             {/* Conflict History Icon with Badge */}
             <button className="ds-btn ds-btn-ghost" onClick={() => router.push(`/app/history/${fileId}`)} style={{ position: 'relative' }}>
-              <Clock size={14} /> Conflict History
-              {(() => {
-                try {
-                  const storedConflicts = JSON.parse(uGet('docusync_web_conflicts') || '[]');
-                  const activeConflicts = storedConflicts.filter((c: any) => String(c.fileId) === String(fileId));
-                  if (activeConflicts.length > 0) {
-                    return (
-                      <div style={{
-                        position: 'absolute', top: -6, right: -6, background: '#ef4444', color: '#fff',
-                        fontSize: 10, fontWeight: 700, width: 16, height: 16, borderRadius: '50%',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 0 0 2px var(--bg)'
-                      }}>
-                        {activeConflicts.length}
-                      </div>
-                    );
-                  }
-                } catch (e) {}
-                return null;
-              })()}
+              <Clock size={14} /> Document History
+              <ConflictBadge fileId={fileId} />
             </button>
             </div>
 
@@ -818,7 +861,7 @@ export default function EditorPage() {
             <button className="ds-btn ds-btn-primary" onClick={() => {
               saveFile(content, true);
               if (!isOnline || syncState === 'offline') {
-                window.alert('Offline session finalized. Your edits are strictly saved to your local device and will remain queued safely. Please reconnect to sync with the Host.');
+                toast.info('Offline session finalized. Your edits are locally queued.');
               }
               router.push('/app/files');
             }} disabled={syncing}>Done</button>
@@ -850,11 +893,27 @@ export default function EditorPage() {
                     serverContent: content,
                     timestamp: Date.now()
                   };
-                  let conflicts = [];
-                  const stored = uGet('docusync_web_conflicts');
-                  if (stored) conflicts = JSON.parse(stored);
-                  conflicts.push(conflict);
-                  uSet('docusync_web_conflicts', JSON.stringify(conflicts));
+                  // Push undo conflict to Redis
+                  const roomStr = uGet('current_room');
+                  const room = roomStr ? JSON.parse(roomStr) : null;
+                  if (room?.otp) {
+                    try {
+                      const _WEB_BASE = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
+                      fetch(`${_WEB_BASE}/conflicts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          otp: room.otp,
+                          conflictId: conflict.id,
+                          fileId: conflict.fileId,
+                          localContent: conflict.localContent,
+                          serverContent: conflict.serverContent,
+                          mergedContent: conflict.serverContent,
+                          timestamp: conflict.timestamp
+                        })
+                      }).catch(() => {});
+                    } catch (e) {}
+                  }
                 } catch (e) {}
               }}
             />

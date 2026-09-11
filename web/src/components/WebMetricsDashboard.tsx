@@ -166,6 +166,22 @@ export default function WebMetricsDashboard() {
       const res = await fetch(`http://${ip}:${port}/metrics`, { signal: AbortSignal.timeout(2000) });
       if (res.ok) {
         const data: HostMetrics = await res.json();
+        
+        // Also fetch from Redis lobby to add web-only conflicts
+        let webConflictsCount = 0;
+        if (room?.otp) {
+          try {
+            const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
+            const mmRes = await fetch(`${_MATCHMAKER_URL}/conflicts?otp=${room.otp}`);
+            if (mmRes.ok) {
+              const mmData = await mmRes.json();
+              if (mmData.conflicts) webConflictsCount = mmData.conflicts.length;
+            }
+          } catch (e) {}
+        }
+        
+        data.conflictsDetectedThisSession = (data.conflictsDetectedThisSession || 0) + webConflictsCount;
+
         setHostMetrics(data);
         setHostError(null);
 
@@ -177,37 +193,25 @@ export default function WebMetricsDashboard() {
             {
               timeLabel: nowStr,
               throughput: data.throughputPerMin || 0,
-              latency: Math.round((data.avgPushLatencyMs || 2.4) * 10) / 10,
+              latency: Math.round((data.avgPushLatencyMs || 0) * 10) / 10,
               conflicts: data.conflictsDetectedThisSession || 0,
             }
           ];
           return next;
         });
       } else {
-        throw new Error('Fallback to local mesh baseline');
+        throw new Error('Host responded with error');
       }
     } catch {
       const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      setHostError(null);
-      setHostMetrics(prev => prev || {
-        pushCount: 18,
-        pushSuccessCount: 18,
-        avgPushLatencyMs: 1.6,
-        throughputPerMin: 14,
-        conflictsDetectedThisSession: 0,
-        conflictsResolvedThisSession: 0,
-        avgConflictResolveMs: 0.3,
-        eventLogRows: 45,
-        connectedPeerCount: 1,
-        pendingConflicts: 0,
-        sessionDurationMs: 180000,
-      });
+      setHostError("Disconnected from host");
+      setHostMetrics(null);
       setTelemetryHistory(prev => [
         ...prev.slice(-14),
         {
           timeLabel: nowStr,
-          throughput: Math.floor(Math.random() * 8) + 12,
-          latency: Math.round((Math.random() * 0.8 + 1.4) * 10) / 10,
+          throughput: 0,
+          latency: 0,
           conflicts: 0,
         }
       ]);
@@ -226,12 +230,13 @@ export default function WebMetricsDashboard() {
   const resolvedConflicts = hostMetrics?.conflictsResolvedThisSession ?? 0;
   const totalSyncEvents = hostMetrics?.pushCount ?? 0;
   const resolutionAccuracyPct = totalConflicts > 0 ? Math.round((resolvedConflicts / totalConflicts) * 100) : 100;
-  const consistencySuccessPct = totalSyncEvents > 0 ? Math.round(((hostMetrics?.pushSuccessCount ?? totalSyncEvents) / totalSyncEvents) * 100) : 100;
+  const consistencySuccessPct = totalSyncEvents > 0 ? Math.round(((hostMetrics?.pushSuccessCount ?? 0) / totalSyncEvents) * 100) : 100;
+  const dataConsistencyRate = hostMetrics ? (hostMetrics.pendingConflicts > 0 ? 99 : 100) : 0;
 
   // Bar chart data for RQ4 breakdown
   const rq4ComparisonData = [
-    { name: 'Sync Ops', count: totalSyncEvents || 1 },
-    { name: 'Merged Safe', count: hostMetrics?.pushSuccessCount || 1 },
+    { name: 'Sync Ops', count: totalSyncEvents || 0 },
+    { name: 'Merged Safe', count: hostMetrics?.pushSuccessCount || 0 },
     { name: 'Conflicts', count: totalConflicts },
     { name: 'Resolved', count: resolvedConflicts },
   ];
@@ -309,11 +314,11 @@ export default function WebMetricsDashboard() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
           <RadialGauge
             label="Data Consistency Rate"
-            value="100%"
-            percentage={100}
-            color="#10b981"
-            badge="Converged"
-            subtext="All connected peer vector clocks show zero unresolved causal divergence."
+            value={hostMetrics ? `${dataConsistencyRate}%` : "0%"}
+            percentage={hostMetrics ? dataConsistencyRate : 0}
+            color={hostMetrics && dataConsistencyRate === 100 ? "#10b981" : "#f59e0b"}
+            badge={hostMetrics && dataConsistencyRate === 100 ? "Converged" : "Divergent"}
+            subtext={hostMetrics && dataConsistencyRate === 100 ? "All connected peer vector clocks show zero unresolved causal divergence." : "Vector clocks indicate pending divergences."}
           />
 
           <RadialGauge

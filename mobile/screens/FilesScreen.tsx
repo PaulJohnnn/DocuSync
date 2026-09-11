@@ -410,8 +410,8 @@ export default function FilesScreen({ navigation }: any) {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   {isSharing
                     ? <ActivityIndicator size="small" color="#fff" />
-                    : <Ionicons name="share-outline" size={15} color="#fff" />}
-                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Share File</Text>
+                    : <Ionicons name="cloud-upload-outline" size={15} color="#fff" />}
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Upload File</Text>
                 </View>
               </AnimatedButton>
             </View>
@@ -427,7 +427,7 @@ export default function FilesScreen({ navigation }: any) {
                   No files in this room yet
                 </Text>
                 <Text style={{ fontSize: 14, color: '#64748b', textAlign: 'center', lineHeight: 22 }}>
-                  Share a file to make it available to all connected peers.
+                  Upload a file to make it available to all connected peers.
                 </Text>
               </View>
             )}

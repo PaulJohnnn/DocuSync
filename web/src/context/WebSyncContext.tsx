@@ -87,6 +87,40 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Poll for global conflicts from Matchmaker to ensure all peers have same conflict list
+  useEffect(() => {
+    const pollConflicts = async () => {
+      const s = uGet('current_room');
+      if (!s) return;
+      try {
+        const room = JSON.parse(s);
+        if (!room.otp) return;
+        const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
+        const res = await fetch(`${_MATCHMAKER_URL}/conflicts?otp=${room.otp}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.conflicts && Array.isArray(data.conflicts)) {
+            // Merge with local conflicts, prioritizing server ones
+            const localRaw = uGet('docusync_web_conflicts');
+            const localConflicts = localRaw ? JSON.parse(localRaw) : [];
+            const mergedMap = new Map();
+            localConflicts.forEach((c: any) => mergedMap.set(c.conflictId, c));
+            data.conflicts.forEach((c: any) => mergedMap.set(c.conflictId, c));
+            const mergedArr = Array.from(mergedMap.values()).sort((a: any, b: any) => b.timestamp - a.timestamp).slice(0, 50);
+            uSet('docusync_web_conflicts', JSON.stringify(mergedArr));
+            window.dispatchEvent(new CustomEvent('docusync_conflicts_update'));
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    
+    pollConflicts();
+    const iv = setInterval(pollConflicts, 5000);
+    return () => clearInterval(iv);
+  }, []);
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _savePeers = (newPeers: PeerInfo[]) => {
     setPeers(newPeers);

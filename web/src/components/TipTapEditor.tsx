@@ -97,6 +97,19 @@ interface Props {
   onMarginChange: (m: string) => void;
 }
 
+const ToolBtn = ({ onClick, active, children }: { onClick: () => void; active?: boolean; children: React.ReactNode }) => (
+  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onClick} style={{
+    background: active ? 'var(--acb)' : 'transparent',
+    border: active ? '1px solid var(--acbr)' : '1px solid transparent',
+    borderRadius: 6, padding: '5px 7px', cursor: 'pointer',
+    color: active ? 'var(--acc)' : 'var(--t1)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    transition: 'all 0.15s',
+  }}>
+    {children}
+  </button>
+);
+
 export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate, onUndo, margin, onMarginChange }: Props) {
   const initialized = useRef(false);
   const [pasteError, setPasteError] = useState(false);
@@ -190,19 +203,6 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
   }, [editor, cursors]);
 
   if (!editor) return null;
-
-  const ToolBtn = ({ onClick, active, children }: { onClick: () => void; active?: boolean; children: React.ReactNode }) => (
-    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onClick} style={{
-      background: active ? 'var(--acb)' : 'transparent',
-      border: active ? '1px solid var(--acbr)' : '1px solid transparent',
-      borderRadius: 6, padding: '5px 7px', cursor: 'pointer',
-      color: active ? 'var(--acc)' : 'var(--t1)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      transition: 'all 0.15s',
-    }}>
-      {children}
-    </button>
-  );
 
   return (
     <div>

@@ -78,3 +78,51 @@ export async function DELETE(request: Request) {
     );
   }
 }
+
+/**
+ * POST /api/lobby/conflicts
+ * 
+ * Adds a new conflict to the room's conflict list.
+ */
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { otp, fileId, localContent, serverContent, mergedContent, timestamp, conflictId } = body;
+
+    if (!otp || !fileId || !conflictId) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    const key = `conflicts:${otp}`;
+    const newConflict = {
+      conflictId,
+      fileId,
+      localContent,
+      serverContent,
+      mergedContent,
+      timestamp: timestamp || Date.now()
+    };
+
+    const rawConflicts = await redis.get(key) as any[];
+    let conflicts = Array.isArray(rawConflicts) ? rawConflicts : [];
+    
+    // Check if it already exists to prevent dupes (though UUIDs should prevent this)
+    if (!conflicts.some(c => c.conflictId === conflictId)) {
+      conflicts.unshift(newConflict);
+      // Keep only latest 50 conflicts
+      conflicts = conflicts.slice(0, 50);
+      await redis.set(key, conflicts, { ex: 86400 });
+    }
+
+    return NextResponse.json({ success: true, conflict: newConflict }, { headers: corsHeaders });
+  } catch (err: any) {
+    console.error('[Conflicts POST] Error:', err);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+}

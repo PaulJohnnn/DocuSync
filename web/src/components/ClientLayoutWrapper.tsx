@@ -2,6 +2,7 @@
 import { usePathname } from 'next/navigation';
 import Navbar from './Navbar';
 import Footer from './Footer';
+import mockAuthService from '@/lib/mockAuthService';
 
 // Auth pages that are fullscreen (no navbar / sidebar / footer)
 const AUTH_ROUTES = ['/app/login', '/app/admin'];
@@ -31,8 +32,10 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
   // Protected app route — redirect to welcome/login if no session
   if (typeof window !== 'undefined') {
     const isDemo = window.location.search.includes('demo=true');
+    const user = mockAuthService.getCurrentUser();
     const hasSeenWelcomeSession = sessionStorage.getItem('docusync_has_seen_welcome_session');
-    if (!hasSeenWelcomeSession && !isDemo) {
+    
+    if (!hasSeenWelcomeSession && !isDemo && !user) {
       window.location.href = '/app/welcome';
       return null;
     }

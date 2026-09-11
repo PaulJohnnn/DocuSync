@@ -508,6 +508,27 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
            if (res.error?.includes('escalated') || (res.data as any)?.escalated) {
               setSaving(false);
               notify.error('Conflict detected! Resolving in arbiter...');
+              
+              if (roomOtp) {
+                try {
+                  const conflictId = `desktop-conflict-${Date.now()}`;
+                  const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-dusky.vercel.app');
+                  fetch(`${_WEB_BASE}/api/lobby/conflicts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      otp: roomOtp,
+                      conflictId,
+                      fileId,
+                      localContent: html,
+                      serverContent: (res.data as any)?.serverContent || '',
+                      mergedContent: (res.data as any)?.serverContent || '',
+                      timestamp: Date.now()
+                    })
+                  }).catch(() => {});
+                } catch (e) {}
+              }
+
               return;
            }
            throw new Error(res.error ?? 'Save error.');
@@ -572,6 +593,27 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
             if (data.escalated) {
               notify.error('Offline Conflict Detected! Check Conflicts page.');
               setSaving(false);
+              
+              if (roomOtp) {
+                try {
+                  const conflictId = `desktop-conflict-mm-${Date.now()}`;
+                  const _WEB_BASE = import.meta.env.VITE_WEB_URL || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-dusky.vercel.app');
+                  fetch(`${_WEB_BASE}/api/lobby/conflicts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      otp: roomOtp,
+                      conflictId,
+                      fileId,
+                      localContent: html,
+                      serverContent: data.serverContent || data.content || '',
+                      mergedContent: data.serverContent || data.content || '',
+                      timestamp: Date.now()
+                    })
+                  }).catch(() => {});
+                } catch (e) {}
+              }
+
               return;
             }
           } else {
@@ -732,65 +774,6 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
         </div>
       )}
 
-      {/* Save Confirm Modal */}
-      {showSaveConfirm && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(8px)',
-          zIndex: 9999,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
-          animation: 'fadeIn 0.2s ease-out'
-        }}>
-          <div style={{
-            background: 'linear-gradient(145deg, #1e293b, #0f172a)',
-            borderRadius: 16, width: '100%', maxWidth: 420,
-            padding: 32, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1)',
-            display: 'flex', flexDirection: 'column', gap: 20
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ background: 'rgba(56, 189, 248, 0.2)', padding: 10, borderRadius: 12 }}>
-                <span style={{ fontSize: 24 }}>💾</span>
-              </div>
-              <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0, color: '#f8fafc', letterSpacing: '-0.02em' }}>Save Changes?</h2>
-            </div>
-            <p style={{ fontSize: 15, color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-              Do you want to save the current document state and sync with peers, or continue editing without saving?
-            </p>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
-              <button 
-                onClick={() => setShowSaveConfirm(false)}
-                style={{
-                  padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600,
-                  background: 'transparent', color: '#cbd5e1', border: '1px solid #334155', cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.background = '#334155'}
-                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-              >
-                Continue Editing
-              </button>
-              <button 
-                onClick={async () => {
-                  setShowSaveConfirm(false);
-                  if (editor) await performSave(editor.getHTML(), true);
-                  navigate('/');
-                }}
-                style={{
-                  padding: '10px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600,
-                  background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', border: 'none', cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(37,99,235,0.3)', transition: 'all 0.2s'
-                }}
-                onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-                onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-              >
-                Save File
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Unsupported Media Modal */}
       {pasteError && (
         <div style={{
@@ -847,7 +830,11 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
                 onClick={async () => {
                   if (!editor) return;
                   await performSave(editor.getHTML(), true);
-                  navigate(-1);
+                  if (!navigator.onLine) {
+                    setShowSaveConfirm(true);
+                  } else {
+                    navigate('/files');
+                  }
                 }}
                 disabled={saving}
                 style={{ height: 30, fontSize: 12, padding: '0 14px' }}
@@ -929,6 +916,19 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
             {filePath || `file #${fileId}`}
           </span>
       </div>
+      <ConfirmModal
+        isOpen={showSaveConfirm}
+        title="Session Finalized"
+        message="Offline session finalized. Your edits are strictly saved to your local device and will remain queued safely. Please reconnect to sync with the Host."
+        onConfirm={() => {
+          setShowSaveConfirm(false);
+          navigate('/files');
+        }}
+        onCancel={() => {
+          setShowSaveConfirm(false);
+        }}
+        confirmText="Acknowledge"
+      />
     </div>
   );
 };
