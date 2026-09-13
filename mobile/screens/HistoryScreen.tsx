@@ -79,9 +79,10 @@ export default function HistoryScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: EventRecord }) => {
+  const renderItem = ({ item, index }: { item: EventRecord, index: number }) => {
     const meta = getEventMeta(item.eventType);
     const timeStr = new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const versionNum = events.length - index;
 
     return (
       <View style={styles.card}>
@@ -90,11 +91,11 @@ export default function HistoryScreen() {
         </View>
         <View style={styles.contentBox}>
           <View style={styles.topRow}>
-            <Text style={[styles.typeLabel, { color: meta.color }]}>{meta.label}</Text>
+            <Text style={[styles.typeLabel, { color: meta.color }]}>v{versionNum}  {meta.label}</Text>
             <Text style={styles.timeText}>{timeStr}</Text>
           </View>
           <Text style={styles.fileName}>{item.fileName || `File #${item.fileId.slice(0, 6)}`}</Text>
-          <Text style={styles.metaText}>Node: {item.nodeId.slice(0, 8)} • vc[{item.logicalTimestamp}]</Text>
+          <Text style={styles.metaText}>Modified by: {item.nodeId} • vc[{item.logicalTimestamp}]</Text>
           {item.payload ? (
             <View style={styles.payloadBox}>
               <Text style={styles.payloadText} numberOfLines={2}>{item.payload.trim()}</Text>

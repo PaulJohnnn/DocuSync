@@ -43,8 +43,9 @@ const TimelineItem: React.FC<{
   entry: HistoryEntry;
   isLatest: boolean;
   restoring: boolean;
+  versionParam: number;
   onRestore: (eventId: string) => void;
-}> = ({ entry, isLatest, restoring, onRestore }) => {
+}> = ({ entry, isLatest, restoring, versionParam, onRestore }) => {
   const meta = eventMeta(entry.eventType);
 
   return (
@@ -58,6 +59,7 @@ const TimelineItem: React.FC<{
       <article className="ds-card" style={{ flex: 1, padding: '0.75rem 1rem' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.35rem' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--ds-text1)' }}>v{versionParam}</span>
           <span style={{ fontWeight: 600, fontSize: '0.82rem', color: meta.color }}>{meta.label}</span>
           <span className="ds-badge ds-badge-accent" style={{ fontSize: '0.6rem' }}>ts={entry.logicalTimestamp}</span>
           {isLatest && <span className="ds-badge ds-badge-green" style={{ fontSize: '0.6rem' }}>latest</span>}
@@ -66,7 +68,7 @@ const TimelineItem: React.FC<{
 
         {/* Node info */}
         <div style={{ fontSize: '0.7rem', color: 'var(--ds-text3)', marginBottom: '0.3rem' }}>
-          Node: <span style={{ fontFamily: 'monospace', color: 'var(--ds-text2)' }}>{entry.nodeId.slice(0, 12)}…</span>
+          Modified by: <span style={{ fontFamily: 'monospace', color: 'var(--ds-text2)' }}>{entry.nodeId}</span>
         </div>
 
         {/* Payload preview */}
@@ -318,6 +320,7 @@ const HistoryPage: React.FC = () => {
                 entry={entry}
                 isLatest={idx === 0}
                 restoring={!!restoring[entry.eventId]}
+                versionParam={entries.length - idx}
                 onRestore={(eventId) => {
                   const target = entries.find(e => e.eventId === eventId);
                   if (target) setComparingEvent(target);
