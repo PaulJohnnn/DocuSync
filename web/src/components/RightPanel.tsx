@@ -18,7 +18,7 @@ export default function RightPanel() {
   const [counters, setCounters] = useState({ events: 0, merges: 0, deltas: 0, conflicts: 0 });
   const [vcState, setVcState] = useState<number[]>([0, 0, 0]);
   const [isCollapsed, setIsCollapsed] = useState(true);
-  const [history, setHistory] = useState<any[]>([]);
+  const [history] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchCounters = async () => {

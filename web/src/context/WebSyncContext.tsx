@@ -111,7 +111,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
             window.dispatchEvent(new CustomEvent('docusync_conflicts_update'));
           }
         }
-      } catch (e) {
+      } catch (_e) {
         // ignore
       }
     };
@@ -142,7 +142,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
       try {
         const room = JSON.parse(roomStr);
         if (room.otp) tokenParam = `?token=${room.otp}`;
-      } catch (e) {}
+      } catch (_e) {}
     }
     const wsUrl = `ws://${address}:${port}${tokenParam}`;
     const peerId = `${address}:${port}`;
