@@ -20,6 +20,8 @@ export interface Room {
   fileCount?: number;
   hostIp?: string;
   hostPort?: number;
+  /** Whether this room is starred/favourited by the user */
+  starred?: boolean;
 }
 
 // User-scoped storage keys (resolved at call time)
@@ -292,6 +294,16 @@ export function subscribeToRoomChanges(callback: () => void): () => void {
   };
 }
 
-const mockRoomService = { listRooms, createRoom, joinRoom, deleteRoom, getRoom, subscribeToRoomChanges };
+/** Toggle the starred state of a room by ID. */
+export function toggleStar(roomId: string): void {
+  const rooms = loadRooms();
+  const room = rooms.find(r => r.id === roomId);
+  if (room) {
+    room.starred = !room.starred;
+    saveRooms(rooms);
+  }
+}
+
+const mockRoomService = { listRooms, createRoom, joinRoom, deleteRoom, getRoom, subscribeToRoomChanges, toggleStar };
 export default mockRoomService;
 

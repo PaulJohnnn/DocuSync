@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
 import mockRoomService, { type Room } from '@/lib/mockRoomService';
 import { uSet, uRemove } from '@/lib/userStorage';
-import { Crown, Link as LinkIcon, Key, Check, Activity, Smartphone, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Crown, Link as LinkIcon, Key, Check, Activity, Smartphone, ArrowRight, ArrowLeft, Star } from 'lucide-react';
+import { toggleStar } from '@/lib/mockRoomService';
 
 // ── View state machine ────────────────────────────────────────────────────
 // list → create_name → create_generating → create_success → workspace
@@ -168,9 +169,11 @@ const RoomCard: React.FC<{
   room: Room;
   onEnter: () => void;
   onDelete: () => void;
-}> = ({ room, onEnter, onDelete }) => {
+  onToggleStar: () => void;
+}> = ({ room, onEnter, onDelete, onToggleStar }) => {
   const [showOtp, setShowOtp] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isStarHovered, setIsStarHovered] = useState(false);
 
   const statusColors = {
     active: { bg: 'rgba(34,197,94,0.08)', text: '#16a34a', dot: '#22c55e' },
@@ -270,7 +273,29 @@ const RoomCard: React.FC<{
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+          {/* Star button */}
+          <button
+            onClick={onToggleStar}
+            title={room.starred ? 'Remove from Favourites' : 'Add to Favourites'}
+            onMouseEnter={() => setIsStarHovered(true)}
+            onMouseLeave={() => setIsStarHovered(false)}
+            style={{
+              width: 34, height: 34, borderRadius: 8,
+              border: room.starred ? '1px solid rgba(234,179,8,0.4)' : '1px solid var(--border)',
+              background: room.starred ? 'rgba(234,179,8,0.08)' : 'var(--bg-card)',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}
+          >
+            <Star
+              size={15}
+              fill={room.starred ? '#eab308' : (isStarHovered ? 'rgba(234,179,8,0.4)' : 'none')}
+              stroke={room.starred ? '#eab308' : '#94a3b8'}
+              style={{ transition: 'all 0.15s' }}
+            />
+          </button>
           <button
             onClick={onEnter}
             style={{
@@ -374,6 +399,11 @@ export default function RoomsPage() {
     }
   };
 
+  const handleToggleStar = useCallback((roomId: string) => {
+    toggleStar(roomId);
+    setRooms(prev => prev.map(r => r.id === roomId ? { ...r, starred: !r.starred } : r));
+  }, []);
+
   const handleDelete = async (roomId: string) => {
     await mockRoomService.deleteRoom(roomId);
     setRooms(prev => prev.filter(r => r.id !== roomId));
@@ -466,12 +496,32 @@ export default function RoomsPage() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* Favourites section */}
+                {rooms.some(r => r.starred) && (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#eab308', display: 'flex', alignItems: 'center', gap: 6, marginBottom: -2, marginTop: 4 }}>
+                      <Star size={13} fill="#eab308" stroke="#eab308" /> Favourites
+                    </div>
+                    {rooms.filter(r => r.starred).map(room => (
+                      <RoomCard
+                        key={`star-${room.id}`}
+                        room={room}
+                        onEnter={() => handleEnterWorkspace(room)}
+                        onDelete={() => setDeleteConfirm(room.id)}
+                        onToggleStar={() => handleToggleStar(room.id)}
+                      />
+                    ))}
+                    <div style={{ height: 1, background: 'var(--border)', margin: '4px 0 6px' }} />
+                  </>
+                )}
+                {/* All rooms */}
                 {rooms.map(room => (
                   <RoomCard
                     key={room.id}
                     room={room}
                     onEnter={() => handleEnterWorkspace(room)}
                     onDelete={() => setDeleteConfirm(room.id)}
+                    onToggleStar={() => handleToggleStar(room.id)}
                   />
                 ))}
               </div>
@@ -559,7 +609,7 @@ export default function RoomsPage() {
 
             {/* OTP */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textAlign: 'center', marginBottom: 8 }}>INVITE CODE / OTP</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textAlign: 'center', marginBottom: 8 }}>INVITE CODE</div>
               {createdRoom && <OtpDisplay otp={createdRoom.otp} />}
             </div>
 
@@ -577,7 +627,7 @@ export default function RoomsPage() {
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: '#f8fafc', borderRadius: 10, padding: '12px 16px', marginBottom: 24, fontSize: 12, color: '#64748b', lineHeight: 1.7 }}>
               <Smartphone size={18} style={{ color: '#4f46e5', flexShrink: 0, marginTop: 2 }} />
               <div>
-                Share the 6-character code with peers on Desktop or Mobile. They enter it in <em>Join Room <ArrowRight size={12} style={{ display: 'inline', verticalAlign: 'middle', margin: '0 2px' }} /> Use OTP</em> to connect.
+                Share the 6-character code with peers on Desktop or Mobile. They enter it in <em>Join Room <ArrowRight size={12} style={{ display: 'inline', verticalAlign: 'middle', margin: '0 2px' }} /> Use Code</em> to connect.
               </div>
             </div>
 

@@ -597,6 +597,16 @@ export function registerIPCHandlers(services: EngineServices): void {
     verifyResolvers,
   } = services;
 
+  // ── room:set-token ─────────────────────────────────────────────────
+  ipcMain.handle(
+    'room:set-token',
+    safeHandler(async (...args: unknown[]) => {
+      const token = args[0] as string;
+      peerManager.setAllowedToken(token);
+      return { success: true };
+    })
+  );
+
   // ── auth:verify-respond ────────────────────────────────────────────
   ipcMain.handle(
     'auth:verify-respond',

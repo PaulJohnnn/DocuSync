@@ -392,7 +392,10 @@ export default function EditorPage() {
           const baseUrl = getSyncBaseUrl(room);
           const res = await fetch(`${baseUrl}/sync/push`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-DocuSync-Token': room.otp
+            },
             body: JSON.stringify({
               fileId,
               authorNodeId: localNodeIdRef.current,
@@ -559,7 +562,9 @@ export default function EditorPage() {
           try {
             const baseUrl = getSyncBaseUrl(room);
             const vcStr = encodeURIComponent(JSON.stringify(localVectorClockRef.current || {}));
-            const res = await fetch(`${baseUrl}/sync/status?fileId=${fileId}&since=${vcStr}`);
+            const res = await fetch(`${baseUrl}/sync/status?fileId=${fileId}&since=${vcStr}`, {
+              headers: { 'X-DocuSync-Token': room.otp }
+            });
             if (res.ok) {
               const data = await res.json();
               if (!data.upToDate && data.content && data.authorNodeId !== localNodeIdRef.current) {
@@ -675,11 +680,13 @@ export default function EditorPage() {
         const files: FileRecord[] = JSON.parse(stored);
         const idx = files.findIndex(f => f.id === fileId);
         if (idx >= 0) {
-        files[idx].content = contentToSave;
-        files[idx].updatedAt = new Date().toISOString();
-        uSet('files', JSON.stringify(files));
+          files[idx].content = contentToSave;
+          if (contentToSave !== lastSave.current) {
+            files[idx].updatedAt = new Date().toISOString();
+          }
+          uSet('files', JSON.stringify(files));
+        }
       }
-    }
 
     lastSave.current = contentToSave;
     setSaved(true);
@@ -766,11 +773,7 @@ export default function EditorPage() {
     return () => registerReconnectCallback(null); // clean up on unmount
   }, [registerReconnectCallback, saveFile]);
 
-  useEffect(() => {
-    if (!file) return;
-    const timer = setTimeout(() => { saveFile(content); }, 300);
-    return () => clearTimeout(timer);
-  }, [content, file, saveFile]);
+  // Removed redundant 300ms content save effect to prevent continuous sync loop
 
   if (!file) return (<PageShell><div style={{ padding: 60 }}>File not found.</div></PageShell>);
 
@@ -878,6 +881,7 @@ export default function EditorPage() {
               onChange={handleContentChange} 
               margin={margin}
               onMarginChange={handleMarginChange}
+              onHistoryRequest={() => router.push('/app/history/' + fileId)}
               cursors={Object.values(remoteCursors)}
               onSelectionUpdate={(from, _to) => {
                 if (cursorThrottleRef.current) return;

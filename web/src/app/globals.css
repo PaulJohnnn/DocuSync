@@ -346,7 +346,7 @@ body {
 .ds-editor-page-view .ProseMirror {
   width: 794px; /* A4 Width */
   min-height: 1123px; /* A4 Height */
-  margin: 0 auto;
+  margin: 0 auto 40px auto; /* extra gap between pages */
   padding: 96px 80px;
   color: #000;
   background-color: #ffffff;
@@ -361,6 +361,15 @@ body {
   background-attachment: local;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
   border-radius: 2px;
+}
+
+/* Page-break separator element */
+.ds-editor-page-view .ProseMirror hr {
+  margin-top: 40px;
+  margin-bottom: 40px;
+  border: none;
+  height: 0;
+  border-top: 2px dashed #e2e8f0;
 }
 @media (max-width: 880px) {
   .ds-editor-page-view .ProseMirror {

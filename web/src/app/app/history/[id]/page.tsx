@@ -48,6 +48,7 @@ export default function HistoryPage() {
   const [restoring, setRestoring] = useState<Record<string, boolean>>({});
   const [activeConflicts, setActiveConflicts] = useState<any[]>([]);
   const [viewFullEvent, setViewFullEvent] = useState<HistoryEntry | null>(null);
+  const [offlineWarning, setOfflineWarning] = useState('');
 
   const fetchHistory = useCallback(async () => {
     if (fileId === 'all') {
@@ -73,8 +74,12 @@ export default function HistoryPage() {
 
       if (room && room.hostIp) {
         try {
-          const baseUrl = `http://${room.hostIp}:${room.hostPort || 9000}`;
-          const res = await fetch(`${baseUrl}/sync/history?fileId=${fileId}`);
+          // Use hostPort (Desktop sync port, e.g. 9000), NOT port (web port, e.g. 3000)
+          const syncPort = (room.hostPort && room.hostPort !== 3000 && room.hostPort !== 80 && room.hostPort !== 443) ? room.hostPort : 9000;
+          const baseUrl = `http://${room.hostIp}:${syncPort}`;
+          const res = await fetch(`${baseUrl}/sync/history?fileId=${fileId}`, {
+            headers: { 'X-DocuSync-Token': room.otp }
+          });
           if (res.ok) {
             const result = await res.json();
             if (result.success && result.data) {
@@ -103,8 +108,38 @@ export default function HistoryPage() {
         const sorted = [...fetchedData].sort((a: any, b: any) => b.logicalTimestamp - a.logicalTimestamp);
         setEvents(sorted);
         setErrorMsg('');
+        setOfflineWarning('');
       } else {
-        throw new Error(hostError?.message || 'Failed to fetch history from host or cloud.');
+        // Fallback to local offline conflicts
+        let localConflicts: HistoryEntry[] = [];
+        try {
+          const stored = uGet('docusync_web_conflicts');
+          if (stored) {
+            const arr = JSON.parse(stored);
+            localConflicts = arr
+              .filter((c: any) => String(c.fileId) === String(fileId))
+              .map((c: any) => ({
+                eventId: c.id || `conflict-${c.timestamp}`,
+                fileId: c.fileId,
+                nodeId: 'local-offline',
+                eventType: 'offline-replay',
+                logicalTimestamp: c.timestamp,
+                payloadPreview: c.localContent,
+                fullContent: c.localContent,
+                createdAt: new Date(c.timestamp).toISOString(),
+                isCompacted: false
+              }));
+          }
+        } catch (_e) {}
+        
+        if (localConflicts.length > 0) {
+          const sorted = localConflicts.sort((a, b) => b.logicalTimestamp - a.logicalTimestamp);
+          setEvents(sorted);
+          setErrorMsg('');
+          setOfflineWarning('Offline mode: Showing locally queued edits only.');
+        } else {
+          throw new Error(hostError?.message || 'Failed to fetch history from host or cloud, and no offline edits found.');
+        }
       }
     } catch (err: any) {
       setErrorMsg(err.message || String(err));
@@ -142,10 +177,14 @@ export default function HistoryPage() {
 
       if (room && room.hostIp) {
         try {
-          const baseUrl = `http://${room.hostIp}:${room.port || 9000}`;
+          const syncPort = (room.hostPort && room.hostPort !== 3000 && room.hostPort !== 80 && room.hostPort !== 443) ? room.hostPort : 9000;
+          const baseUrl = `http://${room.hostIp}:${syncPort}`;
           const res = await fetch(`${baseUrl}/sync/restore`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-DocuSync-Token': room.otp
+            },
             body: JSON.stringify({ fileId: Number(fileId), eventId: eventId })
           });
           const result = await res.json();
@@ -290,6 +329,16 @@ export default function HistoryPage() {
         </div>
       ) : (
         <div style={{ position: 'relative', paddingLeft: 24, paddingBottom: 40 }}>
+          {offlineWarning && (
+            <div style={{ 
+              background: 'var(--amb-bg)', border: '1px solid var(--amb)', 
+              color: 'var(--amb)', padding: '12px 16px', borderRadius: 8, 
+              marginBottom: 20, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 
+            }}>
+              <AlertTriangle size={16} />
+              {offlineWarning}
+            </div>
+          )}
           <div style={{ position: 'absolute', left: 11, top: 0, bottom: 0, width: 2, background: 'var(--b1)' }} />
 
           {events.map((ev, i) => {

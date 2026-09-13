@@ -595,6 +595,10 @@ const docuSyncBridge: DocuSyncBridge = {
     return ipcRenderer.invoke(CH_CACHE_SIZE) as any;
   },
 
+  setRoomToken(token: string): Promise<IPCResponse> {
+    return ipcRenderer.invoke('room:set-token', token) as any;
+  },
+
   respondToVerifyRequest(reqId: string, allow: boolean): Promise<IPCResponse<void>> {
     return ipcRenderer.invoke(CH_AUTH_VERIFY_RESP, reqId, allow) as any;
   },

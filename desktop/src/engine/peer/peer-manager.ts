@@ -211,6 +211,9 @@ export class PeerManager {
   /** Rate limiter cleanup interval handle. @internal */
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** Valid token (OTP) for LAN access. @internal */
+  private allowedToken: string | null = null;
+
   /**
    * In-memory session metrics — reset on server start.
    * Exposed via GET /metrics for Web and Mobile clients.
@@ -232,6 +235,16 @@ export class PeerManager {
    */
   constructor(config: PeerManagerConfig) {
     this.config = config;
+  }
+
+  // ── Token Management ──────────────────────────────────────────────
+
+  /**
+   * Sets the valid OTP/token for this session to authorize LAN requests.
+   */
+  public setAllowedToken(token: string): void {
+    this.allowedToken = token;
+    console.log(`[PeerManager] Set allowed token to ${token}`);
   }
 
   // ── Server ──────────────────────────────────────────────────────────
@@ -298,6 +311,14 @@ export class PeerManager {
         const remoteAddr = req.socket.remoteAddress ?? 'unknown';
         const remotePort = req.socket.remotePort ?? 0;
         console.log(`[PeerManager] Inbound connection from ${remoteAddr}:${remotePort}`);
+        
+        const url = new URL(req.url || '', `ws://${req.headers.host || 'localhost'}`);
+        const wsToken = url.searchParams.get('token');
+        if (this.allowedToken && wsToken !== this.allowedToken) {
+          console.warn(`[PeerManager] Rejected WS connection: invalid token`);
+          socket.close(4001, 'Unauthorized: Invalid token');
+          return;
+        }
 
         this.registerSocket(socket, remoteAddr, remotePort, 'inbound');
       });
@@ -333,6 +354,14 @@ export class PeerManager {
 
     try {
       const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+      
+      const reqToken = req.headers['x-docusync-token'] as string;
+      if (this.allowedToken && reqToken !== this.allowedToken) {
+        res.writeHead(401, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized: Invalid X-DocuSync-Token' }));
+        return;
+      }
+      
       if (url.pathname === '/sync/status' && req.method === 'GET') {
         try {
           const fileId = parseInt(url.searchParams.get('fileId') || '0', 10);

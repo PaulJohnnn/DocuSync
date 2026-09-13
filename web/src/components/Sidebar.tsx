@@ -9,7 +9,7 @@ import { uGet, uSet } from '@/lib/userStorage';
 import OnlineStatusPill from './OnlineStatusPill';
 
 const NAV_ITEMS = [
-  { href: '/app/files', label: 'Room', icon: FolderOpen },
+  { href: '/app/files', label: 'Recent Room', icon: FolderOpen },
   { href: '/app/peers', label: 'Sync Rooms', icon: Users },
   { href: '/app/metrics', label: 'Metrics', icon: BarChart2 },
   { href: '/app/settings', label: 'Settings', icon: Settings },

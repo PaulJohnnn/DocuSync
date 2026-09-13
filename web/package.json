@@ -6,7 +6,18 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report playwright-report",
+    "test:e2e:console": "playwright test 01-console-and-network",
+    "test:e2e:responsive": "playwright test 02-responsive-ui",
+    "test:e2e:rooms": "playwright test 03-room-lifecycle",
+    "test:e2e:lww": "playwright test 04-multi-user-lww-editing",
+    "test:e2e:history": "playwright test 05-document-history",
+    "test:e2e:security": "playwright test 06-api-security",
+    "test:e2e:chaos": "playwright test 07-overwhelm-system"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",
@@ -34,6 +45,7 @@
     "uuid": "^14.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/diff": "^7.0.2",
     "@types/node": "^20",
     "@types/react": "^18",

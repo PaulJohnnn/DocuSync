@@ -95,6 +95,7 @@ interface Props {
   onUndo?: (discardedContent: string) => void;
   margin: string;
   onMarginChange: (m: string) => void;
+  onHistoryRequest?: () => void;
 }
 
 const ToolBtn = ({ onClick, active, children }: { onClick: () => void; active?: boolean; children: React.ReactNode }) => (
@@ -110,9 +111,16 @@ const ToolBtn = ({ onClick, active, children }: { onClick: () => void; active?: 
   </button>
 );
 
-export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate, onUndo, margin, onMarginChange }: Props) {
+export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate, onUndo, margin, onMarginChange, onHistoryRequest }: Props) {
   const initialized = useRef(false);
   const [pasteError, setPasteError] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -278,7 +286,33 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
           padding: ${margin}px !important;
         }
       `}} />
-      <EditorContent editor={editor} />
+      <div 
+        onContextMenu={(e) => {
+          if (!onHistoryRequest) return;
+          const selection = window.getSelection();
+          if (selection && selection.toString().trim().length > 0) {
+            e.preventDefault();
+            setContextMenu({ x: e.clientX, y: e.clientY });
+          }
+        }}
+      >
+        <EditorContent editor={editor} />
+      </div>
+
+      {contextMenu && (
+        <div style={{
+          position: 'fixed', top: contextMenu.y, left: contextMenu.x,
+          background: 'var(--bg)', border: '1px solid var(--b1)', borderRadius: 8,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 10000, padding: 4
+        }}>
+          <button className="ds-btn ds-btn-ghost" style={{ width: '100%', justifyContent: 'flex-start', fontSize: 13 }} onClick={() => {
+            onHistoryRequest?.();
+            setContextMenu(null);
+          }}>
+            <File size={14} style={{ marginRight: 6 }} /> View edit history for this selection
+          </button>
+        </div>
+      )}
     </div>
   );
 }

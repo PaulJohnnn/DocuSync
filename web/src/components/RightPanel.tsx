@@ -28,7 +28,10 @@ export default function RightPanel() {
           const room = JSON.parse(storedRoom);
           if (room.hostIp) {
             const port = room.hostPort && room.hostPort !== 3000 ? room.hostPort : 9000;
-            const res = await fetch(`http://${room.hostIp}:${port}/metrics`, { signal: AbortSignal.timeout(2000) });
+            const res = await fetch(`http://${room.hostIp}:${port}/metrics`, { 
+              signal: AbortSignal.timeout(2000),
+              headers: { 'X-DocuSync-Token': room.otp }
+            });
             if (res.ok) {
               const data = await res.json();
               setCounters({

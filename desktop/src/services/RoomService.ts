@@ -170,6 +170,11 @@ class RoomService {
     const rooms = loadRooms();
     saveRooms([...rooms, room]);
     registerGlobalOTP(otp, room.name, room.id, room.hostIp, room.hostPort);
+    
+    if (typeof window !== 'undefined' && (window as any).docuSync && (window as any).docuSync.setRoomToken) {
+      await (window as any).docuSync.setRoomToken(otp);
+    }
+    
     return room;
   }
 
@@ -268,6 +273,11 @@ class RoomService {
       existing.hostIp = targetIp;
       existing.hostPort = targetPort;
       saveRooms(rooms);
+      
+      if (typeof window !== 'undefined' && (window as any).docuSync && (window as any).docuSync.setRoomToken) {
+        await (window as any).docuSync.setRoomToken(upperOtp);
+      }
+      
       return existing;
     }
 
@@ -287,6 +297,11 @@ class RoomService {
       hostType: apiHostType,
     };
     saveRooms([...rooms, joined]);
+    
+    if (typeof window !== 'undefined' && (window as any).docuSync && (window as any).docuSync.setRoomToken) {
+      await (window as any).docuSync.setRoomToken(upperOtp);
+    }
+    
     return joined;
   }
 

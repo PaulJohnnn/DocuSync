@@ -12,8 +12,27 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
+// Simple rate limiter: max 5 requests per minute per IP
+async function checkRateLimit(ip: string): Promise<boolean> {
+  const key = `ratelimit:join:${ip}`;
+  const count = await redis.incr(key);
+  if (count === 1) {
+    await redis.expire(key, 60);
+  }
+  return count <= 5;
+}
+
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || 'unknown';
+    const isAllowed = await checkRateLimit(ip);
+    if (!isAllowed) {
+      return NextResponse.json(
+        { error: 'Too many join attempts. Please try again in a minute.' },
+        { status: 429, headers: corsHeaders }
+      );
+    }
+
     const body = await request.json();
     const { otp, memberNodeId } = body;
 
