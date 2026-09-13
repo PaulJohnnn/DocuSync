@@ -1,10 +1,7 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { uGet } from '@/lib/userStorage';
-import {
-  Activity, Shield, Server,
-  CheckCircle, RefreshCw
-} from 'lucide-react';
+import { Activity, Shield, Server, CheckCircle } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell,
   XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid
@@ -225,10 +222,9 @@ export default function WebMetricsDashboard() {
 
   useEffect(() => {
     fetchHostMetrics();
-    _hostAddr;
     const iv = setInterval(fetchHostMetrics, 3000);
     return () => clearInterval(iv);
-  }, [fetchHostMetrics, _hostAddr]);
+  }, [fetchHostMetrics]);
 
 
   // RQ4 calculations
@@ -237,8 +233,6 @@ export default function WebMetricsDashboard() {
   const totalSyncEvents = hostMetrics?.pushCount ?? 0;
   const resolutionAccuracyPct = totalConflicts > 0 ? Math.round((resolvedConflicts / totalConflicts) * 100) : 100;
   const consistencySuccessPct = totalSyncEvents > 0 ? Math.round(((hostMetrics?.pushSuccessCount ?? 0) / totalSyncEvents) * 100) : 100;
-  const _dataConsistencyRate = hostMetrics ? (hostMetrics.pendingConflicts > 0 ? 99 : 100) : 0;
-  _hostError;
 
   // Bar chart data for RQ4 breakdown
   const rq4ComparisonData = [

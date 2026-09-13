@@ -1,0 +1,296 @@
+﻿
+> web@0.1.0 lint
+> next lint
+
+node.exe : 
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (:String) [],    
+ RemoteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+./src/app/api/lobby/doc
+/route.ts
+91:18  Warning: 'e' is 
+defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+
+./src/app/app/admin/das
+hboard/page.tsx
+2:46  Warning: 
+'useCallback' is 
+defined but never 
+used. Allowed unused 
+vars must match /^_/u. 
+ @typescript-eslint/no-
+unused-vars
+5:10  Warning: 
+'Activity' is defined 
+but never used. 
+Allowed unused vars 
+must match /^_/u.  @typ
+escript-eslint/no-unuse
+d-vars
+5:20  Warning: 'Clock' 
+is defined but never 
+used. Allowed unused 
+vars must match /^_/u. 
+ @typescript-eslint/no-
+unused-vars
+5:47  Warning: 'X' is 
+defined but never 
+used. Allowed unused 
+vars must match /^_/u. 
+ @typescript-eslint/no-
+unused-vars
+5:57  Warning: 'Check' 
+is defined but never 
+used. Allowed unused 
+vars must match /^_/u. 
+ @typescript-eslint/no-
+unused-vars
+9:10  Warning: 
+'pendingRequests' is 
+assigned a value but 
+never used. Allowed 
+unused vars must match 
+/^_/u.  @typescript-esl
+int/no-unused-vars
+104:18  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+165:9  Warning: 
+'handleApprove' is 
+assigned a value but 
+never used. Allowed 
+unused vars must match 
+/^_/u.  @typescript-esl
+int/no-unused-vars
+176:9  Warning: 
+'handleReject' is 
+assigned a value but 
+never used. Allowed 
+unused vars must match 
+/^_/u.  @typescript-esl
+int/no-unused-vars
+195:9  Warning: 
+'handleResetPin' is 
+assigned a value but 
+never used. Allowed 
+unused vars must match 
+/^_/u.  @typescript-esl
+int/no-unused-vars
+195:45  Warning: 
+'email' is defined but 
+never used. Allowed 
+unused args must match 
+/^_/u.  @typescript-esl
+int/no-unused-vars
+197:13  Warning: 'pin' 
+is assigned a value 
+but never used. 
+Allowed unused vars 
+must match /^_/u.  @typ
+escript-eslint/no-unuse
+d-vars
+215:18  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+
+./src/app/app/editor/[i
+d]/page.tsx
+30:16  Warning: 'e' is 
+defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+453:26  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+524:20  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+547:19  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+669:18  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+937:30  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+939:26  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+
+./src/app/app/files/pag
+e.tsx
+12:36  Warning: 
+'idbDeleteFile' is 
+defined but never 
+used. Allowed unused 
+vars must match /^_/u. 
+ @typescript-eslint/no-
+unused-vars
+
+./src/app/app/history/[
+id]/page.tsx
+6:102  Warning: 
+'Undo2' is defined but 
+never used. Allowed 
+unused vars must match 
+/^_/u.  @typescript-esl
+int/no-unused-vars
+103:18  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+218:16  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+235:18  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+253:14  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+281:14  Warning: 'e' 
+is defined but never 
+used. Allowed unused 
+caught errors must 
+match 
+/^_|^err$|^error$/u.  @
+typescript-eslint/no-un
+used-vars
+
+./src/components/Client
+LayoutWrapper.tsx
+33:33  Error: React 
+Hook "React.useState" 
+is called 
+conditionally. React 
+Hooks must be called 
+in the exact same 
+order in every 
+component render. Did 
+you accidentally call 
+a React Hook after an 
+early return?  react-ho
+oks/rules-of-hooks
+34:3  Error: React 
+Hook "React.useEffect" 
+is called 
+conditionally. React 
+Hooks must be called 
+in the exact same 
+order in every 
+component render. Did 
+you accidentally call 
+a React Hook after an 
+early return?  react-ho
+oks/rules-of-hooks
+
+info  - Need to 
+disable some ESLint 
+rules? Learn more 
+here: https://nextjs.or
+g/docs/basic-features/e
+slint#disabling-rules
+npm error Lifecycle 
+script `lint` failed 
+with error:
+npm error code 1
+npm error path 
+C:\Users\Paul John Pala
+mara\Downloads\ThesisSy
+nc\web
+npm error workspace 
+web@0.1.0
+npm error location 
+C:\Users\Paul John Pala
+mara\Downloads\ThesisSy
+nc\web
+npm error command 
+failed
+npm error command C:\WI
+NDOWS\system32\cmd.exe 
+/d /s /c next lint

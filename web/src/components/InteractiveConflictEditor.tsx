@@ -1,9 +1,6 @@
 'use client';
-import React, { useEffect, useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import PageShell from '@/components/PageShell';
-import { Shield, ArrowLeft, Maximize2, Minimize2 } from 'lucide-react';
-import { uGet, uSet, uRemove } from '@/lib/userStorage';
+import React, { useState, useMemo } from 'react';
+import { Shield, Maximize2, Minimize2 } from 'lucide-react';
 // ── Word-level diff engine (Match Desktop exactly) ────────────────────────────
 
 function stripHtml(html: string): string {

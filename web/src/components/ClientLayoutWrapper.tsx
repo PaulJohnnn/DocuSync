@@ -14,6 +14,20 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
   const isWelcome = pathname === '/app/welcome';
   const isAuthRoute = AUTH_ROUTES.some(r => pathname.startsWith(r));
 
+  const [mounted, setMounted] = React.useState(false);
+  
+  React.useEffect(() => {
+    setMounted(true);
+    if (isAppRoute && !isAuthRoute && !isWelcome) {
+      const isDemo = typeof window !== 'undefined' && window.location.search.includes('demo=true');
+      const user = mockAuthService.getCurrentUser();
+      const hasSeenWelcomeSession = typeof window !== 'undefined' ? sessionStorage.getItem('docusync_has_seen_welcome_session') : false;
+      if (!hasSeenWelcomeSession && !isDemo && !user && typeof window !== 'undefined') {
+        window.location.href = '/app/welcome';
+      }
+    }
+  }, [isAppRoute, isAuthRoute, isWelcome]);
+
   // Auth & welcome pages render fullscreen — no chrome
   if (isAuthRoute || isWelcome) {
     return <>{children}</>;
@@ -29,19 +43,6 @@ export default function ClientLayoutWrapper({ children }: { children: React.Reac
       </div>
     );
   }
-
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => {
-    setMounted(true);
-    if (isAppRoute && !isAuthRoute && !isWelcome) {
-      const isDemo = window.location.search.includes('demo=true');
-      const user = mockAuthService.getCurrentUser();
-      const hasSeenWelcomeSession = sessionStorage.getItem('docusync_has_seen_welcome_session');
-      if (!hasSeenWelcomeSession && !isDemo && !user) {
-        window.location.href = '/app/welcome';
-      }
-    }
-  }, [isAppRoute, isAuthRoute, isWelcome]);
 
   if (!mounted) {
     return <div style={{ height: '100vh', background: 'var(--bg)' }} />;
