@@ -117,7 +117,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
     };
     
     pollConflicts();
-    const iv = setInterval(pollConflicts, 5000);
+    const iv = setInterval(pollConflicts, 15000);
     return () => clearInterval(iv);
   }, []);
 
@@ -136,7 +136,15 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
       }
     }
     const port = (!rawPort || rawPort === 3000) ? 9000 : rawPort;
-    const wsUrl = `ws://${address}:${port}`;
+    const roomStr = uGet('current_room');
+    let tokenParam = '';
+    if (roomStr) {
+      try {
+        const room = JSON.parse(roomStr);
+        if (room.otp) tokenParam = `?token=${room.otp}`;
+      } catch (e) {}
+    }
+    const wsUrl = `ws://${address}:${port}${tokenParam}`;
     const peerId = `${address}:${port}`;
 
     if (socketRef.current?.readyState === WebSocket.OPEN) {

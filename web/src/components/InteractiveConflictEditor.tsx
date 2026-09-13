@@ -116,11 +116,11 @@ const InteractiveConflictEditor: React.FC<{
       </div>
 
       <div style={{ background: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', padding: '16px 20px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', margin: '0 -1rem -1rem -1rem', gap: '12px' }}>
-        <button className="ds-btn ds-btn-ghost" onClick={onReject}>
-          <Shield size={14} /> Dismiss Log
+        <button className="ds-btn ds-btn-ghost" onClick={onRestore}>
+          Restore Local Edit
         </button>
-        <button className="ds-btn ds-btn-primary" onClick={onRestore} style={{ transition: 'all 0.2s ease', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px) scale(1.02)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}>
-          Restore version
+        <button className="ds-btn ds-btn-primary" onClick={onReject} style={{ transition: 'all 0.2s ease', boxShadow: '0 4px 12px rgba(79, 70, 229, 0.25)' }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px) scale(1.02)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}>
+          <Shield size={14} /> Keep Online Version
         </button>
       </div>
     </article>

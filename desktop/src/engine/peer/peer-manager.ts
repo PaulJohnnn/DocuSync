@@ -569,7 +569,7 @@ export class PeerManager {
                 fileId,
                 nodeId,
                 eventType: 'edit', // Record as standard edit (previously 'merge')
-                logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+                logicalTimestamp: incomingVc.counters[incomingVc.nodeIndex] || 1,
                 vectorClockJson: this.config.vectorClock.toJSON(),
                 payload: delta || remoteContent || '',
               });
@@ -589,7 +589,7 @@ export class PeerManager {
               fileId,
               deltaBase64: delta,
               content: newContent,
-              logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+              logicalTimestamp: incomingVc.counters[incomingVc.nodeIndex] || 1,
               vectorClockJson: this.config.vectorClock.toJSON(),
               timestamp: new Date().toISOString(),
             } as any);
@@ -727,7 +727,7 @@ export class PeerManager {
                       fileId,
                       deltaBase64: '',
                       content: newContent,
-                      logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+                      logicalTimestamp: incomingVc.counters[incomingVc.nodeIndex] || 1,
                       vectorClockJson: this.config.vectorClock.toJSON(),
                       timestamp: new Date().toISOString(),
                     } as any);
@@ -788,7 +788,7 @@ export class PeerManager {
                 fileId,
                 deltaBase64: delta,
                 content: remoteContent || localContent,
-                logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+                logicalTimestamp: incomingVc.counters[incomingVc.nodeIndex] || 1,
                 vectorClockJson: this.config.vectorClock.toJSON(),
                 timestamp: new Date().toISOString(),
               } as any);

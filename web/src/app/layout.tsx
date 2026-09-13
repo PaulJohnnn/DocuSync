@@ -21,8 +21,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="light">
-      <body className={inter.className} style={{ background: 'var(--bg)', color: 'var(--t1)' }}>
+    <html lang="en" className="light" suppressHydrationWarning>
+      <body className={inter.className} style={{ background: 'var(--bg)', color: 'var(--t1)' }} suppressHydrationWarning>
         <ThemeProvider>
           <SyncStateProvider>
             <WebSyncProvider>

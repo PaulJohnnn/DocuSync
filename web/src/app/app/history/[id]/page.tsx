@@ -113,6 +113,12 @@ export default function HistoryPage() {
         // Fallback to local offline conflicts
         let localConflicts: HistoryEntry[] = [];
         try {
+          const histKey = `docusync_offline_history_${fileId}`;
+          const offlineHist = JSON.parse(uGet(histKey) || '[]');
+          if (Array.isArray(offlineHist) && offlineHist.length > 0) {
+            localConflicts = [...localConflicts, ...offlineHist];
+          }
+          
           const stored = uGet('docusync_web_conflicts');
           if (stored) {
             const arr = JSON.parse(stored);
@@ -360,6 +366,7 @@ export default function HistoryPage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>v{events.length - i}</span>
                         <span style={{ fontSize: 14, fontWeight: 600, color: evInfo.color }}>
                           {evInfo.label || ev.eventType}
                         </span>
@@ -371,7 +378,7 @@ export default function HistoryPage() {
                       </div>
                       
                       <div style={{ fontSize: 12, color: 'var(--t3)', marginTop: 6 }}>
-                        Node: <span style={{ fontFamily: 'monospace', color: 'var(--t2)' }}>{ev.nodeId.slice(0, 12)}…</span>
+                        Modified by: <span style={{ fontFamily: 'monospace', color: 'var(--t2)' }}>{ev.nodeId}</span>
                       </div>
                     </div>
                     

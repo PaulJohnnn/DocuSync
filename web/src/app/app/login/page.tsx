@@ -295,7 +295,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
               }}
             >
               <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 12, marginTop: 0 }}>
-                Did you save the OTP?
+                Did you save the Access Code?
               </h3>
               <p style={{ fontSize: 14, color: '#475569', marginBottom: 24, lineHeight: 1.6 }}>
                 You will need this PIN to log in. Are you sure you saved it?
@@ -553,7 +553,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
             style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}
           >
             <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: 24, padding: '32px', maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.3)', animation: 'modalSlideUp 0.25s' }}>
-              <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 12, marginTop: 0 }}>Did you save the OTP?</h3>
+              <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 12, marginTop: 0 }}>Did you save the Access Code?</h3>
               <p style={{ fontSize: 14, color: '#475569', marginBottom: 24, lineHeight: 1.6 }}>If you click continue without saving, you might lose access to your account since your password can only be reset once per week.</p>
               <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                 <button

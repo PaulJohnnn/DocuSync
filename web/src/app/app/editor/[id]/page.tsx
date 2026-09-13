@@ -485,6 +485,7 @@ export default function EditorPage() {
               setSyncStatusMsg(`Synced ✓`);
               setOfflineQueue(false);
               uSet('docusync_offline_base', contentToSave);
+              uSet(`docusync_offline_history_${fileId}`, '[]');
               console.log('[OfflineQueue] Reset to false after sync. Base updated.');
               hasPendingChangesRef.current = false;
             }
@@ -516,6 +517,7 @@ export default function EditorPage() {
               setSyncStatusMsg(`Cloud Synced ✓`);
               setOfflineQueue(false);
               uSet('docusync_offline_base', contentToSave);
+              uSet(`docusync_offline_history_${fileId}`, '[]');
               hasPendingChangesRef.current = false;
               directSuccess = true;
             }
@@ -527,6 +529,22 @@ export default function EditorPage() {
         if (!directSuccess) {
           setSyncStatusMsg('Sync failed — queued for retry');
           setOfflineQueue(true);
+          try {
+            const histKey = `docusync_offline_history_${fileId}`;
+            const existing = JSON.parse(uGet(histKey) || '[]');
+            existing.unshift({
+              eventId: crypto.randomUUID(),
+              fileId: fileId,
+              nodeId: localNodeIdRef.current,
+              eventType: 'edit',
+              logicalTimestamp: (vectorClockSnapshot as any).root ? (vectorClockSnapshot as any).root.counter : Date.now(),
+              payloadPreview: contentToSave,
+              fullContent: contentToSave,
+              createdAt: new Date().toISOString(),
+              isCompacted: false
+            });
+            uSet(histKey, JSON.stringify(existing.slice(0, 50)));
+          } catch(e) {}
         }
       }
     } catch (_e) {
@@ -654,7 +672,7 @@ export default function EditorPage() {
       } catch {}
     };
 
-    channelRef.current = setInterval(pollDoc, 500);
+    channelRef.current = setInterval(pollDoc, 10000);
     return () => { if (channelRef.current) clearInterval(channelRef.current); };
   }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
 

@@ -61,6 +61,12 @@ export async function POST(request: Request) {
     }
 
     if (memberNodeId && !lobby.members.includes(memberNodeId)) {
+      if (lobby.members.length >= 14) {
+        return NextResponse.json(
+          { error: 'Room is full. Maximum concurrent editors (15) reached.' },
+          { status: 403, headers: corsHeaders }
+        );
+      }
       lobby.members.push(memberNodeId);
       lobby.peersJoined++;
       // We must write it back if we mutate

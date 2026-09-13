@@ -380,7 +380,7 @@ export default function AdminDashboardPage() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1.5fr 1fr', gap: 12, fontSize: 13, color: '#94a3b8' }}>
             <div style={{ fontWeight: 700, color: '#e2e8f0', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Room Name</div>
-            <div style={{ fontWeight: 700, color: '#e2e8f0', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>OTP Code</div>
+            <div style={{ fontWeight: 700, color: '#e2e8f0', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Room Code</div>
             <div style={{ fontWeight: 700, color: '#e2e8f0', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Host Node ID</div>
             <div style={{ fontWeight: 700, color: '#e2e8f0', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Members</div>
             {rooms.map((r, i) => (
@@ -397,12 +397,12 @@ export default function AdminDashboardPage() {
 
       {/* ── Terminate Repository by OTP Section ───────────────────────────────────── */}
       <div style={{ marginTop: 24, background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 20, padding: 24 }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f87171', margin: '0 0 8px 0' }}>Terminate Repository (by OTP)</h3>
-        <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 16px 0' }}>Enter a 6-character room OTP to immediately dissolve and terminate an active repository across all peers.</p>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f87171', margin: '0 0 8px 0' }}>Terminate Repository (by Code)</h3>
+        <p style={{ fontSize: 13, color: '#94a3b8', margin: '0 0 16px 0' }}>Enter a 6-character room code to immediately dissolve and terminate an active repository across all peers.</p>
         <div style={{ display: 'flex', gap: 12, maxWidth: 450 }}>
           <input
             type="text"
-            placeholder="Enter OTP (e.g. A1B2C3)"
+            placeholder="Enter Code (e.g. A1B2C3)"
             value={deleteOtp}
             onChange={e => setDeleteOtp(e.target.value.toUpperCase())}
             maxLength={6}
