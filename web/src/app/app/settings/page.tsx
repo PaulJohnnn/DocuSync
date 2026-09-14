@@ -284,21 +284,21 @@ export default function SettingsPage() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 24 }}>
-                      <div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#ef4444' }}>Factory Reset</div>
-                        <div style={{ fontSize: 13, color: 'var(--t3)', marginTop: 2 }}>Wipe all settings, sessions, and files locally.</div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          showConfirm("Factory Reset", "Are you sure you want to completely wipe DocuSync data?", () => {
-                            localStorage.clear(); window.location.reload();
-                          });
-                        }}
-                        style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#ef4444', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
-                      >
-                        Reset App
-                      </button>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#ef4444' }}>Clear Cache</div>
+                      <div style={{ fontSize: 13, color: 'var(--ds-text3)', marginTop: 2 }}>Wipe local cache, settings, and sessions.</div>
                     </div>
+                    <button
+                      onClick={() => {
+                        showConfirm("Clear Cache", "Are you sure you want to clear your local DocuSync cache?", () => {
+                          localStorage.clear(); window.location.reload();
+                        });
+                      }}
+                      style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#ef4444', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+                    >
+                      Clear Cache
+                    </button>
+                  </div>
                   </div>
                 </div>
               </>
