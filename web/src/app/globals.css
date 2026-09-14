@@ -344,14 +344,14 @@ body {
   box-shadow: inset 0 2px 8px rgba(0,0,0,0.03);
 }
 .ds-editor-page-view .ProseMirror {
-  width: 794px; /* A4 Width */
+  width: 100%;
   min-height: 1123px; /* A4 Height */
   margin: 0 auto 40px auto; /* extra gap between pages */
-  padding: 96px 80px;
+  padding: 0;
   color: #000;
-  background-color: #ffffff;
+  background-color: transparent;
   /* Removed fake page breaks because they cause text overlapping in a continuous editor */
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
+  box-shadow: none;
   border-radius: 2px;
 }
 
@@ -361,7 +361,26 @@ body {
   margin-bottom: 40px;
   border: none;
   height: 0;
-  border-top: 2px dashed #e2e8f0;
+  border-top: none;
+  margin: 96px -80px !important;
+  background-color: #f1f5f9;
+  height: 48px !important;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  box-shadow: 
+    inset 0 4px 12px -4px rgba(0,0,0,0.1),
+    inset 0 -4px 12px -4px rgba(0,0,0,0.1);
+}
+.ds-editor-page-view .ProseMirror hr::after {
+  content: 'PAGE BREAK';
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 @media (max-width: 880px) {
   .ds-editor-page-view .ProseMirror {
@@ -371,4 +390,13 @@ body {
     background-image: none;
     min-height: 500px;
   }
+}
+
+/* TipTap Editor Empty State Placeholder */
+.tiptap p.is-editor-empty:first-child::before {
+  color: #94a3b8;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
 }

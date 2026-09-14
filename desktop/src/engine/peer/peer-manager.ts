@@ -1986,6 +1986,7 @@ export class PeerManager {
           displayName: peer.displayName || peer.nodeId.substring(0, 8),
           address: peer.address,
           port: peer.port,
+          isHost: false,
         });
       }
     }
@@ -1996,6 +1997,7 @@ export class PeerManager {
       displayName: this.config.localDisplayName || 'Desktop',
       address: '127.0.0.1',
       port: 9000,
+      isHost: true,
     });
 
     const msg: import('./message-schema').PeerListMessage = {

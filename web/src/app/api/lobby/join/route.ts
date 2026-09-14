@@ -82,6 +82,7 @@ export async function POST(request: Request) {
         hostIp: lobby.hostIp,
         hostPort: lobby.hostPort,
         hostType: lobby.hostType || 'desktop',
+        algorithm: lobby.algorithm || 'lww',
         memberCount: lobby.members.length + 1,
         members: [lobby.hostNodeId, ...lobby.members].map((id) => ({ nodeId: id })),
         ip: lobby.hostIp,

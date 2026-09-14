@@ -115,6 +115,76 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
   const initialized = useRef(false);
   const [pasteError, setPasteError] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
+  const [pageCount, setPageCount] = useState(1);
+
+  useEffect(() => {
+    let animFrame: number;
+    const adjustPages = () => {
+      const pm = document.querySelector('.ds-editor-page-view .ProseMirror') as HTMLElement;
+      if (pm) {
+        const PAGE_HEIGHT = 1123;
+        const GAP_HEIGHT = 48; // Physical grey gap between pages
+        const MARGIN_TOP = 96; // Internal white padding top
+        const MARGIN_BOTTOM = 96;
+        const USABLE = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
+
+        const updates: { el: HTMLElement, margin: number }[] = [];
+        let totalPushSoFar = 0;
+        let maxPageIndex = 0;
+
+        Array.from(pm.children).forEach(child => {
+          const el = child as HTMLElement;
+          if (el.classList.contains('collaboration-cursor__caret')) return;
+
+          const applied = parseFloat(el.getAttribute('data-push') || '0');
+          const physicalTop = el.offsetTop;
+          const h = el.offsetHeight;
+
+          // Virtual unpushed coordinate relative to 0 margin text stream
+          const unpushedTop = physicalTop - applied - totalPushSoFar;
+          const unpushedBottom = unpushedTop + h;
+
+          const page1 = Math.floor(unpushedTop / USABLE);
+          const page2 = Math.floor(unpushedBottom / USABLE);
+          
+          if (page2 > maxPageIndex) { maxPageIndex = page2; }
+
+          if (page1 !== page2 && unpushedTop !== (page1 * USABLE)) {
+            // Block straddles a page break. Push it precisely to the start of page2.
+            const physicalTarget = (page2 * (PAGE_HEIGHT + GAP_HEIGHT)) + MARGIN_TOP;
+            const currentPhysicalTop = physicalTop - applied;
+            const push = physicalTarget - currentPhysicalTop;
+
+            if (Math.abs(push - applied) > 0.5) {
+              updates.push({ el, margin: push });
+            }
+            totalPushSoFar += push;
+          } else {
+            // Fits cleanly or exactly aligns
+            if (applied > 0) {
+              updates.push({ el, margin: 0 });
+            }
+          }
+        });
+
+        // Batch writes to prevent layout thrashing
+        updates.forEach(u => {
+          if (u.margin === 0) {
+            u.el.style.marginTop = '';
+            u.el.removeAttribute('data-push');
+          } else {
+            u.el.style.marginTop = `${u.margin}px`;
+            u.el.setAttribute('data-push', u.margin.toString());
+          }
+        });
+
+        setPageCount(Math.max(1, maxPageIndex + 1));
+      }
+      animFrame = requestAnimationFrame(adjustPages);
+    };
+    animFrame = requestAnimationFrame(adjustPages);
+    return () => cancelAnimationFrame(animFrame);
+  }, []);
 
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
@@ -127,7 +197,7 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       StarterKit,
       Highlight,
       Underline,
-      Placeholder.configure({ placeholder: 'Start typing your document...' }),
+      Placeholder.configure({ placeholder: 'Start writing, or wait for teammates to join this room.' }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       RemoteCursorsExtension.configure({ cursors: [] }),
       Table.configure({ resizable: true }),
@@ -138,6 +208,9 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
     content: content || '<p></p>',
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
+      // TELEMETRY INTERCEPT: Bump ops for Dashboard matrix visualization
+      const currentOps = parseInt(localStorage.getItem('web_telemetry_ops') || '0');
+      localStorage.setItem('web_telemetry_ops', (currentOps + 1).toString());
     },
     onSelectionUpdate: ({ editor }) => {
       if (onSelectionUpdate) {
@@ -285,21 +358,36 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
         </div>
       </div>
       <style dangerouslySetInnerHTML={{ __html: `
-        .ds-editor-page-view .ProseMirror {
-          padding: ${margin}px !important;
-        }
+        /* Remove internal TipTap margin as we control virtual margins programatically via the wrapper layout */
       `}} />
-      <div 
-        onContextMenu={(e) => {
-          if (!onHistoryRequest) return;
-          const selection = window.getSelection();
-          if (selection && selection.toString().trim().length > 0) {
-            e.preventDefault();
-            setContextMenu({ x: e.clientX, y: e.clientY });
-          }
-        }}
-      >
-        <EditorContent editor={editor} />
+      <div style={{ position: 'relative', width: 794, margin: '0 auto' }}>
+        
+        {/* Render True Physical A4 Background Pages */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 48, zIndex: 0 }}>
+          {Array.from({ length: pageCount }).map((_, i) => (
+            <div key={i} style={{
+              width: 794, height: 1123, background: '#ffffff',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05)',
+              flexShrink: 0, borderRadius: 2
+            }} />
+          ))}
+        </div>
+
+        {/* Editor Layer overlay mapping text flawlessly onto the pages */}
+        <div 
+          className="ds-paginated-editor-layer"
+          onContextMenu={(e) => {
+            if (!onHistoryRequest) return;
+            const selection = window.getSelection();
+            if (selection && selection.toString().trim().length > 0) {
+              e.preventDefault();
+              setContextMenu({ x: e.clientX, y: e.clientY });
+            }
+          }}
+          style={{ position: 'relative', zIndex: 1, paddingLeft: parseInt(margin), paddingRight: parseInt(margin), paddingTop: 96, paddingBottom: 96 }}
+        >
+          <EditorContent editor={editor} />
+        </div>
       </div>
 
       {contextMenu && (

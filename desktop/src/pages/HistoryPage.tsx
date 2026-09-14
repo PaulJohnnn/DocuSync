@@ -44,8 +44,10 @@ const TimelineItem: React.FC<{
   isLatest: boolean;
   restoring: boolean;
   versionParam: number;
+  versionParam: number;
   onRestore: (eventId: string) => void;
-}> = ({ entry, isLatest, restoring, versionParam, onRestore }) => {
+  onView: (entry: HistoryEntry) => void;
+}> = ({ entry, isLatest, restoring, versionParam, onRestore, onView }) => {
   const meta = eventMeta(entry.eventType);
 
   return (
@@ -71,12 +73,7 @@ const TimelineItem: React.FC<{
           Modified by: <span style={{ fontFamily: 'monospace', color: 'var(--ds-text2)' }}>{entry.nodeId}</span>
         </div>
 
-        {/* Payload preview */}
-        {entry.payloadPreview && (
-          <div style={{ fontSize: '0.68rem', color: 'var(--ds-text2)', background: 'var(--ds-bg3)', borderRadius: 'var(--ds-radius-sm)', padding: '0.35rem 0.5rem', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', marginBottom: '0.35rem' }}>
-            {truncatePreview(entry.payloadPreview)}
-          </div>
-        )}
+
 
         {/* Footer */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
@@ -98,15 +95,24 @@ const TimelineItem: React.FC<{
                  Current Version
               </span>
             ) : (
-              <button
-                className="ds-btn ds-btn-ghost"
-                disabled={restoring}
-                onClick={() => onRestore(entry.eventId)}
-                style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem' }}
-                title={`Restore to ts=${entry.logicalTimestamp}`}
-              >
-                {restoring ? '⏳ Restoring…' : '⏪ Restore'}
-              </button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  className="ds-btn ds-btn-ghost"
+                  onClick={() => onView(entry)}
+                  style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem' }}
+                >
+                  👁️ View
+                </button>
+                <button
+                  className="ds-btn ds-btn-ghost"
+                  disabled={restoring}
+                  onClick={() => onRestore(entry.eventId)}
+                  style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem' }}
+                  title={`Restore to ts=${entry.logicalTimestamp}`}
+                >
+                  {restoring ? '⏳ Restoring…' : '⏪ Restore'}
+                </button>
+              </div>
             )
           )}
         </div>

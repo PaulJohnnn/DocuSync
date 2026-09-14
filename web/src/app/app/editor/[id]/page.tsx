@@ -594,28 +594,36 @@ export default function EditorPage() {
                   lastSyncedAt.current = Date.now();
                   uSet('docusync_offline_base', data.content);
                 } else if ((isTypingRef.current || hasPendingChangesRef.current) && currentContentRef.current !== data.content) {
-                  // We have offline/pending changes or are typing AND the server has new changes. Conflict!
-                  const original = offlineBaselineRef.current || lastSave.current;
-                  const merged = computeSignatureMerge(original, data.content, currentContentRef.current);
-                  if (merged !== currentContentRef.current) {
-                    setContentAndRef(merged);
-                    setSyncStatusMsg('Merged Signature Edit ✓');
-                    toast.success('Offline edits merged automatically');
-                    // Push conflict to Redis so all peers receive it
-                    const conflictId = crypto.randomUUID();
-                    fetch(`${_MATCHMAKER_URL}/conflicts`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        otp,
-                        conflictId,
-                        fileId,
-                        localContent: currentContentRef.current,
-                        serverContent: data.content,
-                        mergedContent: merged,
-                        timestamp: Date.now()
-                      })
-                    }).catch(() => {});
+                  if (room.algorithm === 'ot') {
+                    setContentAndRef(data.content);
+                    lastSave.current = data.content;
+                    setSaved(true);
+                    setSyncStatusMsg('Synced via OT ✓');
+                    uSet('docusync_offline_base', data.content);
+                  } else {
+                    // We have offline/pending changes or are typing AND the server has new changes. Conflict!
+                    const original = offlineBaselineRef.current || lastSave.current;
+                    const merged = computeSignatureMerge(original, data.content, currentContentRef.current);
+                    if (merged !== currentContentRef.current) {
+                      setContentAndRef(merged);
+                      setSyncStatusMsg('Merged Signature Edit ✓');
+                      toast.success('Offline edits merged automatically');
+                      // Push conflict to Redis so all peers receive it
+                      const conflictId = crypto.randomUUID();
+                      fetch(`${_MATCHMAKER_URL}/conflicts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          otp,
+                          conflictId,
+                          fileId,
+                          localContent: currentContentRef.current,
+                          serverContent: data.content,
+                          mergedContent: merged,
+                          timestamp: Date.now()
+                        })
+                      }).catch(() => {});
+                    }
                   }
                 }
               }
@@ -640,28 +648,36 @@ export default function EditorPage() {
                 _lastAcceptedSeq.current = data.snapshot?.committedAt || Date.now();
                 lastSyncedAt.current = Date.now();
               } else if ((isTypingRef.current || hasPendingChangesRef.current) && currentContentRef.current !== data.content) {
-                // Conflict in cloud Matchmaker
-                const original = offlineBaselineRef.current || lastSave.current;
-                const merged = computeSignatureMerge(original, data.content, currentContentRef.current);
-                if (merged !== currentContentRef.current) {
-                  setContentAndRef(merged);
-                  setSyncStatusMsg('Merged Signature Edit ☁');
-                  toast.success('Offline edits merged via cloud');
-                  // Push conflict event to Redis via Matchmaker History API
-                  const conflictId = crypto.randomUUID();
-                  fetch(`${_MATCHMAKER_URL}/conflicts`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      otp,
-                      conflictId,
-                      fileId,
-                      localContent: currentContentRef.current,
-                      serverContent: data.content,
-                      mergedContent: merged,
-                      timestamp: Date.now()
-                    })
-                  }).catch(() => {});
+                if (room.algorithm === 'ot') {
+                  setContentAndRef(data.content);
+                  lastSave.current = data.content;
+                  setSaved(true);
+                  setSyncStatusMsg('Synced via OT ☁');
+                  uSet('docusync_offline_base', data.content);
+                } else {
+                  // Conflict in cloud Matchmaker
+                  const original = offlineBaselineRef.current || lastSave.current;
+                  const merged = computeSignatureMerge(original, data.content, currentContentRef.current);
+                  if (merged !== currentContentRef.current) {
+                    setContentAndRef(merged);
+                    setSyncStatusMsg('Merged Signature Edit ☁');
+                    toast.success('Offline edits merged via cloud');
+                    // Push conflict event to Redis via Matchmaker History API
+                    const conflictId = crypto.randomUUID();
+                    fetch(`${_MATCHMAKER_URL}/conflicts`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        otp,
+                        conflictId,
+                        fileId,
+                        localContent: currentContentRef.current,
+                        serverContent: data.content,
+                        mergedContent: merged,
+                        timestamp: Date.now()
+                      })
+                    }).catch(() => {});
+                  }
                 }
               }
             }
@@ -741,7 +757,7 @@ export default function EditorPage() {
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false;
       saveFile(wrapped);
-    }, 1000);
+    }, 5000);
   }, [saveFile]);
 
   const handleMarginChange = useCallback((newMargin: string) => {
@@ -756,7 +772,7 @@ export default function EditorPage() {
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false;
       saveFile(wrapped);
-    }, 1000);
+    }, 5000);
   }, [saveFile]);
 
   useEffect(() => {
@@ -799,93 +815,133 @@ export default function EditorPage() {
     <>
       <PageShell>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button className="ds-btn" onClick={async () => { await saveFile(content, true); router.push('/app/files'); }}>
-              <ArrowLeft size={14} /> Back
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <button 
+              onClick={async () => { await saveFile(content, true); router.push('/app/files'); }}
+              style={{
+                width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'var(--bg-card)', border: '1px solid var(--border)', cursor: 'pointer', color: '#64748b'
+              }}
+            >
+              <ArrowLeft size={16} />
             </button>
             <div>
-              <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{file.name}</h1>
-              <p style={{ fontSize: 11, color: 'var(--t3)', margin: 0 }}>{syncStatusMsg}</p>
-            </div>
-            {/* Active Users Badge */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6, marginLeft: 16,
-              background: 'var(--s1)', border: '1px solid var(--b1)', borderRadius: 12,
-              padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--t2)'
-            }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--grn)' }} />
-              Users: {_connectedPeersCount + 1}
+              <h1 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: 0, marginBottom: 2 }}>{file.name}</h1>
+              <p style={{ fontSize: 12, color: '#64748b', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: '#3b82f6', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  {syncStatusMsg.replace('Synced ✓', 'Synced').replace('☁', '').replace('↓', '').trim()}
+                </span>
+                <span style={{ color: '#cbd5e1' }}>•</span>
+                Edited just now
+              </p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-           <div className="ds-topbar-actions">
-            {/* Conflict History Icon with Badge */}
-            <button className="ds-btn ds-btn-ghost" onClick={() => router.push(`/app/history/${fileId}`)} style={{ position: 'relative' }}>
-              <Clock size={14} /> Document History
-              <ConflictBadge fileId={fileId} />
-            </button>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Active Users Matching Mockup */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 4px', background: '#f8fafc', borderRadius: 20, border: '1px solid #e2e8f0', height: 34 }}>
+                <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 4 }}>
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#f1f5f9', color: '#475569', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', zIndex: 3 }}>PJ</div>
+                  {_connectedPeersCount > 0 && <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#dcfce7', color: '#16a34a', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: -8, zIndex: 2 }}>JC</div>}
+                  {_connectedPeersCount > 1 && <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#ffedd5', color: '#ea580c', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: -8, zIndex: 1 }}>MR</div>}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6, paddingRight: 4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+                  {_connectedPeersCount + 1} in this file
+                </div>
+              </div>
             </div>
 
-            <button className="ds-btn" onClick={() => {
-              const origName = file.name || 'document';
-              const ext = origName.split('.').pop()?.toLowerCase() || '';
+            <div style={{ display: 'flex', gap: 10 }}>
+              {/* Document History per user request */}
+              <button 
+                onClick={() => router.push(`/app/history/${fileId}`)}
+                style={{
+                  padding: '0 14px', height: 36, borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  background: '#fff', color: '#475569', border: '1px solid #cbd5e1', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6, position: 'relative',
+                  transition: 'all 0.15s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+              >
+                <Clock size={15} /> History
+                <ConflictBadge fileId={fileId} />
+              </button>
 
-              if (ext === 'docx' || ext === 'doc') {
-                const wordHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset="utf-8"><title>${origName}</title></head><body>${content}</body></html>`;
-                const blob = new Blob([wordHtml], { type: 'application/msword' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = origName.replace(/\.docx?$/, '.doc');
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                return;
-              }
+              {/* Download button matching mockup */}
+              <button 
+                onClick={() => {
+                  const origName = file.name || 'document';
+                  const ext = origName.split('.').pop()?.toLowerCase() || '';
 
-              const isHtml = ext === 'html' || ext === 'htm';
-              let contentForDownload = content;
-              if (!isHtml) {
-                // Strip TipTap HTML tags so plain-text files don't contain markup
-                contentForDownload = content
-                  .replace(/<\/p>\s*<p[^>]*>/gi, '\n')
-                  .replace(/<br\s*\/?>/gi, '\n')
-                  .replace(/<\/h[1-6]>/gi, '\n')
-                  .replace(/<\/li>/gi, '\n')
-                  .replace(/<\/blockquote>/gi, '\n')
-                  .replace(/<\/div>/gi, '\n')
-                  .replace(/<\/pre>/gi, '\n')
-                  .replace(/<[^>]*>/g, '')
-                  .replace(/&amp;/g, '&')
-                  .replace(/&lt;/g, '<')
-                  .replace(/&gt;/g, '>')
-                  .replace(/&quot;/g, '"')
-                  .replace(/&#39;/g, "'")
-                  .replace(/&nbsp;/g, ' ')
-                  .replace(/\n{3,}/g, '\n\n')
-                  .trim();
-              }
-              const mimeType = isHtml ? 'text/html' : 'text/plain;charset=utf-8';
-              const blob = new Blob([contentForDownload], { type: mimeType });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = origName;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-            }}>
-              Download
-            </button>
-            <button className="ds-btn ds-btn-primary" onClick={() => {
-              saveFile(content, true);
-              if (!isOnline || syncState === 'offline') {
-                toast.info('Offline session finalized. Your edits are locally queued.');
-              }
-              router.push('/app/files');
-            }} disabled={syncing}>Done</button>
+                  const isHtml = ext === 'html' || ext === 'htm';
+                  let finalExt = origName;
+                  if (ext === 'docx' || ext === 'doc') {
+                     finalExt = origName.replace(/\.docx?$/, '.txt');
+                  }
+                  let contentForDownload = content;
+                  if (!isHtml) {
+                    contentForDownload = content
+                      .replace(/<\/p>\s*<p[^>]*>/gi, '\n')
+                      .replace(/<br\s*\/?>/gi, '\n')
+                      .replace(/<\/h[1-6]>/gi, '\n')
+                      .replace(/<\/li>/gi, '\n')
+                      .replace(/<\/blockquote>/gi, '\n')
+                      .replace(/<\/div>/gi, '\n')
+                      .replace(/<\/pre>/gi, '\n')
+                      .replace(/<[^>]*>/g, '')
+                      .replace(/&amp;/g, '&')
+                      .replace(/&lt;/g, '<')
+                      .replace(/&gt;/g, '>')
+                      .replace(/&quot;/g, '"')
+                      .replace(/&#39;/g, "'")
+                      .replace(/&nbsp;/g, ' ')
+                      .replace(/\n{3,}/g, '\n\n')
+                      .trim();
+                  }
+                  const mimeType = isHtml ? 'text/html' : 'text/plain;charset=utf-8';
+                  const blob = new Blob([contentForDownload], { type: mimeType });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = finalExt;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+                style={{
+                  padding: '0 12px', height: 36, borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  background: 'var(--bg-card)', color: '#475569', border: '1px solid var(--border)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Download
+              </button>
+
+              <button 
+                onClick={() => {
+                  saveFile(content, true);
+                  if (!isOnline || syncState === 'offline') {
+                    toast.info('Offline session finalized. Your edits are locally queued.');
+                  }
+                  router.push('/app/files');
+                }} 
+                disabled={syncing}
+                style={{
+                  padding: '0 16px', height: 36, borderRadius: 8, fontSize: 13, fontWeight: 700,
+                  background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: '#fff', border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6, opacity: syncing ? 0.7 : 1,
+                  boxShadow: '0 2px 6px rgba(37,99,235,0.2)'
+                }}
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
 

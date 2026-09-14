@@ -22,6 +22,7 @@ export interface Room {
   hostPort?: number;
   /** Whether this room is starred/favourited by the user */
   starred?: boolean;
+  algorithm?: 'lww' | 'ot';
 }
 
 // User-scoped storage keys (resolved at call time)
@@ -122,7 +123,7 @@ export async function listRooms(): Promise<Room[]> {
 }
 
 /** Create a new room with the given name. Returns the created room + OTP. */
-export async function createRoom(name: string): Promise<Room> {
+export async function createRoom(name: string, algorithm: 'lww' | 'ot' = 'lww'): Promise<Room> {
   if (!name.trim()) throw new Error('Room name cannot be empty.');
   let otp = genOTP();
   let _isMatchmakerSuccess = false;
@@ -140,7 +141,8 @@ export async function createRoom(name: string): Promise<Room> {
         hostNodeId: `web-${Date.now()}`,
         hostIp: getWebHostIp(),
         hostPort: 9000,
-        hostType: 'web'
+        hostType: 'web',
+        algorithm
       }),
     });
     if (res.ok) {
@@ -166,6 +168,7 @@ export async function createRoom(name: string): Promise<Room> {
     fileCount: 0,
     hostIp: getWebHostIp(),
     hostPort: 9000,
+    algorithm
   };
   const rooms = loadRooms();
   saveRooms([...rooms, room]);
@@ -237,6 +240,7 @@ export async function joinRoom(otp: string): Promise<Room> {
   const targetIp = apiData?.hostIp || globalEntry?.hostIp;
   const targetPort = apiData?.hostPort || globalEntry?.hostPort || 9000;
   const apiMemberCount = apiData?.memberCount || 1;
+  const algorithm = apiData?.algorithm || 'lww';
 
   const existing = rooms.find(r => r.otp === upperOtp || r.id === otp);
   if (existing) {
@@ -259,6 +263,7 @@ export async function joinRoom(otp: string): Promise<Room> {
     fileCount: 0,
     hostIp: targetIp || getWebHostIp(),
     hostPort: targetPort,
+    algorithm
   };
   saveRooms([...rooms, joined]);
   return joined;

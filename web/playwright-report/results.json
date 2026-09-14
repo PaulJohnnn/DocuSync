@@ -4,9 +4,7 @@
       "C:\\Program Files\\nodejs\\node.exe",
       "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\node_modules\\@playwright\\test\\cli.js",
       "test",
-      "tests/e2e/04-multi-user-lww-editing.spec.ts",
-      "--project=desktop-chromium",
-      "--headed"
+      "tests/e2e/08-benchmark-convergence.spec.ts"
     ],
     "configFile": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\playwright.config.ts",
     "rootDir": "C:/Users/Paul John Palamara/Downloads/ThesisSync/web/tests/e2e",
@@ -20,7 +18,7 @@
     "grepInvert": null,
     "maxFailures": 0,
     "metadata": {
-      "actualWorkers": 5
+      "actualWorkers": 6
     },
     "preserveOutput": "always",
     "projects": [
@@ -29,7 +27,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 5
+          "actualWorkers": 6
         },
         "id": "desktop-chromium",
         "name": "desktop-chromium",
@@ -45,7 +43,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 5
+          "actualWorkers": 6
         },
         "id": "small-window",
         "name": "small-window",
@@ -61,7 +59,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 5
+          "actualWorkers": 6
         },
         "id": "mobile-chrome",
         "name": "mobile-chrome",
@@ -77,7 +75,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 5
+          "actualWorkers": 6
         },
         "id": "firefox",
         "name": "firefox",
@@ -123,479 +121,553 @@
   },
   "suites": [
     {
-      "title": "04-multi-user-lww-editing.spec.ts",
-      "file": "04-multi-user-lww-editing.spec.ts",
+      "title": "08-benchmark-convergence.spec.ts",
+      "file": "08-benchmark-convergence.spec.ts",
       "column": 0,
       "line": 0,
-      "specs": [],
-      "suites": [
+      "specs": [
         {
-          "title": "Suite 4 — Multi-User LWW Concurrent Editing",
-          "file": "04-multi-user-lww-editing.spec.ts",
-          "line": 51,
-          "column": 6,
-          "specs": [
+          "title": "Thesis Benchmark (LWW): Convergence, Latency, and Bandwidth",
+          "ok": false,
+          "tags": [],
+          "tests": [
             {
-              "title": "A — Two users type simultaneously, both edits survive (LWW)",
-              "ok": false,
-              "tags": [],
-              "tests": [
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
                 {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "desktop-chromium",
-                  "projectName": "desktop-chromium",
-                  "results": [
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "timedOut",
+                  "duration": 60618,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
                     {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "timedOut",
-                      "duration": 30394,
-                      "error": {
-                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
-                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+                      "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts",
+                        "column": 14,
+                        "line": 26
                       },
-                      "errors": [
-                        {
-                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
-                        },
-                        {
-                          "location": {
-                            "file": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\04-multi-user-lww-editing.spec.ts",
-                            "column": 16,
-                            "line": 25
-                          },
-                          "message": "Error: locator.click: Test ended.\nCall log:\n\u001b[2m  - waiting for locator('.ProseMirror, [contenteditable=\"true\"]').first()\u001b[22m\n\n\n\u001b[0m \u001b[90m 23 |\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m typeInEditor(page\u001b[33m:\u001b[39m any\u001b[33m,\u001b[39m text\u001b[33m:\u001b[39m string\u001b[33m,\u001b[39m delayMs \u001b[33m=\u001b[39m \u001b[35m50\u001b[39m) {\n \u001b[90m 24 |\u001b[39m   \u001b[36mconst\u001b[39m editor \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'.ProseMirror, [contenteditable=\"true\"]'\u001b[39m)\u001b[33m.\u001b[39mfirst()\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 25 |\u001b[39m   \u001b[36mawait\u001b[39m editor\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 26 |\u001b[39m   \u001b[36mawait\u001b[39m editor\u001b[33m.\u001b[39mtype(text\u001b[33m,\u001b[39m { delay\u001b[33m:\u001b[39m delayMs })\u001b[33m;\u001b[39m\n \u001b[90m 27 |\u001b[39m }\n \u001b[90m 28 |\u001b[39m\u001b[0m\n\u001b[2m    at typeInEditor (C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\04-multi-user-lww-editing.spec.ts:25:16)\u001b[22m\n\u001b[2m    at C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\04-multi-user-lww-editing.spec.ts:87:7\u001b[22m"
-                        }
-                      ],
-                      "stdout": [
-                        {
-                          "text": "  [LWW-A] Loading editor for both users...\n"
-                        },
-                        {
-                          "text": "  [LWW-A] Both users typing simultaneously...\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-09-13T09:55:34.125Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\04-multi-user-lww-editing--36de5-sly-both-edits-survive-LWW--desktop-chromium\\test-failed-1.png"
-                        },
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\04-multi-user-lww-editing--36de5-sly-both-edits-survive-LWW--desktop-chromium\\test-failed-2.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\04-multi-user-lww-editing--36de5-sly-both-edits-survive-LWW--desktop-chromium\\error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\04-multi-user-lww-editing--36de5-sly-both-edits-survive-LWW--desktop-chromium\\trace.zip"
-                        }
-                      ]
+                      "message": "Error: page.click: Test ended.\nCall log:\n\u001b[2m  - waiting for locator('text=Host Workspace')\u001b[22m\n\u001b[2m    4 × waiting for \"http://localhost:3000/app/login\" navigation to finish...\u001b[22m\n\u001b[2m      - navigated to \"http://localhost:3000/app/login\"\u001b[22m\n\n\n\u001b[0m \u001b[90m 24 |\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m createRoom(page\u001b[33m:\u001b[39m \u001b[33mPage\u001b[39m\u001b[33m,\u001b[39m algo\u001b[33m:\u001b[39m \u001b[32m'lww'\u001b[39m\u001b[33m|\u001b[39m\u001b[32m'ot'\u001b[39m)\u001b[33m:\u001b[39m \u001b[33mPromise\u001b[39m\u001b[33m<\u001b[39m\u001b[33mstring\u001b[39m\u001b[33m>\u001b[39m {\n \u001b[90m 25 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(\u001b[32m'http://localhost:3000/app/peers'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 26 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mclick(\u001b[32m'text=Host Workspace'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m              \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 27 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m500\u001b[39m)\u001b[33m;\u001b[39m \u001b[90m// Animation wait\u001b[39m\n \u001b[90m 28 |\u001b[39m   \n \u001b[90m 29 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mfill(\u001b[32m'input[placeholder=\"e.g., Q3 Planning...\"]'\u001b[39m\u001b[33m,\u001b[39m \u001b[32m`Benchmark Room ${algo.toUpperCase()}`\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m\n\u001b[2m    at createRoom (C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:26:14)\u001b[22m\n\u001b[2m    at C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:73:17\u001b[22m"
                     }
                   ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "91d58174b69ae49fc26a-be0ea77b286654b41f09",
-              "file": "04-multi-user-lww-editing.spec.ts",
-              "line": 57,
-              "column": 7
-            },
-            {
-              "title": "B — 5 users rapid-fire editing for 10 seconds, no crashes",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-14T08:07:10.743Z",
                   "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "desktop-chromium",
-                  "projectName": "desktop-chromium",
-                  "results": [
+                  "attachments": [
                     {
-                      "workerIndex": 1,
-                      "parallelIndex": 1,
-                      "status": "passed",
-                      "duration": 27946,
-                      "errors": [],
-                      "stdout": [
-                        {
-                          "text": "  [5-USER] Spawning 5 browser contexts...\n"
-                        },
-                        {
-                          "text": "  [5-USER] All 5 users in editor. Starting rapid edits...\n"
-                        },
-                        {
-                          "text": "  [5-USER] Editing complete. Checking for crashes...\n"
-                        },
-                        {
-                          "text": "\n────────────────────────────────────────────────────────────\n"
-                        },
-                        {
-                          "text": "  🖥  BROWSER CONSOLE SUMMARY [USER 0]\n"
-                        },
-                        {
-                          "text": "────────────────────────────────────────────────────────────\n"
-                        },
-                        {
-                          "text": "  Errors:          0\n"
-                        },
-                        {
-                          "text": "  Warnings:        0\n"
-                        },
-                        {
-                          "text": "  Network Fails:   0\n"
-                        },
-                        {
-                          "text": "  Total Log Lines: 0\n"
-                        },
-                        {
-                          "text": "────────────────────────────────────────────────────────────\n\n"
-                        },
-                        {
-                          "text": "\n────────────────────────────────────────────────────────────\n"
-                        },
-                        {
-                          "text": "  🖥  BROWSER CONSOLE SUMMARY [USER 1]\n"
-                        },
-                        {
-                          "text": "────────────────────────────────────────────────────────────\n"
-                        },
-                        {
-                          "text": "  Errors:          0\n"
-                        },
-                        {
-                          "text": "  Warnings:        0\n"
-                        },
-                        {
-                          "text": "  Network Fails:   0\n"
-                        },
-                        {
-                          "text": "  Total Log Lines: 0\n"
-                        },
-                        {
-                          "text": "────────────────────────────────────────────────────────────\n\n"
-                        },
-                        {
-                          "text": "\n────────────────────────────────────────────────────────────\n"
-                        },
-                        {
-                          "text": "  🖥  BROWSER CONSOLE SUMMARY [USER 2]\n"
-                        },
-                        {
-                          "text": "────────────────────────────────────────────────────────────\n"
-                        },
-                        {
-                          "text": "  Errors:          0\n"
-                        },
-                        {
-                          "text": "  Warnings:        0\n"
-                        },
-                        {
-                          "text": "  Network Fails:   0\n"
-                        },
-                        {
-                          "text": "  Total Log Lines: 0\n"
-                        },
-                        {
-                          "text": "────────────────────────────────────────────────────────────\n\n"
-                        },
-                        {
-                          "text": "\n────────────────────────────────────────────────────────────\n"
-                        },
-                        {
-                          "text": "  🖥  BROWSER CONSOLE SUMMARY [USER 3]\n"
-                        },
-                        {
-                          "text": "────────────────────────────────────────────────────────────\n"
-                        },
-                        {
-                          "text": "  Errors:          0\n"
-                        },
-                        {
-                          "text": "  Warnings:        0\n"
-                        },
-                        {
-                          "text": "  Network Fails:   0\n"
-                        },
-                        {
-                          "text": "  Total Log Lines: 0\n"
-                        },
-                        {
-                          "text": "────────────────────────────────────────────────────────────\n\n"
-                        },
-                        {
-                          "text": "\n────────────────────────────────────────────────────────────\n"
-                        },
-                        {
-                          "text": "  🖥  BROWSER CONSOLE SUMMARY [USER 4]\n"
-                        },
-                        {
-                          "text": "────────────────────────────────────────────────────────────\n"
-                        },
-                        {
-                          "text": "  Errors:          0\n"
-                        },
-                        {
-                          "text": "  Warnings:        0\n"
-                        },
-                        {
-                          "text": "  Network Fails:   0\n"
-                        },
-                        {
-                          "text": "  Total Log Lines: 0\n"
-                        },
-                        {
-                          "text": "────────────────────────────────────────────────────────────\n\n"
-                        },
-                        {
-                          "text": "  [5-USER] ✅ 0 uncaught JS errors. Total network fails (excl. expected): 0\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-09-13T09:55:34.130Z",
-                      "annotations": [],
-                      "attachments": []
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-desktop-chromium\\test-failed-1.png"
+                    },
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-desktop-chromium\\test-failed-2.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-desktop-chromium\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-desktop-chromium\\trace.zip"
                     }
-                  ],
-                  "status": "expected"
+                  ]
                 }
               ],
-              "id": "91d58174b69ae49fc26a-2d64c2fe1d2be149e45b",
-              "file": "04-multi-user-lww-editing.spec.ts",
-              "line": 117,
-              "column": 7
-            },
-            {
-              "title": "C — 15 users join same room via API (capacity test)",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "desktop-chromium",
-                  "projectName": "desktop-chromium",
-                  "results": [
-                    {
-                      "workerIndex": 2,
-                      "parallelIndex": 2,
-                      "status": "passed",
-                      "duration": 3109,
-                      "errors": [],
-                      "stdout": [
-                        {
-                          "text": "  [15-PEER] Created room with OTP: RVYNEU\n"
-                        },
-                        {
-                          "text": "  [15-PEER] Joined: 15/15 successful\n"
-                        },
-                        {
-                          "text": "  [15-PEER] Failed: none\n"
-                        },
-                        {
-                          "text": "  [15-PEER] Member count at peak: 4\n"
-                        },
-                        {
-                          "text": "  [15-PEER] 16th user status: 200\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-09-13T09:55:34.153Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "91d58174b69ae49fc26a-029ff8036c9d08b41b53",
-              "file": "04-multi-user-lww-editing.spec.ts",
-              "line": 183,
-              "column": 7
-            },
-            {
-              "title": "D — API: Two nodes push concurrent edits (LWW conflict scenario)",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "desktop-chromium",
-                  "projectName": "desktop-chromium",
-                  "results": [
-                    {
-                      "workerIndex": 3,
-                      "parallelIndex": 3,
-                      "status": "failed",
-                      "duration": 2319,
-                      "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\n\u001b[1mMatcher error\u001b[22m: \u001b[31mreceived\u001b[39m value must be a number or bigint\n\nReceived has value: \u001b[31mundefined\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\n\u001b[1mMatcher error\u001b[22m: \u001b[31mreceived\u001b[39m value must be a number or bigint\n\nReceived has value: \u001b[31mundefined\u001b[39m\n    at C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\04-multi-user-lww-editing.spec.ts:313:45",
-                        "location": {
-                          "file": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\04-multi-user-lww-editing.spec.ts",
-                          "column": 45,
-                          "line": 313
-                        },
-                        "snippet": "\u001b[0m \u001b[90m 311 |\u001b[39m       \u001b[36mconst\u001b[39m doc \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m getRes\u001b[33m.\u001b[39mjson()\u001b[33m;\u001b[39m\n \u001b[90m 312 |\u001b[39m       console\u001b[33m.\u001b[39mlog(\u001b[32m`  [LWW-D] LWW Winner content: \"${doc.document?.content?.slice(0, 80)}\"`\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 313 |\u001b[39m       expect(doc\u001b[33m.\u001b[39mdocument\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mcontent\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mlength)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m0\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                                             \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 314 |\u001b[39m     }\n \u001b[90m 315 |\u001b[39m\n \u001b[90m 316 |\u001b[39m     \u001b[90m// Record conflict history\u001b[39m\u001b[0m"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\04-multi-user-lww-editing.spec.ts",
-                            "column": 45,
-                            "line": 313
-                          },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\n\u001b[1mMatcher error\u001b[22m: \u001b[31mreceived\u001b[39m value must be a number or bigint\n\nReceived has value: \u001b[31mundefined\u001b[39m\n\n\u001b[0m \u001b[90m 311 |\u001b[39m       \u001b[36mconst\u001b[39m doc \u001b[33m=\u001b[39m \u001b[36mawait\u001b[39m getRes\u001b[33m.\u001b[39mjson()\u001b[33m;\u001b[39m\n \u001b[90m 312 |\u001b[39m       console\u001b[33m.\u001b[39mlog(\u001b[32m`  [LWW-D] LWW Winner content: \"${doc.document?.content?.slice(0, 80)}\"`\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 313 |\u001b[39m       expect(doc\u001b[33m.\u001b[39mdocument\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mcontent\u001b[33m?\u001b[39m\u001b[33m.\u001b[39mlength)\u001b[33m.\u001b[39mtoBeGreaterThan(\u001b[35m0\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                                             \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 314 |\u001b[39m     }\n \u001b[90m 315 |\u001b[39m\n \u001b[90m 316 |\u001b[39m     \u001b[90m// Record conflict history\u001b[39m\u001b[0m\n\u001b[2m    at C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\04-multi-user-lww-editing.spec.ts:313:45\u001b[22m"
-                        }
-                      ],
-                      "stdout": [
-                        {
-                          "text": "  [LWW-D] Node A push: 200\n"
-                        },
-                        {
-                          "text": "  [LWW-D] Node B push: 200\n"
-                        },
-                        {
-                          "text": "  [LWW-D] LWW Winner content: \"undefined\"\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-09-13T09:55:34.151Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\04-multi-user-lww-editing--d61cf-dits-LWW-conflict-scenario--desktop-chromium\\error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\04-multi-user-lww-editing--d61cf-dits-LWW-conflict-scenario--desktop-chromium\\trace.zip"
-                        }
-                      ],
-                      "errorLocation": {
-                        "file": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\04-multi-user-lww-editing.spec.ts",
-                        "column": 45,
-                        "line": 313
-                      }
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "91d58174b69ae49fc26a-77c8ca67f605f22660c2",
-              "file": "04-multi-user-lww-editing.spec.ts",
-              "line": 250,
-              "column": 7
-            },
-            {
-              "title": "E — Offline/Reconnect: offline edits queue then sync on reconnect",
-              "ok": false,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "desktop-chromium",
-                  "projectName": "desktop-chromium",
-                  "results": [
-                    {
-                      "workerIndex": 4,
-                      "parallelIndex": 4,
-                      "status": "timedOut",
-                      "duration": 30298,
-                      "error": {
-                        "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
-                        "stack": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
-                      },
-                      "errors": [
-                        {
-                          "message": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
-                        },
-                        {
-                          "location": {
-                            "file": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\04-multi-user-lww-editing.spec.ts",
-                            "column": 16,
-                            "line": 25
-                          },
-                          "message": "Error: locator.click: Test ended.\nCall log:\n\u001b[2m  - waiting for locator('.ProseMirror, [contenteditable=\"true\"]').first()\u001b[22m\n\n\n\u001b[0m \u001b[90m 23 |\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m typeInEditor(page\u001b[33m:\u001b[39m any\u001b[33m,\u001b[39m text\u001b[33m:\u001b[39m string\u001b[33m,\u001b[39m delayMs \u001b[33m=\u001b[39m \u001b[35m50\u001b[39m) {\n \u001b[90m 24 |\u001b[39m   \u001b[36mconst\u001b[39m editor \u001b[33m=\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'.ProseMirror, [contenteditable=\"true\"]'\u001b[39m)\u001b[33m.\u001b[39mfirst()\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 25 |\u001b[39m   \u001b[36mawait\u001b[39m editor\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 26 |\u001b[39m   \u001b[36mawait\u001b[39m editor\u001b[33m.\u001b[39mtype(text\u001b[33m,\u001b[39m { delay\u001b[33m:\u001b[39m delayMs })\u001b[33m;\u001b[39m\n \u001b[90m 27 |\u001b[39m }\n \u001b[90m 28 |\u001b[39m\u001b[0m\n\u001b[2m    at typeInEditor (C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\04-multi-user-lww-editing.spec.ts:25:16)\u001b[22m\n\u001b[2m    at C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\04-multi-user-lww-editing.spec.ts:350:11\u001b[22m"
-                        }
-                      ],
-                      "stdout": [
-                        {
-                          "text": "  [OFFLINE] User B set to offline mode.\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-09-13T09:55:34.146Z",
-                      "annotations": [],
-                      "attachments": [
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\04-multi-user-lww-editing--33ac4-ueue-then-sync-on-reconnect-desktop-chromium\\test-failed-1.png"
-                        },
-                        {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\04-multi-user-lww-editing--33ac4-ueue-then-sync-on-reconnect-desktop-chromium\\test-failed-2.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\04-multi-user-lww-editing--33ac4-ueue-then-sync-on-reconnect-desktop-chromium\\error-context.md"
-                        },
-                        {
-                          "name": "trace",
-                          "contentType": "application/zip",
-                          "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\04-multi-user-lww-editing--33ac4-ueue-then-sync-on-reconnect-desktop-chromium\\trace.zip"
-                        }
-                      ]
-                    }
-                  ],
-                  "status": "unexpected"
-                }
-              ],
-              "id": "91d58174b69ae49fc26a-3ed7fa7aa2f23179b23a",
-              "file": "04-multi-user-lww-editing.spec.ts",
-              "line": 328,
-              "column": 7
+              "status": "unexpected"
             }
-          ]
+          ],
+          "id": "2b47fe08d27e63f91f3a-4af2cacedd628903bd86",
+          "file": "08-benchmark-convergence.spec.ts",
+          "line": 56,
+          "column": 7
+        },
+        {
+          "title": "Thesis Benchmark (OT): Convergence, Latency, and Bandwidth",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop-chromium",
+              "projectName": "desktop-chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
+                  "status": "timedOut",
+                  "duration": 61224,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts",
+                        "column": 14,
+                        "line": 26
+                      },
+                      "message": "Error: page.click: Test ended.\nCall log:\n\u001b[2m  - waiting for locator('text=Host Workspace')\u001b[22m\n\u001b[2m    5 × waiting for \"http://localhost:3000/app/login\" navigation to finish...\u001b[22m\n\u001b[2m      - navigated to \"http://localhost:3000/app/login\"\u001b[22m\n\n\n\u001b[0m \u001b[90m 24 |\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m createRoom(page\u001b[33m:\u001b[39m \u001b[33mPage\u001b[39m\u001b[33m,\u001b[39m algo\u001b[33m:\u001b[39m \u001b[32m'lww'\u001b[39m\u001b[33m|\u001b[39m\u001b[32m'ot'\u001b[39m)\u001b[33m:\u001b[39m \u001b[33mPromise\u001b[39m\u001b[33m<\u001b[39m\u001b[33mstring\u001b[39m\u001b[33m>\u001b[39m {\n \u001b[90m 25 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(\u001b[32m'http://localhost:3000/app/peers'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 26 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mclick(\u001b[32m'text=Host Workspace'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m              \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 27 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m500\u001b[39m)\u001b[33m;\u001b[39m \u001b[90m// Animation wait\u001b[39m\n \u001b[90m 28 |\u001b[39m   \n \u001b[90m 29 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mfill(\u001b[32m'input[placeholder=\"e.g., Q3 Planning...\"]'\u001b[39m\u001b[33m,\u001b[39m \u001b[32m`Benchmark Room ${algo.toUpperCase()}`\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m\n\u001b[2m    at createRoom (C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:26:14)\u001b[22m\n\u001b[2m    at C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:73:17\u001b[22m"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-14T08:07:10.693Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-desktop-chromium\\test-failed-1.png"
+                    },
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-desktop-chromium\\test-failed-2.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-desktop-chromium\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-desktop-chromium\\trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2b47fe08d27e63f91f3a-e21fdce83280b4ddef10",
+          "file": "08-benchmark-convergence.spec.ts",
+          "line": 56,
+          "column": 7
+        },
+        {
+          "title": "Thesis Benchmark (LWW): Convergence, Latency, and Bandwidth",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "small-window",
+              "projectName": "small-window",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
+                  "status": "timedOut",
+                  "duration": 60729,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts",
+                        "column": 14,
+                        "line": 26
+                      },
+                      "message": "Error: page.click: Test ended.\nCall log:\n\u001b[2m  - waiting for locator('text=Host Workspace')\u001b[22m\n\u001b[2m    2 × waiting for \"http://localhost:3000/app/login\" navigation to finish...\u001b[22m\n\u001b[2m      - navigated to \"http://localhost:3000/app/login\"\u001b[22m\n\u001b[2m    - waiting for navigation to finish...\u001b[22m\n\u001b[2m    2 × navigated to \"http://localhost:3000/app/login\"\u001b[22m\n\u001b[2m      - waiting for \"http://localhost:3000/app/login\" navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"http://localhost:3000/app/login\"\u001b[22m\n\n\n\u001b[0m \u001b[90m 24 |\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m createRoom(page\u001b[33m:\u001b[39m \u001b[33mPage\u001b[39m\u001b[33m,\u001b[39m algo\u001b[33m:\u001b[39m \u001b[32m'lww'\u001b[39m\u001b[33m|\u001b[39m\u001b[32m'ot'\u001b[39m)\u001b[33m:\u001b[39m \u001b[33mPromise\u001b[39m\u001b[33m<\u001b[39m\u001b[33mstring\u001b[39m\u001b[33m>\u001b[39m {\n \u001b[90m 25 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(\u001b[32m'http://localhost:3000/app/peers'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 26 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mclick(\u001b[32m'text=Host Workspace'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m              \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 27 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m500\u001b[39m)\u001b[33m;\u001b[39m \u001b[90m// Animation wait\u001b[39m\n \u001b[90m 28 |\u001b[39m   \n \u001b[90m 29 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mfill(\u001b[32m'input[placeholder=\"e.g., Q3 Planning...\"]'\u001b[39m\u001b[33m,\u001b[39m \u001b[32m`Benchmark Room ${algo.toUpperCase()}`\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m\n\u001b[2m    at createRoom (C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:26:14)\u001b[22m\n\u001b[2m    at C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:73:17\u001b[22m"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-14T08:07:10.640Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-small-window\\test-failed-2.png"
+                    },
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-small-window\\test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-small-window\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-small-window\\trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2b47fe08d27e63f91f3a-632a1c0e81c4c668bd69",
+          "file": "08-benchmark-convergence.spec.ts",
+          "line": 56,
+          "column": 7
+        },
+        {
+          "title": "Thesis Benchmark (OT): Convergence, Latency, and Bandwidth",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "small-window",
+              "projectName": "small-window",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
+                  "status": "timedOut",
+                  "duration": 61614,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts",
+                        "column": 14,
+                        "line": 26
+                      },
+                      "message": "Error: page.click: Test ended.\nCall log:\n\u001b[2m  - waiting for locator('text=Host Workspace')\u001b[22m\n\u001b[2m    5 × waiting for \"http://localhost:3000/app/login\" navigation to finish...\u001b[22m\n\u001b[2m      - navigated to \"http://localhost:3000/app/login\"\u001b[22m\n\n\n\u001b[0m \u001b[90m 24 |\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m createRoom(page\u001b[33m:\u001b[39m \u001b[33mPage\u001b[39m\u001b[33m,\u001b[39m algo\u001b[33m:\u001b[39m \u001b[32m'lww'\u001b[39m\u001b[33m|\u001b[39m\u001b[32m'ot'\u001b[39m)\u001b[33m:\u001b[39m \u001b[33mPromise\u001b[39m\u001b[33m<\u001b[39m\u001b[33mstring\u001b[39m\u001b[33m>\u001b[39m {\n \u001b[90m 25 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(\u001b[32m'http://localhost:3000/app/peers'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 26 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mclick(\u001b[32m'text=Host Workspace'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m              \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 27 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m500\u001b[39m)\u001b[33m;\u001b[39m \u001b[90m// Animation wait\u001b[39m\n \u001b[90m 28 |\u001b[39m   \n \u001b[90m 29 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mfill(\u001b[32m'input[placeholder=\"e.g., Q3 Planning...\"]'\u001b[39m\u001b[33m,\u001b[39m \u001b[32m`Benchmark Room ${algo.toUpperCase()}`\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m\n\u001b[2m    at createRoom (C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:26:14)\u001b[22m\n\u001b[2m    at C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:73:17\u001b[22m"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-14T08:07:10.644Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-small-window\\test-failed-2.png"
+                    },
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-small-window\\test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-small-window\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-small-window\\trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2b47fe08d27e63f91f3a-8b6bb38ea149fdce171d",
+          "file": "08-benchmark-convergence.spec.ts",
+          "line": 56,
+          "column": 7
+        },
+        {
+          "title": "Thesis Benchmark (LWW): Convergence, Latency, and Bandwidth",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chrome",
+              "projectName": "mobile-chrome",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 4,
+                  "status": "timedOut",
+                  "duration": 63383,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts",
+                        "column": 14,
+                        "line": 26
+                      },
+                      "message": "Error: page.click: Test ended.\nCall log:\n\u001b[2m  - waiting for locator('text=Host Workspace')\u001b[22m\n\u001b[2m    - waiting for navigation to finish...\u001b[22m\n\u001b[2m    2 × navigated to \"http://localhost:3000/app/login\"\u001b[22m\n\u001b[2m      - waiting for \"http://localhost:3000/app/login\" navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"http://localhost:3000/app/login\"\u001b[22m\n\n\n\u001b[0m \u001b[90m 24 |\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m createRoom(page\u001b[33m:\u001b[39m \u001b[33mPage\u001b[39m\u001b[33m,\u001b[39m algo\u001b[33m:\u001b[39m \u001b[32m'lww'\u001b[39m\u001b[33m|\u001b[39m\u001b[32m'ot'\u001b[39m)\u001b[33m:\u001b[39m \u001b[33mPromise\u001b[39m\u001b[33m<\u001b[39m\u001b[33mstring\u001b[39m\u001b[33m>\u001b[39m {\n \u001b[90m 25 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(\u001b[32m'http://localhost:3000/app/peers'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 26 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mclick(\u001b[32m'text=Host Workspace'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m              \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 27 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m500\u001b[39m)\u001b[33m;\u001b[39m \u001b[90m// Animation wait\u001b[39m\n \u001b[90m 28 |\u001b[39m   \n \u001b[90m 29 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mfill(\u001b[32m'input[placeholder=\"e.g., Q3 Planning...\"]'\u001b[39m\u001b[33m,\u001b[39m \u001b[32m`Benchmark Room ${algo.toUpperCase()}`\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m\n\u001b[2m    at createRoom (C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:26:14)\u001b[22m\n\u001b[2m    at C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:73:17\u001b[22m"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-14T08:07:10.749Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-mobile-chrome\\test-failed-2.png"
+                    },
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-mobile-chrome\\test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-mobile-chrome\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-mobile-chrome\\trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2b47fe08d27e63f91f3a-d132d8ab21e0f2bad671",
+          "file": "08-benchmark-convergence.spec.ts",
+          "line": 56,
+          "column": 7
+        },
+        {
+          "title": "Thesis Benchmark (OT): Convergence, Latency, and Bandwidth",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "mobile-chrome",
+              "projectName": "mobile-chrome",
+              "results": [
+                {
+                  "workerIndex": 5,
+                  "parallelIndex": 5,
+                  "status": "timedOut",
+                  "duration": 63279,
+                  "error": {
+                    "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m",
+                    "stack": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                  },
+                  "errors": [
+                    {
+                      "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                    },
+                    {
+                      "location": {
+                        "file": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts",
+                        "column": 14,
+                        "line": 26
+                      },
+                      "message": "Error: page.click: Test ended.\nCall log:\n\u001b[2m  - waiting for locator('text=Host Workspace')\u001b[22m\n\u001b[2m    - waiting for navigation to finish...\u001b[22m\n\u001b[2m    - navigated to \"http://localhost:3000/app/peers\"\u001b[22m\n\u001b[2m    5 × waiting for \"http://localhost:3000/app/login\" navigation to finish...\u001b[22m\n\u001b[2m      - navigated to \"http://localhost:3000/app/login\"\u001b[22m\n\n\n\u001b[0m \u001b[90m 24 |\u001b[39m \u001b[36masync\u001b[39m \u001b[36mfunction\u001b[39m createRoom(page\u001b[33m:\u001b[39m \u001b[33mPage\u001b[39m\u001b[33m,\u001b[39m algo\u001b[33m:\u001b[39m \u001b[32m'lww'\u001b[39m\u001b[33m|\u001b[39m\u001b[32m'ot'\u001b[39m)\u001b[33m:\u001b[39m \u001b[33mPromise\u001b[39m\u001b[33m<\u001b[39m\u001b[33mstring\u001b[39m\u001b[33m>\u001b[39m {\n \u001b[90m 25 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mgoto(\u001b[32m'http://localhost:3000/app/peers'\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 26 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mclick(\u001b[32m'text=Host Workspace'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m              \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 27 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m500\u001b[39m)\u001b[33m;\u001b[39m \u001b[90m// Animation wait\u001b[39m\n \u001b[90m 28 |\u001b[39m   \n \u001b[90m 29 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mfill(\u001b[32m'input[placeholder=\"e.g., Q3 Planning...\"]'\u001b[39m\u001b[33m,\u001b[39m \u001b[32m`Benchmark Room ${algo.toUpperCase()}`\u001b[39m)\u001b[33m;\u001b[39m\u001b[0m\n\u001b[2m    at createRoom (C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:26:14)\u001b[22m\n\u001b[2m    at C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\tests\\e2e\\08-benchmark-convergence.spec.ts:73:17\u001b[22m"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-14T08:07:10.743Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-mobile-chrome\\test-failed-2.png"
+                    },
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-mobile-chrome\\test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-mobile-chrome\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-mobile-chrome\\trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2b47fe08d27e63f91f3a-68dec324a0d92ad40628",
+          "file": "08-benchmark-convergence.spec.ts",
+          "line": 56,
+          "column": 7
+        },
+        {
+          "title": "Thesis Benchmark (LWW): Convergence, Latency, and Bandwidth",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "firefox",
+              "projectName": "firefox",
+              "results": [
+                {
+                  "workerIndex": 6,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 5,
+                  "error": {
+                    "message": "Error: browserType.launch: Executable doesn't exist at C:\\Users\\Paul John Palamara\\AppData\\Local\\ms-playwright\\firefox-1543\\firefox\\firefox.exe\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝",
+                    "stack": "Error: browserType.launch: Executable doesn't exist at C:\\Users\\Paul John Palamara\\AppData\\Local\\ms-playwright\\firefox-1543\\firefox\\firefox.exe\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
+                  },
+                  "errors": [
+                    {
+                      "message": "Error: browserType.launch: Executable doesn't exist at C:\\Users\\Paul John Palamara\\AppData\\Local\\ms-playwright\\firefox-1543\\firefox\\firefox.exe\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-14T08:08:24.849Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-firefox\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-640ed-gence-Latency-and-Bandwidth-firefox\\trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2b47fe08d27e63f91f3a-8a96c74d755b7cf2986c",
+          "file": "08-benchmark-convergence.spec.ts",
+          "line": 56,
+          "column": 7
+        },
+        {
+          "title": "Thesis Benchmark (OT): Convergence, Latency, and Bandwidth",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "firefox",
+              "projectName": "firefox",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 4,
+                  "status": "failed",
+                  "duration": 7,
+                  "error": {
+                    "message": "Error: browserType.launch: Executable doesn't exist at C:\\Users\\Paul John Palamara\\AppData\\Local\\ms-playwright\\firefox-1543\\firefox\\firefox.exe\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝",
+                    "stack": "Error: browserType.launch: Executable doesn't exist at C:\\Users\\Paul John Palamara\\AppData\\Local\\ms-playwright\\firefox-1543\\firefox\\firefox.exe\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
+                  },
+                  "errors": [
+                    {
+                      "message": "Error: browserType.launch: Executable doesn't exist at C:\\Users\\Paul John Palamara\\AppData\\Local\\ms-playwright\\firefox-1543\\firefox\\firefox.exe\n╔════════════════════════════════════════════════════════════╗\n║ Looks like Playwright was just installed or updated.       ║\n║ Please run the following command to download new browsers: ║\n║                                                            ║\n║     npx playwright install                                 ║\n║                                                            ║\n║ <3 Playwright Team                                         ║\n╚════════════════════════════════════════════════════════════╝"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-14T08:08:25.256Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-firefox\\error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "C:\\Users\\Paul John Palamara\\Downloads\\ThesisSync\\web\\test-results\\08-benchmark-convergence-T-d7116-gence-Latency-and-Bandwidth-firefox\\trace.zip"
+                    }
+                  ]
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2b47fe08d27e63f91f3a-fbad3d8071ca26afa396",
+          "file": "08-benchmark-convergence.spec.ts",
+          "line": 56,
+          "column": 7
         }
       ]
     }
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-09-13T09:55:33.542Z",
-    "duration": 32852.780999999995,
-    "expected": 2,
+    "startTime": "2026-09-14T08:07:09.697Z",
+    "duration": 76115.78600000001,
+    "expected": 0,
     "skipped": 0,
-    "unexpected": 3,
+    "unexpected": 8,
     "flaky": 0
   }
 }

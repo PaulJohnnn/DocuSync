@@ -8,6 +8,28 @@ import {
 import { uGet, uSet } from '@/lib/userStorage';
 import { idbGetFile, idbSaveFile } from '@/lib/idb';
 import InteractiveConflictEditor from '@/components/InteractiveConflictEditor';
+import { diffWords } from 'diff';
+
+function renderDiff(oldText: string, newText: string) {
+  const strip = (html: string) => html ? html.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') : '';
+  const oldClean = strip(oldText);
+  const newClean = strip(newText);
+  const diffs = diffWords(newClean, oldClean);
+  return (
+    <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5', background: 'var(--b1)', padding: 16, borderRadius: 8, maxHeight: 300, overflowY: 'auto' }}>
+      {diffs.map((part, index) => {
+        const color = part.added ? '#ef4444' : part.removed ? '#10b981' : 'var(--t2)';
+        const bg = part.added ? 'rgba(239, 68, 68, 0.15)' : part.removed ? 'rgba(16, 185, 129, 0.15)' : 'transparent';
+        const textDecoration = part.added ? 'line-through' : 'none';
+        return (
+          <span key={index} style={{ color, backgroundColor: bg, padding: part.removed || part.added ? '0 2px' : 0, borderRadius: 2, textDecoration }}>
+            {part.value}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 // Helper to strip HTML
 function stripHtml(html: string) {
@@ -411,13 +433,7 @@ export default function HistoryPage() {
                     </div>
                   </div>
 
-                  <div style={{
-                    marginTop: 12, padding: 12, background: 'var(--b1)', borderRadius: 8,
-                    fontSize: 13, color: 'var(--t2)', overflowX: 'auto',
-                    border: '1px solid var(--b2)', wordBreak: 'break-word'
-                  }}>
-                    {stripHtml(ev.fullContent || ev.payloadPreview || '')}
-                  </div>
+
                 </div>
               </div>
             );
@@ -441,19 +457,38 @@ export default function HistoryPage() {
                 <X size={20} />
               </button>
             </div>
-            <div style={{ padding: 20, overflowY: 'auto', flex: 1, fontSize: 14, color: 'var(--t1)', lineHeight: 1.6 }}>
-              <div dangerouslySetInnerHTML={{ __html: viewFullEvent.fullContent || '' }} />
+            <div style={{ padding: '0 20px', marginTop: 16 }}>
+              <div style={{ fontSize: '0.85rem', color: 'var(--t2)', marginBottom: 12 }}>
+                Comparing the selected historical version against the <strong>latest version</strong>.
+              </div>
+              <div style={{ display: 'flex', gap: 16, fontSize: '0.8rem', color: 'var(--t3)', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ display: 'inline-block', width: 12, height: 12, background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', borderRadius: 2 }}></span> What will be removed from latest</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ display: 'inline-block', width: 12, height: 12, background: 'rgba(16, 185, 129, 0.2)', border: '1px solid #10b981', borderRadius: 2 }}></span> What will be restored (added)</div>
+              </div>
             </div>
+
+            <div style={{ padding: '0 20px 20px', overflowY: 'auto', flex: 1, fontSize: 14, color: 'var(--t1)' }}>
+              {events.length > 0 ? renderDiff(viewFullEvent.fullContent || viewFullEvent.payloadPreview || '', events[0].fullContent || events[0].payloadPreview || '') : null}
+            </div>
+
+            <div style={{ padding: '12px 16px', background: 'var(--amb-bg)', border: '1px solid var(--amb)', color: 'var(--amb)', margin: '0 20px 16px', borderRadius: 8, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <span style={{ fontSize: 18 }}>⚠️</span>
+              <div style={{ flex: 1, fontSize: '0.85rem' }}>
+                <strong>Warning:</strong> Restoring this historical version will overwrite the current content of the file. A new "Restore" event will be appended to the history log, preserving this moment.
+              </div>
+            </div>
+            
             <div style={{ padding: '16px 20px', borderTop: '1px solid var(--b1)', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-              <button className="ds-btn ds-btn-ghost" onClick={() => setViewFullEvent(null)}>Close</button>
+              <button className="ds-btn ds-btn-ghost" onClick={() => setViewFullEvent(null)}>Cancel</button>
               <button
                 className="ds-btn ds-btn-primary ds-btn-animate"
+                style={{ background: '#10b981', borderColor: '#10b981' }}
                 onClick={() => {
-                  handleRestore(viewFullEvent.eventId, viewFullEvent.fullContent);
+                  handleRestore(viewFullEvent.eventId, viewFullEvent.fullContent || viewFullEvent.payloadPreview || '');
                   setViewFullEvent(null);
                 }}
               >
-                Restore This Version
+                Confirm and Restore
               </button>
             </div>
           </div>

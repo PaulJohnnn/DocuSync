@@ -457,7 +457,7 @@ export default function EditorScreen({ route, navigation }: any) {
               const pos = e.nativeEvent.selection.start;
               pushCursor(fileId, pos, 2);
             }}
-            placeholder="Start typing…"
+            placeholder="Start writing, or wait for teammates to join this room."
             placeholderTextColor={colors.textMuted}
             textAlignVertical="top"
             autoCorrect={false}

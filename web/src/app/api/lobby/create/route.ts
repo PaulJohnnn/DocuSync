@@ -21,6 +21,7 @@ export async function POST(request: Request) {
     const hostPort: number   = Number(body.hostPort ?? body.port ?? 9000);
     const roomName: string   = body.roomName   || 'Unnamed Room';
     const hostType: 'desktop' | 'web' | 'mobile' = body.hostType || 'desktop';
+    const algorithm: 'lww' | 'ot' = body.algorithm || 'lww';
 
     if (!hostNodeId || !hostIp) {
       return NextResponse.json(
@@ -59,6 +60,7 @@ export async function POST(request: Request) {
         hostIp,
         hostPort,
         hostType,
+        algorithm,
         createdAt: now,
         expiresAt,
         members: [],
@@ -80,7 +82,8 @@ export async function POST(request: Request) {
         hostNodeId,
         hostIp,
         hostPort,
-        hostType
+        hostType,
+        algorithm
       },
       { headers: corsHeaders }
     );

@@ -244,7 +244,8 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
                 status: 'connected' as const,
                 latency: 0,
                 connectedAt: new Date().toISOString(),
-                displayName: p.displayName
+                displayName: p.displayName,
+                isHost: p.isHost
               }));
               uSet('peers', JSON.stringify(connected));
               return connected;

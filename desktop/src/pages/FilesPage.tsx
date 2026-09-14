@@ -227,11 +227,17 @@ const FilesPage: React.FC = () => {
 
   const handleDownloadRoomFile = useCallback((file: any) => {
     try {
+      const origName = file.fileName || file.name || 'file.txt';
+      const ext = origName.split('.').pop()?.toLowerCase() || '';
+      let finalExt = origName;
+      if (ext === 'docx' || ext === 'doc') {
+         finalExt = origName.replace(/\.docx?$/, '.txt');
+      }
       const blob = new Blob([file.content || ''], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = file.fileName || file.name || 'file.txt';
+      a.download = finalExt;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

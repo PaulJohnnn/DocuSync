@@ -11,6 +11,7 @@ export interface LobbyEntry {
   hostPort: number;
   /** 'desktop' | 'web' | 'mobile' — indicates whether host has a real WS server */
   hostType?: 'desktop' | 'web' | 'mobile';
+  algorithm?: 'lww' | 'ot';
   createdAt: number;
   expiresAt: number;
   members: string[];

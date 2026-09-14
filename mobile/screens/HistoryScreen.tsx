@@ -99,11 +99,7 @@ export default function HistoryScreen() {
           </View>
           <Text style={styles.fileName}>{item.fileName || `File #${item.fileId.slice(0, 6)}`}</Text>
           <Text style={styles.metaText}>Modified by: {item.nodeId} • vc[{item.logicalTimestamp}]</Text>
-          {item.payload ? (
-            <View style={styles.payloadBox}>
-              <Text style={styles.payloadText} numberOfLines={2}>{item.payload.trim()}</Text>
-            </View>
-          ) : null}
+
         </View>
       </View>
     );
@@ -166,8 +162,8 @@ const makeStyles = (colors: any) => StyleSheet.create({
   timeText: { fontSize: 11, color: colors.textMuted },
   fileName: { fontSize: 14, fontWeight: '600', color: colors.textPrimary, marginBottom: 2 },
   metaText: { fontSize: 11, color: colors.textMuted, fontFamily: 'monospace', marginBottom: 6 },
-  payloadBox: { backgroundColor: colors.bgBase, padding: 8, borderRadius: 6, borderWidth: 1, borderColor: colors.border },
-  payloadText: { fontSize: 12, color: colors.textSecondary, fontFamily: 'monospace' },
+  payloadBox: { paddingVertical: 4 },
+  payloadText: { fontSize: 13, color: colors.textPrimary },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
   emptyTitle: { fontSize: 18, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 },
   emptySubtext: { fontSize: 13, color: colors.textMuted, textAlign: 'center' },

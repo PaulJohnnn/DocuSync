@@ -121,6 +121,7 @@ export interface PeerListMessage {
     displayName: string;
     address: string;
     port: number;
+    isHost?: boolean;
   }>;
   timestamp: string;
 }

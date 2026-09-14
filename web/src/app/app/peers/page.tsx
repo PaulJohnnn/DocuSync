@@ -337,6 +337,7 @@ export default function RoomsPage() {
 
   const [roomName, setRoomName] = useState('');
   const [roomNameError, setRoomNameError] = useState('');
+  const [algorithm, setAlgorithm] = useState<'lww' | 'ot'>('lww');
 
   const [otpInput, setOtpInput] = useState('');
   const [joinError, setJoinError] = useState('');
@@ -360,14 +361,14 @@ export default function RoomsPage() {
   }, [loadRooms]);
 
   // ── Create flow ──────────────────────────────────────────────────────────
-  const handleCreateStart = () => { setRoomName(''); setRoomNameError(''); setView('create_name'); };
+  const handleCreateStart = () => { setRoomName(''); setRoomNameError(''); setAlgorithm('lww'); setView('create_name'); };
 
   const handleCreateGenerate = async () => {
     if (!roomName.trim()) { setRoomNameError('Please enter a room name.'); return; }
     setRoomNameError('');
     setView('create_generating');
     try {
-      const room = await mockRoomService.createRoom(roomName);
+      const room = await mockRoomService.createRoom(roomName, algorithm);
       setCreatedRoom(room);
       setRooms(prev => [...prev, room]);
       setView('create_success');
@@ -558,6 +559,44 @@ export default function RoomsPage() {
               />
               {roomNameError && <p style={{ marginTop: 4, fontSize: 12, color: '#ef4444' }}>{roomNameError}</p>}
             </div>
+
+            <div style={{ marginBottom: 24, textAlign: 'left' }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 12 }}>Sync Algorithm</label>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* LWW Option */}
+                <label style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 12, padding: 16,
+                  borderRadius: 12, border: `1.5px solid ${algorithm === 'lww' ? '#4f46e5' : 'var(--border)'}`,
+                  background: algorithm === 'lww' ? 'rgba(79,70,229,0.03)' : 'var(--bg-card)',
+                  cursor: 'pointer', transition: 'all 0.2s'
+                }}>
+                  <input type="radio" name="algorithm" value="lww" checked={algorithm === 'lww'} onChange={() => setAlgorithm('lww')} style={{ marginTop: 2, accentColor: '#4f46e5' }} />
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: algorithm === 'lww' ? '#4f46e5' : '#0f172a' }}>LWW Resolver (Default)</div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Standard eventual consistency via Last-Writer-Wins arbitration. Fully tracks document history across all node syncs.</div>
+                  </div>
+                </label>
+
+                {/* OT Option */}
+                <label style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 12, padding: 16,
+                  borderRadius: 12, border: `1.5px solid ${algorithm === 'ot' ? '#4f46e5' : 'var(--border)'}`,
+                  background: algorithm === 'ot' ? 'rgba(79,70,229,0.03)' : 'var(--bg-card)',
+                  cursor: 'pointer', transition: 'all 0.2s'
+                }}>
+                  <input type="radio" name="algorithm" value="ot" checked={algorithm === 'ot'} onChange={() => setAlgorithm('ot')} style={{ marginTop: 2, accentColor: '#4f46e5' }} />
+                  <div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: algorithm === 'ot' ? '#4f46e5' : '#0f172a' }}>OT Algorithm</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#eab308', background: 'rgba(234,179,8,0.1)', padding: '2px 6px', borderRadius: 4 }}>HISTORY DISABLED</div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Operational Transformation logic using pure CRDT trees. LWW overwrite loop is bypassed.</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
             <button onClick={handleCreateGenerate} style={{
               width: '100%', padding: '14px', borderRadius: 12, fontSize: 15, fontWeight: 700,
               background: 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)', color: '#fff', border: 'none', cursor: 'pointer',
@@ -612,6 +651,9 @@ export default function RoomsPage() {
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 12, background: 'rgba(34,197,94,0.06)', color: '#16a34a', fontWeight: 600 }}>
                 <Activity size={14} /> Active
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 20, fontSize: 12, background: 'rgba(245,158,11,0.06)', color: '#d97706', fontWeight: 600, textTransform: 'uppercase' }}>
+                {createdRoom?.algorithm || 'lww'} Algorithm
               </span>
             </div>
 

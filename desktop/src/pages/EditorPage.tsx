@@ -232,7 +232,7 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Placeholder.configure({ placeholder: 'Start writing your document...' }),
+      Placeholder.configure({ placeholder: 'Start writing, or wait for teammates to join this room.' }),
       RemoteCursorsExtension.configure({ cursors: Object.values(remoteCursors) }),
       Table.configure({ resizable: true }),
       TableRow,
@@ -305,6 +305,73 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
     });
     return unsub;
   }, [fileId]);
+
+  const [pageCount, setPageCount] = useState(1);
+
+  useEffect(() => {
+    let animFrame: number;
+    const adjustPages = () => {
+      const pm = document.querySelector('.ds-desktop-editor-wrap .ProseMirror') as HTMLElement;
+      if (pm) {
+        const PAGE_HEIGHT = 1123;
+        const GAP_HEIGHT = 48; // Physical spacing between desktop A4 papers
+        const MARGIN_TOP = 96; // Internal padding
+        const MARGIN_BOTTOM = 96;
+        const USABLE = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
+
+        const updates: { el: HTMLElement, margin: number }[] = [];
+        let totalPushSoFar = 0;
+        let maxPageIndex = 0;
+
+        Array.from(pm.children).forEach(child => {
+          const el = child as HTMLElement;
+          if (el.classList.contains('collaboration-cursor__caret')) return;
+
+          const applied = parseFloat(el.getAttribute('data-push') || '0');
+          const physicalTop = el.offsetTop;
+          const h = el.offsetHeight;
+
+          const unpushedTop = physicalTop - applied - totalPushSoFar;
+          const unpushedBottom = unpushedTop + h;
+
+          const page1 = Math.floor(unpushedTop / USABLE);
+          const page2 = Math.floor(unpushedBottom / USABLE);
+          
+          if (page2 > maxPageIndex) { maxPageIndex = page2; }
+
+          if (page1 !== page2 && unpushedTop !== (page1 * USABLE)) {
+            const physicalTarget = (page2 * (PAGE_HEIGHT + GAP_HEIGHT)) + MARGIN_TOP;
+            const currentPhysicalTop = physicalTop - applied;
+            const push = physicalTarget - currentPhysicalTop;
+
+            if (Math.abs(push - applied) > 0.5) {
+              updates.push({ el, margin: push });
+            }
+            totalPushSoFar += push;
+          } else {
+            if (applied > 0) {
+              updates.push({ el, margin: 0 });
+            }
+          }
+        });
+
+        updates.forEach(u => {
+          if (u.margin === 0) {
+            u.el.style.marginTop = '';
+            u.el.removeAttribute('data-push');
+          } else {
+            u.el.style.marginTop = `${u.margin}px`;
+            u.el.setAttribute('data-push', u.margin.toString());
+          }
+        });
+
+        setPageCount(Math.max(1, maxPageIndex + 1));
+      }
+      animFrame = requestAnimationFrame(adjustPages);
+    };
+    animFrame = requestAnimationFrame(adjustPages);
+    return () => cancelAnimationFrame(animFrame);
+  }, []);
 
   useEffect(() => {
     if (pendingConflicts > prevConflictCount.current) {
@@ -702,29 +769,41 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
         </button>
         <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
-            {filePath ? basename(filePath) : `File #${fileId}`}
-            <span style={{ 
-              background: 'var(--accent)', color: 'white', padding: '2px 8px', 
-              borderRadius: 12, fontSize: 11, fontWeight: 600, marginLeft: 12 
-            }}>
-              {Math.max(connectedPeers.length, Math.max(0, matchmakerPeerCount - 1)) + 1} Active Users
-            </span>
-            {saving && <span style={{ color: 'var(--amber)', fontSize: 11, fontWeight: 400, marginLeft: 8 }}>checking in…</span>}
-            {syncStatusMsg && !saving && (
-              <span style={{ fontSize: 11, color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: 4, marginLeft: 8, fontWeight: 500 }}>
-                {syncStatusMsg}
-              </span>
-            )}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+              {filePath ? basename(filePath) : `File #${fileId}`}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {/* Active Users Matching Mockup */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 4px', background: '#f8fafc', borderRadius: 20, border: '1px solid #e2e8f0', height: 34 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 4 }}>
+                    <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#f1f5f9', color: '#475569', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', zIndex: 3 }}>ME</div>
+                    {connectedPeers.length > 0 && <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#dcfce7', color: '#16a34a', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: -8, zIndex: 2 }}>P1</div>}
+                    {connectedPeers.length > 1 && <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#ffedd5', color: '#ea580c', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: -8, zIndex: 1 }}>P2</div>}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6, paddingRight: 4 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+                    {Math.max(connectedPeers.length, Math.max(0, matchmakerPeerCount - 1)) + 1} in this file
+                  </div>
+                </div>
+              </div>
+              
+              {saving && <span style={{ color: 'var(--amber)', fontSize: 11, fontWeight: 400, marginLeft: 8 }}>checking in…</span>}
+              {syncStatusMsg && !saving && (
+                <span style={{ fontSize: 11, color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: 4, marginLeft: 8, fontWeight: 500 }}>
+                  {syncStatusMsg}
+                </span>
+              )}
+            </div>
           </div>
           {filePath && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 4 }}>
               {filePath}
             </div>
           )}
         </div>
-        
-
         
         {currentRoom?.isHost && (
           <button
@@ -742,17 +821,41 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
               marginLeft: 'auto'
             }}
           >
-            Admin: Delete Group & End Session
+            Admin: End Session
           </button>
         )}
         
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className="ds-btn ds-btn-ghost" onClick={() => navigate(`/history/${fileId}`)} style={{ height: 30, padding: '0 10px', fontSize: 12 }}>
-            <IconHistory size={13} /> History
+        <div style={{ display: 'flex', gap: 10, marginLeft: currentRoom?.isHost ? '0' : 'auto' }}>
+          <button 
+            className="ds-btn"
+            onClick={() => navigate(`/history/${fileId}`)}
+            style={{
+              padding: '0 14px', height: 36, borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: '#fff', color: '#475569', border: '1px solid #cbd5e1', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6, position: 'relative',
+              transition: 'all 0.15s'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+          >
+            <IconHistory size={15} /> History
           </button>
-          <button className="ds-btn ds-btn-primary" onClick={handleSyncNow} disabled={syncing} style={{ height: 30, padding: '0 12px', fontSize: 12 }}>
-            <span className={syncing ? 'ds-spin' : ''} style={{ display: 'inline-flex' }}><IconRefresh size={13} /></span>
-            {syncing ? 'Syncing…' : 'Sync Now'}
+
+          <button 
+            className="ds-btn" 
+            onClick={handleSyncNow} 
+            disabled={syncing}
+            style={{
+              padding: '0 14px', height: 36, borderRadius: 8, fontSize: 13, fontWeight: 600,
+              background: '#fff', color: '#475569', border: '1px solid #cbd5e1', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6, position: 'relative',
+              transition: 'all 0.15s'
+            }}
+            onMouseEnter={e => { if(!syncing) { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#94a3b8'; } }}
+            onMouseLeave={e => { if(!syncing) { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#cbd5e1'; } }}
+          >
+            <span className={syncing ? 'ds-spin' : ''} style={{ display: 'inline-flex' }}><IconRefresh size={15} /></span>
+            {syncing ? 'Syncing...' : 'Sync Now'}
           </button>
         </div>
       </div>
@@ -882,10 +985,35 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
             </div>
           </div>
 
-          {/* Editor sheet — white with shadow + remote cursor overlays */}
-          <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg-base)', padding: '24px' }}>
-            <div style={{ position: 'relative', background: '#fff', maxWidth: 960, margin: '0 auto', borderRadius: 12, boxShadow: '0 2px 20px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
-              <EditorContent editor={editor} style={{ minHeight: 480 }} />
+          {/* Editor sheet — dynamic paginated A4 background + CRDT tracker overlay */}
+          <div className="ds-desktop-editor-wrap" style={{ flex: 1, overflow: 'auto', background: '#f1f5f9', padding: '40px 0', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ position: 'relative', width: 794 }}>
+              
+              {/* Dynamic physically spawned A4 backdrop canvases */}
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 48, zIndex: 0 }}>
+                {Array.from({ length: pageCount }).map((_, i) => (
+                  <div key={i} style={{
+                    width: 794, height: 1123, background: '#ffffff',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05)',
+                    flexShrink: 0, borderRadius: 2
+                  }} />
+                ))}
+              </div>
+
+              {/* The TipTap text grid overlaid mapping to the A4 sheets seamlessly */}
+              <div style={{ position: 'relative', zIndex: 1, padding: '0 80px', width: '100%', minHeight: 1123 }}>
+                <style dangerouslySetInnerHTML={{ __html: `
+                  .ds-desktop-editor-wrap .ProseMirror {
+                    outline: none;
+                    background: transparent;
+                    min-height: 1123px;
+                  }
+                  .ds-desktop-editor-wrap .ProseMirror hr {
+                     display: none; /* Strip fallback HRs since pagination algorithm runs native now */
+                  }
+                `}} />
+                <EditorContent editor={editor} />
+              </div>
             </div>
           </div>
         </>
