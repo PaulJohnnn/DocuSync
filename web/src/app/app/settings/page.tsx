@@ -78,7 +78,7 @@ export default function SettingsPage() {
         message={confirmModalState.message} onConfirm={confirmModalState.onConfirm}
         onCancel={closeConfirm} confirmText="Confirm" cancelText="Cancel" isDestructive={true}
       />
-      <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 60, paddingTop: 30, paddingLeft: 20, paddingRight: 20 }}>
+      <div style={{ width: '100%', maxWidth: 1100, paddingBottom: 60, alignSelf: 'flex-start', paddingTop: 30, paddingLeft: 24, paddingRight: 24 }}>
         
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 40 }}>
