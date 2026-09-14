@@ -573,7 +573,7 @@ export default function FilesPage() {
                   if (idLower.includes('web')) { appName = 'Web App'; appIcon = '🌐'; }
                   else if (idLower.includes('mobile')) { appName = 'Mobile App'; appIcon = '📱'; }
                   
-                  const isDbOwner = currentRoom.hostNodeId && p.id === currentRoom.hostNodeId;
+                  const isDbOwner = (currentRoom as any)?.hostNodeId && p.id === (currentRoom as any)?.hostNodeId;
                   const defaultName = p.displayName ? p.displayName : isDbOwner ? 'Room Host' : `Peer ${i + 1}`;
 
                   return (
