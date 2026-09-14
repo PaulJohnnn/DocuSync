@@ -561,7 +561,7 @@ export default function FilesPage() {
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>
-                      {myName} (You) {currentRoom.hostNodeId && localNodeId === currentRoom.hostNodeId ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}
+                      {myName} (You) {(currentRoom as any)?.hostNodeId && localNodeId === (currentRoom as any)?.hostNodeId ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
                   </div>
