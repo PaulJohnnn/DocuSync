@@ -201,8 +201,15 @@ export async function POST(req: Request) {
       const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
       if (!user) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404, headers: corsHeaders });
       
+      const now = Date.now();
+      const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
+      if (user.lastOtpRequest && now - user.lastOtpRequest < ONE_WEEK) {
+        return NextResponse.json({ success: false, error: 'You can only request a new Access Code once per week. Try again later.' }, { status: 429, headers: corsHeaders });
+      }
+
       const newPin = Math.floor(100000 + Math.random() * 900000).toString();
       user.pin = newPin;
+      user.lastOtpRequest = now;
       saveDb(db);
       
       return NextResponse.json({ success: true, status: 'renew_approved', pin: newPin }, { headers: corsHeaders });
@@ -220,9 +227,10 @@ export async function POST(req: Request) {
 
     if (action === 'revoke') {
       const { userId } = body;
-      const idx = db.users.findIndex((u: any) => u.id === userId);
-      if (idx !== -1) {
-        db.users.splice(idx, 1);
+      const user = db.users.find((u: any) => u.id === userId);
+      if (user) {
+        user.status = 'revoked';
+        user.pin = 'revoked'; // Invalidate pin
         saveDb(db);
       }
       return NextResponse.json({ success: true }, { headers: corsHeaders });

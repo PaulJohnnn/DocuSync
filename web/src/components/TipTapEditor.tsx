@@ -196,7 +196,10 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
     if (content !== editor.getHTML()) {
       const { from, to } = editor.state.selection;
       editor.commands.setContent(content, { emitUpdate: false });
-      editor.commands.setTextSelection({ from, to });
+      const newDocSize = editor.state.doc.content.size;
+      const safeFrom = Math.min(from, newDocSize > 0 ? newDocSize - 1 : 0);
+      const safeTo = Math.min(to, newDocSize > 0 ? newDocSize - 1 : 0);
+      editor.commands.setTextSelection({ from: safeFrom, to: safeTo });
     }
   }, [editor, content]);
 

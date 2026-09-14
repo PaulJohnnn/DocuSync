@@ -164,7 +164,8 @@ const HistoryPage: React.FC = () => {
     setLoading(true); setLoadError(null);
     try {
       const data = await FileService.getHistory(fileId);
-      setEntries([...data.entries].sort((a, b) => b.logicalTimestamp - a.logicalTimestamp));
+      const uniqueEntries = Array.from(new Map(data.entries.map((e) => [e.eventId, e])).values());
+      setEntries(uniqueEntries.sort((a, b) => b.logicalTimestamp - a.logicalTimestamp));
       setTotalEntries(data.totalEntries);
     } catch (err) {
       setLoadError(err instanceof ServiceError ? err.message : String(err));

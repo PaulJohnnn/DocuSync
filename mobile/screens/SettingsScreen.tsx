@@ -240,6 +240,68 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* ── Profile & Local Identity ── */}
+        <View style={[styles.card, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+          <View style={[styles.cardHeader, { borderBottomColor: colors.border }]}>
+            <View style={[styles.iconWrap, { backgroundColor: colors.accentLight }]}>
+              <Ionicons name="person" size={20} color={colors.accent} />
+            </View>
+            <View>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Profile & Local Identity</Text>
+              <Text style={[styles.cardSubtitle, { color: colors.textMuted }]}>Manage your display name</Text>
+            </View>
+          </View>
+          <View style={[styles.cardBody, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: colors.accent, fontSize: 18, fontWeight: '700' }}>D</Text>
+              </View>
+              <View>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.textPrimary }}>Local User</Text>
+                <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{nodeId}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Credentials & Security ── */}
+        <View style={[styles.card, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+          <View style={[styles.cardHeader, { borderBottomColor: colors.border }]}>
+            <View style={[styles.iconWrap, { backgroundColor: colors.greenLight }]}>
+              <Ionicons name="shield-checkmark" size={20} color={colors.green} />
+            </View>
+            <View>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Credentials & Security</Text>
+              <Text style={[styles.cardSubtitle, { color: colors.textMuted }]}>Offline-first credentials</Text>
+            </View>
+          </View>
+          <View style={{ padding: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 12 }}>
+              <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Local Identifier</Text>
+              <Text style={{ color: colors.textPrimary, fontFamily: 'monospace', fontWeight: '700', fontSize: 12, width: 140, textAlign: 'right' }} numberOfLines={1}>{nodeId}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>6-Digit PIN</Text>
+              <Text style={{ color: colors.textPrimary, fontFamily: 'monospace', fontWeight: '700' }}>******</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Zero Cloud Dependency ── */}
+        <View style={[styles.card, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
+          <View style={[styles.cardBody, { flexDirection: 'row', gap: 12 }]}>
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.bgBase, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="cloud-offline" size={18} color={colors.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.textPrimary }}>Zero Cloud Dependency</Text>
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 4, lineHeight: 18 }}>
+                No forced central cloud account, no centralized tracking. Your data stays on your trusted nodes.
+              </Text>
+            </View>
+          </View>
+        </View>
+
         {/* ── Account ── */}
         <View style={[styles.card, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
           <View style={[styles.cardHeader, { borderBottomColor: colors.border }]}>
@@ -431,83 +493,89 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   scroll: { flex: 1 },
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 24,
+    paddingTop: 32,
+    paddingBottom: 24,
     borderBottomWidth: 1,
   },
-  title: { fontSize: 24, fontWeight: '700' },
-  subtitle: { fontSize: 13, marginTop: 4 },
-  content: { padding: 16, gap: 16, paddingBottom: 40 },
+  title: { fontSize: 28, fontWeight: '800' },
+  subtitle: { fontSize: 14, marginTop: 6 },
+  content: { padding: 20, gap: 24, paddingBottom: 60 },
 
   card: {
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 24,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
     borderBottomWidth: 1,
-    gap: 12,
+    gap: 16,
   },
   iconWrap: {
-    width: 32, height: 32, borderRadius: 8,
+    width: 44, height: 44, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center',
   },
-  cardTitle: { fontSize: 15, fontWeight: '600' },
-  cardSubtitle: { fontSize: 13, marginTop: 2 },
-  cardBody: { padding: 16 },
+  cardTitle: { fontSize: 17, fontWeight: '700' },
+  cardSubtitle: { fontSize: 13, marginTop: 4 },
+  cardBody: { padding: 20 },
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 16, borderRadius: 12, borderWidth: 1,
+    padding: 20, borderRadius: 16, borderWidth: 1,
   },
-  toggleTitle: { fontSize: 14, fontWeight: '600' },
-  toggleSubtitle: { fontSize: 12, marginTop: 2 },
+  toggleTitle: { fontSize: 15, fontWeight: '700' },
+  toggleSubtitle: { fontSize: 13, marginTop: 2 },
   toggleBg: {
-    width: 44, height: 24, borderRadius: 12,
+    width: 52, height: 28, borderRadius: 14,
     justifyContent: 'center',
   },
   toggleKnob: {
     position: 'absolute',
-    width: 20, height: 20, borderRadius: 10,
+    width: 24, height: 24, borderRadius: 12,
     backgroundColor: '#fff',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 2, elevation: 2,
   },
 
-  fieldLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  fieldLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
   urlInput: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 14,
     fontFamily: 'monospace',
   },
   saveBtn: {
-    flex: 1, paddingVertical: 10, borderRadius: 8,
+    flex: 1, paddingVertical: 14, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
   },
   currentUrlBadge: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 8, borderWidth: 1,
-    marginTop: 10, flexWrap: 'wrap', gap: 2,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 10, borderWidth: 1,
+    marginTop: 12, flexWrap: 'wrap', gap: 4,
   },
 
-  aboutTitle: { fontSize: 20, fontWeight: '700', marginBottom: 6 },
-  aboutText: { fontSize: 14, textAlign: 'center', paddingHorizontal: 20, lineHeight: 20, marginBottom: 20 },
+  aboutTitle: { fontSize: 22, fontWeight: '800', marginBottom: 8 },
+  aboutText: { fontSize: 15, textAlign: 'center', paddingHorizontal: 20, lineHeight: 22, marginBottom: 24 },
   nodeBadge: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 20, borderWidth: 1,
+    paddingHorizontal: 16, paddingVertical: 8,
+    borderRadius: 24, borderWidth: 1,
   },
   statRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.04)',
   },

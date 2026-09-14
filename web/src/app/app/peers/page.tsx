@@ -485,14 +485,6 @@ export default function RoomsPage() {
                   Join a room from another device to start syncing files.<br/>
                   <span style={{ fontSize: 11, color: '#94a3b8' }}>(You can create a room below)</span>
                 </p>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                  <button onClick={handleJoinStart} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: 'var(--bg-card)', color: '#475569', border: '1.5px solid var(--border)', cursor: 'pointer' }}>
-                    Join with code
-                  </button>
-                  <button onClick={handleCreateStart} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, background: 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)', color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 2px 10px rgba(79,70,229,0.3)' }}>
-                    + Create Room
-                  </button>
-                </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

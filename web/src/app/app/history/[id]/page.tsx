@@ -105,7 +105,10 @@ export default function HistoryPage() {
       }
 
       if (fetchedData) {
-        const sorted = [...fetchedData].sort((a: any, b: any) => b.logicalTimestamp - a.logicalTimestamp);
+        const uniqueMap = new Map();
+        fetchedData.forEach((ev: any) => uniqueMap.set(ev.eventId, ev));
+        const uniqueData = Array.from(uniqueMap.values());
+        const sorted = uniqueData.sort((a: any, b: any) => b.logicalTimestamp - a.logicalTimestamp);
         setEvents(sorted);
         setErrorMsg('');
         setOfflineWarning('');

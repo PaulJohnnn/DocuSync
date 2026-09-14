@@ -37,16 +37,19 @@ export default function HistoryScreen() {
         return;
       }
       const files = JSON.parse(filesStr);
-      const allEvents: EventRecord[] = [];
+      const eventMap = new Map();
 
       for (const f of files) {
         const evStr = await AsyncStorage.getItem(`@docusync/events_${f.id}`);
         if (evStr) {
           const evts = JSON.parse(evStr);
-          allEvents.push(...evts.map((e: any) => ({ ...e, fileName: f.name })));
+          evts.forEach((e: any) => {
+            if (!eventMap.has(e.eventId)) eventMap.set(e.eventId, { ...e, fileName: f.name });
+          });
         }
       }
 
+      const allEvents: EventRecord[] = Array.from(eventMap.values());
       allEvents.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setEvents(allEvents);
     } catch (e) {

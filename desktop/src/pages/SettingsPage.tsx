@@ -175,133 +175,198 @@ const SettingsPage: React.FC = () => {
         cancelText="Cancel"
         isDestructive={true}
       />
-      <div className="ds-main-scroll ds-page-enter" style={{ display: 'flex', gap: '2rem', padding: '1.5rem', alignItems: 'flex-start' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 60, paddingTop: 30, paddingLeft: 20, paddingRight: 20, width: '100%' }}>
         
-        {/* Left Sidebar */}
-        <div style={{ width: '260px', display: 'flex', flexDirection: 'column', gap: '2rem', flexShrink: 0, position: 'sticky', top: 20 }}>
-          
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ padding: 10, background: 'var(--ds-accent-bg)', borderRadius: 12, border: '1px solid var(--ds-border)' }}>
-              <SettingsIcon size={24} style={{ color: 'var(--ds-accent)' }} />
-            </div>
-            <div>
-              <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--ds-text)', margin: 0 }}>Settings</h1>
-              <p style={{ fontSize: 13, color: 'var(--ds-text3)', margin: '4px 0 0' }}>Preferences & Engine</p>
-            </div>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 40 }}>
+          <div>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--ds-text)', margin: 0 }}>Settings</h1>
+            <p style={{ fontSize: 13, color: 'var(--ds-text3)', margin: '4px 0 0' }}>Manage parameters and preferences</p>
           </div>
-
-          {/* Tabs */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {['account', 'system', 'files', 'about'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as any)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px',
-                borderRadius: '8px', border: 'none', cursor: 'pointer',
-                background: activeTab === tab ? 'var(--ds-accent-bg)' : 'transparent',
-                color: activeTab === tab ? 'var(--ds-accent)' : 'var(--ds-text2)',
-                fontWeight: activeTab === tab ? 600 : 500,
-                borderLeft: activeTab === tab ? '3px solid var(--ds-accent)' : '3px solid transparent',
-                transition: 'all 0.2s', textAlign: 'left'
-              }}
-            >
-              {tab === 'account' && <><User size={18} /> Account & Appearance</>}
-              {tab === 'system' && <><Cpu size={18} /> System & Engine</>}
-              {tab === 'files' && <><FolderSync size={18} /> File Management</>}
-              {tab === 'about' && <><Info size={18} /> About DocuSync</>}
-            </button>
-          ))}
-          </div>
+          <button onClick={handleCacheCleanup} disabled={cleaningUp} style={{ 
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', 
+            borderRadius: 8, border: '1px solid var(--ds-border)', background: 'var(--ds-surface)', 
+            cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--ds-text)',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+          }}>
+            <Database size={14} /> {cleaningUp ? 'Pruning…' : 'Sync / Prune EventLog'}
+          </button>
         </div>
 
+        <div style={{ display: 'flex', gap: '3rem', alignItems: 'flex-start' }}>
+          
+          {/* Left Sidebar */}
+          <div style={{ width: '280px', flexShrink: 0, position: 'sticky', top: 20 }}>
+            <div style={{ background: 'var(--ds-surface)', borderRadius: 16, border: '1px solid var(--ds-border)', padding: 16, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {['account', 'system', 'files', 'about'].map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab as any)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px',
+                      borderRadius: '999px', border: 'none', cursor: 'pointer',
+                      background: activeTab === tab ? 'rgba(79, 70, 229, 0.08)' : 'transparent',
+                      color: activeTab === tab ? 'rgb(79, 70, 229)' : 'var(--ds-text2)',
+                      fontWeight: activeTab === tab ? 600 : 500,
+                      transition: 'all 0.2s', textAlign: 'left', fontSize: 14
+                    }}
+                  >
+                    {tab === 'account' && <><User size={18} /> Account & Appearance</>}
+                    {tab === 'system' && <><Cpu size={18} /> System & Engine</>}
+                    {tab === 'files' && <><FolderSync size={18} /> File Management</>}
+                    {tab === 'about' && <><Info size={18} /> About DocuSync</>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
         {/* Right Content Area */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, animation: 'fadeIn 0.3s ease' }}>
           
           {activeTab === 'account' && (
-            <div className="ds-page-enter">
-              <div className="ds-card" style={{ overflow: 'hidden', marginBottom: '1.5rem' }}>
-                <SectionHeader icon={<Palette size={14} />} title="Appearance" subtitle="Customise the interface theme" />
-                <div style={{ padding: '1.2rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--ds-text)' }}>Theme Mode</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--ds-text3)', marginTop: '4px' }}>Switch between premium light and dark themes</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+
+              {/* Profile */}
+              <div style={{ background: 'var(--ds-surface)', borderRadius: 16, border: '1px solid var(--ds-border)', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div style={{ padding: '20px 24px' }}>
+                  <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ds-text)', margin: 0 }}>Profile & Local Identity</h2>
+                  <p style={{ fontSize: 13, color: 'var(--ds-text3)', margin: '4px 0 24px' }}>Manage your profile information and UI preferences.</p>
+                  
+                  <div style={{ background: 'var(--ds-surface)', borderRadius: 12, border: '1px solid var(--ds-border)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                      <div style={{ position: 'relative' }}>
+                        <div style={{ width: 64, height: 64, borderRadius: 16, background: '#4f46e5', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700 }}>
+                          D
+                        </div>
+                        <div style={{ position: 'absolute', bottom: -4, right: -4, width: 20, height: 20, background: '#10b981', borderRadius: '50%', border: '4px solid var(--ds-surface)' }} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ds-text)' }}>Local User</div>
+                          <div style={{ background: 'rgba(79, 70, 229, 0.1)', color: 'rgb(79, 70, 229)', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>Local Node Owner</div>
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--ds-text3)', marginBottom: 2 }}>@{nodeId}</div>
+                        <div style={{ fontSize: 13, color: 'var(--ds-text2)' }}>Decentralized workspace accessible by peers.</div>
+                      </div>
+                    </div>
+                    <button style={{ background: '#4f46e5', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: '999px', cursor: 'pointer', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 2px 4px rgba(79,70,229,0.3)' }}>
+                      Edit Profile
+                    </button>
                   </div>
-                  <button
-                    onClick={toggleTheme}
-                    style={{
-                      position: 'relative', width: '64px', height: '32px', borderRadius: '99px',
-                      background: isDark ? 'var(--ds-accent)' : '#d1d5db', border: 'none', cursor: 'pointer',
-                      transition: 'background 0.3s ease', padding: 0, display: 'flex', alignItems: 'center',
-                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)'
-                    }}
-                  >
-                    <div
+
+                  <div style={{ marginTop: 32 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ds-text)', margin: 0 }}>Credentials & Security</h2>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--ds-accent-bg)', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600, color: 'var(--ds-text3)' }}>
+                          <Lock size={12} /> Locked
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#10b981', fontSize: 12, fontWeight: 600 }}>
+                        <ShieldCheck size={14} /> Zero Cloud Dependency
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 24 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--ds-text2)', marginBottom: 8 }}>Local Identifier (Username)</label>
+                        <div style={{ position: 'relative' }}>
+                          <input type="text" readOnly value={nodeId} style={{ width: '100%', background: 'var(--ds-accent-bg)', border: '1px solid var(--ds-border)', borderRadius: 12, padding: '12px 16px', fontSize: 14, color: 'var(--ds-text2)', outline: 'none' }} />
+                          <Lock size={16} style={{ position: 'absolute', right: 16, top: 14, color: 'var(--ds-text3)' }} />
+                        </div>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--ds-text2)', marginBottom: 8 }}>6-Digit Security PIN</label>
+                        <div style={{ position: 'relative' }}>
+                          <input type="password" readOnly value="******" style={{ width: '100%', background: 'var(--ds-accent-bg)', border: '1px solid var(--ds-border)', borderRadius: 12, padding: '12px 16px', fontSize: 14, color: 'var(--ds-text2)', outline: 'none', letterSpacing: 4 }} />
+                          <Lock size={16} style={{ position: 'absolute', right: 16, top: 14, color: 'var(--ds-text3)' }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Appearance */}
+              <div style={{ background: 'var(--ds-surface)', borderRadius: 16, border: '1px solid var(--ds-border)', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div style={{ padding: '20px 24px' }}>
+                  <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ds-text)', margin: 0 }}>Appearance</h2>
+                  <p style={{ fontSize: 13, color: 'var(--ds-text3)', margin: '4px 0 24px' }}>Customize your UI aesthetics.</p>
+                  
+                  <div style={{ background: 'var(--ds-accent-bg)', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{ padding: 10, background: '#fff', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                        <Sun size={20} style={{ color: '#f59e0b' }} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ds-text)' }}>Light Mode</div>
+                        <div style={{ fontSize: 13, color: 'var(--ds-text3)', marginTop: 2 }}>Toggle between light and dark aesthetics.</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={toggleTheme}
                       style={{
-                        position: 'absolute', left: isDark ? '34px' : '2px', width: '28px', height: '28px',
-                        borderRadius: '50%', background: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                        transition: 'left 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center', color: isDark ? 'var(--ds-accent)' : '#f59e0b'
+                        position: 'relative', width: 44, height: 24, borderRadius: 12,
+                        background: isDark ? '#4f46e5' : '#d1d5db',
+                        border: 'none', cursor: 'pointer', outline: 'none',
+                        transition: 'background 0.3s ease'
                       }}
                     >
-                      {isDark ? <Moon size={14} /> : <Sun size={14} />}
+                      <div style={{
+                        position: 'absolute', top: 2, left: isDark ? 22 : 2,
+                        width: 20, height: 20, borderRadius: 10,
+                        background: '#fff',
+                        transition: 'left 0.3s ease',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                      }} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Account Session */}
+              <div style={{ background: 'var(--ds-surface)', borderRadius: 16, border: '1px solid var(--ds-border)', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                <div style={{ padding: '20px 24px' }}>
+                  <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ds-text)', margin: 0 }}>Account Session</h2>
+                  <p style={{ fontSize: 13, color: 'var(--ds-text3)', margin: '4px 0 24px' }}>Manage your current active session.</p>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 24, borderBottom: '1px solid var(--ds-border)' }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ds-text)' }}>Lock Repository</div>
+                      <div style={{ fontSize: 13, color: 'var(--ds-text3)', marginTop: 2 }}>Log out and securely lock your local vault</div>
                     </div>
-                  </button>
-                </div>
-              </div>
-
-              <div className="ds-card" style={{ overflow: 'hidden', marginBottom: '1.5rem' }}>
-                <SectionHeader icon={<Lock size={14} />} title="Account" subtitle="Manage your local vault session" />
-                <div style={{ padding: '1.2rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--ds-text)' }}>Lock Repository</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--ds-text3)', marginTop: '4px' }}>Log out and securely lock your local vault</div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await window.docuSync.lockVault();
+                          if (res.success) window.location.hash = '/vault-login';
+                        } catch (err) {}
+                      }}
+                      style={{ background: 'var(--ds-surface)', border: '1px solid var(--ds-border)', color: 'var(--ds-text)', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+                    >
+                      Log Out
+                    </button>
                   </div>
-                  <button
-                    onClick={async () => {
-                      try {
-                        const res = await window.docuSync.lockVault();
-                        if (res.success) window.location.hash = '/vault-login';
-                      } catch (err) { console.error('Failed to lock vault', err); }
-                    }}
-                    style={{
-                      background: 'var(--ds-red-bg)', border: '1px solid var(--ds-red-border)',
-                      color: 'var(--ds-red)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',
-                      fontWeight: 600, fontSize: '0.85rem'
-                    }}
-                  >
-                    Lock Vault
-                  </button>
-                </div>
-              </div>
 
-              <div className="ds-card" style={{ overflow: 'hidden', marginBottom: '1.5rem' }}>
-                <SectionHeader icon={<Trash size={14} />} title="Reset Application Data" subtitle="Clear all local data and restore to a fresh state" />
-                <div style={{ padding: '1.2rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div>
-                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--ds-text)' }}>Factory Reset</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--ds-text3)', marginTop: '4px' }}>Wipe all settings, sessions, and files locally.</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 24 }}>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: '#ef4444' }}>Factory Reset</div>
+                      <div style={{ fontSize: 13, color: 'var(--ds-text3)', marginTop: 2 }}>Wipe all settings, sessions, and files locally.</div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        showConfirm("Factory Reset", "Are you sure you want to completely wipe DocuSync data?", () => {
+                          localStorage.clear(); window.location.reload();
+                        });
+                      }}
+                      style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#ef4444', padding: '10px 20px', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
+                    >
+                      Reset App
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      showConfirm(
-                        "Factory Reset",
-                        "Are you sure you want to completely wipe DocuSync data? This cannot be undone.",
-                        () => {
-                          localStorage.clear();
-                          window.location.reload();
-                        }
-                      );
-                    }}
-                    style={{
-                      background: 'var(--ds-red-bg)', border: '1px solid var(--ds-red-border)',
-                      color: 'var(--ds-red)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',
-                      fontWeight: 600, fontSize: '0.85rem'
-                    }}
-                  >
-                    Clear All Data
-                  </button>
                 </div>
               </div>
             </div>
