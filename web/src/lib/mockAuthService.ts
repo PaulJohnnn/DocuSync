@@ -34,7 +34,7 @@ let _pendingHash = '';
 async function pollDatabase() {
   if (typeof window === 'undefined') return;
   try {
-    const res = await fetch(`${API_BASE}?action=sync`);
+    const res = await fetch(`${API_BASE}?action=sync&t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       const currentUsersStr = JSON.stringify(data.users || []);
@@ -261,7 +261,7 @@ export async function unlockWorkspace(email: string, pin: string): Promise<AuthU
 
 export async function getPendingRequests(): Promise<Array<{ id: string, email: string, requestedAt: string }>> {
   try {
-    const res = await fetch(`${API_BASE}?action=sync`);
+    const res = await fetch(`${API_BASE}?action=sync&t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       return data.pending || [];
@@ -274,7 +274,7 @@ export async function getPendingRequests(): Promise<Array<{ id: string, email: s
 
 export async function getActiveUsers(): Promise<AuthUser[]> {
   try {
-    const res = await fetch(`${API_BASE}?action=sync`);
+    const res = await fetch(`${API_BASE}?action=sync&t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       return (data.users || []).filter((u: AuthUser & { status: string; isAdmin: boolean; pin: string }) => u.status === 'active' && !u.isAdmin).map((u: AuthUser & { pin: string }) => {
@@ -290,7 +290,7 @@ export async function getActiveUsers(): Promise<AuthUser[]> {
 
 export async function checkApprovalStatus(email: string): Promise<string | null> {
   try {
-    const res = await fetch(`${API_BASE}?action=sync`);
+    const res = await fetch(`${API_BASE}?action=sync&t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       const user = (data.users || []).find((u: any) => u.email.toLowerCase() === email.toLowerCase());
