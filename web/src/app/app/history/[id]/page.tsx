@@ -10,13 +10,29 @@ import { idbGetFile, idbSaveFile } from '@/lib/idb';
 import InteractiveConflictEditor from '@/components/InteractiveConflictEditor';
 import { diffWords } from 'diff';
 
-function renderDiff(oldText: string, newText: string) {
+function renderDiff(oldText: string, newText: string, isSideBySide: boolean = false) {
   const strip = (html: string) => html ? html.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') : '';
   const oldClean = strip(oldText);
   const newClean = strip(newText);
+  
+  if (isSideBySide) {
+    return (
+      <div style={{ display: 'flex', gap: 16, width: '100%', alignItems: 'stretch' }}>
+        <div style={{ flex: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5', background: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 8, border: '1px solid #10b981' }}>
+          <div style={{ color: '#10b981', fontWeight: 'bold', marginBottom: 8, borderBottom: '1px solid #10b981', paddingBottom: 4 }}>WINNER (LWW Kept)</div>
+          {newClean || 'No data'}
+        </div>
+        <div style={{ flex: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5', background: 'rgba(239, 68, 68, 0.1)', padding: 16, borderRadius: 8, border: '1px solid #eab308' }}>
+          <div style={{ color: '#eab308', fontWeight: 'bold', marginBottom: 8, borderBottom: '1px solid #eab308', paddingBottom: 4 }}>LOSER (Overwritten)</div>
+          <span style={{ backgroundColor: 'rgba(234, 179, 8, 0.3)', textDecoration: 'line-through' }}>{oldClean || 'No data'}</span>
+        </div>
+      </div>
+    );
+  }
+
   const diffs = diffWords(newClean, oldClean);
   return (
-    <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5', background: 'var(--b1)', padding: 16, borderRadius: 8, maxHeight: 300, overflowY: 'auto' }}>
+    <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5', background: 'var(--b1)', padding: 16, borderRadius: 8 }}>
       {diffs.map((part, index) => {
         const color = part.added ? '#ef4444' : part.removed ? '#10b981' : 'var(--t2)';
         const bg = part.added ? 'rgba(239, 68, 68, 0.15)' : part.removed ? 'rgba(16, 185, 129, 0.15)' : 'transparent';
@@ -50,13 +66,13 @@ interface HistoryEntry {
 }
 
 const EVENT_ICONS: Record<string, { icon: React.ElementType; color: string; bg: string; label: string }> = {
-  'edit': { icon: FileEdit, color: 'var(--acc)', bg: 'var(--acb)', label: 'Edit' },
-  'session-snapshot': { icon: RefreshCw, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', label: 'Session Checkpoint' },
-  'merge': { icon: GitMerge, color: 'var(--pur)', bg: 'rgba(168, 85, 247, 0.15)', label: 'Merge' },
-  'conflict-resolve': { icon: Scale, color: 'var(--amb)', bg: 'var(--amb-bg)', label: 'Conflict Resolved' },
+  'edit': { icon: FileEdit, color: 'var(--acc)', bg: 'var(--acb)', label: 'Previous Edit' },
+  'session-snapshot': { icon: RefreshCw, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', label: 'Previous Edit (Session Save)' },
+  'merge': { icon: GitMerge, color: 'var(--pur)', bg: 'rgba(168, 85, 247, 0.15)', label: 'Edit History (LWW Collision)' },
+  'conflict-resolve': { icon: Scale, color: 'var(--amb)', bg: 'var(--amb-bg)', label: 'Edit History (Manual)' },
   'restore': { icon: FilePlus, color: 'var(--grn)', bg: 'rgba(16, 185, 129, 0.15)', label: 'Restore' },
   'delete': { icon: Trash2, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', label: 'File Deleted' },
-  'offline-replay': { icon: Activity, color: 'var(--tel)', bg: 'rgba(20, 184, 166, 0.15)', label: 'Offline Replay' },
+  'offline-replay': { icon: Activity, color: 'var(--tel)', bg: 'rgba(20, 184, 166, 0.15)', label: 'Conflict Edit (Offline Append)' },
 };
 
 export default function HistoryPage() {
@@ -421,14 +437,16 @@ export default function HistoryPage() {
                         >
                           <Eye size={12} /> View
                         </button>
-                        <button
-                          className="ds-btn ds-btn-primary ds-btn-animate"
-                          onClick={() => handleRestore(ev.eventId, ev.fullContent)}
-                          disabled={restoring[ev.eventId]}
-                          style={{ padding: '6px 16px', fontSize: 13, gap: 6 }}
-                        >
-                          {restoring[ev.eventId] ? 'Restoring...' : 'Restore'}
-                        </button>
+                        {ev.eventType !== 'merge' && (
+                          <button
+                            className="ds-btn ds-btn-primary ds-btn-animate"
+                            onClick={() => handleRestore(ev.eventId, ev.fullContent)}
+                            disabled={restoring[ev.eventId]}
+                            style={{ padding: '6px 16px', fontSize: 13, gap: 6 }}
+                          >
+                            {restoring[ev.eventId] ? 'Restoring...' : 'Restore'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -468,7 +486,7 @@ export default function HistoryPage() {
             </div>
 
             <div style={{ padding: '0 20px 20px', overflowY: 'auto', flex: 1, fontSize: 14, color: 'var(--t1)' }}>
-              {events.length > 0 ? renderDiff(viewFullEvent.fullContent || viewFullEvent.payloadPreview || '', events[0].fullContent || events[0].payloadPreview || '') : null}
+              {events.length > 0 ? renderDiff(viewFullEvent.fullContent || viewFullEvent.payloadPreview || '', events.length > 1 ? events[1].fullContent || events[1].payloadPreview || '' : '', viewFullEvent.eventType === 'merge') : null}
             </div>
 
             <div style={{ padding: '12px 16px', background: 'var(--amb-bg)', border: '1px solid var(--amb)', color: 'var(--amb)', margin: '0 20px 16px', borderRadius: 8, display: 'flex', alignItems: 'flex-start', gap: 12 }}>

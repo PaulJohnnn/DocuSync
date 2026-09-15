@@ -123,6 +123,27 @@ export async function login(email: string, pin: string): Promise<AuthUser> {
   return data.user;
 }
 
+export async function setPassword(email: string, pin: string, password: string): Promise<AuthUser> {
+  const res = await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'set_password', email, pin, password })
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Failed to set password');
+  }
+  
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
+    if (!data.user.isAdmin) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
+    }
+    sessionStorage.setItem('docusync_has_seen_welcome_session', 'true');
+  }
+  return data.user;
+}
+
 export async function requestAccount(email: string): Promise<'verified'> {
   let deviceId = localStorage.getItem('docusync_device_id');
   if (!deviceId) {

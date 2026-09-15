@@ -64,41 +64,8 @@ export async function GET(req: Request) {
   const db = await getDb();
 
   if (action === 'sync') {
-    // Auto-approve pending requests older than 5 seconds
-    const now = Date.now();
-    let changed = false;
-    
-    for (let i = db.pending.length - 1; i >= 0; i--) {
-      const p = db.pending[i];
-      const reqTime = new Date(p.requestedAt).getTime();
-      if (now - reqTime >= 5000) {
-        // Auto-approve
-        const pin = Math.floor(100000 + Math.random() * 900000).toString();
-        const existingUser = db.users.find((u: any) => u.email.toLowerCase() === p.email.toLowerCase());
-        
-        if (existingUser) {
-          existingUser.pin = pin;
-          existingUser.status = 'active';
-        } else {
-          db.users.push({
-            id: 'user-' + Date.now().toString() + Math.random().toString(36).substr(2, 5),
-            email: p.email,
-            name: p.email.split('@')[0],
-            pin,
-            isAdmin: false,
-            createdAt: new Date().toISOString(),
-            status: 'active'
-          });
-        }
-        db.pending.splice(i, 1);
-        changed = true;
-      }
-    }
-    
-    if (changed) {
-      saveDb(db);
-    }
-
+    // Only return current states. Auto-approval logic has been permanently removed.
+    // Accounts will sit in db.pending indefinitely until an Admin manually calls the approve API.
     return NextResponse.json({ users: db.users, pending: db.pending }, { headers: corsHeaders });
   }
 
@@ -110,6 +77,26 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { action } = body;
     const db = await getDb();
+
+    if (action === 'set_password') {
+      const { email, pin, password } = body;
+      const user = db.users.find((u: any) => 
+        u.email.toLowerCase() === email.toLowerCase() && 
+        u.pin === pin && 
+        u.status === 'active'
+      );
+      if (!user) {
+        return NextResponse.json({ success: false, error: 'Invalid Setup PIN.' }, { status: 401, headers: corsHeaders });
+      }
+      if (password.length < 5) {
+        return NextResponse.json({ success: false, error: 'Password must be at least 5 characters.' }, { status: 400, headers: corsHeaders });
+      }
+      user.pin = password; // Overwrite the temporary setup PIN with the strong password
+      saveDb(db);
+      
+      const { pin: _pin, ...safeUser } = user;
+      return NextResponse.json({ success: true, user: safeUser }, { headers: corsHeaders });
+    }
 
     if (action === 'login') {
       const { email, pin } = body;

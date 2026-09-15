@@ -1,76 +1,36 @@
 import * as Diff from 'diff';
 
-export function computeSignatureMerge(originalHtml: string, onlineHtml: string, offlineHtml: string): string {
+export function computeSignatureMerge(originalHtml: string, onlineHtml: string, offlineHtml: string, authorName: string = 'User'): string {
   if (originalHtml === offlineHtml) return onlineHtml;
   if (originalHtml === onlineHtml) return offlineHtml;
 
-  // Simple HTML stripper
+  // Simple HTML stripper for diffing logic
   const stripHtml = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
   
   const origText = stripHtml(originalHtml);
-  const onlineText = stripHtml(onlineHtml);
   const offlineText = stripHtml(offlineHtml);
 
-  // We perform a 3-way merge on words.
-  // diff3 algorithms can be complex, but we can approximate it by applying online diffs to the offline text.
-  // Actually, standard diff3 requires applying a patch. Let's use Diff.diffWords to generate a patch.
+  // Instead of a destructive inline merge, we extract exactly what the offline user ADDED,
+  // and we append it as a brand new isolated page at the bottom of the document.
+  // This explicitly guarantees zero data loss (vanishing edits) for the online content.
   
-  const patch = Diff.createPatch('doc', origText, onlineText, '', '');
-  const applyResult = Diff.applyPatch(offlineText, patch);
-  
-  if (applyResult) {
-    // If patch applied cleanly, wrap in <p> and return
-    return `<p>${applyResult}</p>`;
-  }
-  
-  // If patch fails (conflict), we manually combine the additions.
-  // A simple heuristic for text merging: 
-  // 1. Find the online suffix addition if it's an append.
-  if (onlineText.startsWith(origText) && onlineText.length > origText.length) {
-    const appendedText = onlineText.substring(origText.length);
-    const match = offlineHtml.match(/(<\/[^>]+>)+$/);
+  const diffs = Diff.diffWords(origText, offlineText);
+  const additions = diffs.filter(d => d.added).map(d => `<p>${d.value}</p>`).join('');
+
+  if (additions.trim().length > 0) {
+    const pageBreak = `<hr class="offline-page-break" style="page-break-before: always; border: 2px dashed #ef4444; margin: 40px 0;" />`;
+    const header = `<h3 style="color: #ef4444; font-family: monospace; background: #fee2e2; padding: 8px; border-radius: 4px;">⚠️ [Offline Edit appended by ${authorName}]</h3>`;
+    
+    // Inject the new page right before the absolute closing tags of the online HTML, or simply append.
+    const match = onlineHtml.match(/(<\/[^>]+>)+$/);
     if (match) {
       const closingTags = match[0];
-      const baseHtml = offlineHtml.substring(0, offlineHtml.length - closingTags.length);
-      return baseHtml + appendedText + closingTags;
+      const baseHtml = onlineHtml.substring(0, onlineHtml.length - closingTags.length);
+      return baseHtml + pageBreak + header + additions + closingTags;
     }
-    return offlineHtml + appendedText;
+    return onlineHtml + pageBreak + header + additions;
   }
 
-  // 2. If it's not a simple append, we concatenate the changes or just return the offline version with a warning.
-  // The user specifically wanted:
-  // orig: "im happy with you always"
-  // online: "im happy with you always because im comfortable with you "
-  // offline: "im very happy with you my love, always"
-  // merged: "im very happy with you my love, always because im comfortable with you "
-  
-  // In this case, online appended text, but offline modified the middle.
-  // To solve this, let's check if the online diff is purely an addition at the END of the word diffs.
-  const onlineDiffs = Diff.diffWords(origText, onlineText);
-  let onlineAppendedWords = '';
-  
-  // Find trailing additions in online
-  for (let i = onlineDiffs.length - 1; i >= 0; i--) {
-    if (onlineDiffs[i].added) {
-      onlineAppendedWords = onlineDiffs[i].value + onlineAppendedWords;
-    } else if (onlineDiffs[i].removed) {
-      // Ignored
-    } else {
-      break;
-    }
-  }
-
-  if (onlineAppendedWords.trim().length > 0) {
-    // Inject the trailing addition into offlineHtml before the closing p tag
-    const match = offlineHtml.match(/(<\/[^>]+>)+$/);
-    if (match) {
-      const closingTags = match[0];
-      const baseHtml = offlineHtml.substring(0, offlineHtml.length - closingTags.length);
-      return baseHtml + onlineAppendedWords + closingTags;
-    }
-    return offlineHtml + onlineAppendedWords;
-  }
-
-  // Fallback: If we really can't merge safely, keep offline
-  return offlineHtml;
+  // If they didn't add anything (only deleted text offline), we reject the deletions to protect the online file.
+  return onlineHtml;
 }

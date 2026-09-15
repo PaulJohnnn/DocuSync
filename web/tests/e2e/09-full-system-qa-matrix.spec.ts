@@ -65,7 +65,7 @@ test.describe('Ultimate Global Matrix QA Simulation', () => {
     await webPage.goto('http://localhost:3000/app/metrics');
     
     // VERIFY: Matrix Comparison Chart correctly loaded
-    await expect(webPage.locator('text=Algorithm Matrix: CRDT (LWW) vs Operational Transformation (OT)')).toBeVisible({ timeout: 15000 });
+    await expect(webPage.locator('text=Algorithm Matrix: LWW (Vector Clocks) vs Operational Transformation (OT)')).toBeVisible({ timeout: 15000 });
     
     
     // -------------------------------------------------------------

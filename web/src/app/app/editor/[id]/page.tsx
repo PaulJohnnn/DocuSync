@@ -247,6 +247,17 @@ export default function EditorPage() {
       if (isTypingRef.current || hasPendingChangesRef.current) return; // Don't stomp on local typing or pending pushes
       console.log('[APPLY]', 'source:', msg.nodeId, 'my content before:', currentContentRef.current, 'incoming content:', msg.content);
       if (msg.content && msg.content !== currentContentRef.current) {
+        
+        // Detect if the incoming payload contains newly appended offline pages
+        const oldOfflinePages = (currentContentRef.current.match(/offline-page-break/g) || []).length;
+        const newOfflinePages = (msg.content.match(/offline-page-break/g) || []).length;
+        if (newOfflinePages > oldOfflinePages) {
+          toast.info(`An offline edit by ${msg.authorName || 'a peer'} was appended to a new page at the bottom of the document.`, {
+            duration: 8000,
+            icon: '📄'
+          });
+        }
+
         isApplyingRemoteRef.current = true;
         lastSyncedAt.current = msg.timestamp ? new Date(msg.timestamp).getTime() : Date.now();
         setContentAndRef(msg.content);
@@ -440,6 +451,7 @@ export default function EditorPage() {
               vectorClock: vectorClockSnapshot,
               isOfflineReconnect: offlineQueue,
               baseContent: uGet('docusync_offline_base'),
+              committedAt: Date.now(),
             }),
           });
           if (res.ok) {
@@ -505,6 +517,9 @@ export default function EditorPage() {
               }
 
               setSyncStatusMsg('Conflict Detected! Check menu.');
+              // Track conflict count for Web-only Metrics dashboard
+              const prevConflictCount = parseInt(localStorage.getItem('web_session_conflict_count') || '0', 10);
+              localStorage.setItem('web_session_conflict_count', String(prevConflictCount + 1));
               if (explicit) {
                 toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
               }
@@ -517,6 +532,9 @@ export default function EditorPage() {
                   toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
                 }
               }
+              // Track real push count for Web-only Metrics dashboard
+              const prevCount = parseInt(localStorage.getItem('web_session_push_count') || '0', 10);
+              localStorage.setItem('web_session_push_count', String(prevCount + 1));
               setSyncStatusMsg(`Synced ✓`);
               setOfflineQueue(false);
               uSet('docusync_offline_base', contentToSave);
@@ -555,6 +573,9 @@ export default function EditorPage() {
               uSet(`docusync_offline_history_${fileId}`, '[]');
               hasPendingChangesRef.current = false;
               directSuccess = true;
+              // Track push count for Metrics dashboard (cloud path)
+              const prevCount = parseInt(localStorage.getItem('web_session_push_count') || '0', 10);
+              localStorage.setItem('web_session_push_count', String(prevCount + 1));
             }
           } catch (e) {
             // Matchmaker also failed
@@ -638,7 +659,7 @@ export default function EditorPage() {
                   } else {
                     // We have offline/pending changes or are typing AND the server has new changes. Conflict!
                     const original = offlineBaselineRef.current || lastSave.current;
-                    const merged = computeSignatureMerge(original, data.content, currentContentRef.current);
+                    const merged = computeSignatureMerge(original, data.content, currentContentRef.current, myName);
                     if (merged !== currentContentRef.current) {
                       setContentAndRef(merged);
                       setSyncStatusMsg('Merged Signature Edit ✓');
@@ -692,7 +713,7 @@ export default function EditorPage() {
                 } else {
                   // Conflict in cloud Matchmaker
                   const original = offlineBaselineRef.current || lastSave.current;
-                  const merged = computeSignatureMerge(original, data.content, currentContentRef.current);
+                  const merged = computeSignatureMerge(original, data.content, currentContentRef.current, myName);
                   if (merged !== currentContentRef.current) {
                     setContentAndRef(merged);
                     setSyncStatusMsg('Merged Signature Edit ☁');
