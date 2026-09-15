@@ -246,6 +246,201 @@ body {
   border-color: var(--b2);
   transform: translateY(-1.5px);
   box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+  --grbr: rgba(22,163,74,.25);
+  --amb: #d97706;
+  --abb: rgba(217,119,6,.10);
+  --abbr: rgba(217,119,6,.25);
+  --red: #dc2626;
+  --rdb: rgba(220,38,38,.10);
+  --rdbr: rgba(220,38,38,.25);
+  --pur: #7c3aed;
+  --tel: #0d9488;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--t1);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  min-height: 100vh;
+  overflow: auto;
+}
+
+.btn-hero-ghost, .cta-ghost {
+  display: inline-flex;
+  align-items: center;
+  background: var(--s1);
+  border: 1px solid var(--b2);
+  color: var(--t1);
+  border-radius: 12px;
+  height: 52px;
+  padding: 0 32px;
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-hero-ghost:hover, .cta-ghost:hover {
+  background: var(--s2);
+  border-color: var(--b3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+}
+
+.btn-hero-ghost:active, .cta-ghost:active {
+  transform: scale(0.97);
+  box-shadow: none;
+}
+
+/* App layout (non-public routes) locks overflow on the wrapper div */
+.app-layout {
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* ── Landing page animations ────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-12px); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(79,125,248,0.3); }
+  50%      { box-shadow: 0 0 40px rgba(79,125,248,0.6); }
+}
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes count-up {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(8px); }
+}
+
+/* Scroll-reveal helper */
+.scroll-hidden {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.scroll-hidden.animate-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Scrollbar styling ───────────────────────────────────────── */
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--b1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--b2); }
+
+/* TipTap editor styling */
+.tiptap {
+  outline: none;
+  min-height: 400px;
+  padding: 16px;
+  color: var(--t1);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.tiptap h1 { font-size: 28px; font-weight: 700; margin-bottom: 12px; }
+.tiptap h2 { font-size: 22px; font-weight: 600; margin-bottom: 10px; }
+.tiptap h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.tiptap p { margin-bottom: 8px; }
+.tiptap ul { list-style: disc; padding-left: 24px; margin-bottom: 8px; }
+.tiptap ol { list-style: decimal; padding-left: 24px; margin-bottom: 8px; }
+.tiptap blockquote {
+  border-left: 3px solid var(--acc);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--t2);
+}
+.tiptap code {
+  background: var(--s2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.tiptap pre {
+  background: var(--bg2);
+  padding: 12px;
+  border-radius: 8px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+.tiptap mark { background: rgba(79,125,248,.3); color: var(--t1); }
+
+.tiptap .is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--t3);
+  pointer-events: none;
+  height: 0;
+}
+
+/* Utility classes */
+.ds-card {
+  background: var(--s1);
+  border: 1px solid var(--b1);
+  border-radius: 10px;
+  padding: 16px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.ds-card:hover {
+  border-color: var(--b2);
+  background: var(--s2);
+}
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--b1);
+  background: var(--s1);
+  color: var(--t1);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.ds-btn:hover {
+  background: var(--s2);
+  border-color: var(--b2);
+  transform: translateY(-1.5px);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
 }
 .ds-btn:active {
   transform: scale(0.97);
@@ -267,6 +462,7 @@ body {
   transform: scale(0.97);
   box-shadow: 0 2px 8px rgba(79, 125, 248, 0.3);
 }
+
 .ds-badge {
   display: inline-flex;
   align-items: center;
@@ -278,14 +474,19 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
 /* TipTap Collaboration Cursor Styles */
 .collaboration-cursor__caret {
   position: relative;
+  display: inline-block;
+  height: 1.2em;
+  vertical-align: middle;
   margin-left: -1px;
   margin-right: -1px;
   border-left: 2px solid;
   word-break: normal;
   pointer-events: none;
+  z-index: 10;
 }
 
 .collaboration-cursor__label {
@@ -332,6 +533,7 @@ body {
   text-align: left;
   background-color: var(--b1);
 }
+
 /* Paginated Print Layout */
 .ds-editor-page-wrapper {
   background-color: #f1f5f9; /* Slate 100 desk */
@@ -343,6 +545,7 @@ body {
   border-radius: 8px;
   box-shadow: inset 0 2px 8px rgba(0,0,0,0.03);
 }
+
 .ds-editor-page-view .ProseMirror {
   width: 100%;
   min-height: 1123px; /* A4 Height */
@@ -360,7 +563,6 @@ body {
   margin-top: 40px;
   margin-bottom: 40px;
   border: none;
-  height: 0;
   border-top: none;
   margin: 96px -80px !important;
   background-color: #f1f5f9;
@@ -374,6 +576,7 @@ body {
     inset 0 4px 12px -4px rgba(0,0,0,0.1),
     inset 0 -4px 12px -4px rgba(0,0,0,0.1);
 }
+
 .ds-editor-page-view .ProseMirror hr::after {
   content: 'PAGE BREAK';
   color: #94a3b8;
@@ -382,6 +585,7 @@ body {
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+
 @media (max-width: 880px) {
   .ds-editor-page-view .ProseMirror {
     width: 100%;

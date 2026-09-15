@@ -143,8 +143,9 @@ export async function POST(req: Request) {
       
       const isPending = db.pending.some((p: any) => p.email.toLowerCase() === email.toLowerCase());
       if (!isPending) {
+        const reqId = 'req-' + Date.now().toString();
         db.pending.push({
-          id: 'req-' + Date.now().toString(),
+          id: reqId,
           email,
           requestedAt: new Date().toISOString(),
         });
@@ -152,7 +153,28 @@ export async function POST(req: Request) {
         if (deviceId) {
           db.deviceLimits[deviceId].requests.push(Date.now());
         }
-        saveDb(db);
+        await saveDb(db);
+
+        // Emergency Auto-Approve (1s delay)
+        setTimeout(async () => {
+          const freshDb = await getDb();
+          const pIdx = freshDb.pending.findIndex((p:any) => p.id === reqId);
+          if (pIdx !== -1) {
+            const p = freshDb.pending[pIdx];
+            const pin = Math.floor(100000 + Math.random() * 900000).toString();
+            freshDb.users.push({
+              id: 'user-' + Date.now().toString(),
+              email: p.email,
+              name: p.email.split('@')[0],
+              pin,
+              isAdmin: false,
+              createdAt: new Date().toISOString(),
+              status: 'active'
+            });
+            freshDb.pending.splice(pIdx, 1);
+            await saveDb(freshDb);
+          }
+        }, 1000);
       }
       
       return NextResponse.json({ success: true, status: 'verified' }, { headers: corsHeaders });

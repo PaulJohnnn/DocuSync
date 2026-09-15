@@ -813,7 +813,7 @@ export default function EditorPage() {
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false;
       saveFile(wrapped);
-    }, 5000);
+    }, 500);
   }, [saveFile]);
 
   const handleMarginChange = useCallback((newMargin: string) => {
@@ -828,7 +828,7 @@ export default function EditorPage() {
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false;
       saveFile(wrapped);
-    }, 5000);
+    }, 500);
   }, [saveFile]);
 
   useEffect(() => {
