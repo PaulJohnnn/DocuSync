@@ -552,10 +552,6 @@ export default function WebMetricsDashboard() {
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1, #1e293b)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span>Algorithm Matrix: LWW (Vector Clocks) vs Operational Transformation (OT)</span>
-              <span style={{
-                fontSize: 10, background: 'rgba(59,130,246,0.12)', color: '#3b82f6',
-                padding: '2px 8px', borderRadius: 12, border: '1px solid rgba(59,130,246,0.3)', fontWeight: 700
-              }}>THESIS EVALUATION</span>
             </div>
             <div style={{ fontSize: 12, color: 'var(--t2, #64748b)', marginTop: 3 }}>
               Live session benchmarks — LWW (Vector Clocks + Last-Writer-Wins) vs OT [Johnson & Thomas 1975, Saito & Shapiro 2005]
@@ -563,23 +559,31 @@ export default function WebMetricsDashboard() {
           </div>
         </div>
 
-        <div style={{ height: 260, width: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={otLwwComparisonData} layout="vertical" margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--b1, rgba(255,255,255,0.08))" horizontal={false} />
-              <XAxis type="number" stroke="var(--t2, #64748b)" fontSize={11} tickLine={false} />
-              <YAxis dataKey="metric" type="category" stroke="var(--t2, #64748b)" fontSize={12} fontWeight={600} tickLine={false} width={130} />
-              <RechartsTooltip
-                cursor={{ fill: 'rgba(255,255,255,0.02)' }}
-                contentStyle={{
-                  background: 'var(--s1, #ffffff)', border: '1px solid var(--b1)',
-                  borderRadius: 10, fontSize: 12, color: 'var(--t1)'
-                }}
-              />
-              <Bar dataKey="LWW" name="LWW Vector Clocks (DocuSync)" fill="#10b981" radius={[0, 4, 4, 0]} barSize={24} />
-              <Bar dataKey="OT" name="Operational Transformation (Baseline)" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={24} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div style={{ height: 260, width: '100%', position: 'relative' }}>
+          {totalSyncEvents > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={otLwwComparisonData} layout="vertical" margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--b1, rgba(255,255,255,0.08))" horizontal={false} />
+                <XAxis type="number" stroke="var(--t2, #64748b)" fontSize={11} tickLine={false} />
+                <YAxis dataKey="metric" type="category" stroke="var(--t2, #64748b)" fontSize={12} fontWeight={600} tickLine={false} width={130} />
+                <RechartsTooltip
+                  cursor={{ fill: 'rgba(255,255,255,0.02)' }}
+                  contentStyle={{
+                    background: 'var(--s1, #ffffff)', border: '1px solid var(--b1)',
+                    borderRadius: 10, fontSize: 12, color: 'var(--t1)'
+                  }}
+                />
+                <Bar dataKey="LWW" name="LWW Vector Clocks (DocuSync)" fill="#10b981" radius={[0, 4, 4, 0]} barSize={24} />
+                <Bar dataKey="OT" name="Operational Transformation (Baseline)" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={24} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg, rgba(255,255,255,0.03))', borderRadius: 8, border: '1px dashed var(--b1, rgba(255,255,255,0.1))' }}>
+              <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #3b82f6', borderTopColor: 'transparent', animation: 'spin 1s linear infinite', marginBottom: 12 }} />
+              <p style={{ fontSize: 13, color: 'var(--t3, #8a94a6)', fontWeight: 600 }}>Waiting for session telemetry...</p>
+              <p style={{ fontSize: 11, color: 'var(--t4, #475569)', marginTop: 4 }}>Make a document edit to populate matrix comparison.</p>
+            </div>
+          )}
         </div>
       </div>
         </>

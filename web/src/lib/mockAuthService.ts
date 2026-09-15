@@ -144,6 +144,30 @@ export async function setPassword(email: string, pin: string, password: string):
   return data.user;
 }
 
+export async function verifyResetCode(email: string, resetCode: string): Promise<void> {
+  const res = await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'verify_reset_code', email, resetCode })
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Verification failed');
+  }
+}
+
+export async function setResetPassword(email: string, resetCode: string, newPassword: string): Promise<void> {
+  const res = await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'set_reset_password', email, resetCode, newPassword })
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Failed to set new password');
+  }
+}
+
 export async function requestAccount(email: string): Promise<'verified'> {
   let deviceId = localStorage.getItem('docusync_device_id');
   if (!deviceId) {
@@ -358,6 +382,8 @@ export function subscribeToDatabaseChanges(callback: () => void) {
 const mockAuthService = {
   login,
   setPassword,
+  verifyResetCode,
+  setResetPassword,
   requestAccount,
   getCurrentUser,
   getRememberedEmail,

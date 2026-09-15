@@ -428,6 +428,15 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
   const [copied, setCopied] = useState(false);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
 
+  // 3-step forgot password flow states
+  const [forgotStep, setForgotStep] = useState<'show_code' | 'verify' | 'new_password'>('show_code');
+  const [forgotVerifyInput, setForgotVerifyInput] = useState('');
+  const [forgotVerifyError, setForgotVerifyError] = useState('');
+  const [forgotNewPassword, setForgotNewPassword] = useState('');
+  const [forgotNewPasswordError, setForgotNewPasswordError] = useState('');
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
+  const [isFinishingReset, setIsFinishingReset] = useState(false);
+
   useEffect(() => {
     const prefilled = searchParams.get('email') ?? mockAuthService.getRememberedEmail();
     if (prefilled) {
@@ -498,91 +507,113 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
   }
 
   if (renewedPin) {
-    return (
-      <div style={{ textAlign: 'center', padding: '40px 0', animation: 'fadeInUp 0.4s ease' }}>
-        <div style={{
-          width: 64, height: 64, borderRadius: '50%',
-          background: 'rgba(34,197,94,0.1)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 16px',
-        }}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        </div>
-        <h3 style={{ fontSize: 20, fontWeight: 700, color: '#166534', marginBottom: 8 }}>PIN Renewed!</h3>
-        <div style={{ fontSize: 13, color: '#4b5563', marginBottom: 16, lineHeight: 1.5, background: '#fef3c7', padding: 12, borderRadius: 8, border: '1px solid #fde68a' }}>
-          <strong>Notice:</strong> You can only change your password 1 time for this account. The next time will be next week.
-        </div>
-        <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 16 }}>
-          Use your new PIN below to log in.
-        </p>
-        <div style={{
-          background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px',
-          marginBottom: 24, fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '4px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12
-        }}>
-          <span>{renewedPin}</span>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(renewedPin);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }}
-            style={{
-              background: copied ? '#10b981' : 'none', 
-              border: 'none', cursor: 'pointer', padding: 6, display: 'flex',
-              alignItems: 'center', justifyContent: 'center', 
-              color: copied ? 'var(--bg-card)' : '#64748b',
-              borderRadius: 6, transition: 'all 0.2s ease', transform: copied ? 'scale(1.1)' : 'scale(1)'
-            }}
-            title="Copy PIN"
-          >
-            {copied ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-            )}
+    // STEP 1: Show the OTP to the user
+    if (forgotStep === 'show_code') {
+      return (
+        <div style={{ textAlign: 'center', padding: '24px 0', animation: 'fadeInUp 0.4s ease' }}>
+          <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(245,158,11,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <h3 style={{ fontSize: 20, fontWeight: 700, color: '#92400e', marginBottom: 8 }}>Reset Code Issued</h3>
+          <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 16, lineHeight: 1.6 }}>Your temporary reset code is shown below. Copy it and keep it safe. It expires in <strong>15 minutes</strong>.</p>
+          <div style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px', marginBottom: 24, fontSize: 24, fontWeight: 800, color: '#0f172a', letterSpacing: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+            <span>{renewedPin}</span>
+            <button onClick={() => { navigator.clipboard.writeText(renewedPin); setCopied(true); setTimeout(() => setCopied(false), 2000); }} style={{ background: copied ? '#10b981' : 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: copied ? '#fff' : '#64748b', borderRadius: 6, transition: 'all 0.2s', transform: copied ? 'scale(1.1)' : 'none' }} title="Copy Code">
+              {copied ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
+            </button>
+          </div>
+          <button onClick={() => setForgotStep('verify')} style={{ width: '100%', padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 700, background: '#f59e0b', color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(245,158,11,0.3)' }}>
+            Continue to Verify Code
           </button>
         </div>
-        <button
-          onClick={() => setShowSaveConfirm(true)}
-          style={{
-            padding: '12px 24px', borderRadius: 10, fontSize: 14, fontWeight: 700,
-            background: '#16a34a', color: '#fff', border: 'none', cursor: 'pointer',
-            transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(22, 163, 74, 0.3)'
-          }}
-        >
-          Continue to Login
-        </button>
+      );
+    }
 
-        {showSaveConfirm && (
-          <div
-            onClick={() => setShowSaveConfirm(false)}
-            style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0, 0, 0, 0.7)', backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}
-          >
-            <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: 24, padding: '32px', maxWidth: 400, width: '90%', textAlign: 'center', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.3)', animation: 'modalSlideUp 0.25s' }}>
-              <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 12, marginTop: 0 }}>Did you save the Access Code?</h3>
-              <p style={{ fontSize: 14, color: '#475569', marginBottom: 24, lineHeight: 1.6 }}>If you click continue without saving, you might lose access to your account since your password can only be reset once per week.</p>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                <button
-                  onClick={() => setShowSaveConfirm(false)}
-                  style={{ flex: 1, padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 700, background: '#f1f5f9', color: '#64748b', border: 'none', cursor: 'pointer', transition: 'background 0.2s' }}
-                >
-                  No, go back
-                </button>
-                <button
-                  onClick={() => { setRenewedPin(''); setShowSaveConfirm(false); }}
-                  style={{ flex: 1, padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 700, background: '#3b82f6', color: '#fff', border: 'none', cursor: 'pointer', transition: 'background 0.2s', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)' }}
-                >
-                  Yes, continue
-                </button>
-              </div>
-            </div>
+    // STEP 2: Verify the OTP
+    if (forgotStep === 'verify') {
+      return (
+        <div style={{ animation: 'fadeInUp 0.3s ease', textAlign: 'left' }}>
+          <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 8, marginTop: 0 }}>Verify Reset Code</h3>
+          <p style={{ fontSize: 13, color: '#475569', marginBottom: 20, lineHeight: 1.6 }}>Enter the 6-digit reset code we just gave you to confirm your identity.</p>
+          <div style={{ marginBottom: 20 }}>
+            <SixDigitPin value={forgotVerifyInput} onChange={v => { setForgotVerifyInput(v); setForgotVerifyError(''); }} showPin={true} onToggleShow={() => {}} error={forgotVerifyError} shake={!!forgotVerifyError} />
+            {forgotVerifyError && <div style={{ color: '#ef4444', fontSize: 13, marginTop: 6, textAlign: 'center', fontWeight: 600 }}>{forgotVerifyError}</div>}
           </div>
-        )}
-      </div>
-    );
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button onClick={() => { setForgotStep('show_code'); setForgotVerifyInput(''); }} style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Go Back</button>
+            <button
+              disabled={forgotVerifyInput.length < 6 || isFinishingReset}
+              onClick={async () => {
+                setIsFinishingReset(true);
+                try {
+                  await mockAuthService.verifyResetCode(email, forgotVerifyInput);
+                  setForgotStep('new_password');
+                } catch (err: any) {
+                  setForgotVerifyError(err.message || 'Incorrect code.');
+                } finally {
+                  setIsFinishingReset(false);
+                }
+              }}
+              style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: forgotVerifyInput.length === 6 ? '#0f172a' : '#94a3b8', color: '#fff', fontWeight: 600, cursor: forgotVerifyInput.length === 6 ? 'pointer' : 'not-allowed' }}
+            >
+              {isFinishingReset ? 'Verifying...' : 'Verify Code'}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // STEP 3: Set new password
+    if (forgotStep === 'new_password') {
+      return (
+        <div style={{ animation: 'fadeInUp 0.3s ease', textAlign: 'left' }}>
+          <h3 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 8, marginTop: 0 }}>Set New Password</h3>
+          <p style={{ fontSize: 13, color: '#475569', marginBottom: 20, lineHeight: 1.6 }}>Create a new password for your account. Must be at least 6 characters with 1 special character (e.g. @, !, #).</p>
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', border: `1.5px solid ${forgotNewPasswordError ? '#ef4444' : 'var(--border)'}`, borderRadius: 12, background: '#f8fafc', overflow: 'hidden' }}>
+              <input
+                type={showForgotNewPassword ? 'text' : 'password'}
+                value={forgotNewPassword}
+                onChange={e => { setForgotNewPassword(e.target.value); setForgotNewPasswordError(''); }}
+                placeholder="Enter new password"
+                style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', padding: '14px', fontSize: 15, color: '#0f172a', fontFamily: 'inherit' }}
+              />
+              <button type="button" onClick={() => setShowForgotNewPassword(s => !s)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 14px', color: '#94a3b8' }}>
+                {showForgotNewPassword ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg> : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+              </button>
+            </div>
+            {forgotNewPasswordError && <div style={{ color: '#ef4444', fontSize: 13, marginTop: 6, fontWeight: 500 }}>{forgotNewPasswordError}</div>}
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button onClick={() => setForgotStep('verify')} style={{ flex: 1, padding: '12px', borderRadius: 12, border: '1.5px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Go Back</button>
+            <button
+              disabled={isFinishingReset}
+              onClick={async () => {
+                const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/;
+                if (forgotNewPassword.length < 6 || !specialCharRegex.test(forgotNewPassword)) {
+                  setForgotNewPasswordError('Password must be at least 6 characters and include one special character.');
+                  return;
+                }
+                setIsFinishingReset(true);
+                try {
+                  await mockAuthService.setResetPassword(email, forgotVerifyInput, forgotNewPassword);
+                  // Auto-login with new password
+                  await mockAuthService.login(email, forgotNewPassword);
+                  location.href = '/app/files';
+                } catch (err: any) {
+                  setForgotNewPasswordError(err.message || 'Failed to set password.');
+                } finally {
+                  setIsFinishingReset(false);
+                }
+              }}
+              style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 700, cursor: isFinishingReset ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}
+            >
+              {isFinishingReset ? 'Saving...' : 'Set Password & Login'}
+            </button>
+          </div>
+        </div>
+      );
+    }
   }
 
   return (

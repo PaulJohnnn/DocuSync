@@ -86,13 +86,18 @@ export async function POST(req: Request) {
         u.status === 'active'
       );
       if (!user) {
-        return NextResponse.json({ success: false, error: 'Invalid Setup PIN.' }, { status: 401, headers: corsHeaders });
+        return NextResponse.json({ success: false, error: 'Invalid Setup Code. Please go back and copy the code shown on the approval screen.' }, { status: 401, headers: corsHeaders });
       }
-      if (password.length < 5) {
-        return NextResponse.json({ success: false, error: 'Password must be at least 5 characters.' }, { status: 400, headers: corsHeaders });
+
+      // Password strength: at least 6 chars + 1 special char
+      const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/;
+      if (password.length < 6 || !specialCharRegex.test(password)) {
+        return NextResponse.json({ success: false, error: 'Password must be at least 6 characters and include at least one special character (e.g. @, !, #).' }, { status: 400, headers: corsHeaders });
       }
-      user.pin = password; // Overwrite the temporary setup PIN with the strong password
-      saveDb(db);
+
+      user.pin = password;
+      user.passwordSet = true; // Mark so we know this account has been fully configured
+      await saveDb(db);
       
       const { pin: _pin, ...safeUser } = user;
       return NextResponse.json({ success: true, user: safeUser }, { headers: corsHeaders });
@@ -163,7 +168,6 @@ export async function POST(req: Request) {
         const now = Date.now();
         const ONE_DAY = 24 * 60 * 60 * 1000;
         
-        // Clean out forgots older than 1 day
         db.deviceLimits[deviceId].forgots = db.deviceLimits[deviceId].forgots.filter((t: number) => now - t < ONE_DAY);
         
         if (db.deviceLimits[deviceId].forgots.length >= 1) {
@@ -171,15 +175,60 @@ export async function POST(req: Request) {
         }
       }
 
-      const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
-      if (!user) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404, headers: corsHeaders });
+      const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.status === 'active');
+      if (!user) return NextResponse.json({ success: false, error: 'No active account found for this username.' }, { status: 404, headers: corsHeaders });
       
-      const newPin = Math.floor(100000 + Math.random() * 900000).toString();
-      user.pin = newPin;
+      // Store a temporary reset OTP separately - do NOT change user.pin yet
+      const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      user.resetOtp = resetOtp;
+      user.resetOtpIssuedAt = Date.now();
       
       if (deviceId) db.deviceLimits[deviceId].forgots.push(Date.now());
-      saveDb(db);
-      return NextResponse.json({ success: true, pin: newPin }, { headers: corsHeaders });
+      await saveDb(db);
+      return NextResponse.json({ success: true, pin: resetOtp }, { headers: corsHeaders });
+    }
+
+    if (action === 'verify_reset_code') {
+      const { email, resetCode } = body;
+      const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.status === 'active');
+      if (!user || !user.resetOtp) {
+        return NextResponse.json({ success: false, error: 'No pending reset found for this account.' }, { status: 400, headers: corsHeaders });
+      }
+      // OTP expires after 15 minutes
+      const FIFTEEN_MIN = 15 * 60 * 1000;
+      if (Date.now() - user.resetOtpIssuedAt > FIFTEEN_MIN) {
+        user.resetOtp = null;
+        await saveDb(db);
+        return NextResponse.json({ success: false, error: 'Reset code has expired. Please request a new forgot password.' }, { status: 410, headers: corsHeaders });
+      }
+      if (user.resetOtp !== resetCode) {
+        return NextResponse.json({ success: false, error: 'Incorrect reset code.' }, { status: 401, headers: corsHeaders });
+      }
+      // Mark as verified so next step can set password
+      user.resetOtpVerified = true;
+      await saveDb(db);
+      return NextResponse.json({ success: true }, { headers: corsHeaders });
+    }
+
+    if (action === 'set_reset_password') {
+      const { email, resetCode, newPassword } = body;
+      const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.status === 'active');
+      if (!user || !user.resetOtp || !user.resetOtpVerified || user.resetOtp !== resetCode) {
+        return NextResponse.json({ success: false, error: 'Verification step incomplete. Please restart the forgot password flow.' }, { status: 400, headers: corsHeaders });
+      }
+
+      const specialCharRegex = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/;
+      if (newPassword.length < 6 || !specialCharRegex.test(newPassword)) {
+        return NextResponse.json({ success: false, error: 'Password must be at least 6 characters and include at least one special character.' }, { status: 400, headers: corsHeaders });
+      }
+
+      user.pin = newPassword;
+      user.passwordSet = true;
+      user.resetOtp = null;
+      user.resetOtpVerified = false;
+      user.resetOtpIssuedAt = null;
+      await saveDb(db);
+      return NextResponse.json({ success: true }, { headers: corsHeaders });
     }
 
     if (action === 'cancel_request') {
