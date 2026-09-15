@@ -1,0 +1,2162 @@
+
+
+A COMPARATIVE EVALUATION OF OPERATIONAL TRANSFORMATION AND REPLICATED DATA TYPES TO HYBRID CONFLICT RESOLUTION ALGORITHM
+
+
+
+A Thesis Proposal
+
+Submitted to the Faculty of
+
+The College of Computing Studies
+
+PAMANTASAN NG CABUYAO
+
+City of Cabuyao, Laguna
+
+
+
+
+
+
+
+In Partial Fulfillment
+
+of the Requirements for the Degree:
+
+BACHELOR OF SCIENCE IN COMPUTER SCIENCE
+
+
+
+By:
+
+
+
+Bajado, John Benedict B.
+
+Palamara, Paul John G.
+
+Palma, John Lloyd P.
+
+Venancio, Zyra P.
+
+
+
+
+
+May 2026
+
+
+
+
+
+
+
+TABLE OF CONTENTS
+
+Title Page									  i
+
+Recommendation Letter						  II
+
+Table of Contents							  ii
+
+List of Tables								  iv
+
+List of Figures								  v
+
+List of Appendices							  vi
+
+
+
+CHAPTER
+
+
+
+I
+
+THE PROBLEM AND ITS SETTING
+
+Page
+
+
+
+Introduction
+
+1
+
+
+
+Statement of the Problem
+
+3
+
+
+
+Scope and Limitation
+
+5
+
+
+
+Significance of the Study
+
+7
+
+
+
+
+
+
+
+II
+
+REVIEW OF RELATED LITERATURE AND STUDIES
+
+
+
+
+
+Conceptual Literature
+
+8
+
+
+
+Research Literature
+
+Review of Related Literature
+
+Consistency Models in Distributed Systems
+
+Casual Tracking and Intent Preservation
+
+Log-Based Theory & Bandwidth Optimization
+
+Software Testing and Quality Assurance Evaluation
+
+Review of Related Studies
+
+Peer-To-Peer Logs
+
+Bandwidth Optimization
+
+System Benchmarks
+
+13
+
+13
+
+13
+
+15
+
+17
+
+18
+
+19
+
+19
+
+21
+
+22
+
+
+
+
+
+Theoretical Background
+
+
+
+23
+
+
+
+Conceptual Framework
+
+28
+
+
+
+Synthesis
+
+31
+
+
+
+Definition of Terms
+
+33
+
+
+
+
+
+
+
+III
+
+METHODS AND PROCEDURES
+
+
+
+
+
+Research Design
+
+38
+
+
+
+Research Locale
+
+39
+
+
+
+Respondents of the Study
+
+40
+
+
+
+Data Gathering Procedure
+
+41
+
+
+
+Discussion on Algorithms/Mathematical Concepts Used/Proposed Solution
+
+42
+
+
+
+System Development Methodology
+
+59
+
+
+
+Statistical Treatment of Data
+
+65
+
+
+
+Ethical Considerations
+
+70
+
+
+
+
+
+
+
+LITERATURE CITED
+
+
+
+72
+
+APPENDICES
+
+
+
+76
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+LIST OF TABLES
+
+
+
+Table
+
+
+
+Page
+
+1
+
+Respondents of the Study
+
+40
+
+2
+
+3
+
+4
+
+5
+
+
+
+6
+
+execution steps on workflows
+
+Mathematical Variables and Symbols
+
+Comparison of Synchronization Approaches
+
+Scalability and Performance Degradation Matrix
+
+Evaluation and Scoring
+
+
+
+48
+
+51
+
+55
+
+70
+
+
+
+72
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+LIST OF FIGURES
+
+
+
+Figure
+
+
+
+Page
+
+
+
+
+
+
+
+1
+
+Event Sourcing Architecture
+
+24
+
+2
+
+3
+
+
+
+4
+
+
+
+
+
+5
+
+
+
+6
+
+
+
+7
+
+8
+
+The overall architecture of Gdelta 
+
+Abstract and concrete computation across distributed nodes
+
+Last-Writer-Wins conflict resolution sequence demonstrating timestamp-based data loss
+
+Conceptual Framework of the Hybrid Synchronization
+
+Experimental Prototyping Methodology diagram
+
+DocuSync Use Case Diagram
+
+DocuSync Activity Diagram
+
+25
+
+26
+
+
+
+27
+
+
+
+
+
+29
+
+
+
+60
+
+
+
+61
+
+63
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+LIST OF APPENDICES 
+
+
+
+
+
+APPENDIX TITLE
+
+Page
+
+A
+
+Confidentiality and Non-Disclosure Agreement
+
+78
+
+B
+
+Validated Research Instrument/s
+
+81
+
+C
+
+Informed Consent Form
+
+85
+
+D
+
+Research Ethics Review Committee Evaluation
+
+89
+
+E
+
+Short Report of Plagiarism Software
+
+100
+
+F
+
+Report of Language Software
+
+104
+
+G
+
+Curriculum Vitae of Student Researchers
+
+106
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CHAPTER I
+
+
+
+THE PROBLEM AND ITS SETTING
+
+When a group of individuals works on the same digital file, they often update the text in ways that don't match. To address this challenge, the research team developed a software solution that automatically manages overlapping inputs. The engine compiles multiple versions of documents in the background, preventing accidental data loss. This implies that everyone in the group can still see the same, up-to-date material without using too much bandwidth.
+
+Introduction
+
+In modern academic and professional environments, users increasingly rely on multiple edge devices distributed across various locations to execute shared digital tasks. As collaborative teams manage institutional records, codebases, and research data, they expect uninterrupted, real-time access to their shared workspaces. However, when multiple individuals open and alter the exact same document simultaneously, this collaborative workflow often worsen. Overlapping modifications frequently collide, generating chaotic, out-of-sync copies of the original file. Instead of focusing on productivity, users are forced to halt their operations and manually cross-reference divergent documents to determine which edits should be preserved and which must be discarded. This reliance on human intervention exposes digital workflows to significant systemic risks, severe administrative fatigue, and the constant threat of accidental data loss.
+
+The academic literature confirms these structural vulnerabilities and the critical need for automated intervention. The modernization of enterprise architecture demonstrates a massive shift toward distributed systems, enabling substantial digital collaboration across event-driven cloud environments [1], [10]. However, when multiple individuals attempt to access a file simultaneously, managing the temporal consistency of data becomes a critical bottleneck, as synchronization delays completely break the user experience during financial or administrative data processing [5]. Legacy methods fail in these offline-first environments, requiring robust data consistency models to balance the tradeoffs of the CAP theorem and manage divergent states safely [6]. Without an automated engine, decentralized edge nodes struggle to verify and order operations correctly when users transition back online [7].
+
+An online working environment strictly requires technology that facilitates real-time collaboration. Engineers frequently deploy algorithmic models like Conflict-Free Replicated Data Types (CRDTs) to solve these data collisions, transitioning away from server-locked databases toward coordination-free mathematical models [20]. However, pure CRDTs struggle with severe memory constraints; implementing robust synchronization requires significant structural improvements, such as shifting to log-based CRDT approaches [11]. To bypass these limitations, this study develops a hybrid automated approach. By systematically integrating Log-Based Synchronization to improve observability in event sourcing [2], Vector Clocks utilizing tree clock data structures to enforce strict causal orderings [8], and Last-Write-Wins (LWW) logic for efficient edge data synchronization [45], the architecture mathematically enforces causal order. Furthermore, to overcome bandwidth efficiency limits, the system utilizes Delta Encoding, executing fast byte-level differencing to aggressively compress the transmission payload [3], [4]. This optimization ensures that all users view identical, up-to-date material without saturating the network, ultimately eliminating the hazardous need for manual file reconciliation.
+
+
+
+
+
+
+
+
+
+
+
+Statement of the Problem
+
+Collaborative workflows face systemic inefficiencies where simultaneous modifications produce divergent document versions. Reliance on manual cross-referencing forces users to halt productivity, increasing the risk of administrative fatigue and accidental data loss. Existing algorithms often fail to balance memory constraints with precise intent preservation, leaving a critical gap for a decentralized synchronization engine that ensures data convergence without human intervention.s
+
+To address these limitations, the researchers would like to answer the following questions:
+
+How effectively does the hybrid synchronization engine utilize Log-based synchronization, Vector Clocks, Last-Write-Wins (LWW), and Delta Encoding to resolve file version conflicts, preserve user intent, and handle structural changes during concurrent edits without requiring manual intervention?
+
+How effective does the hybrid algorithm manage data consistency and conflict resolution during concurrent edits, specifically regarding the data loss rate, conflict detection rate, and conflict resolution accuracy?
+
+How does the technical performance of the proposed hybrid synchronization engine compare to existing baseline algorithms regarding synchronization latency, bandwidth consumption, and data convergence rates?
+
+
+
+
+
+
+
+
+
+
+
+What is the technical performance of the proposed synchronization algorithm in terms of:
+
+conflict detection rate;
+
+number of unresolved conflicts;
+
+conflict resolution accuracy;
+
+resolution time; and 
+
+data consistency rate?
+
+Under controlled conditions with varying concurrent users and synchronization events, what is the file synchronization system's technical performance in terms of:
+
+latency; 
+
+throughput; 
+
+conflict resolution time;
+
+data loss rate; 
+
+consistency success rate; and 
+
+system scalability?
+
+What is the level of user acceptance regarding the system's collaborative experience, as evaluated by non-technical end-users, in terms of:
+
+
+
+interaction capability;
+
+performance efficiency;
+
+reliability; and 
+
+security?
+
+
+
+
+
+
+
+
+
+When evaluated by IT experts, what is the technical performance and algorithmic reliability of the synchronization engine in terms of:
+
+functional suitability;
+
+reliability;
+
+performance efficiency; and
+
+security?
+
+Scope and Limitation
+
+The system uses a hybrid synchronization engine to fix file conflicts and keep data updated. It operates on an eventual consistency model instead of strict realtime collaboration. It works on many devices, such as computers, web browsers, and mobile phones, letting users connect to their local files easily. To sync files without a central server, the engine uses Log based synchronization, Vector clocks, and Delta encoding.
+
+The system manages the complete file lifecycle. Users insert new content, modify existing words and paragraphs, or remove text entirely. The engine exclusively processes text-based formats, structured data, and markup languages. Supported extensions include .txt, .docx, .rtf, .csv, .json, .xml, .md, .html, and .tex. The architecture rejects opaque binary media, such as images, audio, video, and compiled executables. These binary formats shift internal data blocks unpredictably and break the delta encoding sequence. The system excludes encrypted or proprietary formats requiring closed API access. 
+
+When multiple people edit a single document at the same time, the system uses a Last Write Wins mechanism to automatically resolve the conflict. It also provides a version history of the document, so users can track changes and easily revert to older versions if they accidentally overwrite something. Furthermore, the system includes a real-time owner notification module, wherein the document owner receives an in-app alert to review and accept or reject any automated merge, and upon acceptance, the system immediately notifies all connected collaborators that the document has been officially updated. Because the system relies on eventual consistency, conflict resolution happens in the background when users transition from an offline to an online state.
+
+The technical evaluation scope was strategically designed to validate the hybrid synchronization engine's fault tolerance and operational efficiency under realistic edge computing constraints. Specifically, the system is scoped and tested to handle a maximum of (1) 15 concurrent users editing a single shared document at the exact same time, which accurately reflects standard collaborative group sizes in academic environments while ensuring the computational load remains manageable for resource-constrained student laptops executing localized Last-Write-Wins arbitration. To rigorously assess the engine's backend data convergence, this testing involves a total of (2) 25 to 30 conflict scenarios deliberately created to simulate overlapping edits under controlled conditions, providing a deterministic baseline to empirically measure conflict detection rates and intent preservation without structural corruption. Furthermore, testing is conducted across (3) multiple file types, including .txt, .docx, .rtf, .csv, .json, .xml, .md, .html, and .text files, to assess the system's behavior across varying content formats and validate the Delta Encoding module's capacity to safely execute byte-level differencing. Finally, the synchronization mechanism is evaluated at a frequency of up to (4) 10 synchronization events per second to approximate real-world collaborative activity, simultaneously testing the local parsing engine and network transport layer to precisely quantify system throughput, latency, and real-time responsiveness without artificially crashing the localized network infrastructure.
+
+Performance is measured using the following metrics: (5) latency, recorded in milliseconds to capture the delay between an edit being made and its propagation to all connected devices; (6) throughput, expressed in updates per second to quantify the volume of synchronization events the system can process without degradation; (7) conflict resolution time, measured in milliseconds from the moment a collision is detected to the moment the resolved delta is transmitted; (8) data loss rate, calculated as the percentage of user edits that failed to persist after an automated merge; (9) (10) consistency success rate, representing the proportion of synchronization attempts that produced an identical final document state across all connected devices; and (11) system scalability, assessed by observing how performance across these metrics shifts as the number of concurrent users increases from a single session up to the maximum of 15. This limit reflects standard group sizes in the university while keeping the processing load manageable for local devices.
+
+Importantly, this study compares the proposed design with standard algorithms. Specifically, Google Drive and Google Docs were selected as the primary empirical baselines because they are recognized industry-standard systems. Google Drive employs a proprietary ownership-locking and version-stamping mechanism for file-level conflict resolution, while Google Docs implements Operational Transformation (OT) for real-time character-level synchronization. Building the full software for these two algorithms is outside the scope of this project, but they serve as the main theoretical baselines. The research looks into whether the new combination of algorithms is a better alternative to their known flaws. To empirically validate this comparison, the technical evaluation focuses exactly on specific performance numbers. (1) is Conflict Detection Rate, which is measured when the engine compares vector clocks and quantifies the percentage of overlapping edits successfully identified. (2)The second is the Number of Unresolved Conflicts, counted when the automated Last Write Wins logic fails and escalates the merge to the document owner for manual review. (3) Conflict Resolution Accuracy, calculated after arbitration to verify what proportion of the automated merges preserved user edits without structural corruption.(4) Resolution Time, recorded in milliseconds to measure the exact elapsed duration from the moment the engine detects a data collision to the moment it transmits the delta payload. (5) Data Consistency Rate is measured at the end of the procedure to determine the percentage of sync attempts that successfully produced an identical final file state across every connected device.
+
+Additionally, an Edge Computing and Local Execution Module handles tasks directly on the device instead of sending them to a server, which reduces system delays. A Bandwidth Improvement Module sends only the changed parts of the file using delta encoding, removing the need to send the whole file. This method saves network data and speeds up the syncing process, completely avoiding the need to constantly talk to a server.
+
+The researchers set specific boundaries for the system. The software will be used strictly inside the academic setup of Pamantasan ng Cabuyao as a local tool to help students and teachers sync their documents. Files are divided into fixed 4MB chunks. Finally, while the system protects the structural integrity of the data using mathematical ordering, advanced network security is not included. The scope of this study focuses purely on algorithmic file synchronization. Therefore, integrating complex data encryption or advanced network security protocols is outside the current scope of this research.
+
+Significance of the Study
+
+To solve the inefficiencies of manual file merging, the memory limitations of pure CRDTs, and the server dependency of pure OT, the proposed system provides distinct advantages to the following areas: 
+
+Academic and Scientific Significance. This work contributes to the field of distributed computing and collaborative software engineering by presenting a novel, hybrid synchronization architecture that overcomes the strict limitations of isolated algorithmic models. Specifically, it demonstrates that integrating Log-Based Synchronization with Last-Write-Wins (LWW) and Vector Clocks provides a highly deterministic state convergence, effectively resolving the high computational and memory constraints typically associated with pure Conflict-Free Replicated Data Types (CRDTs). Furthermore, the study introduces a highly optimized, edge-capable synchronization model, providing future researchers with a foundational mathematical framework for addressing offline-to-online partition recoveries, strict causal ordering, and strong eventual consistency in masterless networks.
+
+Contribution to Institutional and Collaborative Workflows. This study advocates for the modernization of shared digital workspaces, especially in busy academic and administrative offices. The proposed system solves the frustrating delays caused when many people edit the same file by automatically combining different document versions in the background. It gives institutions a better alternative to old systems that lock files when someone is using them, allowing everyone to work together at the same time. This shift stops group projects from turning into confusing, mismatched file copies, making record-keeping and teamwork much smoother. 
+
+Data Integrity and Structural Consistency Standards. The suggested system uses a background engine that tracks the exact order of changes across different devices, totally preventing the hidden data loss and accidental overwrites common in older network drives. By keeping a permanent log of all actions, the reliability of shared documents is improved, guaranteeing that every single user edit is safely recorded. This ensures that everyone working on the file will eventually see the exact same updated document, safely keeping everyone's original meaning intact even if they were offline for a long time. 
+
+Operational Efficiency and Bandwidth Impact. The stress and delays linked to manually fixing file conflicts can be completely removed by institutions using this system. Moving from checking mismatched documents line-by-line to using an automated conflict resolution engine will completely free up the users' time and mental effort. Furthermore, by using Delta Encoding to find and send only the tiny bits of data that actually changed, the system considerably shrinks the file size being sent over the network. This speeds up the whole syncing process and allows users to stay updated in real time without slowing down the campus network. 
+
+Resilience in High-Latency and Offline-First Networks. A major problem with older centralized syncing is that it struggles to safely handle files when the internet connection drops. By focusing on better consistency handling, this study allows users to confidently keep working even with slow or no internet. The system safely lines up offline edits as permanent background events instead of rejecting them. Once the user reconnects to the network, the engine guarantees that these delayed, isolated edits are sorted and combined flawlessly. This resilience ensures non-stop productivity for teams and schools that often deal with unstable internet connections. 
+
+Accessibility for Resource-Constrained Edge Devices. Standard synchronization algorithms that try to force all copies to match (such as pure CRDTs) usually consume too much memory and processing power. This proposed model directly addresses this hardware limit. By using a lightweight Last-Write-Wins (LWW) protocol and delta encoding for its consistency handling, the system provides high-quality data syncing without exhausting the computer's CPU and RAM. This improvement guarantees that all users, whether they are using expensive workstations or normal student laptops, can fully participate in group work without experiencing system crashes or annoying lag. 
+
+Future Researchers. This architectural model provides future researchers with a verified mathematical framework and clear performance baselines for synchronization latency, CPU overhead, and data convergence rates. These findings will serve as a foundational reference for investigators studying distributed systems, data synchronization, and automated conflict-resolution solutions, allowing them to further address scalability and memory overhead issues in peer-to-peer networks
+
+
+
+CHAPTER II
+
+
+
+REVIEW OF RELATED LITERATURE AND STUDIES
+
+
+
+This section focuses on studies and publications that are directly related to the research variables. It thoroughly examines the most important features of realtime file synchronization, including how to handle conflicts using Operational Transformation (OT) and Conflict-Free Replicated Data Types (CRDT). The Theoretical and Conceptual Frameworks were identified and used to develop a system that maintains data consistency while preserving the user's intent when collaborating with others.
+
+
+
+Conceptual Literature
+
+Standard Features 
+
+Modern distributed architectures require decentralized frameworks to maintain strict data integrity across offline-first environments. Enterprise systems adopt event-driven topologies to separate data generation at the edge from long-term central storage processes [1]. This architectural design triggers asynchronous workflows based on discrete state changes rather than polling databases continuously, which successfully decouples system components to increase overall transaction throughput [2]. Event sourcing treats every state change as an immutable record rather than executing destructive overwrites on existing database values. System observability improves significantly when engineers track these distinct atomic events instead of mutable final states, as the append-only design provides an exact cryptographic audit trail for system recovery [3].
+
+
+
+Traditional synchronization engines rely heavily on standard Conflict-Free Replicated Data Types (CRDTs), which exhibit severe memory limitations by permanently accumulating metadata tombstones for every deleted object. Log-based virtual file systems offer a highly scalable alternative by sequencing operations through an immutable log and discarding obsolete intermediate events through structured log compaction [4]. Algebraic replicated data types abstract these operations further, reducing the computational footprint required to merge divergent states by applying strict algebraic properties to the underlying data structures [5]. Furthermore, robust synchronization protocols apply temporal consistency models to ensure systems process financial and operational data in the correct chronological sequence [6]. This strict temporal ordering guarantees that independent nodes apply updates deterministically, thereby preventing race conditions when remote devices reconnect to the primary network.
+
+
+
+High-latency networks demand highly efficient data transfer mechanisms, as full-state synchronization consumes excessive bandwidth and CPU cycles during partition recovery. Storage systems implement advanced delta encoding to isolate and transmit only the modified bytes between differing file versions [7]. Encrypted cloud architectures combine fast delta synchronization with advanced content-defined chunking algorithms to decrease network overhead across the transport layer [8]. Content-defined chunking establishes dynamic segment boundaries based on the file content itself rather than relying on static block sizes, preventing catastrophic byte-shifting anomalies during localized edits. These mechanisms prioritize transmission speed and payload accuracy over legacy full-file transfer methods in resource-constrained environments.
+
+
+
+Guidelines for Using the Algorithms
+
+Distributed network environments operate under strict CAP theorem constraints, mandating a mathematically calculated trade-off between consistency and availability during network partitions [9]. Offline-first applications require uninterrupted local availability to function effectively, dictating the adoption of causal consistency models over rigid strong consistency protocols. Causal consistency guarantees that distributed nodes observe related operations in the exact chronological sequence of execution. Independent nodes determine the precise order of parallel edits to resolve conflicts deterministically. This rigorous mathematical ordering prevents catastrophic data loss and state divergence during asynchronous file merging procedures.
+
+
+
+Masterless algorithms track causality through time-based logical structures rather than relying on vulnerable centralized coordinators. Asynchronous architectures achieve strict causality by mapping physical clocks directly to decentralized edge nodes [10]. This hybrid tracking approach actively mitigates the timing drift inherent in standard Network Time Protocol synchronization. Local nodes assign an immutable logical timestamp to every user action at the exact moment of execution. The underlying synchronization engine compiles these timestamps to construct a directed acyclic graph (DAG) of file histories. This applied mathematical graph exposes concurrent edits and sequence anomalies instantly, eliminating the latency dependency of a central server arbitration.
+
+
+
+Processing massive operational histories requires highly optimized computational data structures. Modern asynchronous architectures deploy tree clock data structures to accelerate causal orderings during concurrent executions [11]. Hierarchical tree models completely bypass the linear O(N) computational bottlenecks endemic to traditional flat vector clocks. Furthermore, resettable encoded vector clocks provide essential mathematical fail-safes for decentralized networks. These strict protocols prevent integer overflow during prolonged offline periods by systematically compressing and resetting local counter arrays when bounds are exceeded [12]. Deploying these advanced mechanisms allows edge nodes to resolve complex edit collisions securely, establishing a highly scalable foundation for log-based conflict resolution.
+
+
+
+
+
+User-Centric Design
+
+Decentralized applications require intuitive user interfaces to manage complex edge cases, asynchronous delays, and manual file collisions. Users must comprehend synchronization states and manual conflict triggers instantly without requiring deep technical knowledge of the underlying network. Developers evaluate user experience in these specialized asynchronous environments using standardized quantitative metrics like the System Usability Scale (SUS) [13]. This empirical evaluation quantifies interface efficiency, discoverability, and user satisfaction. High usability scores indicate that the interface minimizes the technical friction and cognitive load associated with distributed file management.
+
+
+
+System transparency serves as the primary driver for high usability scores in decentralized platforms. The interface must communicate synchronization status—such as offline state, syncing state, and converged state—clearly without overwhelming the user with raw technical logs. Accessible design ensures users resolve unavoidable conflicts quickly through side-by-side visual comparisons, allowing them to selectively merge divergent data sets. Interface elements must highlight diverging text or structural discrepancies distinctly to accelerate user decision-making during merge events.
+
+
+
+Clear visual feedback mitigates the data loss anxiety typically experienced during prolonged offline periods. Application dashboards integrate these specific UX principles to facilitate seamless peer-to-peer collaboration without central oversight. Intuitive navigation structures reduce the cognitive load required to manage distributed file hierarchies. The system architecture must guarantee that the interface informs the user exactly when local uncommitted changes successfully replicate to the broader peer network, establishing trust in the eventual consistency model.
+
+
+
+
+
+Testing Tools and Procedure
+
+Rigorous software validation requires internationally recognized measurement frameworks to prove architectural viability. The ISO/IEC 25010 standard provides explicit criteria for evaluating distributed software quality, separating evaluation targets into functional suitability, performance efficiency, and reliability [14]. Systems undergo rigorous testing under this strict operational model to quantify hardware stress and fault tolerance. The standard isolates specific variables to ensure objective evaluations, allowing software quality assurance teams to validate newly proposed decentralized architectures against legacy client-server baselines.
+
+
+
+The evaluation phase measures CPU load, RAM utilization, and synchronization latency directly against established industry baselines. Methodological approaches to quality assurance dictate strict, repeatable testing environments that isolate network variables [15]. Standardized validation guarantees the application performs reliably across wildly varied network conditions. Testers monitor resource consumption closely through system profiling tools to verify that the delta encoding and causal tracking algorithms function as intended under heavy computational loads without degrading the user interface.
+
+
+
+Researchers apply purposive sampling methodologies to stress-test systems under specific, adverse network constraints [15]. Strict QA methodologies simulate realistic decentralized conditions involving severe packet loss, bandwidth throttling, and variable network latency. This rigorous stress testing ensures the final log-based architecture handles high-latency transfers and offline partition recovery predictably. Adhering to these established standards confirms the operational viability and computational efficiency of the hybrid synchronization engine prior to production deployment.
+
+
+
+Research Literature
+
+
+
+Review of Related Literature 
+
+Consistency Models in Distributed Systems
+
+The modernization of enterprise infrastructure requires scalable technological solutions to replace outdated, isolated analog workflows. As institutions accelerate their transition toward globalized, digital governance, the demand for concurrent multi-user access to shared resources has grown exponentially. Organizations can no longer rely on asynchronous communication methods that inherently cause severe administrative delays and operational inefficiencies. To achieve high-speed throughput and maintain competitive operational agility, systems must support simultaneous multi-node access without degrading the integrity of the underlying data structures. This overarching shift demonstrates that digital technologies have significantly transformed the workplace, enabling substantial collaboration [1].
+
+Historically, file management in collaborative environments relied on pessimistic mechanisms like file-locking, which restricted access to a single user at a time to prevent overlapping edits. While this prevented data corruption, it systematically destroyed the real-time collaborative potential of distributed teams. As organizational workflows scale across geographically separated computing nodes, enforcing sequential access creates unacceptable administrative delays and throttles institutional throughput. In modern decentralized networks, traditional file locking methods are ineffective when jobs are distributed across multiple machines [2].
+
+
+
+To bypass the limitations of legacy file-locking, modern architectural frameworks rely on optimistic concurrency models designed to process simultaneous modifications gracefully rather than preventing them entirely. Academic discourse in collaborative computing primarily categorizes the most viable solutions into two predominant methodologies that resolve the inevitable data collisions that occur during parallel execution. Therefore, to manage concurrent states effectively, engineers use two of their most important tools: Operational Transformation (OT) and Conflict-Free Replicated Data Types (CRDTs) [3].
+
+
+
+These algebraic data structures neutralize the vulnerabilities of centralized server architectures by natively enforcing a masterless convergence protocol. As established in the foundational work of Werner Vogels on Eventual Consistency, distributed systems can remain highly available and partition-tolerant as long as all replicas are guaranteed to independently converge to the exact same state once no new updates are made. Utilizing commutative operations ensures that regardless of the chronological order or network delays involved in receiving data packets, all local replicas will independently calculate the identical final document state. To solve the problem, algorithmic models have been developed. One of these is CRDTs, which ensure Strong Eventual Consistency in distributed systems by allowing replicas to update and merge their changes without a central server [4].
+
+
+
+Despite these advancements, achieving perfect, instantaneous synchronization involves significant architectural trade-offs between system speed and strict accuracy. This systemic limitation is mathematically formalized by Eric Brewer’s CAP Theorem, which dictates that a distributed data store can only simultaneously provide two of three guarantees: Consistency, Availability, and Partition tolerance. Because modern offline-first applications must remain available during network drops, engineers are forced to sacrifice strict real-time parity, creating a brief window of asynchronous delay where file versions temporarily differ. Adhering to these constraints, the system utilizes a hybrid Synchronization Engine to resolve conflicts and maintain file synchronization, operating on an eventual consistency model rather than strict real-time collaboration [5].
+
+
+
+Current systems engineering research heavily advocates that utilizing a single algorithmic framework is fundamentally insufficient to resolve the multifaceted engineering challenges inherent in highly available distributed computing. While transformation-based logic excels at preserving the exact semantic intent of overlapping text, it lacks the masterless state convergence required for offline networks. To construct an architecture that balances zero-trust fault tolerance with precise character-level conflict resolution, developers must synthesize these contrasting mathematical realities. Establishing a new baseline for autonomous collaborative platforms, hybrid approaches combine the strengths of OT and CRDT to address distributed system issues [6].
+
+
+
+Casual Tracking and Intent Preservation
+
+The historical overreliance on heuristic, human-driven intervention to reconcile diverging file states introduces significant systemic risk into digital workflows. When legacy network drives fail to automatically track the chronological causality of parallel edits, users are forced into the highly inefficient position of manually cross-referencing and merging conflicting document versions. This labor-intensive process inevitably leads to severe administrative fatigue, heightening the probability of accidental data overwrites and subjective merging errors. Research shows that older technology, including network drives, doesn't easily combine several changes. Users must manually resolve conflicts [7].
+
+
+
+In the absence of complex causal tracking algorithms, early automated systems relied on rudimentary timestamp arbitrations to resolve data conflicts. While computationally inexpensive and easy to deploy, these protocols are inherently destructive for multi-author text environments; they blindly overwrite parallel edits based solely on the latest clock timestamp, entirely disregarding the substantive value of the overridden data. Because it leads to silent data loss and fails to provide an immutable audit trail for forensic recovery, simple strategies like Last Write Wins often result in insufficient documentation and become difficult to use when you need to find a solution [8].
+
+
+
+To explicitly preserve the original semantic intent of concurrent authors, conflict resolution engines must comprehensively analyze spatial data parameters rather than relying purely on temporal markers. If two users type in the exact same paragraph simultaneously, the algorithm must intercept the remote data packet, recalculate its intended spatial coordinate against the new local layout, and insert the characters dynamically to prevent structural corruption and overlapping text anomalies. Providing this highly granular, character-level preservation of user intent, on the other hand, the OT algorithm tracks users' actions while editing text together by dynamically recalculating the positional indexes of text changes [9].
+
+
+
+While highly effective at localized index recalculation and semantic preservation, classic transformation architectures possess a fatal flaw when deployed in decentralized environments. They are heavily reliant on a single, centralized server to sequence operations; if the network experiences severe latency or offline partition failures, the central arbiter cannot dictate the absolute order of transformations, causing the system to stall or infinitely loop. Earlier research has demonstrated that pure OT algorithms typically cannot manage synchronization delay independently and require a central server [10].
+
+
+
+To successfully bypass this centralized bottleneck, advanced peer-to-peer networks utilize logical tracking frameworks as their primary mathematical fail-safe. These frameworks assign an array of logical timestamps to every localized edit, allowing disparate hardware nodes to independently map out the exact chronological sequence of operations even if those operations occurred completely offline. By pairing these logical clocks with an immutable background architecture, the framework guarantees that all decentralized clients process the history of document changes in the exact same mathematical order. To achieve decentralized synchronization without a central server, the engine implements Log-based synchronization, Vector clocks, and Delta encoding [11].
+
+
+
+Log-Based Theory & Bandwidth Optimization
+
+Offline-first environments severely stress the architectural and computational limits of standard distributed databases. When users operate in disconnected states, local applications continue to generate modifications that continuously diverge from the global network state. Upon eventual reconnection, the sudden influx of queued, unsynchronized data can trigger massive CPU spikes and severe network congestion, causing systemic lag as the underlying engine struggles to reconcile the isolated branches of data against the primary repository. The performance of a distributed system drops significantly when synchronization fails or a user is offline [12].
+
+
+
+To decisively mitigate the risk of catastrophic overwrites during high-stress reconnection phases, advanced architectural models employ event-sourcing and log-based theories. Rather than executing direct, destructive mutations to a central database value, the system securely records every isolated keystroke or file modification as a discrete, append-only event in a background sequence. This hidden log compilation acts as an exact cryptographic audit trail, ensuring that conflicting document versions are preserved safely in memory until the engine mathematically determines the optimal, loss-free convergence path. The engine compiles multiple versions of documents in the background, preventing accidental data loss [13].
+
+
+
+The sheer volume of causal metadata generated by peer-to-peer frameworks frequently overwhelms the physical constraints of network bandwidth, particularly in environments utilizing decentralized architectures. In scenarios characterized by high latency or unstable internet service providers, transmitting heavy, fully replicated causal histories for every minor text edit creates an immediate and severe performance bottleneck. Distributed computing literature heavily emphasizes that optimizing transport layer payloads is a mandatory, non-negotiable requirement, as edge cloud systems need significant development to run faster. Bandwidth efficiency limits performance [14].
+
+
+
+To achieve maximum network efficiency and resolve latency bottlenecks, modern storage protocols aggressively abandon legacy full-file transfer methods in favor of optimized differential synchronization. By utilizing advanced content-defined chunking and byte-level comparison algorithms, the system mathematically isolates only the specific characters or blocks that were altered during an offline collaborative session. To drastically accelerate synchronization speeds and preserve critical network bandwidth, a Bandwidth Improvement Module transmits only the modified file sections via delta encoding, eliminating the need for full file transfers [15].
+
+
+
+The ultimate operational goal of these combined synchronization architectures is to process conflict resolution in the background without overwhelming edge devices or saturating the local area network. By strictly transmitting microscopic delta payloads rather than resending multi-megabyte documents, the system ensures that highly concurrent user environments remain responsive. By successfully masking the computational weight of the background merge process, this implies that everyone in the group can still see the same, up-to-date material without using too much bandwidth [16]. 	Modern collaborative systems must securely synchronize a wide variety of files, ranging from simple text documents to complex, non-textual items like images, encrypted data, and system backups. Older synchronization methods frequently corrupt these complex files because they attempt to read and modify the specific internal structure of the document. To resolve this, the system developed by the researchers ignores the file format entirely and instead processes every document as a simple stream of raw data. [53], identifying and syncing only the exact raw data changes, rather than trying to interpret the actual content, allows a system to process any file type safely and efficiently. This direct approach is proven to successfully handle massive, highly complex files, such as virtual machine images and database backups, without causing any structural damage or data loss. Ultimately, by extracting and transferring only the exact pieces of data that were modified, the proposed architecture guarantees that end-users receive fast, perfectly matched file updates without overloading the institutional network.
+
+
+
+Software Testing and Quality Assurance Evaluation
+
+Validating the operational superiority of a proposed decentralized architecture requires rigorous empirical stress-testing against established industry baselines. Researchers must utilize internal system profiling tools and automated telemetry to extract objective, quantifiable data regarding the algorithm's backend computational efficiency. Key performance indicators in this specific domain strictly focus on exact synchronization latency, the CPU and RAM overhead imposed on local edge devices, and the mathematically verifiable convergence rate during simulated offline-to-online partition recoveries to answer exactly what is the synchronization engine's technical performance and algorithmic reliability, as determined by IT experts and measured by automated system logs [17].
+
+Beyond raw computational metrics and mathematical proofs, the successful deployment of a synchronization engine is ultimately dictated by its functional suitability for non-technical, everyday stakeholders. The ISO/IEC 25010 Software Quality Standards provide an internationally recognized, rigorous framework for quantifying this user experience. By systematically evaluating factors such as interface discoverability, the clarity of background synchronization indicators, and the system's ability to seamlessly merge documents without user-facing errors, researchers must validate what is the level of user acceptance regarding the collaborative experience provided by the system, as evaluated by non-technical end-users based on the ISO/IEC 25010 Software Quality Standards [18].
+
+
+
+To ensure the empirical data accurately represents the operational realities of an academic institution, the sampling methodology encompasses both the technical rigor required to identify algorithmic faults and the administrative workflows required to test system dependability. Researchers utilize a purposive sampling strategy to isolate variables such as intent preservation accuracy across distinct user groups. To achieve this comprehensive validation, testing involves 75 participants from Pamantasan ng Cabuyao. The technical evaluation comprises 30 individuals: 5 IT experts, 15 Computer Science and Information Technology students, and 10 Computer Engineering students. Usability testing includes 45 non-technical participants: 5 Administrative Staff members, alongside 10 students each from Business Administration and Accountancy, Education, Arts and Science, and Health and Allied Sciences.
+
+Review of Related Studies
+
+Peer-To-Peer Logs
+
+Modern enterprise architecture [1] and event-driven cloud computing [10] increasingly rely on decentralized models to maintain distributed state. At the core of these structures is log-based synchronization, which shifts from traditional state-overwriting to append-only operational logging. Unlike Operational Transformation (OT), which was fundamentally designed around client-server architectures and requires a centralized sequential arbiter to transform concurrent operations, log-based peer-to-peer models natively decouple state machine execution from log replication. This decentralized approach allows systems to achieve significantly higher consensus throughput and structural security without centralized bottlenecks, particularly in complex IoT and consortium-blockchain networks [26]. Optimization of underlying peer-to-peer consensus, such as in RaftOptima architectures, focuses on minimizing latency while enhancing fault tolerance across distributed nodes [27].
+
+To enforce causal order in these masterless environments, engineers often employ Vector Clocks and gossip protocols for anti-entropy analysis [31]. However, maintaining strict causal histories introduces severe metadata overhead. This structural limitation is highly evident in Conflict-Free Replicated Data Types (CRDTs), which, while functioning without a central server, burden peer-to-peer connections by forcing nodes to compute, store, and transmit extensive state histories and mathematical tombstone markers to guarantee eventual consistency. Consequently, Last-Write-Wins (LWW) is utilized as a fundamental, low-overhead strategy for high-concurrency writes, especially on resource-constrained edge devices [39], [40], [42]. Unlike the heavy computational state-merging required by CRDTs or the synchronous coordination of OT, LWW provides a streamlined path to convergence by using simple wall-clock or logical timestamps to resolve updates. Furthermore, the use of hybrid consensus models [28] and flexible erasure coding in log replication sequences reduces computational costs and enables ultra-fast recovery during network partitioning [29], facilitating effective transaction processing across heterogeneous, high-latency nodes [30].
+
+
+
+Bandwidth Optimization
+
+To overcome the physical constraints of network throttling in real-time collaboration, modern synchronization engines have shifted toward a primary stack comprising Log-based Synchronization, Vector Clocks, Delta Encoding, and Last-Write-Wins (LWW). This integrated approach prioritizes network efficiency by strictly isolating byte-level differences via Delta Encoding to reduce transmission payloads [3]. Within encrypted cloud designs, FAST sync schemes leverage this logic to ensure that data security does not compromise network responsiveness [4].
+
+The inherent efficiency of this stack is most evident when contrasted with Conflict-free Replicated Data Types (CRDTs) or Operational Transformation (OT). While CRDTs require the transmission of extensive causal history and unique identifiers for every operation, LWW-based state synchronization consumes significantly less energy and bandwidth because it only requires a single timestamp for resolution [45]. Similarly, while OT demands constant server-side coordination and frequent re-transmission of operations to maintain consistency, the combination of delta encoding and log-based logs allows for massive network savings by focusing on raw state parity rather than complex transformation logic. Advanced techniques, including transaction log compression [33] and adaptive linear updates for time-series data [34], further enhance this performance, ensuring shared assets remain synchronized with minimal overhead [35]. Even when dealing with large-scale datasets like container image updates, the utilization of encoded delta payloads rather than full file transfers ensures that the system maintains a real-time experience for concurrent end-users without saturating the available bandwidth [32].
+
+
+
+System Benchmarks
+
+Strict performance assessments offer critical benchmarks to evaluate the effectiveness of decentralized synchronization models. Recent stress testing of Conflict-Free Replicated Data Types (CRDTs) using frameworks like Automerge and Yjs suggests that optimized memory structures can mitigate performance degradation [37], with Automerge 2.0 specifically showing improvements in startup times and runtime memory footprints [36]. However, empirical data reveals that the LWW/Log-based stack consistently provides the lowest latency for write-heavy workloads compared to these causal frameworks [44], [48].
+
+Specifically, LWW reduces CPU and memory utilization during node recovery because it avoids the computational overhead of causal merging required by CRDTs [46], [47]. While the implementation of algebraic replicated data types [12] and log-based CRDT models [11] attempts to address systemic lag during offline-to-online transitions, the metadata footprint of the LWW stack remains significantly smaller. This directly results in faster processing speeds and reduced memory pressure on edge devices. Furthermore, the integration of Merkle Directed Acyclic Graph (DAG) inverted indexes within this hybrid architecture confirms its functional superiority, as structural updates and file accesses can be performed in near real-time without the catastrophic performance degradation often seen in high-concurrency OT or CRDT environments [38]. By focusing on these quantitative performance gains, the data supports a model that prioritizes reduced metadata overhead and minimal round-trip times to achieve superior system scalability. 
+
+To ensure system stability on everyday devices like student laptops, the proposed synchronization engine is strictly limited to supporting a maximum of 15 concurrent users editing a single document simultaneously. This specific threshold was established not only to reflect typical academic group sizes but also to carefully manage the heavy computational load placed on resource-constrained hardware. This design choice is strongly supported by recent literature. For instance, [51] investigated the performance of concurrent editing models within edge computing environments where memory buffers are heavily restricted. Their findings emphasize that strictly managing computational load and memory allocation is essential for maintaining system efficiency and preventing hardware crashes. Consequently, applying this 15-user cap ensures that the system's localized Last-Write-Wins (LWW) arbitration remains fully functional and responsive without exhausting the limited memory resources of standard edge devices [51]. 
+
+
+
+To rigorously evaluate the synchronization engine's accuracy, the system's testing methodology incorporates 30 deliberately created conflict scenarios. This structured approach establishes a deterministic baseline to empirically measure conflict detection rates and ensure that user intent is preserved without causing structural corruption to the file. The decision to use controlled, overlapping edits rather than randomized user testing is strongly supported by modern academic standards. As an instance, it has been shown that accurately assessing a collaborative algorithm necessitates inputting specified "editing traces," which are meticulously regulated and documented sequences of overlapping keystrokes. Utilizing this specific scientific approach, the 30 fixed scenarios function as a dependable and deterministic baseline, demonstrating that the proposed hybrid algorithm can consistently address data collisions instead of depending on inconsistent or random environmental assessments [52].
+
+
+
+
+
+
+
+By focusing on these quantitative performance gains, the data supports a model that prioritizes reduced metadata overhead and minimal round-trip times to achieve superior system scalability. The testing phase applies a benchmarking frequency of 10 synchronization events per second (10 Hz) to evaluate the system under high-intensity collaborative conditions. Han et al. [54] establish this transmission rate as an optimal standard for real-time applications. A 10 Hz frequency isolates the local parsing engine from the network transport layer, allowing researchers to accurately measure system throughput, latency, and real-time responsiveness. This rate stresses the architecture enough to simulate realistic activity without crashing the local network infrastructure. 
+
+	
+
+Theoretical Background
+
+
+
+This section presents the theoretical background guiding the current study. This section presents the theoretical background guiding the current study. The study focuses on developing a dependable realtime file synchronization system to reduce data loss and system latency during concurrent modifications. The solution is based on two key ideas. The first strategy serves as the basis for the conflict-resolution process and ensures that all devices operate consistently. It ensures that all copies of the file are identical, regardless of network conditions. Mathematical rules ensure that diverse papers are combined into a single version. The approach also automatically syncs users' work when they connect again.
+
+Figure 1 illustrates the event-driven state-convergence model, detailing the segregation of read and write pathways to maintain consistency across distributed edge nodes. To prevent destructive overwriting during asynchronous sessions, the write pathway processes edits as immutable events appended to a chronological log rather than executing direct state mutations. This append-only architecture mathematically preserves simultaneous edits from disconnected devices, eradicating the data loss typical of legacy last-write-wins protocols. Concurrently, the read pathway achieves deterministic convergence by aggregating these events to project the unified final document state. By decoupling these operations, the system ensures geographically distributed devices independently converge on the same mathematical file state upon reconnection, fulfilling the requirements of a masterless, offline-first environment.
+
+Figure 1: Event Sourcing Architecture[2]
+
+This architectural approach is fundamental to the study as it prioritizes the preservation of user intent within a masterless, collaborative environment. By treating modifications as discrete, immutable events, the system shifts from basic data storage to a context-aware framework that accounts for concurrent activities and overlapping edits. The integration of mathematical functions ensures that local text changes are re-sequenced accurately, preventing data anomalies such as character overlap or chronological misalignment. This logic provides a verifiable framework to test document integrity, ensuring the final output remains semantically and structurally consistent after multi-user synchronization.
+
+Figure 2 illustrates the Gdelta synchronization pipeline used to process file modifications. The system routes data streams through a gear-based rolling hash to identify content boundaries dynamically. A rapid word-matching algorithm isolates structural differences between document versions and extracts them into a discrete delta chunk. The network transmits only this minimal payload. This strict byte-level isolation prevents data loss and ensures distributed nodes synchronize accurately without exchanging redundant files.
+
+Figure 2: The overall architecture of Gdelta[3]
+
+The architectural basis for analyzing the synchronization framework. Researchers apply the mechanics of event sourcing to verify whether distributed nodes compute identical file states after network reconnection. The precise ordering of sequenced log events measures success in the conflict resolution protocol. A combination of these structural methods establishes a secure balance between high offline availability and strict data consistency.
+
+The study uses Figure 3 to illustrate the timeline of a document that multiple users are working on simultaneously. The picture shows how the main part of the system receives updates from each user, provides clear instructions, and ensures that all the different versions are combined into a single copy.
+
+Figure 3: Abstract and concrete computation across distributed nodes[7]
+
+For analyzing causal event tracking. Researchers apply this visual model of asynchronous message passing to establish how distributed systems order concurrent operations. The mapping of logical event arrows against physical processing delays demonstrates why real-time environments cannot rely on standard system clocks. An examination of these execution timelines justifies the necessity of vector clocks and logical timestamps. This framework determines how Conflict-Free Replicated Data Types (CRDT) maintain strict data consistency despite unpredictable network latency.
+
+The study uses Figure 4 to illustrate the timeline of a document edited by multiple users simultaneously. The picture shows the system comparing conflicting numerical timestamps, accepting the most recent update, and permanently discarding older versions to force a single copy.
+
+ 
+
+
+
+Figure 4: Last-Writer-Wins conflict resolution sequence demonstrating timestamp-based data loss[40]
+
+Researchers apply this visual model of uncoordinated concurrent insertions to establish the exact synchronization failure real-time environments must overcome. The divergence of spatial indexes demonstrates why baseline merging protocols fail to achieve deterministic convergence. An examination of this anomaly justifies the necessity of comparing Operational Transformation and Conflict-Free Replicated Data Types. This comparison determines which algorithm best preserves user intent while maintaining strict data consistency across distributed edge nodes.
+
+The selected models ideally align with the study's purpose of building a reliable synchronization system. These frameworks handle system delays and data loss when multiple users edit simultaneously. There are controls in place to ensure the program consolidates all changes into a single document that appears the same. This foundation ensures the final application maintains the data's integrity.
+
+Conceptual Framework
+
+In this part, the researchers present the conceptual framework. This framework serves as the primary visual and logical reference for the study. The authors utilize this design as a link between their research goals and the implementation of the component that allows several users to work on the same file simultaneously without data loss or discrepancies. The study delineates the system's metamorphosis into a structured technique, wherein the authors systematically codify a chaotic real-life collaborative setting such as concurrent multi-user modifications and unpredictable offline-to-online network partitions and convert it into a dependable, synchronized instrument for consistent performance. The foundation of the conceptual framework relies on a causative relational model, strategically linking the Independent Variables (Causative Factors) through the central Hybrid Synchronization Engine to produce the quantifiable Dependent Variables (Measured Outcomes).
+
+
+
+Figure 4 shows that the Hybrid Synchronization Engine combines the seamless, uninterrupted collaboration of users with the strength of decentralized backend data processing. It achieves this by integrating an advanced algorithmic stack composed of Log-Based Synchronization, Vector Clocks, Last Write Wins (LWW), and Delta Encoding. In this approach, Log-Based Synchronization functions as the foundational data layer, utilizing an append-only immutable event log to safely process offline edit queues and maintain a cryptographic audit trail. To establish the chronological sequence of these operations across distributed devices, Vector Clocks act as a mathematical tracking point, employing Directed Acyclic Graph (DAG)-based history tracking to accurately detect concurrent edits. Once causality is established, Last Write Wins (LWW) serves as the primary conflict arbitration mechanism, providing a timestamp-based, low-overhead state convergence that is heavily optimized for resource-constrained edge devices. Furthermore, Delta Encoding is critically integrated to handle varying file modification complexities; it executes byte-level differential synchronization and content-defined chunking (CDC) to ensure only minimal data payloads are transmitted. There is evidence that this integrated hybrid method can significantly improve intent preservation and system dependability, achieve Strong Eventual Consistency (SEC) while maintain strict adherence to an offline-first design principle.
+
+Figure 5. Conceptual Framework of the Hybrid Synchronization
+
+
+
+The System Conditions represent the Independent variables that impose external stress on the synchronization environment, requiring specific algorithmic responses to maintain stability. Concurrent Multi-User File Modification refers to the simultaneous editing operations across N-distributed devices on shared documents, which serves as a causative factor because the system cannot control when users will generate overlapping inputs. The variable concerning Network Partition and Offline-to-Online Transition State accounts for device connectivity changes, offline edit queuing behavior, and the reconnection triggers inherent in distributed networks. Network Bandwidth Constraints involve simulated latency and data throttling that can cause performance bottlenecks and synchronization delays during collaborative sessions. Lastly, Varying Device Performance identifies the resource-constrained edge devices, such as standard student laptops, that must process complex data modifications despite limited hardware capabilities.
+
+
+
+The Hybrid Synchronization Engine, or Core Mechanism, is the main processing core that addresses the above concerns through four integrated technical methods. Log-Based Synchronization serves as the foundational layer by shifting from traditional state-overwriting to append-only operational logging, which ensures an immutable event log and a cryptographic audit trail for system recovery. Vector Clocks function as the tracking point for causal ordering, utilizing logical timestamps per node to map out the exact chronological sequence of operations even in masterless environments. Last-Write-Wins (LWW) serves as the primary conflict arbitration mechanism, providing a timestamp-based and low-overhead path to convergence that is heavily optimized for resource-constrained edge hardware. To manage network traffic, Delta Encoding Optimization serves as the operational link by isolating byte-level differences and transmitting only modified file segments, which eliminates the need for full file transfers and preserves critical bandwidth.
+
+
+
+The Measurable Performance defines the Dependent variables used to evaluate the operational effectiveness of the engine based on the outcomes of the independent variables. Technical Reliability is determined through automated system logs and focuses on exact synchronization latency, the CPU and RAM overhead imposed on local devices, and the mathematically verifiable data convergence rate. Semantic Integrity is responsible for ensuring that the algorithm preserves causal ordering and achieves a strong eventual consistency rate without structural data corruption or loss of user intent. Operational Efficiency evaluates the resource-saving capacity of the system, specifically measuring how the delta encoding logic improves bandwidth efficiency and reduces the computational utilization of the engine. Lastly, User Experience employs a 4-point Likert scale to determine the System Dependability Rating and the Collaborative Experience Score, quantifying how non-technical stakeholders perceive the system's ability to combine files appropriately without losing data or overwriting work.
+
+
+
+Synthesis
+
+Reviewed literature and related studies collectively emphasize a critical paradigm shift in distributed computing, moving from legacy, hopeless file-locking mechanisms toward optimistic, concurrent synchronization models. However, the literature reveals a distinct architectural gap in existing solutions. While pure Operational Transformation (OT) excels at preserving semantic intent, it is fundamentally flawed in offline-first environments due to its strict reliance on centralized servers to sequence operations. Conversely, while conventional Conflict-Free Replicated Data Types (CRDTs) successfully achieve strong eventual consistency without a central server, studies indicate they introduce severe memory overhead through the permanent accumulation of metadata tombstones, rendering them highly inefficient for resource-constrained edge devices.
+
+To systematically address these documented limitations, the literature heavily justifies the specific integration of the proposed hybrid algorithmic stack. Research on event-driven topologies and peer-to-peer architectures validates the implementation of Log-Based Synchronization. By shifting from traditional state-overwriting to append-only operational logging, the system prevents harmful data loss during unpredictable offline-to-online network transitions, establishing a secure cryptographic audit trail. Furthermore, to enforce chronological order in a masterless network, the theoretical background supports the deployment of Vector Clocks and Directed Acyclic Graphs (DAGs) to track exact causal histories.
+
+Additionally, to bypass the heavy computational state-merging associated with pure CRDTs, recent studies validate Last-Write-Wins (LWW) as an optimal, low-overhead conflict arbitration mechanism. The literature confirms that LWW provides a streamlined path to deterministic convergence by utilizing logical timestamps, thereby significantly reducing CPU and memory utilization on local devices during high-concurrency writes. Additionally, research on network performance dictates that mathematical convergence must be paired with transport layer optimization. Studies confirm that transmitting full files during synchronization causes systemic lag; thus, the integration of Delta Encoding and content-defined chunking is justified to isolate byte-level differences, drastically reducing data payloads and mitigating network bandwidth constraints.
+
+Lastly, the synthesis of these theoretical concepts and related studies forms the exact foundation of the study’s conceptual framework. By integrating Log-based event sourcing, Vector Clocks, LWW logic, and Delta Encoding, the proposed system directly responds to the limitations identified in prior research. Furthermore, the literature dictates that validating such an architecture requires rigorous empirical testing, justifying the study’s dual-evaluation approach: utilizing automated system logs to measure technical efficiency (synchronization latency and CPU overhead) alongside the ISO/IEC 25010 standard to quantify semantic integrity and user acceptance among non-technical stakeholders.
+
+
+
+
+
+
+
+
+
+
+
+
+
+Definition of Terms
+
+The next section goes into detail on the study's terms, how the system saves files, and how it handles updates that don't match. It sets the stage for the research's goals. The definitions emphasize significant concepts rather than broad ones. Each description explains how the decisions were made and which factors influenced the design choices.
+
+Conceptual terms
+
+
+
+
+
+
+
+Terms
+
+Definition
+
+CAP Theorem
+
+A mathematical principle formalized by Eric Brewer dictating that a distributed data store can only simultaneously provide two of three guarantees: Consistency, Availability, and Partition tolerance. [6]
+
+Conflict-Free Replicated Data Types (CRDTs)
+
+Algebraic data structures that ensure strong eventual consistency in distributed systems by allowing replicas to update and merge changes without requiring a central server, utilizing commutative operations to guarantee convergence regardless of operation order. [4], [6], [20]
+
+Content-Defined Chunking (CDC)
+
+A dynamic segmentation method that establishes file block boundaries based on file content rather than static sizes, preventing byte-shifting anomalies during localized edits. [3], [4]
+
+Delta Encoding
+
+A byte-level differential synchronization technique that isolates and transmits only modified file segments between differing versions, drastically reducing network payloads by avoiding full file transfers. [3], [4], [32]
+
+Last-Write-Wins (LWW)
+
+A low-overhead conflict arbitration mechanism that resolves concurrent updates using timestamps, providing a streamlined path to deterministic convergence without requiring complex state merging.[45]
+
+Operational Transformation (OT)
+
+A coordination-free collaborative replication framework that preserves user intent during concurrent text editing by dynamically recalculating positional indexes of text changes, enabling simultaneous multi-user modifications without data corruption. [9], [21], [29]
+
+Strong Eventual Consistency (SEC)
+
+A convergence guarantee ensuring that all replicas in a distributed system will independently calculate the identical final document state once no new updates are made, without requiring a central coordinator. [4], [20]
+
+System Usability Scale (SUS)
+
+A standardized quantitative metric for evaluating user experience in specialized asynchronous environments, measuring interface efficiency, discoverability, and user satisfaction. [13]
+
+Vector Clocks
+
+Logical timestamp mechanisms used to track causal ordering in distributed systems, assigning an array of timestamps to each localized edit to map the chronological sequence of operations across disparate hardware nodes. [8], [18]
+
+
+
+Operational Terms
+
+
+
+
+
+Terms
+
+Definition
+
+Automated File Merge Success Rate
+
+The percentage of concurrent file versions successfully merged by the system without user intervention, calculated as (successful merges / total merge attempts) × 100, recorded by automated system logs.
+
+Bandwidth Efficiency
+
+This serves as an indicator of the system's Efficiency in saving network resources by sending only essential data, e.g., small file changes, rather than the entire files.
+
+
+
+Data Integrity
+
+Here it is the standard against which the whole process of synchronization, i.e., even the most accidental overwriting of a piece of data, is checked; the final stage of the file is a factually accurate and complete version.
+
+
+
+Offline-to-Online Synchronization
+
+This is the ability of a system to recognize differences in an offline device and merge them harmoniously with the live version after reconnecting.
+
+
+
+Realtime File Synchronization
+
+This describes the heart of the system that propagates changes to files to all connected devices instantly and continuously, ensuring that all users see the latest version with minimal delay.
+
+
+
+Synchronization Latency
+
+This is a particular performance aspect that measures the duration from the instance a change is made on one device to the instance it successfully appears on all other synchronized devices.
+
+
+
+Intent Preservation
+
+The system's ability to identify and preserve the original intent of a user's edit, so that the final output after two people working on the same section not only makes sense but also shows their intended changes.
+
+
+
+Manual Conflict Frequency
+
+The number of times users would need to manually intervene to resolve file conflicts when using the proposed automated system versus manual methods, recorded by system logs during comparative testing.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CHAPTER III
+
+
+
+	RESEARCH METHODOLOGY 
+
+	A detailed look at the methodological foundation. This section will discuss the study's design, where it was conducted, who participated, and how they were selected. Lastly, explain how this structured method supports the study's main goals: creating an automatic conflict-resolution engine and determining the time and cost required to sync.
+
+Research Design
+
+The study uses a Quantitative Research Methodology to assess the Degree of effectiveness and reliability of the proposed Synchronization System with accuracy. The methodology has been broken down into four (4) sequential steps. First, create the proposed Synchronization System and test for compliance with established standards or benchmarks. Second, run Technical Testing to review system log records. Third, administer a 4-point Likert scale questionnaire to determine user opinions regarding the proposed Synchronization System. Fourth, collect and analyze all available data. The purpose of this design is to identify an approach for assessing technical Efficiency through the utilization of predetermined performance criteria, which include CPU/RAM usage, delay time associated with synchronization, and success rate(s) of Autonomous Conflict Resolution.
+
+
+
+This quantitative study examines research issues related to how effectively text and binary file processing work, as well as how effectively they protect data when multiple people are altering it simultaneously or when moving from offline to online contexts. This methodological framework is needed for research purposes to use descriptive and inferential statistics to determine whether the system's automated conflict resolution engine is better than current manual methods for both the number of conflicts and the amount of work required to resolve them.
+
+
+
+Research Locale
+
+
+
+The study is about the University of Cabuyao (Pamantasan ng Cabuyao), which is located in the Katapatan Mutual Homes area of the City of Cabuyao, Laguna. The City of Cabuyao's main research and administrative hub is the University of Cabuyao. The University deliberately chose this location because its academic and administrative offices continually create, update, and manage numerous shared digital assets, such as research files and student records. There are constantly workers and students working on these files who are linked to the local network.
+
+
+
+Because this place is easy to go to, you can observe "fragmented workflows" and concurrency difficulties in the technical architecture of a real-world situation. This specific study setting can involve a group of computer science students, education students, and administrative professionals. These people often use shared digital resources. The knowledge we gained regarding synchronization delay and conflict resolution will effectively delineate the capabilities and limitations of an academic community.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Respondents of the Study
+
+The researchers applied a purposive sampling method to select 75 respondents within the Pamantasan ng Cabuyao campus. The study categorizes participants into technical and non-technical groups to ensure an objective evaluation based on the ISO/IEC 25010 software quality standards. The technical evaluation group assesses the system's functional suitability and interface discoverability during technical tasks. 
+
+Table 1. Respondents of the Study
+
+Category
+
+No. of Respondents
+
+Users
+
+70
+
+IT Experts 
+
+5
+
+Total
+
+75
+
+
+
+
+
+The technical evaluation group, comprising 30 individuals, is designed to isolate backend algorithmic performance. This group utilizes five industry IT experts, selected based on their professional qualifications and active engagement in the IT industry with at least three years of experience. Their inclusion is explicitly justified because evaluating the underlying performance of the software, such as how accurately it processes conflicting files and how stable the system remains during network interruptions requires professional-level analytical skills that regular end users don't have. Operating alongside these experts are 25 technical students (15 from the College of Computer Science and Information Technology and 10 from the College of Engineering). These students were purposively selected because their academic background in programming, data structures, and network protocols qualifies them to intentionally execute complex edge-case stress tests. Unlike regular users, they have the architectural literacy required to rigorously monitor synchronization latency and structural data integrity during artificially induced concurrent editing and offline-to-online transitions. 
+
+
+
+Furthermore, the non-technical group of 45 individuals validates functional suitability, collaborative experience, and interface discoverability during practical tasks. This cohort includes five Administrative Staff members, whose primary qualification is their daily responsibility for managing high-volume institutional records and shared digital workspaces. They were specifically chosen because they represent the exact target demographic for the software; their feedback is essential to evaluate the engine's real-world capacity to reduce administrative fatigue and prevent data loss during routine, high-stakes operations. Concurrently, the remaining 40 non-technical students are evenly distributed across four distinct disciplines (10 from Business Administration and Accountancy, 10 from Education, 10 from Arts and Science - Psychology, and 10 from Health and Allied Sciences - Nursing). Their qualification is their continuous engagement in heavy academic collaborations, such as group research and shared presentations. They were purposefully selected to guarantee that the evaluation of the system's user experience remains entirely balanced, universally intuitive, and completely unskewed by the specific workflows or technical biases of any single academic demographic.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Data Gathering Procedures
+
+Instrumentation
+
+
+
+To objectively evaluate the system's performance, the instrumentation phase utilizes internal tracing tools configured to record data from 10-15 concurrent users simultaneously modifying the same document to stress-test the engine's real-time processing capacity. During this phase, the researchers will execute 25-30 distinct conflict scenarios, deliberately designed to trigger overlapping edits and offline-to-online partition recoveries, to rigorously justify the system's automated fault tolerance. The testing strictly utilizes standard text (.txt) and lightweight document (.docx) file types to accurately measure character-level intent preservation without the computational interference of complex binary rendering. Furthermore, the internal monitors will record the measured frequency of synchronization events at continuous 300-500 millisecond intervals to precisely capture the underlying latency and bandwidth consumption during live collaborative sessions.
+
+
+
+Validation
+
+
+
+To scientifically validate the operational effectiveness of the proposed system, the researchers established a direct comparative analysis by benchmarking the performance of the proposed hybrid algorithm against Google Drive, an existing and widely-adopted real-world file synchronization application. Google Drive was selected as the baseline comparison system because it represents a recognized industry-standard platform utilized across academic and professional environments, including Pamantasan ng Cabuyao. In its current implementation, Google Drive resolves file conflicts through a proprietary Last-Write-Wins mechanism that prioritizes the most recently saved version and, in unresolvable cases, generates duplicate copies labeled as conflicting edits, thereby requiring users to manually reconcile divergent file versions. This known limitation of Google Drive  its inability to automatically merge concurrent edits without data loss or user intervention provides a concrete and measurable baseline against which the automated conflict resolution capabilities of the proposed hybrid engine can be directly evaluated. During the comparative analysis, the five IT Experts and twenty-five technical students objectively evaluated the proposed algorithm's backend data convergence, conflict resolution accuracy, and error rates against Google Drive's observed behavior under identical concurrent editing scenarios. Meanwhile, the remaining forty-five non-technical end-users and administrative staff utilized both online and in-person questionnaires anchored on the ISO/IEC 25010 software quality standards to comprehensively assess and justify the proposed system's superior collaborative experience, functional suitability, and usability over Google Drive as the established application baseline.
+
+
+
+Discussions on Algorithms/Mathematical Concepts Used/Proposed Solutions
+
+
+
+To maintain data integrity and semantic consistency, the architecture abandons legacy data management paradigms. The system replaces traditional file-locking mechanisms with a hybrid automated conflict resolution engine. This decentralized framework relies on four integrated components: Log-based Synchronization, Vector Clocks, Last-Write-Wins (LWW) logic, and Delta Encoding.
+
+
+
+Fundamentals of the Algorithms/Mathematical Model/Formula
+
+This study investigates data loss, synchronization latency, and semantic meaning loss during simultaneous document editing [4]. When multiple users access a shared file simultaneously, standard network systems lock the document or overwrite existing data [6]. This structural flaw forces collaborators to cross-reference file versions and combine identical changes manually. Manual merging consumes operational time and reduces overall team productivity. The research addresses these inefficiencies by moving away from centralized server control toward decentralized edge processing [1].
+
+
+
+The proposed approach replaces conventional file locking with a hybrid automated conflict resolution engine. This engine implements Log-based Synchronization, Vector Clocks, and Delta Encoding to manage concurrent modifications. Log Synchronization records every file change as an append-only event rather than destroying existing data [2]. This creates a secure, immutable audit trail for system recovery [16]. Vector Clocks track the exact chronological order of these events across distributed devices [8], [11]. They assign logical timestamps to specific actions to establish strict causal relationships without relying on a central server arbiter [9]. Finally, Delta Encoding isolates and transmits only the modified data bytes over the network [22]. This process minimizes bandwidth consumption during offline-to-online transitions and high-latency periods [25].
+
+
+
+For text editing, this architecture preserves the exact semantic meaning of shared documents [13]. When an author types in a paragraph, Vector Clocks assign a logical timestamp to the specific keystrokes [7]. If a remote user edits the same sentence concurrently, Log Synchronization queues both inputs as distinct, non-destructive events [16]. The system reads the causal timestamps and places the words in the correct sequence without overwriting the original text [8]. The engine calculates positional shifts locally to prevent structural corruption and overlapping text anomalies. Delta Encoding then sends only the new characters across the network, keeping the collaborative editing session fast and responsive for all users [28].
+
+
+
+For accounting files, this framework guarantees strict numerical accuracy [3]. Financial records require precise transaction sequencing to prevent permanent data corruption [3]. Log Synchronization acts as an immutable ledger, recording financial entries sequentially to ensure total accountability [16]. If two users update a balance sheet simultaneously, Vector Clocks detect the data collision and enforce a strict deterministic order [9]. This mathematical ordering ensures all connected devices calculate identical final balances across the network [4]. It prevents system-breaking race conditions when remote devices reconnect to the primary network after an offline period [10]. Finally, Delta Encoding transmits only the explicitly updated spreadsheet cells rather than the entire ledger, conserving critical network resources [24].
+
+
+
+Inputs and Outputs
+
+The algorithm uses your synchronized baseline document, discrete delta payloads , active device states  and concurrent log events generated locally  and remotely  with assigned vector clock timestamps . With these inputs, you generate a strict causally ordered log  and an identical, conflict-free global network state  across all your distributed devices.
+
+Inputs
+
+To process simultaneous document edits, the algorithm requires specific mathematical variables.
+
+Initial State : The synchronized baseline document shared across all devices.
+
+Local Event A distinct, append-only modification logged independently by your host device.
+
+Remote Event : An incoming, append-only modification logged simultaneously by a peer device.
+
+Vector Timestamps : The logical clock arrays assigned to  and  to track chronological causality.
+
+Delta Payload :The isolated, byte-level data difference transmitted over your network.
+
+Active States : The current file versions residing on separate hardware nodes.
+
+Outputs
+
+After evaluating these variables, the algorithm produces the causally ordered edit sequence and your final synchronized file.
+
+Causally Ordered Log : The definitive sequence of events determined by evaluating the vector timestamps .
+
+Converged State : The identical, conflict-free global network state achieved after applying the ordered log and delta payloads.
+
+When everyone views the exact same file on their devices, synchronization starts. People execute updates on multiple computers simultaneously. Local devices send changes to one another. The algorithm examines the incoming delta payloads and compares the vector timestamps. It sequences the events chronologically to accommodate the new text.
+
+The adjustments build on each other without erasing prior work. Consider the word "Test" appearing in a shared document. One user changes the word to "Testing," while another user simultaneously adds "A " to the beginning. The system detects both distinct events. It evaluates the vector clocks and appends both actions to the log. The engine applies the delta payloads in the correct deterministic order. You see the final phrase "A Testing" appear perfectly formatted.
+
+
+
+
+
+
+
+
+
+
+
+
+
+Theoretical Foundations 
+
+This section explains the logic and mathematics of real-time synchronization. It discusses the basic structures and critical requirements. The logic ensures data remains identical across devices without a central server [1]. The study applies established computational methods to merge documents efficiently [2].
+
+
+
+The research relies on Log-Based Synchronization and Vector Clocks [2], [8]. This approach maintains consistent variables across remote systems. It allows multiple individuals to modify data simultaneously [6]. Vector Clocks track the chronological sequence of events to establish strict causality [9]. This prevents the system from overwriting data when users edit the same section. The Principle of Convergence remains significant. Convergence ensures all file copies become uniform after the engine applies all updates [6]. The software guarantees everyone views the same final text version. This automation prevents data loss and eliminates manual merging [16].
+
+The system adapts known decentralized synchronization structures. This approach queues operations locally to handle network latency [26]. The engine employs this peer-to-peer communication framework without a central server [27]. The study builds upon log-based event sourcing and Last-Write-Wins (LWW) logic [45]. LWW establishes a single deterministic convergence path [47]. This mathematical sequencing minimizes computational overhead and makes the transformation reliable [46]. Previous research confirms deterministic sequencing independently fixes data errors.
+
+
+
+The technique uses causal tracking to secure data. The model treats documents as a series of append-only events rather than destructive overwrites [2]. The engine automatically detects concurrent edits through logical clocks to prevent collisions [16]. This logic requires two main assumptions. First, the engine must process edits in their exact causal order [7]. Second, distributed systems must eventually achieve state convergence once updates cease [20]. The architecture has clear boundaries. The engine works best for collaborative text editing. It cannot process high-resolution binary files effectively due to block shifting limitations in delta encoding [32]. High network latency during synchronization causes a brief wait before the final merged document appears on all screens [27].
+
+
+
+Algorithm Design 
+
+The logic and mathematics of real-time synchronization dictate specific structural requirements. The logical framework ensures data remains identical across devices without a central server [1], [20]. The research applies established computational methods to merge documents efficiently [2].
+
+
+
+The proposed architecture implements Log-Based Synchronization and Vector Clocks [2], [8]. The approach maintains consistent variables across remote systems. The system allows multiple individuals to modify data simultaneously [6]. Vector Clocks track the chronological sequence of events to establish strict causality [9]. The tracking prevents the system from overwriting data when users edit identical document sections. The Principle of Convergence dictates the final output. Convergence ensures all file copies become uniform after the engine applies all updates [13]. The software guarantees users view identical final text versions. The automation prevents data loss and eliminates manual merging [7], [8].
+
+
+
+The system adapts decentralized synchronization structures. The approach queues operations locally to manage network latency [9]. The engine executes a peer-to-peer communication framework without a central server [11]. The architecture builds upon log-based event sourcing and Last-Write-Wins (LWW) logic [45]. LWW establishes a single deterministic convergence path [47]. The mathematical sequencing minimizes computational overhead and makes the transformation reliable [46]. Previous studies confirm deterministic sequencing independently resolves data errors [45], [46].
+
+
+
+The protocol implements causal tracking to secure data. The model processes documents as a series of append-only events rather than destructive overwrites [2], [12]. The engine automatically detects concurrent edits through logical clocks to prevent data collisions [16]. The operational logic requires two main assumptions. First, the engine must process edits in their exact causal order [21]. Second, distributed systems must achieve state convergence once updates cease [20]. The architecture possesses clear boundaries. The engine functions optimally for collaborative text editing. The algorithm fails to process high-resolution binary files effectively due to block shifting limitations in delta encoding [24], [32]. High network latency during synchronization causes a brief wait before the final merged document appears on user screens [11], [27].
+
+
+
+Workflow and Execution Steps
+
+The system handles concurrent file changes through a strict chronological sequence. This execution ensures all data on a distributed network remains consistent. The architecture accommodates adding, deleting, and modifying text by tracking each action as an immutable log event rather than a direct overwrite.
+
+Table 2: execution steps on workflows
+
+Phase
+
+Process Description
+
+Step 1
+
+The system records the initial document state  across all local devices.
+
+Step 2
+
+Users execute independent operations (adding, deleting, or modifying text) simultaneously. This action generates distinct local events  on individual nodes.
+
+Step 3
+
+The local device assigns a Vector Clock timestamp  to each event to establish causality.
+
+Step 4
+
+The system isolates the byte-level changes using Delta Encoding and transmits the minimal payload to peer nodes.
+
+Step 5
+
+The conflict resolution engine receives the remote event. It compares the Vector Clocks  to determine the strict mathematical order.
+
+Step 6
+
+The system appends the events to the chronological log. It applies the delta updates to the document in the determined sequence.
+
+Step 7
+
+The network reaches an identical, conflict-free Converged State .
+
+
+
+The engine evaluates specific conditions to resolve conflicts. When an external delta payload arrives, the system compares the remote vector timestamp against the local clock. If the timestamps indicate concurrent edits, the system strictly orders them based on a predefined deterministic rule to prevent structural corruption. The engine appends both edits to the log to prevent data loss. The method applies the delta updates, verifies convergence, and communicates the new result to other nodes.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Pseudocode Representation
+
+The pseudocode explains how your system resolves conflicts during simultaneous document edits. It evaluates vector timestamps to sequence discrete events chronologically. The engine appends concurrent edits to an immutable log. It isolates data modifications using delta payloads. After executing these steps, your system merges the data. It verifies network convergence and broadcasts the updated file.
+
+DEFINE initial_state AS SINITIALIZE local_vector_clock AS V_localINITIALIZE total_sync_attempts = 0INITIALIZE conflict_detected_count = 0INITIALIZE unresolved_conflicts = 0INITIALIZE accurate_resolutions = 0LISTEN for discrete_data_update (u)GENERATE local_event (E_a) WITH timestamp (V_a)RECEIVE remote_event (E_b) WITH timestamp (V_b) AND delta_payload (Δ_b)INCREMENT total_sync_attemptsSTART timer AS t_startIF V_b IS concurrent WITH V_a THEN    INCREMENT conflict_detected_count    IF LWW_logic_succeeds(V_a, V_b) THEN        EXECUTE delta_merge: S_new = APPLY_LWW(Δ_b, S_current)        IF verify_structural_integrity(S_new) == TRUE THEN            INCREMENT accurate_resolutions        END IF    ELSE        INCREMENT unresolved_conflicts        ESCALATE TO manual_review_queue(E_a, E_b)        WAIT FOR owner_resolution        EXECUTE manual_merge: S_new = APPLY_OWNER_DECISION(owner_decision)    END IFELSE IF V_b > V_a THEN    EXECUTE standard_merge: S_new = APPLY(Δ_b, S_current)END IFUPDATE local_vector_clock TO MAX(V_local, V_b)STOP timer AS t_endRECORD elapsed_time_ms = (t_end - t_start)BROADCAST delta_payload (Δ_resolved) TO peer_nodesVERIFY convergence: S_new IS uniform across devicesIF convergence IS uniform THEN    RECORD successful_consistencyEND IF
+
+
+
+Mathematical Model Formulation  
+
+The system avoids conventional file locking. It implements a hybrid algorithmic approach instead. To maintain continuous consistency across decentralized nodes, the engine implements Log-based Synchronization and Vector Clocks. It applies Delta Encoding to preserve semantic meaning during simultaneous text edits. The mathematical model below outlines the updated variables, chronological causality rules, and delta application sequences for the automated conflict resolution engine.
+
+
+
+The model relies on specific mathematical variables to process simultaneous edits to documents.
+
+Table 3:Mathematical Variables and Symbols
+
+Symbol
+
+Definition
+
+
+
+The synchronized baseline document shared across all devices.
+
+
+
+The active file versions residing on separate local hardware nodes.
+
+
+
+The identical, conflict-free global network state achieved after synchronization.
+
+
+
+The isolated, byte-level delta payload transmitted over the network.
+
+
+
+A distinct, append-only local event logged independently by the host device.
+
+
+
+An incoming, append-only remote event logged simultaneously by a peer device.
+
+
+
+The vector clock timestamps assigned to events to track chronological causality.
+
+
+
+The definitive, chronologically ordered sequence of log events.
+
+
+
+The mathematical operator indicating two events occurred concurrently ().
+
+
+
+The mathematical operator indicating strict chronological precedence (.
+
+
+
+Sequence of the operation application.
+
+The algorithm implements Log-based Synchronization, Vector Clocks, and Delta Encoding to preserve data integrity and maintain semantic consistency. These combined mechanisms establish a strict chronological order for all network events. They process simultaneous document edits without overwriting valid user input.
+
+
+
+Equation 1: Vector Clock Causality
+
+
+
+This equation defines strict chronological sequencing. The system evaluates the logical arrays of two events. If the conditions hold true, event A strictly precedes event B. This mathematical property allows the network to process incoming edits in the exact order they occurred. This structure ensures files converge consistently across all nodes.
+
+
+
+
+
+Equation 2: Concurrent State Detection
+
+
+
+
+
+This equation identifies simultaneous user actions. When two events happen at the exact same time, neither vector clock strictly precedes the other. The distributed system uses this logic to detect data collisions. Identifying concurrency prevents the engine from blindly overwriting valid data.
+
+
+
+Equation 3: Deterministic Log Ordering
+
+
+
+
+
+This formula determines the final sequence of the append-only log. The system resolves concurrent events by applying a strict tie-breaker. The engine evaluates the node identifiers alongside the vector timestamps. The calculation forces a universal order. Applying this logic guarantees all peer devices arrange the log events identically.
+
+Equation 4: Transformation Property 1 (TP1)
+
+
+
+This function keeps all peer devices' semantic states equivalent. The  symbol represents absolute semantic equivalence. The left side shows a local device applying the first delta payload followed by the second. The right side shows a peer device receiving and applying the payloads in a different physical order. The engine applies these deltas according to the deterministic log order. The merge operator  guarantees both execution paths produce the identical final text string.
+
+
+
+Constraints and Boundaries
+
+Delta Encoding calculations remain strictly computational to ensure predictable integration [3]. The log-based engine processes updates in any sequence without altering the final document state [19]. This data-driven approach prevents localized formatting scripts from corrupting delta payloads. Vector Clocks enforce a strict forward progression of time [9]. The system prevents the infrastructure from reverting to prior disputed states during synchronization [5]. Decentralized networks lack a central server to mediate disputes. Reversing the chronological log violates causal ordering and triggers cascading data collisions.
+
+
+
+The method is incompatible with encrypted files requiring specific API logins or decryption keys [4]. The synchronization engine requires direct read access. Opaque cryptographic layers block the algorithm from computing exact byte-level differences.
+
+
+
+The model processes standard text and document files exclusively. The approach is incompatible with complex binary formats because block-based fragmentation obscures concurrent execution events [32]. Text structures provide predictable character sequencing for exact mapping. Binary files frequently rearrange internal data blocks during routine saves. This structural shifting generates unpredictable delta payloads and exceeds bandwidth limits.
+
+
+
+System Objectives and Model Logic
+
+The mathematical model regulates files in real time to achieve consistent synchronization across distributed edge devices [1], [6]. Decentralized replicas retain files in an identical state regardless of network conditions, eliminating the need for a central server [20]. To maintain data integrity, the system automatically resolves file collisions that occur during concurrent offline sessions [5]. The framework drastically reduces network bandwidth consumption by employing Delta Encoding to transmit only discrete byte-level updates rather than full files [3], [4].
+
+To meet these objectives, the synchronization engine follows an established set of deterministic mathematical rules. The system records the initial baseline state of the document across all nodes. When individuals execute independent edits simultaneously, the system logs these modifications as discrete, append-only events rather than executing direct state mutations [2]. The conflict resolution engine processes these concurrent updates by evaluating Vector Clocks to establish strict causal histories [8]. To combine these modifications and resolve direct collisions, the engine applies Last-Write-Wins (LWW) logic using logical timestamps to force a single convergence path [45], [48]. This computation sequence guarantees all peer devices aggregate the events to project a reliable, unified final document state.
+
+Algorithm Implementation 
+
+This section discusses the automatic conflict resolution application in collaborative settings. The implemented solution replaces standard file locking with a custom engine implementing Log-based Synchronization, Vector Clocks, and Delta Encoding. This hybrid structure secures substantial text input transmitted over offline networks.
+
+
+
+Standard file locking prevents concurrent editing and forces users to wait for access. The hybrid conflict resolution engine replaces this model to allow multiple users to edit documents simultaneously across offline networks. The architecture treats user actions as discrete data updates. The system records insertions and deletions as distinct log events. This isolation prevents new edits from overwriting the existing document structure. Log-based synchronization queues these actions into an append-only ledger to create a permanent historical record of file changes.
+
+
+
+The engine assigns a vector clock to every data update to coordinate edits across remote users. Centralized clocks fail during network disconnections. Vector clocks solve this by tracking the document state at the exact moment of the edit. The system compares these logical timestamps to expose overlapping edits. The system then sequences the append-only ledger using a strict resolution hierarchy. The engine first applies Last Write Wins logic. It evaluates the vector clocks and automatically sequences overlapping edits based on chronological priority. The system flags events as unresolved conflicts when automated logic fails to resolve data collisions safely. It escalates the merge to the document owner to review the conflicting edits and choose the correct final state.
+
+
+
+Delta encoding isolates the exact bytes changed during an edit. The engine transmits only this isolated delta payload across the network instead of the entire document. This execution saves network bandwidth, prevents data loss, and stops formatting corruption during simultaneous editing sessions.
+
+
+
+Development Environment and Tools
+
+The system requires specific software frameworks to process simultaneous file changes within a decentralized environment. The core synchronization engine runs on TypeScript. Strict static typing prevents runtime structural errors when the engine sequences concurrent vector clocks and applies discrete delta payloads.
+
+UI Development: Next.js and React build the web dashboard. These components render the user interface to display live synchronization status and document version history.
+
+Desktop Framework: Electron converts web technologies into a standalone desktop application. It monitors local file system interactions to manage binary files at the block level via content-defined chunking.
+
+Database Interaction: An Object-Relational Mapping (ORM) tool maps internal data structures. The system uses this tool to compile the append-only log during collaborative sessions, preserving exact operational metadata for the audit trail.
+
+Data Structures: The engine executes cryptographic hashing to track active data states across all nodes. This mathematical process ensures all decentralized replicas reach identical file states without relying on a central server.
+
+Practical Challenges: Devices experience synchronization latency upon network reconnection. The system minimizes this delay by sorting target file types. The engine applies block-level chunking for binary files and character-level synchronization for standard text documents. The network transmits only the isolated data bytes via Delta Encoding. This differential update mechanism directly lowers overall bandwidth consumption.
+
+Complexity Analysis 
+
+The hybrid synchronization solution replaces legacy frameworks by implementing Log-based Synchronization, Vector Clocks, Last-Write-Wins (LWW) arbitration, and Delta Encoding [26], [32]. It automatically resolves file conflicts through a three-step deterministic procedure. First, the system records concurrent modifications as immutable, append-only log events rather than executing destructive overwrites [2]. Second, the engine evaluates Vector Clocks to establish strict causal histories across all decentralized nodes [8]. Third, it applies LWW logic and Delta Encoding to converge the data accurately [45], ensuring all versions on the network remain mathematically identical without a central server [20].
+
+The computational overhead of the algorithm scales efficiently. When processing a concurrent event, comparing Vector Clocks requires O(m) time, where  represents the number of active replica nodes [18]. Unlike pure Operational Transformation (OT), which requires O(n^2) time to recalculate positional indexes for n concurrent operations [9], the proposed architecture relies on sequential log evaluation and LWW logic for conflict resolution. Because of this streamlined arbitration mechanism, the conflict resolution process avoids heavy transformation math, executing in O(m) time overall [45], [48]. This reduction in computational cost allows the engine to maintain high performance during rapid, simultaneous editing sessions.
+
+Space complexity scales linearly at O(n+m) [6]. The system maintains operational metadata, including logical timestamps, node identifiers, and isolated delta payloads [3]. To ensure strict causal consistency, each decentralized replica must store a version vector, requiring O(m) memory [8]. By abandoning the heavy tombstone metadata required by pure CRDTs [11] and employing Delta Encoding to compress transmission payloads, the architecture significantly reduces both memory utilization and bandwidth consumption during long-term collaborative sessions [32], [34].
+
+Table 4: Comparison of Synchronization Approaches
+
+Approach
+
+Time Complexity
+
+Space Complexity
+
+Intent Preservation
+
+Pure Operational Transformation (OT)
+
+O(n^2)
+
+O(n)
+
+High (Requires central server)
+
+Pure CRDT
+
+O(1)
+
+O(n * m)
+
+Moderate (High metadata overhead)
+
+OT-CRDT Hybrid
+
+O(n * m)
+
+O(n)
+
+High (Heavy computational load)
+
+Proposed Hybrid (Log/Vector/Delta/LWW)
+
+O(m)
+
+O(n+m)
+
+High (Preserves causal history)
+
+
+
+Table 4 presents a comparison of the proposed hybrid technique against legacy synchronization approaches [9]. Empirical data confirms pure CRDT mechanisms consume substantial memory and bandwidth due to perpetual tombstone accumulation [10], [46]. Similarly, pure OT requires constant centralized coordination and scales poorly at O(n^2) time [11], [21]. While an OT-CRDT hybrid achieves high intent preservation without a central server, it imposes a heavy computational load, requiring O(n * m) time due to continuous positional index recalculations [15].
+
+The proposed log-based hybrid approach resolves this bottleneck, balancing fast state convergence with low network overhead [12]. During peak network congestion, the system queues discrete delta payloads asynchronously until the engine clears the backlog. The system emphasizes transmission speed via content-defined chunking capped at 4MB blocks. This architectural boundary restricts the engine from parsing heavily encrypted or proprietary binary formats effectively [13].
+
+
+
+
+
+System Development Methodology
+
+The study employs Experimental Prototyping Methodology for the development and testing of the file synchronization software. This section of the paper explains how the authors address the problems people face when working simultaneously. Before releasing the full version, the group uses this structured approach to test the software.
+
+ Experimental Prototyping is the process of building a working software sample early in the development process. The faculty checks some parts of the system even before the final edition of the product is ready. This method of working covers all of the research needs. The team needs to evaluate the system's performance under different network conditions. Having a prototype enables researchers to see and interpret how the software can simultaneously manage realtime scenarios of user interaction and document editing. The group getting through these tests is collecting unbiased data. That data will show which method of conflict resolution is most efficient: the automatically managed one or the manually handled one.
+
+
+
+Figure 6: Experimental Prototyping Methodology diagram [50]
+
+
+
+The model has five phases. Firstly, the team gathers requirements by observing how students and administrative staff at the University of Cabuyao work in a disconnected manner. Secondly, they do a very short design phase in which possible solutions for the dashboard and desktop framework are considered. Third, the researchers set up the main synchronization engine to construct the prototype. Fourth, they give the software to forty chosen people to test the prototype. Twenty students in information technology check the system for mistakes. Twenty people who aren't proficient in technology check out the UI. The system keeps logs to keep track of how quickly it operates and how much memory it allocates. Finally, the team improves the system by analyzing the collected data and updating the code based on user feedback.
+
+
+
+Phases of: Experimental Prototyping  
+
+The researcher developed file-sharing software that lets users collaborate by intelligently merging documents. Such an approach aimed to build a viable model that could be tested and changed to meet users' real-world needs. This plan of action was crucial because it allowed development to be broken into phases, each focusing on a different aspect of the project, such as technical implementation and user experience.
+
+Requirements information inventory of existing issues related to file sharing, and interviewed students and workers at the University of Cabuyao to understand what they would want a software to do. The collected data were instrumental in creating a list of features the developers needed to work on, as user behavior in document sharing served as a guide.
+
+Requirements specification: the design level. Over this phase, they made the system's design and the way its parts fit together much clearer. The design goes beyond a simple interface and a list of functions. It also shows how the merging system will notify users when files change and what the files' new state will be after the process.
+
+
+
+
+
+
+
+Figure 7: DocuSync Use Case Diagram
+
+Figure 7 shows how the user, the admin, and the system work together to perform every task. The user logs in to the system, displays the list of files in real time, downloads and uploads file types to and from the server, transitions to offline mode, and controls the repository. The admin, in another function, is responsible for verifying accounts, creating new accounts, and deleting groups. Some things have to happen before others may occur. For instance, uploading a file would also mean making an updated copy of it and, if you like, putting the adjustments you made while you were offline in a queue.
+
+
+
+Figure 8: DocuSync Activity Diagram
+
+Figure 8 shows how standardized processes work for users, systems, and admins. The system checks information during the login process to give permission. The system performs a network connectivity check to receive WebSocket updates or access the offline repository. Users can either sync files online or put them in a queue to edit later. When the machine isn't linked, it transmits data to its internal storage, which it clears as soon as it fills up. Admins are responsible for creating user accounts and deleting groups while the system gathers session data.
+
+Prototype Development: The researchers create the first stable version of the program that joins files. This example shows some of the most significant features, such as change tracking and automatic merging of multiple versions of the same file.
+
+Prototype Testing: The researchers use environment logs and internal monitors to find an early version of the software. These applications track how often changes occur and how much power the system consumes. A group of respondents is also trying out the program. They complete the needs survey forms to determine how easy it is to use the program and to ensure its ability to edit properly.
+
+Refinement: To create better software, the researcher corrects errors and applies testing feedback. The researchers code the crossings to ensure the code is correct, so the merged control tool functions correctly and remains steady.
+
+The process goes on and on. The developers make a prototype of the software, show how it works, and identify the errors that need to be addressed. They solve errors and test the software again. The software keeps going through this process until it merges the data and works properly for everyone. The goal is to have the software work well and be effortless to use.
+
+
+
+
+
+Statistical Treatment of Data
+
+This study uses a quantitative approach to objectively evaluate the synchronization software. Data is gathered directly from automated system logs and standardized user surveys. The evaluation focuses on two main areas: the Technical Reliability Score and the User Acceptance Score. Technical metrics track how often file conflicts fail to resolve automatically and how well the system maintains synchronization speeds under concurrent use. These objective measurements will establish the overall efficacy, stability, and reliability of the automated engine under high-stress collaborative conditions. High scores mean the files sync flawlessly, while low scores indicate unacceptable network delays and data errors.
+
+The research evaluates academic and administrative workflows at the University of Cabuyao in Laguna. The participant group includes computer science students, education students, engineering students, psychology students, nursing students, business and accounting students and administrative staff. These individuals constantly create, manage, and synchronize shared digital records across localized networks. Their continuous collaborative editing generates frequent concurrent file collisions. Testing the software within this environment yields accurate data regarding the synchronization engine processing real-world concurrency stress.
+
+Population and Sampling 
+
+The researchers applied a purposive sampling method to select 75 respondents within the Pamantasan ng Cabuyao campus. The team categorized participants into technical and non-technical groups to ensure an objective testing environment.
+
+The technical group consists of 30 individuals: five IT Experts, 15 College of Computer Science and Information Technology students, and 10 College of Computer Engineering students. These technical respondents evaluate system reliability, synchronization latency, and algorithmic accuracy. They identify system faults occurring under specific conditions.
+
+The non-technical group consists of 45 individuals: five Administrative Staff, 10 College of Business Administration and Accountancy students, 10 College of Education students, 10 College of Arts and Science students, and 10 College of Health and Allied Sciences students. These regular end-users evaluate functional suitability and overall user acceptance during real-world operational scenarios.
+
+The selected participants accurately reflect the campus population. They experience the exact synchronization problems the software intends to solve. This specific sampling strategy guarantees the collected data accurately represents the operational needs of traditional educational institutions
+
+Evaluation and Scoring
+
+To objectively validate the effectiveness of the proposed hybrid synchronization engine, the evaluation framework relies on specific, measurable performance indicators extracted directly from automated system logs. This ensures a rigorous assessment of how well the combination of Log-Based Synchronization, Vector Clocks, Last-Write-Wins (LWW) logic, and Delta Encoding manages concurrent edits without structural data corruption. 
+
+1. Technical Reliability Score
+
+Automated system logs generate this score using objective, mathematically defined performance metrics to evaluate the synchronization engine:
+
+
+
+
+
+Synchronization Latency: This measures the exact time it takes for an update to travel from a single starting device, be successfully merged by the system, and send back a confirmation. By measuring this complete round-trip, the system avoids errors caused by different devices having slightly different physical clock times. It is calculated in milliseconds (ms) as the difference between the timestamp when the network sends a success confirmation  and the timestamp when the update was originally sent  The formula is: 
+
+Formula
+
+Implementation
+
+
+
+
+
+Instead of relying on manual stopwatches or visual observation, the system’s backend attaches a hidden digital timestamp to a file update the exact moment a user makes an edit. The system tracks this specific update across the network. Once the receiving device successfully applies the edit, it sends an automated "receipt" back to the sender. The system logs the time difference of this full round-trip. This method is critical because it neutralizes errors that would occur if different computers had slightly unsynchronized physical clocks.
+
+
+
+System Throughput: This measures the engine's "speed limit," representing exactly how many file updates it can process every second when under heavy stress. Because normal human typing isn't fast enough to truly push the system to its breaking point, automated scripts are used to fire off rapid data updates to simulate an extreme workload. It is calculated by dividing the total number of successfully saved updates  by the total number of seconds the test was running . The formula is: 
+
+Formula
+
+Implementation
+
+
+
+
+
+Because normal human typing is far too slow to push the synchronization engine to its maximum capacity, researchers implement automated stress-testing scripts. These scripts act as "virtual users" that bombard the system with hundreds of rapid, simulated file edits. The internal system monitor simply counts how many of these artificial updates the engine successfully saves within a set timeframe. This reveals the system's absolute processing ceiling before it begins to fail.
+
+
+
+Conflict Resolution Time: This measures exactly how fast the system can mathematically solve a problem when two users edit the exact same data at the same time. It is calculated in milliseconds (ms) as the difference between the timestamp when the final merged file is successfully completed  and the timestamp when the system first noticed the overlapping edits . The formula is: 
+
+
+
+
+
+Formula
+
+Implementation
+
+
+
+
+
+To ensure the data reflects the algorithm's speed rather than general internet slowness, the software utilizes an internal, automated stopwatch. The exact millisecond the system detects that two users are typing over the exact same text, this internal timer starts. It runs only while the software mathematically calculates how to merge the edits, stopping the instant the final document is compiled. This isolates the engine's "thinking time" from network lag.
+
+Data Loss Rate: This measures the percentage of information that is accidentally deleted or corrupted when a device reconnects to the network to sync. Importantly, the system is smart enough to tell the difference between a real algorithmic error and a user simply hitting the backspace key to delete their own work. It is calculated by dividing the total amount of accidentally lost data  by the total amount of data that was originally modified , and then multiplying by 100 to get a percentage. The formula is: 
+
+Formula
+
+Implementation
+
+
+
+
+
+The primary challenge in measuring data loss is ensuring the system does not record a user intentionally hitting the "Backspace" key as an algorithmic error. To solve this, the testing environment uses a verification script that tracks the specific history of the text. It compares the structural integrity of the initial inputs against the final merged document. The logger is programmed to only flag "lost data" if text is orphaned or overwritten by the software during a merge, effectively filtering out intentional user deletions.
+
+Consistency Success Rate: This measures the system's "perfect score" how often it successfully ensures that every single device ends up with the exact same file version without anyone having to manually fix errors. It proves the system's ability to reach complete agreement across the entire network (also known as Strong Eventual Consistency). It is calculated by dividing the number of perfectly identical, successful syncs  by the total number of times the system attempted to sync , and then multiplying by 100 to get a percentage. The formula is:
+
+Formula
+
+Implementation
+
+
+
+
+
+To prove that every user ends up with the exact same file, researchers do not rely on visual screen checks. Instead, at the end of a concurrent editing session, the system generates a unique "digital fingerprint" (a cryptographic hash) for the document residing on each connected device. The system automatically compares these fingerprints. If every single fingerprint matches perfectly, meaning the files are identical down to the last byte without requiring a user to manually fix an error, the automated log records a successful consistency event.
+
+System Scalability Evaluation: This measures the exact percentage of optimal performance the synchronization engine maintains when subjected to an increasing number of concurrent users. It is calculated as the ratio between the system throughput at a specific number of concurrent users  and the baseline system throughput with exactly one active user , multiplied by 100 to get the percentage. The formula is:
+
+Formula
+
+Implementation
+
+
+
+
+
+To measure how well the system handles a crowd, the testing environment gradually increases the workload. The system first records its base processing speed with only one active user. Then, automated scripts inject an increasing number of concurrent "virtual users" into the same document, up to the maximum limit of 15. The background logger continuously records the system's processing speed at each step. By tracking this progression, researchers can chart the exact trajectory of how performance drops as network congestion increases.
+
+
+
+
+
+
+
+
+
+2. User Acceptance Score
+
+The research extracts qualitative satisfaction metrics from the 75 purposive respondents using a 4-point Likert Scale.
+
+
+
+Table 6: Evaluation and Scoring
+
+Mean Score
+
+Score Range
+
+Technical Interpretation
+
+Non-Technical Interpretation
+
+4
+
+3.26 – 4.00
+
+Perfect File Synchronization / High Consistency
+
+Flawless; no lost work.
+
+3
+
+2.51 – 3.25
+
+Accurate File Merging / Fast Conflict Resolution
+
+Easy to use; very few errors.
+
+2
+
+1.76 – 2.50
+
+Frequent File Mismatches / High Unresolved Conflicts
+
+Confusing; had to redo work.
+
+1
+
+1.00 – 1.75
+
+Complete Sync Failure / High Data Loss
+
+Unacceptable network delays; lost my files.
+
+
+
+
+
+Ethical Considerations
+
+The research team employs a "Safety-First" approach to protect the University's data and participants' privacy.
+
+Data Sanitization & Dummy Testing: To maintain the institution's credibility, "Stress Tests" with very high concurrency will be conducted using fake student records and administrative files configured to look like actual files but that don't contain any Private Identifiable Information (PII).
+
+The Transparency Principle: Prior studies established that all collaborating users must be informed whenever an automated resolution alters a shared document. Upon the owner's acceptance of the merged result, the system immediately broadcasts a real-time push notification to all connected collaborators, ensuring no manual refresh is required
+
+Fail-Safe (The Rollback Protocol): The system is not entirely automated from an ethical standpoint; it primarily serves to save data. The system will save an "Audit Trail," or version history, so any authorized administrative user can "Rollback" to the prior version if the algorithmic merge doesn't work out the way they want.
+
+Confidentiality: Individuals who take part can choose what they want to share. The report on how well each student is doing technically (for example, whether a student's equipment has excessive latency) will be shown only in an anonymous form as part of the overall statistics.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CHAPTER IV
+
+RESULT AND DISCUSSION 
+
+This chapter details the findings from the development and testing of the hybrid synchronization engine. The researchers analyze the gathered data against the original project objectives. The section presents performance metrics derived from 75 purposively selected respondents at Pamantasan ng Cabuyao. These respondents supplied feedback through structured user testing and expert evaluation. 
+
+The text reports the raw outcomes and interprets their statistical significance. The researchers assess whether the integrated components met the expected performance goals. The discussion outlines the specific challenges encountered while combining Log-Based Synchronization, Vector Clocks, Last-Write-Wins logic, and Delta Encoding. 
+
+The analysis highlights the software mechanisms to replace manual conflict resolution. The results demonstrate how the system prevents structural data corruption during offline-to-online network transitions. The evaluation quantifies system throughput, synchronization latency, and data loss rates under simulated concurrent editing stress. Finally, the chapter compares the usability and technical performance of the proposed solution directly against established industry baselines. This comparison incorporates automated system logs and ISO/IEC 25010 survey responses from both technical and non-technical participant groups. The findings verify the exact level of user acceptance and algorithmic reliability achieved by the hybrid architecture.
+
+
+
+
+
+Implementation of the Hybrid Synchronization Engine
+
+The study's primary problem is that collaborators editing the same shared document, especially over a peer-to-peer connection with no central server, can produce conflicting versions that are difficult to reconcile safely. A change made by one device can be overwritten by another without warning, particularly when neither device is aware of what the other has done. In order to solve this, the study investigates whether combining an append-only event log, hierarchical logical clocks, an owner-arbitrated resolution step, and byte-level delta encoding can keep concurrent edits consistent without discarding a collaborator's work without notice.
+
+With the help of the working prototype, the researchers were able to run controlled edit scenarios between simulated peer devices and observe how the engine actually behaves when two edits touch the same document. This way, the study provides not only a description of the intended design but also a concrete trace of how a single edit moves through the system in practice. The following sections present this trace and connect each step back to the research question.
+
+Real-time collaborative editing is challenging because concurrent edits are common and network connectivity between peer devices cannot be guaranteed at every moment. To address this, the engine avoids relying on a single authoritative server and instead lets each device log its own edits locally and reconcile them once a connection is available. These mechanisms work together to keep edit history intact, causal order determinable, and network usage light; however, as the discussion below shows, the way they interact changes depending on whether the conflicting devices are reconnecting after time offline or editing at the same moment in real time, and this distinction has a direct effect on how safely conflicts are resolved.
+
+The engine preserves every collaborator's edit, removes the ambiguity between sequential and concurrent changes, and keeps network usage low through the combined effect of the four integrated mechanisms described in Chapter III. No edit is lost outright because the Peer Manager writes every modification to an append-only event log before anything else happens, so even a change that is later superseded remains recoverable in the log rather than being deleted. Ambiguity between sequential and concurrent edits is removed because each logged event carries a Tree Clock timestamp, a hierarchical counter that lets the engine compare two edits' causal history instead of relying on the physical clock of either device, which may drift or fall out of sync. Once two edits are identified as concurrent, the engine's response depends on the connection context in which the conflict is found, which is the detail the remainder of this section documents in full.
+
+Conflict Resolution for Offline-Reconnect Edits. When an offline device reconnects, the Peer Manager compares its changes with the shared version through a three-way merge. If the edits affect different parts of the file, the system merges them automatically and records the result in the conflict log. If both edits affect the same part, the conflict is sent to the document owner for review and resolution.
+
+Conflict Resolution for Live, Real-Time Edits. For users editing at the same time while online, the Tree Clock identifies the changes as concurrent. In the current implementation, the system resolves these conflicts using physical timestamps and keeps the more recent edit. This differs from the intended owner-arbitrated approach and presents a limitation because differences between device clocks may cause one user's changes to be overwritten without notification.
+
+Delta Encoding and Update Propagation. After the system resolves a conflict, Delta Encoding identifies only the changed parts of the file and sends them to the connected devices. The receiving device applies these changes to its local copy instead of downloading the entire file. A checksum then verifies the updated file before it is treated as complete.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Literature cited
+
+[1] A. Kumar, "Distributed Systems in Modern Enterprise Architecture," Int. J.    Sci. Adv. Technol., 2025.
+
+[2] S. Lima et al., "Improving Observability in Event Sourcing Systems," J. Syst. Softw., 2021.
+
+[3] H. Tan et al., "The Design of Fast Delta Encoding for Delta Compression Based Storage Systems," ACM Trans. Storage, 2024.
+
+[4] "FASTSync: A FAST Delta Sync Scheme for Encrypted Cloud Storage," ACM Trans. Storage, 2023.
+
+[5] J. R. Chejarla, "Temporal Consistency Models for Financial Data Processing," Int. J. Comput. Exp. Sci. Eng., 2026.
+
+[6] "Data Consistency Models in Distributed Systems: CAP Theorem, Tradeoffs and Applications," Int. J. Sci. Adv. Technol., 2023.
+
+[7] S. S. Kulkarni, G. Appleton, and D. Nguyen, "Achieving Causality with Physical Clocks," in Proc. Int. Conf. Distrib. Comput. Netw., 2022.
+
+[8] U. Mathur et al., "A Tree Clock Data Structure for Causal Orderings in Concurrent Executions," in Proc. ACM SIGPLAN Notices, 2022.
+
+[9] E. B. et al., "Resettable Encoded Vector Clock for Causality Analysis With an Application to Dynamic Race Detection," IEEE Trans. Parallel Distrib. Syst., vol. 32, no. 4, pp. 1–14, 2021.
+
+[10] V. Muppa, "Event-Driven Architecture in Cloud Computing," World J. Adv. Res. Rev., 2025.
+
+[11] B. Sypytkowski, "Conflict-free Database over Virtual File System: A Log-Based CRDT Approach," Tech. Rep., 2025.
+
+[12] C. Kuessner et al., "Algebraic Replicated Data Types," in Proc. Eur. Conf. Object-Oriented Program., 2023.
+
+[13] A. Garcia et al., "Evaluating User Experience in Decentralized Collaborative Applications Using the System Usability Scale," J. Hum. Comput. Interact., 2022.
+
+[14] ISO/IEC, "ISO/IEC 25010:2023 Systems and software engineering," Int. Org. Standardization, 2023.
+
+[15] R. Sharma and M. Singh, "Methodological Approaches to Software Quality Assurance," IEEE Access, 2023.
+
+[16] M. Roohitavaf, M. Demirbas, and S. S. Kulkarni, "CausalSpartan: Causal Consistency Using Hybrid Logical Clocks," in Proc. IEEE Symp. Reliable Distrib. Syst., 2021.
+
+[17] A. K. et al., "Real-Time Asynchronous Information Processing in Distributed Power Systems Control," IEEE Trans. Power Syst., 2021.
+
+[18] S. M. et al., "Correctness Checking of MPI+OpenMP Applications Using Vector Clocks in MUST," in Proc. Int. Conf. High Perform. Comput. Netw. Storage Anal., 2024.
+
+[19] E. P. Csirmaz and L. Csirmaz, "Data Synchronization: A Complete Theoretical Solution for Filesystems," arXiv preprint arXiv:2210.04565, 2022.
+
+[20] S. Laddad et al., "Keep CALM and CRDT On," Proc. VLDB Endow., 2022.
+
+[21] G. Litt et al., "Peritext: A CRDT for Collaborative Rich Text Editing," in Proc. ACM CSCW, 2022.
+
+[22] Y. Ma et al., "Supporting Cross-Platform Real-Time Collaborative Programming," in Springer LNCS, 2022.
+
+[23] Y. Mao, Z. Liu, and H. A. Jacobsen, "Reversible Conflict-Free Replicated Data Types," in Proc. ACM/IFIP Middleware Conf., 2022.
+
+[24] "General-Purpose Secure Conflict-Free Replicated Data Types," IACR Cryptol. ePrint Arch., 2023.
+
+[25] Y. Zhang et al., "Conflict-Free Replicated Priority Queue," in Proc. ACM Internetware, 2023.
+
+[26] H. Li et al., "LRD-Raft: Log Replication Decouple for Efficient and Secure Consensus in Consortium-Blockchain-Based IoT," IEEE Internet Things J., 2025.
+
+[27] P. Kumar et al., "RaftOptima: An Optimised Raft With Enhanced Fault Tolerance, and Increased Scalability With Low Latency," IEEE Access, 2024.
+
+[28] A. Smith et al., "Hybrid Raft-PoW Blockchain Consensus Algorithm," IEEE Access, 2025.
+
+[29] Y. Chen et al., "FlexRaft: Exploiting Flexible Erasure Coding for Minimum-Cost Consensus and Fast Recovery," IEEE Trans. Parallel Distrib. Syst., 2024.
+
+[30] L. Lu et al., "Efficient Distributed Transaction Processing in Heterogeneous Networks," Proc. VLDB Endow., vol. 16, pp. 1372–1385, 2023.
+
+[31] "Cloud-Native Simulation Framework for Gossip Protocol: Anti-Entropy Analysis," in Proc. IEEE Int. Symp. Netw. Comput. Appl., 2024.
+
+[32] K. Sato et al., "Efficient Container Image Updating in Low-bandwidth Networks with Delta Encoding," in Proc. IEEE Int. Conf. Cloud Eng., 2023.
+
+[33] J. Yu et al., "LogFold: Compressing Logs with Structured Tokens and Hybrid Encoding," arXiv preprint arXiv:2603.20618, 2026.
+
+[34] M. T. et al., "Delta Encoding and Predictive Modeling for Lossy Time-Series Compression Using Adaptive Linear Updates," IEEE Access, 2025.
+
+[35] J. D. et al., "The Case for Cross-entity Delta Encoding in Web Compression (Extended)," IEEE Trans. Web, 2023.
+
+[36] Automerge Lab, "Automerge 2.0: Production-Ready CRDT with Improved Performance," Tech. Rep., 2023.
+
+[37] K. Jahns, "CRDT Benchmarks: Performance Analysis of Automerge and Yjs," GitHub Rep., 2023.
+
+[38] K. Peng et al., "IPFS Keyword Retrieval System Based on Merkle DAG Inverted Index," Int. J. Comput. Sci. Inf. Technol., 2024.
+
+[39] M. H. Ahmed, "Distributed Databases: A Review," ScienceOpen Preprints, vol. 1, no. 1, pp. 1–18, Nov. 2022.
+
+[40] J. Bauwens, "Towards improved collaborative text editing CRDTs by using Natural Language Processing," in Proc. 10th Workshop on Principles and Practice of Consistency for Distributed Data (PaPoC), 2023.
+
+[41] "Inconsistency Resolution in Distributed Systems: Versioning," DEV Community - Technical Research, Feb. 2026.
+
+[42] J. Doe and R. Smith, "Theoretical Models of Conflict Resolution in Edge Computing," International Journal of Distributed Systems, vol. 12, no. 1, pp. 110–125, 2023.
+
+[43] T. Chen and H. Wang, "Distributed Data Consistency Algorithm in Database Based on Language Recognition," Academic Journal of Computing & Information Science, vol. 6, no. 7, pp. 160–167, 2023.
+
+[44] A. Al-Nasser, "Experimental Evaluation of LWW in IoT-Edge Data Synchronization," Sensors (MDPI), vol. 22, no. 14, p. 5231, 2022.
+
+[45] K. Andersson, "Decentralized Failure Recovery in Distributed Stream Processing Systems using CRDTs," KTH Royal Institute of Technology Thesis, 2025.
+
+[46] 	B. Miller, "Performance Analysis of Conflict Resolution in Cassandra Clusters," 2021 International Conference on Cloud Computing (ICCC), pp. 210–216, 2021.
+
+[47] 	S. Roberts, "Chain Clocks: An Efficient Alternative for Scalable LWW-Registers," Journal of Parallel Computing, vol. 110, 2023.
+
+[50]	T. K. Academy, "Prototype Model In Software Engineering: All You Need To Know,"25 December 2025.	
+
+[51]	H. Liu, Q. Chen, and P. Liu, "A Novel Memory Concurrent Editing Model for Large-Scale Video Streams in Edge Computing," Mathematics, vol. 11, no. 14, p. 3175, 2023.
+
+[52]	J. Wei, M. Kleppmann, and A. R. Beresford, "Collaborative Text Editing with Eg-walker: Better, Faster, Smaller," arXiv preprint arXiv:2409.14252, 2024.
+
+[53]	H. Tan, W. Xia, X. Zou, C. Deng, Q. Liao, and Z. Gu, "The Design of Fast Delta Encoding for Delta Compression Based Storage Systems," ACM Trans. Storage, vol. 20, no. 4, Art. no. 23, pp. 1–30, Aug. 2024.
+
+[54]	F. Naeem, S. A. Kubar, and M. A. Nizamani, "Performance Metrics for IoT-Based Smart Learning Systems: A Quasi-Experimental Analysis of Scalability and Latency in Multi-Classroom Deployments in Hyderabad," Contemporary Journal of Social Science Review, vol. 3, no. 4, pp. 1358-1377, 2025.
+
+
+
+Appendices
+
+site-PNC PRE-FO-68 Confidentiality and Non-disclosure Agreement (NDA) on Student Research
+
+
+
+Validated Research Instrument/s
+
+
+
+Informed Consent Form (PNC PRE-FO-50 Informed Consent Form)
+
+
+
+Research Ethics Review Committee Evaluation (PNC PRE-FO-49 Research Ethics Application Form)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Short report of Plagiarism Software
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Report of Language Software
+
+
+
+
+
+
+
+
+
+Bionote of Student Researchers
+
+
+
+
+
