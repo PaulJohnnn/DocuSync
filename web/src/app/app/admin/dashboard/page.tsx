@@ -68,7 +68,7 @@ export default function AdminDashboardPage() {
       `Are you sure you want to revoke access for this user?`,
       async () => {
         try {
-          await fetch('/api/admin/verify', {
+          await fetch('/api/auth', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'revoke', userId })
@@ -91,7 +91,7 @@ export default function AdminDashboardPage() {
       async () => {
         try {
           await Promise.all(Array.from(selectedUserIds).map(id => 
-            fetch('/api/admin/verify', {
+            fetch('/api/auth', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ action: 'revoke', userId: id })
