@@ -357,6 +357,7 @@ export function subscribeToDatabaseChanges(callback: () => void) {
 
 const mockAuthService = {
   login,
+  setPassword,
   requestAccount,
   getCurrentUser,
   getRememberedEmail,
