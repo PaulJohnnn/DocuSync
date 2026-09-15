@@ -29,6 +29,7 @@ interface WebSyncContextValue {
   connectToPeer: (address: string, port: number) => void;
   disconnectPeer: (id: string) => void;
   pushCursor: (fileId: string, position: number, nodeIndex: number) => void;
+  kickPeer: (targetNodeId: string) => void;
   socket: WebSocket | null;
 }
 
@@ -37,6 +38,7 @@ const WebSyncContext = createContext<WebSyncContextValue>({
   connectToPeer: () => {},
   disconnectPeer: () => {},
   pushCursor: () => {},
+  kickPeer: () => {},
   socket: null,
 });
 
@@ -251,6 +253,14 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
               return connected;
             });
           }
+          if (msg.type === 'PEER_KICK') {
+            if (msg.targetNodeId === localNodeId) {
+              uSet('docusync_kicked', 'true');
+              window.location.href = '/app';
+            } else {
+               setPeers(prev => prev.filter(p => p.id !== msg.targetNodeId));
+            }
+          }
         } catch (e) {
           console.error('[WebSync] Failed to parse WS message', e);
         }
@@ -304,8 +314,14 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
     }
   }, [localNodeId]);
 
+  const kickPeer = useCallback((targetNodeId: string) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: 'PEER_KICK', targetNodeId, hostNodeId: localNodeId }));
+    }
+  }, [localNodeId]);
+
   return (
-    <WebSyncContext.Provider value={{ peers, connectToPeer, disconnectPeer, pushCursor, socket: socketRef.current }}>
+    <WebSyncContext.Provider value={{ peers, connectToPeer, disconnectPeer, pushCursor, kickPeer, socket: socketRef.current }}>
       {children}
     </WebSyncContext.Provider>
   );

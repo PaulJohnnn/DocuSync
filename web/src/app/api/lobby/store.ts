@@ -17,6 +17,7 @@ export interface LobbyEntry {
   members: string[];
   peersJoined: number;
   files?: { fileName?: string; name?: string; [key: string]: unknown }[];
+  isLocked?: boolean;
   /** @deprecated kept for backwards compat with old create route */
   ip?: string;
   /** @deprecated */

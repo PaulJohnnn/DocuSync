@@ -11,6 +11,7 @@ import {
 import { uGet, uSet, uRemove } from '@/lib/userStorage';
 import { idbGetFiles, idbSaveFile, idbDeleteFile } from '@/lib/idb';
 import * as mockAuthService from '@/lib/mockAuthService';
+import { useWebSync } from '@/context/WebSyncContext';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
@@ -58,6 +59,7 @@ function extMeta(ext: string): { icon: React.ReactNode; color: string; bg: strin
 
 export default function FilesPage() {
   const router = useRouter();
+  const { kickPeer } = useWebSync();
   const [myName, setMyName] = useState('You');
   const [localNodeId, setLocalNodeId] = useState('');
   useEffect(() => {
@@ -180,6 +182,25 @@ export default function FilesPage() {
   }, [roomTick]);
 
   if (!isMounted) return null;
+
+  const toggleRoomLock = async () => {
+    if (!currentRoom) return;
+    try {
+      const res = await fetch('/api/lobby/lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: currentRoom.otp || currentRoom.id, nodeId: localNodeId, isLocked: !(currentRoom as any).isLocked })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const u = { ...currentRoom, isLocked: data.isLocked };
+        setCurrentRoom(u);
+        uSet('current_room', JSON.stringify(u));
+      } else {
+        alert(data.error);
+      }
+    } catch {}
+  };
 
   // Upload file to room
   const handleShareToRoom = async () => {
@@ -571,6 +592,16 @@ export default function FilesPage() {
                     <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
                   </div>
                 </div>
+
+                {/* LOCK ROOM BUTTON */}
+                {(currentRoom as any)?.hostNodeId && localNodeId === (currentRoom as any)?.hostNodeId && (
+                  <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--b1)' }}>
+                     <button onClick={toggleRoomLock} style={{ width: '100%', padding: '6px 0', background: (currentRoom as any)?.isLocked ? '#fef2f2' : '#f8fafc', color: (currentRoom as any)?.isLocked ? '#ef4444' : '#64748b', border: '1px solid ' + ((currentRoom as any)?.isLocked ? '#fca5a5' : '#e2e8f0'), borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: '0.15s' }}>
+                       {(currentRoom as any)?.isLocked ? 'Unlock Room (Locked)' : 'Lock Room (Open)'}
+                     </button>
+                  </div>
+                )}
+
                 {connectedPeers.map((p, i) => {
                   const isOnline = p.status === 'connected';
                   const idLower = (p.id || '').toLowerCase();
@@ -589,6 +620,11 @@ export default function FilesPage() {
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{defaultName} {isDbOwner ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}</div>
                         <div style={{ fontSize: 11, color: 'var(--t3)' }}>{isOnline ? 'Online' : 'Offline'}</div>
                       </div>
+                      
+                      {/* KICK BUTTON */}
+                      {(currentRoom as any)?.hostNodeId && localNodeId === (currentRoom as any)?.hostNodeId && !isDbOwner && isOnline && (
+                        <button onClick={(e) => { e.stopPropagation(); showConfirm('Kick Peer', `Ban ${defaultName} from the room?`, () => kickPeer(p.id)) }} style={{ padding: '4px 8px', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Kick</button>
+                      )}
                     </div>
                   );
                 })}

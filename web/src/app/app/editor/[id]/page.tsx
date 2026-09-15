@@ -104,9 +104,33 @@ export default function EditorPage() {
   const [offlineQueue, setOfflineQueue] = useState(false);
   const [myName, setMyName] = useState('You');
   const [isPeersOpen, setIsPeersOpen] = useState(false);
+  const [currentRoom, setCurrentRoom] = useState<any>(null);
+  
+  const toggleRoomLock = async () => {
+    if (!currentRoom) return;
+    try {
+      const res = await fetch('/api/lobby/lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: currentRoom.otp || currentRoom.id, nodeId: localNodeIdRef.current, isLocked: !currentRoom.isLocked })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const u = { ...currentRoom, isLocked: data.isLocked };
+        setCurrentRoom(u);
+        uSet('current_room', JSON.stringify(u));
+      } else {
+        alert(data.error);
+      }
+    } catch {}
+  };
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const s = uGet('current_room');
+      if (s) {
+        try { setCurrentRoom(JSON.parse(s)); } catch {}
+      }
       const user = mockAuthService.getCurrentUser();
       const name = mockAuthService.getDisplayName(user);
       if (name) setMyName(name);
@@ -163,7 +187,7 @@ export default function EditorPage() {
   };
   const localVectorClockRef = useRef<any>(createInitialWebClock());
 
-  const { peers, pushCursor } = useWebSync();
+  const { peers, pushCursor, kickPeer } = useWebSync();
   const _connectedPeersCount = peers.filter((p) => p.status === 'connected').length;
 
   // ── Remote Cursors ─────────────────────────────────────────────────────────
@@ -892,21 +916,37 @@ export default function EditorPage() {
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>
-                        {myName} (You)
+                        {myName} (You) {(currentRoom as any)?.hostNodeId && localNodeIdRef.current === (currentRoom as any)?.hostNodeId ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
                     </div>
                   </div>
+
+                  {/* LOCK ROOM BUTTON */}
+                  {(currentRoom as any)?.hostNodeId && localNodeIdRef.current === (currentRoom as any)?.hostNodeId && (
+                    <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--b1)' }}>
+                       <button onClick={toggleRoomLock} style={{ width: '100%', padding: '6px 0', background: (currentRoom as any)?.isLocked ? '#fef2f2' : '#f8fafc', color: (currentRoom as any)?.isLocked ? '#ef4444' : '#64748b', border: '1px solid ' + ((currentRoom as any)?.isLocked ? '#fca5a5' : '#e2e8f0'), borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: '0.15s' }}>
+                         {(currentRoom as any)?.isLocked ? 'Unlock Room (Locked)' : 'Lock Room (Open)'}
+                       </button>
+                    </div>
+                  )}
+
                   {peers.filter(p => p.status === 'connected').map((p, i) => {
-                    const defaultName = p.displayName ? p.displayName : `Peer ${i + 1}`;
+                    const isDbOwner = (currentRoom as any)?.hostNodeId && p.id === (currentRoom as any)?.hostNodeId;
+                    const defaultName = p.displayName ? p.displayName : isDbOwner ? 'Room Host' : `Peer ${i + 1}`;
                     return (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginTop: 4 }}
                         onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{defaultName}</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{defaultName} {isDbOwner ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}</div>
                           <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
                         </div>
+
+                        {/* KICK BUTTON */}
+                        {(currentRoom as any)?.hostNodeId && localNodeIdRef.current === (currentRoom as any)?.hostNodeId && !isDbOwner && (
+                          <button onClick={(e) => { e.stopPropagation(); kickPeer(p.id); }} style={{ padding: '4px 8px', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Kick</button>
+                        )}
                       </div>
                     );
                   })}

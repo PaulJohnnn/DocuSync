@@ -61,6 +61,12 @@ export async function POST(request: Request) {
     }
 
     if (memberNodeId && !lobby.members.includes(memberNodeId)) {
+      if (lobby.isLocked) {
+        return NextResponse.json(
+          { error: 'This room has been locked by the owner. Joining is disabled.' },
+          { status: 403, headers: corsHeaders }
+        );
+      }
       if (lobby.members.length >= 14) {
         return NextResponse.json(
           { error: 'Room is full. Maximum concurrent editors (15) reached.' },
