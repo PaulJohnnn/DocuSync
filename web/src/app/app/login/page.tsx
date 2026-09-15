@@ -662,7 +662,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
             }
             try {
               setLoading(true);
-              const newPin = await mockAuthService.requestPinRenewal(email);
+              const newPin = await mockAuthService.forgotAccount(email);
               setRenewedPin(newPin);
             } catch (err: any) {
               setAuthError(err.message || 'Failed to request PIN renewal.');

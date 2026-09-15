@@ -126,7 +126,24 @@ export async function POST(req: Request) {
     }
 
     if (action === 'request') {
-      const { email } = body;
+      const { email, deviceId } = body;
+      
+      // Device Limits Implementation
+      if (deviceId) {
+        if (!db.deviceLimits) db.deviceLimits = {};
+        if (!db.deviceLimits[deviceId]) db.deviceLimits[deviceId] = { requests: [], forgots: [] };
+        
+        const now = Date.now();
+        const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000;
+        
+        // Clean out requests older than 2 weeks
+        db.deviceLimits[deviceId].requests = db.deviceLimits[deviceId].requests.filter((t: number) => now - t < TWO_WEEKS);
+        
+        if (db.deviceLimits[deviceId].requests.length >= 3) {
+          return NextResponse.json({ success: false, error: 'You can generate account for next 2 weeks.' }, { status: 429, headers: corsHeaders });
+        }
+      }
+
       const isAlreadyUser = db.users.some((u: any) => u.email.toLowerCase() === email.toLowerCase());
       if (isAlreadyUser) {
         return NextResponse.json({ success: false, error: 'Already registered.' }, { status: 400, headers: corsHeaders });
@@ -139,10 +156,43 @@ export async function POST(req: Request) {
           email,
           requestedAt: new Date().toISOString(),
         });
+        
+        if (deviceId) {
+          db.deviceLimits[deviceId].requests.push(Date.now());
+        }
         saveDb(db);
       }
       
       return NextResponse.json({ success: true, status: 'verified' }, { headers: corsHeaders });
+    }
+
+    if (action === 'forgot') {
+      const { email, deviceId } = body;
+      
+      if (deviceId) {
+        if (!db.deviceLimits) db.deviceLimits = {};
+        if (!db.deviceLimits[deviceId]) db.deviceLimits[deviceId] = { requests: [], forgots: [] };
+        
+        const now = Date.now();
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        
+        // Clean out forgots older than 1 day
+        db.deviceLimits[deviceId].forgots = db.deviceLimits[deviceId].forgots.filter((t: number) => now - t < ONE_DAY);
+        
+        if (db.deviceLimits[deviceId].forgots.length >= 1) {
+          return NextResponse.json({ success: false, error: 'Forgot account only 1 time per day.' }, { status: 429, headers: corsHeaders });
+        }
+      }
+
+      const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
+      if (!user) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404, headers: corsHeaders });
+      
+      const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+      user.pin = newPin;
+      
+      if (deviceId) db.deviceLimits[deviceId].forgots.push(Date.now());
+      saveDb(db);
+      return NextResponse.json({ success: true, pin: newPin }, { headers: corsHeaders });
     }
 
     if (action === 'cancel_request') {

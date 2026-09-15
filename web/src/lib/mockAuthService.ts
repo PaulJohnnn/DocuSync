@@ -124,10 +124,16 @@ export async function login(email: string, pin: string): Promise<AuthUser> {
 }
 
 export async function requestAccount(email: string): Promise<'verified'> {
+  let deviceId = localStorage.getItem('docusync_device_id');
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    localStorage.setItem('docusync_device_id', deviceId);
+  }
+
   const res = await fetch(API_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'request', email })
+    body: JSON.stringify({ action: 'request', email, deviceId })
   });
   const data = await res.json();
   if (!res.ok || !data.success) {
@@ -137,6 +143,25 @@ export async function requestAccount(email: string): Promise<'verified'> {
   }
   pollDatabase();
   return 'verified';
+}
+
+export async function forgotAccount(email: string): Promise<string> {
+  let deviceId = localStorage.getItem('docusync_device_id');
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    localStorage.setItem('docusync_device_id', deviceId);
+  }
+
+  const res = await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'forgot', email, deviceId })
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Forgot account request failed');
+  }
+  return data.pin;
 }
 
 export function getCurrentUser(): AuthUser | null {
@@ -327,6 +352,7 @@ const mockAuthService = {
   revokeUser,
   resetUserPin,
   requestPinRenewal,
+  forgotAccount,
   subscribeToDatabaseChanges,
 };
 
