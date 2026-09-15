@@ -270,7 +270,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
               <p style={{ fontSize: 13, color: '#475569', marginBottom: 20, lineHeight: 1.6 }}>Create a permanent password for this account. You will use this to sign in next time instead of the Access Code.</p>
               
               <div style={{ marginBottom: 24 }}>
-                <div style={{ display: 'flex', alignItems: 'center', border: `1.5px solid ${newPasswordError ? '#ef4444' : 'var(--border)'}`, borderRadius: 12, background: '#f8fafc' }}>
+                <div style={{ display: 'flex', alignItems: 'center', border: `1.5px solid ${newPasswordError ? '#ef4444' : 'var(--border)'}`, borderRadius: 12, background: '#f8fafc', overflow: 'hidden' }}>
                   <input
                     type={showNewPassword ? "text" : "password"}
                     value={newPassword}
@@ -631,7 +631,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         <div style={{
           display: 'flex', alignItems: 'center',
           border: `1.5px solid ${pinError ? '#ef4444' : 'var(--border)'}`,
-          borderRadius: 12, background: '#f8fafc',
+          borderRadius: 12, background: '#f8fafc', overflow: 'hidden',
           boxShadow: shake ? '0 0 0 3px rgba(239,68,68,0.12)' : 'none',
           animation: shake ? 'shake 0.4s ease' : 'none',
           transition: 'border-color 0.2s, box-shadow 0.2s',
@@ -986,6 +986,16 @@ export default function UnlockWorkspacePage() {
 
       <style dangerouslySetInnerHTML={{ __html: `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover, 
+        input:-webkit-autofill:focus, 
+        input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px #f8fafc inset !important;
+            -webkit-text-fill-color: #0f172a !important;
+            border-radius: 0 !important;
+        }
+
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes fadeInUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
         @keyframes shake {

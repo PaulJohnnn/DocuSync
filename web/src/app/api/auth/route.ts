@@ -127,7 +127,7 @@ export async function POST(req: Request) {
         db.deviceLimits[deviceId].requests = db.deviceLimits[deviceId].requests.filter((t: number) => now - t < TWO_WEEKS);
         
         if (db.deviceLimits[deviceId].requests.length >= 3) {
-          return NextResponse.json({ success: false, error: 'You can generate account for next 2 weeks.' }, { status: 429, headers: corsHeaders });
+          return NextResponse.json({ success: false, error: 'You cannot request more than 3 accounts per 2 weeks.' }, { status: 429, headers: corsHeaders });
         }
       }
 
