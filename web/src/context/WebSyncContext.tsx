@@ -118,9 +118,47 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
       }
     };
     
+    const pollPresence = async () => {
+      const s = uGet('current_room');
+      if (!s) return;
+      try {
+        const room = JSON.parse(s);
+        if (!room.otp) return;
+        const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
+        const res = await fetch(`${_MATCHMAKER_URL}/heartbeat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nodeId: localNodeIdRef.current,
+            hostedRoom: { otp: room.otp }
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.activePeers && Array.isArray(data.activePeers)) {
+            setPeers((prev) => {
+              const connected = data.activePeers.filter((p: any) => p.nodeId !== localNodeIdRef.current).map((p: any) => ({
+                id: p.nodeId,
+                address: p.ip || '0.0.0.0',
+                port: 9000,
+                status: 'connected' as const,
+                latency: 0,
+                connectedAt: new Date(p.lastActive).toISOString(),
+                displayName: p.nodeId.slice(0, 8),
+              }));
+              uSet('peers', JSON.stringify(connected));
+              return connected;
+            });
+          }
+        }
+      } catch (_e) {}
+    };
+
     pollConflicts();
+    pollPresence();
     const iv = setInterval(pollConflicts, 15000);
-    return () => clearInterval(iv);
+    const iv2 = setInterval(pollPresence, 5000);
+    return () => { clearInterval(iv); clearInterval(iv2); };
   }, []);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
