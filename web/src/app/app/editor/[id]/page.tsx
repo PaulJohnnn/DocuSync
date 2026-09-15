@@ -871,57 +871,7 @@ export default function EditorPage() {
                 <ConflictBadge fileId={fileId} />
               </button>
 
-              {/* Download button matching mockup */}
-              <button 
-                onClick={() => {
-                  const origName = file.name || 'document';
-                  const ext = origName.split('.').pop()?.toLowerCase() || '';
-
-                  const isHtml = ext === 'html' || ext === 'htm';
-                  let finalExt = origName;
-                  if (ext === 'docx' || ext === 'doc') {
-                     finalExt = origName.replace(/\.docx?$/, '.txt');
-                  }
-                  let contentForDownload = content;
-                  if (!isHtml) {
-                    contentForDownload = content
-                      .replace(/<\/p>\s*<p[^>]*>/gi, '\n')
-                      .replace(/<br\s*\/?>/gi, '\n')
-                      .replace(/<\/h[1-6]>/gi, '\n')
-                      .replace(/<\/li>/gi, '\n')
-                      .replace(/<\/blockquote>/gi, '\n')
-                      .replace(/<\/div>/gi, '\n')
-                      .replace(/<\/pre>/gi, '\n')
-                      .replace(/<[^>]*>/g, '')
-                      .replace(/&amp;/g, '&')
-                      .replace(/&lt;/g, '<')
-                      .replace(/&gt;/g, '>')
-                      .replace(/&quot;/g, '"')
-                      .replace(/&#39;/g, "'")
-                      .replace(/&nbsp;/g, ' ')
-                      .replace(/\n{3,}/g, '\n\n')
-                      .trim();
-                  }
-                  const mimeType = isHtml ? 'text/html' : 'text/plain;charset=utf-8';
-                  const blob = new Blob([contentForDownload], { type: mimeType });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = finalExt;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                }}
-                style={{
-                  padding: '0 12px', height: 36, borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: 'var(--bg-card)', color: '#475569', border: '1px solid var(--border)', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 6
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Download
-              </button>
+              {/* Download button removed as per user request */}
 
               <button 
                 onClick={() => {
