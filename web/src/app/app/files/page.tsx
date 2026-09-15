@@ -62,8 +62,8 @@ export default function FilesPage() {
   const [localNodeId, setLocalNodeId] = useState('');
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const session = JSON.parse(localStorage.getItem('docusync_session') || '{}');
-      const name = mockAuthService.getDisplayName(session);
+      const user = mockAuthService.getCurrentUser();
+      const name = mockAuthService.getDisplayName(user);
       if (name) setMyName(name);
       setLocalNodeId(uGet('node_id') || '');
     }
@@ -537,12 +537,17 @@ export default function FilesPage() {
               onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
             >
               <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 4 }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#f1f5f9', color: '#475569', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', zIndex: 3 }}>PJ</div>
-                {connectedPeers.length > 0 && <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#dcfce7', color: '#16a34a', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: -8, zIndex: 2 }}>{connectedPeers[0]?.displayName?.slice(0,2) || 'JC'}</div>}
-                {connectedPeers.length > 1 && <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#ffedd5', color: '#ea580c', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: -8, zIndex: 1 }}>{connectedPeers[1]?.displayName?.slice(0,2) || 'MR'}</div>}
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#f1f5f9', color: '#475569', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', zIndex: 3 }}>
+                  {(myName[0] || 'U').toUpperCase()}
+                </div>
+                {connectedPeers.slice(0, 3).map((p, i) => (
+                  <div key={i} style={{ width: 24, height: 24, borderRadius: '50%', background: ['#dcfce7', '#ffedd5', '#e0e7ff'][i % 3], color: ['#16a34a', '#ea580c', '#4f46e5'][i % 3], fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: -8, zIndex: 2 - i }}>
+                    {(p.displayName?.[0] || 'P').toUpperCase()}
+                  </div>
+                ))}
               </div>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                {connectedPeers.length + 1} of 15
+                {connectedPeers.length + 1} connected
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isPeersOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>

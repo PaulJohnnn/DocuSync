@@ -6,6 +6,7 @@ import { ArrowLeft, Clock } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { uGet, uSet } from '@/lib/userStorage';
 import { idbGetFile, idbSaveFile } from '@/lib/idb';
+import * as mockAuthService from '@/lib/mockAuthService';
 import { useWebSync } from '@/context/WebSyncContext';
 import { useSyncState } from '@/context/SyncStateContext';
 const TipTapEditor = dynamic(() => import('@/components/TipTapEditor'), { ssr: false });
@@ -101,6 +102,16 @@ export default function EditorPage() {
   const [isOnline, setIsOnline] = useState(true);
   const [syncStatusMsg, setSyncStatusMsg] = useState('Ready');
   const [offlineQueue, setOfflineQueue] = useState(false);
+  const [myName, setMyName] = useState('You');
+  const [isPeersOpen, setIsPeersOpen] = useState(false);
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const user = mockAuthService.getCurrentUser();
+      const name = mockAuthService.getDisplayName(user);
+      if (name) setMyName(name);
+    }
+  }, []);
   
   const lastSave = useRef('');
   // Read save timestamp synchronously so the poll guard is active immediately,
@@ -839,19 +850,68 @@ export default function EditorPage() {
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {/* Active Users Matching Mockup */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 4px', background: '#f8fafc', borderRadius: 20, border: '1px solid #e2e8f0', height: 34 }}>
+            {/* Active Users Dropdown */}
+            <div style={{ position: 'relative' }}>
+              <div 
+                onClick={() => setIsPeersOpen(!isPeersOpen)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '4px 12px 4px 4px',
+                  borderRadius: 20, border: '1px solid var(--b1)', background: 'var(--bg-card)',
+                  cursor: 'pointer', userSelect: 'none', transition: 'all 0.2s', height: 34
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', paddingLeft: 4 }}>
-                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#f1f5f9', color: '#475569', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', zIndex: 3 }}>PJ</div>
-                  {_connectedPeersCount > 0 && <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#dcfce7', color: '#16a34a', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: -8, zIndex: 2 }}>JC</div>}
-                  {_connectedPeersCount > 1 && <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#ffedd5', color: '#ea580c', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: -8, zIndex: 1 }}>MR</div>}
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#f1f5f9', color: '#475569', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', zIndex: 3 }}>
+                    {(myName[0] || 'U').toUpperCase()}
+                  </div>
+                  {peers.filter(p => p.status === 'connected').slice(0, 3).map((p, i) => (
+                    <div key={i} style={{ width: 24, height: 24, borderRadius: '50%', background: ['#dcfce7', '#ffedd5', '#e0e7ff'][i % 3], color: ['#16a34a', '#ea580c', '#4f46e5'][i % 3], fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: -8, zIndex: 2 - i }}>
+                      {(p.displayName?.[0] || 'P').toUpperCase()}
+                    </div>
+                  ))}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6, paddingRight: 4 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
-                  {_connectedPeersCount + 1} in this file
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {_connectedPeersCount + 1} connected
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isPeersOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
                 </div>
               </div>
+              
+              {/* Dropdown Menu */}
+              {isPeersOpen && (
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: 8,
+                  background: 'var(--bg)', border: '1px solid var(--b1)', borderRadius: 12,
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.1)', padding: 8, minWidth: 260, zIndex: 50,
+                  animation: 'slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginTop: 4, background: 'var(--s1)' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>
+                        {myName} (You)
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
+                    </div>
+                  </div>
+                  {peers.filter(p => p.status === 'connected').map((p, i) => {
+                    const defaultName = p.displayName ? p.displayName : `Peer ${i + 1}`;
+                    return (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginTop: 4 }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{defaultName}</div>
+                          <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
