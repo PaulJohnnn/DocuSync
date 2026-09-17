@@ -91,6 +91,20 @@ function getMockRedis() {
       // Mock expire (file-backed mock doesn't run background GC)
       return 1;
     },
+    // Mirrors the CAS semantics of the Lua script used against real Redis
+    // (casSetIfNewer below). Safe here because there's no `await` between
+    // the read and the write, so no other call can interleave.
+    casSetIfNewer: async (key: string, snapshot: any) => {
+      const store = readStore();
+      const existing = store[key];
+      if (existing && existing.committedAt && existing.committedAt > snapshot.committedAt) {
+        return { written: false, snapshot: existing };
+      }
+      const finalSnapshot = { ...snapshot, seq: snapshot.seq ?? existing?.seq ?? 0 };
+      store[key] = finalSnapshot;
+      writeStore(store);
+      return { written: true, snapshot: finalSnapshot };
+    },
   };
   return _mockRedis;
 }
@@ -108,6 +122,66 @@ function getRedis(): any {
 
   _redis = new Redis({ url, token });
   return _redis;
+}
+
+// Atomically checks-and-sets in one round trip so two concurrent writers
+// (e.g. two peers reconnecting with concurrent edits) can't both read the
+// same "existing" value and both blindly overwrite each other — whichever
+// commit is actually newer always wins, regardless of network timing.
+const CAS_SET_IF_NEWER_SCRIPT = `
+local existingRaw = redis.call('GET', KEYS[1])
+local incomingCommittedAt = tonumber(ARGV[1])
+local existingSeq = nil
+if existingRaw then
+  local existing = cjson.decode(existingRaw)
+  if existing.committedAt and existing.committedAt > incomingCommittedAt then
+    return existingRaw
+  end
+  existingSeq = existing.seq
+end
+local seq = tonumber(ARGV[5])
+if seq == nil then seq = existingSeq end
+if seq == nil then seq = 0 end
+local vectorClock = cjson.decode(ARGV[4])
+local snapshot = {
+  content = ARGV[2],
+  authorNodeId = ARGV[3],
+  vectorClock = vectorClock,
+  seq = seq,
+  committedAt = incomingCommittedAt,
+}
+local snapshotJson = cjson.encode(snapshot)
+redis.call('SET', KEYS[1], snapshotJson, 'EX', ARGV[6])
+return snapshotJson
+`;
+
+export async function casSetIfNewer(
+  key: string,
+  snapshot: { content: string; authorNodeId: string; vectorClock: any; seq?: number; committedAt: number },
+  ttlSeconds: number
+): Promise<{ written: boolean; snapshot: any }> {
+  const client = getRedis();
+
+  if (typeof client.casSetIfNewer === 'function') {
+    return client.casSetIfNewer(key, snapshot);
+  }
+
+  const resultRaw = await client.eval(
+    CAS_SET_IF_NEWER_SCRIPT,
+    [key],
+    [
+      String(snapshot.committedAt),
+      snapshot.content,
+      snapshot.authorNodeId ?? '',
+      JSON.stringify(snapshot.vectorClock ?? null),
+      snapshot.seq === undefined ? '' : String(snapshot.seq),
+      String(ttlSeconds),
+    ]
+  );
+
+  const result = typeof resultRaw === 'string' ? JSON.parse(resultRaw) : resultRaw;
+  const written = result.committedAt === snapshot.committedAt && result.content === snapshot.content;
+  return { written, snapshot: result };
 }
 
 /**
