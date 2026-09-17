@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { redis } from '@/lib/redis';
+import { redis, casSetIfNewer } from '@/lib/redis';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,28 +55,25 @@ export async function POST(request: Request) {
     }
 
     const key = `doc_snapshot:${otp}:${fileId}`;
-    
-    // Get existing to prevent backwards time travel
-    const existing = await redis.get(key) as any;
     const now = Date.now();
     const incomingCommittedAt = committedAt || now;
-    
-    if (existing && existing.committedAt && existing.committedAt > incomingCommittedAt) {
-      // Don't overwrite newer data with older data
-      return NextResponse.json({ success: true, ignored: true }, { headers: corsHeaders });
+
+    // Atomic compare-and-set: the "is this newer?" check and the write happen
+    // as one indivisible Redis operation, so two concurrent pushes (e.g. two
+    // peers reconnecting with concurrent edits) can't both read stale state
+    // and both overwrite each other — the commit with the later timestamp
+    // always wins, regardless of which request's network round-trip finishes
+    // first.
+    const { written, snapshot } = await casSetIfNewer(
+      key,
+      { content, authorNodeId, vectorClock: vectorClock || null, seq, committedAt: incomingCommittedAt },
+      60 * 60 * 24
+    );
+
+    if (!written) {
+      return NextResponse.json({ success: true, ignored: true, snapshot }, { headers: corsHeaders });
     }
 
-    const snapshot = {
-      content,
-      authorNodeId,
-      vectorClock: vectorClock || null,
-      seq: seq || existing?.seq || 0,
-      committedAt: incomingCommittedAt,
-    };
-
-    // Store for 24 hours
-    await redis.set(key, snapshot, { ex: 60 * 60 * 24 });
-    
     // Only record history if the user explicitly saves or a conflict resolves
     if (isSessionEnd || isDone) {
       const historyKey = `doc_history:${otp}:${fileId}`;
