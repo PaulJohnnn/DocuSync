@@ -152,6 +152,7 @@ export default function EditorPage() {
   const isTypingRef = useRef(false);
   const hasPendingChangesRef = useRef(false);
   const isPushingRef = useRef(false);
+  const pollDocInFlightRef = useRef(false);
   const queuedContentRef = useRef<string | null>(null);
   
   // Track offline baseline for signature merge
@@ -701,15 +702,20 @@ export default function EditorPage() {
     const pollDoc = async () => {
       if (!navigator.onLine) return;
       if (isTypingRef.current || hasPendingChangesRef.current) return; // Don't interrupt active typing or pending saves
+      // A round trip that runs past the poll interval would otherwise let
+      // the next tick fire on top of it, stacking calls against the same
+      // backend (same class of issue fixed elsewhere this session).
+      if (pollDocInFlightRef.current) return;
+      pollDocInFlightRef.current = true;
 
       // Read room dynamically every tick — the room might be loaded after mount
       const room = getRoomHostInfo();
-      if (!room) return;
+      if (!room) { pollDocInFlightRef.current = false; return; }
 
       // ALWAYS use room.otp (the short Desktop code like "8WUSP2")
       // Do NOT fall back to room.id (which is a UUID, not the OTP)
       const otp = room.otp;
-      if (!otp) return;
+      if (!otp) { pollDocInFlightRef.current = false; return; }
 
       try {
         // Step 1: Try direct Desktop host first (faster, real-time)
@@ -822,10 +828,22 @@ export default function EditorPage() {
         } catch (e) {
           // Both direct and cloud failed
         }
-      } catch {}
+      } catch {
+      } finally {
+        pollDocInFlightRef.current = false;
+      }
     };
 
-    channelRef.current = setInterval(pollDoc, 10000);
+    // A web-hosted room (or desktop, which is now just this same web app
+    // in an Electron shell — see main.ts loadURL) has no real WebSocket
+    // server to deliver live deltas over; that path only ever connects
+    // for a desktop-hosted room. This poll is therefore the ONLY sync
+    // path two ordinary peers actually have. At 10s, two people typing
+    // continuously (so isTypingRef/hasPendingChangesRef never both clear
+    // long enough for a tick to apply) could go a very long time without
+    // seeing each other's edits at all. Still nowhere near true
+    // character-level OT, but 2s cuts the worst-case staleness 5x.
+    channelRef.current = setInterval(pollDoc, 2000);
     return () => { if (channelRef.current) clearInterval(channelRef.current); };
   }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
 

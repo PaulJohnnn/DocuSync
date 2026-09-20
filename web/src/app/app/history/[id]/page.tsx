@@ -10,56 +10,66 @@ import { idbGetFile, idbSaveFile } from '@/lib/idb';
 import InteractiveConflictEditor from '@/components/InteractiveConflictEditor';
 import { diffWords } from 'diff';
 
-// Two full pages side by side — the selected historical snapshot on the
-// left, the current/latest version on the right — each showing its own
-// complete text with the specific words that differ from the OTHER side
-// highlighted in place. Previously this was a single inline diff (one
-// merged block of text with strikethroughs), which meant a user could
-// never actually read either version as a whole document; and the
-// two-page layout that already existed for this was unreachable dead code
-// (gated on eventType === 'merge', a value the backend never produces).
-function renderDiff(oldText: string, newText: string) {
-  const strip = (html: string) => html ? html.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') : '';
-  const oldClean = strip(oldText);
-  const newClean = strip(newText);
-  const diffs = diffWords(oldClean, newClean);
+// Two real, full-size document pages side by side — the selected
+// historical snapshot on the left, the current/latest version on the
+// right — each rendering the ACTUAL stored HTML (headings, bold,
+// alignment, lists, margins) inside a page-styled container that matches
+// what the editor itself looks like, with the specific words that differ
+// highlighted in place.
+//
+// This replaces an earlier version that stripped all HTML and dumped the
+// result as one small monospace text block — readable as a diff, but
+// nothing like "the actual page": no paragraphs, no formatting, no
+// margins, wrong text positioning entirely.
+//
+// The diff itself still runs on the raw HTML strings rather than
+// stripped text, so the highlighted spans can be re-inserted directly
+// into the real markup instead of being reconstructed from plain text.
+// For ordinary edits (typing/deleting words inside existing paragraphs)
+// the surrounding tags land as unchanged, untouched tokens on both sides
+// and only the actual changed words get wrapped — which is what real
+// documents look like when they're edited. Structural edits (a whole new
+// paragraph/list added) are a case diffWords doesn't reason about at the
+// tag level, so an unmatched tag can end up on only one side; the browser's
+// HTML parser is lenient enough that this renders as slightly odd
+// formatting on that one page rather than breaking anything.
+function renderDiff(oldHtml: string, newHtml: string) {
+  const diffs = diffWords(oldHtml || '', newHtml || '');
 
-  const pageStyle = {
-    flex: 1, minWidth: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace',
-    fontSize: '0.85rem', lineHeight: '1.6', background: 'var(--b1)',
-    padding: 16, borderRadius: 8, border: '1px solid var(--b2)',
+  const buildSide = (side: 'previous' | 'current') => {
+    const skip = side === 'previous' ? (p: any) => p.added : (p: any) => p.removed;
+    const highlight = side === 'previous' ? (p: any) => p.removed : (p: any) => p.added;
+    const bg = side === 'previous' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)';
+    const deco = side === 'previous' ? 'text-decoration:line-through;' : '';
+    return diffs
+      .filter(part => !skip(part))
+      .map(part => highlight(part)
+        ? `<mark style="background:${bg};${deco}border-radius:2px;padding:0 1px;">${part.value}</mark>`
+        : part.value)
+      .join('');
   };
 
+  const pageStyle = {
+    flex: 1, minWidth: 0, background: '#ffffff', color: '#0f172a',
+    border: '1px solid #e2e8f0', borderRadius: 8,
+    padding: '40px 48px', minHeight: 420, maxHeight: 520, overflowY: 'auto' as const,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.08)', fontSize: 14, lineHeight: 1.7,
+  };
+  const emptyHtml = '<p style="color:#94a3b8">No data</p>';
+
   return (
-    <div style={{ display: 'flex', gap: 16, width: '100%', alignItems: 'stretch' }}>
-      <div style={pageStyle}>
-        <div style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: 8, borderBottom: '1px solid #ef4444', paddingBottom: 4 }}>
+    <div style={{ display: 'flex', gap: 20, width: '100%', alignItems: 'stretch' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ color: '#ef4444', fontWeight: 700, marginBottom: 10, borderBottom: '2px solid #ef4444', paddingBottom: 6, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>
           Previous Version
         </div>
-        {diffs.filter(part => !part.added).map((part, index) => (
-          <span key={index} style={{
-            backgroundColor: part.removed ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
-            textDecoration: part.removed ? 'line-through' : 'none',
-            color: part.removed ? '#ef4444' : 'var(--t1)',
-            padding: part.removed ? '0 2px' : 0, borderRadius: 2,
-          }}>
-            {part.value}
-          </span>
-        )) || 'No data'}
+        <div className="tiptap" style={pageStyle} dangerouslySetInnerHTML={{ __html: buildSide('previous') || emptyHtml }} />
       </div>
-      <div style={pageStyle}>
-        <div style={{ color: '#10b981', fontWeight: 'bold', marginBottom: 8, borderBottom: '1px solid #10b981', paddingBottom: 4 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ color: '#10b981', fontWeight: 700, marginBottom: 10, borderBottom: '2px solid #10b981', paddingBottom: 6, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 }}>
           Current Version (Latest)
         </div>
-        {diffs.filter(part => !part.removed).map((part, index) => (
-          <span key={index} style={{
-            backgroundColor: part.added ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
-            color: part.added ? '#10b981' : 'var(--t1)',
-            padding: part.added ? '0 2px' : 0, borderRadius: 2,
-          }}>
-            {part.value}
-          </span>
-        )) || 'No data'}
+        <div className="tiptap" style={pageStyle} dangerouslySetInnerHTML={{ __html: buildSide('current') || emptyHtml }} />
       </div>
     </div>
   );
@@ -483,7 +493,7 @@ export default function HistoryPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
         }}>
           <div className="ds-card" style={{
-            background: 'var(--bg)', width: '100%', maxWidth: 700, maxHeight: '80vh',
+            background: 'var(--bg)', width: '100%', maxWidth: 1200, maxHeight: '85vh',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', border: '1px solid var(--b1)'
           }}>
@@ -504,6 +514,11 @@ export default function HistoryPage() {
             </div>
 
             <div style={{ padding: '0 20px 20px', overflowY: 'auto', flex: 1, fontSize: 14, color: 'var(--t1)' }}>
+              {events.length > 0 && events[0].eventId === viewFullEvent.eventId && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--t2)', marginBottom: 12, fontStyle: 'italic' }}>
+                  This is already the latest version — both pages below are identical.
+                </div>
+              )}
               {events.length > 0 ? renderDiff(viewFullEvent.fullContent || viewFullEvent.payloadPreview || '', events[0].fullContent || events[0].payloadPreview || '') : null}
             </div>
 
