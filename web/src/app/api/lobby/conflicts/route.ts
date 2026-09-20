@@ -108,9 +108,20 @@ export async function POST(request: Request) {
 
     const rawConflicts = await redis.get(key) as any[];
     let conflicts = Array.isArray(rawConflicts) ? rawConflicts : [];
-    
-    // Check if it already exists to prevent dupes (though UUIDs should prevent this)
-    if (!conflicts.some(c => c.conflictId === conflictId)) {
+
+    // The client mints a fresh crypto.randomUUID() on every call (e.g. the
+    // editor's poll loop can re-detect the same unresolved divergence on
+    // every tick while the user keeps typing), so a conflictId-only check
+    // never actually catches a duplicate — every call gets a new ID. Dedup
+    // by the actual content of the conflict instead: same file, same two
+    // sides, is the same conflict regardless of what ID it was minted with.
+    const isDuplicate = conflicts.some(c =>
+      String(c.fileId) === String(fileId) &&
+      c.localContent === localContent &&
+      c.serverContent === serverContent
+    );
+
+    if (!isDuplicate) {
       conflicts.unshift(newConflict);
       // Keep only latest 50 conflicts
       conflicts = conflicts.slice(0, 50);

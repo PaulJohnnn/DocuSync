@@ -136,7 +136,15 @@ export async function POST(req: Request) {
         }
       }
 
-      const isAlreadyUser = db.users.some((u: any) => u.email.toLowerCase() === email.toLowerCase());
+      // Revoked accounts stay in db.users forever (status flips to
+      // 'revoked', see the `revoke` action below) rather than being
+      // deleted outright — login/forgot/verify_reset_code all already
+      // account for that by requiring status === 'active'. This check
+      // never did, so once an admin revoked someone, that email was
+      // permanently locked out of ever registering again, even though
+      // `approve` below already knows how to reactivate an existing
+      // revoked record instead of creating a duplicate.
+      const isAlreadyUser = db.users.some((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.status === 'active');
       if (isAlreadyUser) {
         return NextResponse.json({ success: false, error: 'Already registered.' }, { status: 400, headers: corsHeaders });
       }
@@ -155,26 +163,16 @@ export async function POST(req: Request) {
         }
         await saveDb(db);
 
-        // Emergency Auto-Approve (1s delay)
-        setTimeout(async () => {
-          const freshDb = await getDb();
-          const pIdx = freshDb.pending.findIndex((p:any) => p.id === reqId);
-          if (pIdx !== -1) {
-            const p = freshDb.pending[pIdx];
-            const pin = Math.floor(100000 + Math.random() * 900000).toString();
-            freshDb.users.push({
-              id: 'user-' + Date.now().toString(),
-              email: p.email,
-              name: p.email.split('@')[0],
-              pin,
-              isAdmin: false,
-              createdAt: new Date().toISOString(),
-              status: 'active'
-            });
-            freshDb.pending.splice(pIdx, 1);
-            await saveDb(freshDb);
-          }
-        }, 1000);
+        // Approval is intentionally admin-gated (see the GET ?action=sync
+        // comment above) — a request sits in `pending` until an admin
+        // calls the `approve` action below. A previous "emergency
+        // auto-approve" here used `setTimeout(..., 1000)` with its own
+        // independent getDb()/saveDb() cycle: on a serverless deploy the
+        // function instance can be torn down before that timer ever
+        // fires, and even when it does fire, two approvals landing in the
+        // same ~1s window each did a full-object overwrite and silently
+        // clobbered each other. Removed rather than patched, since the
+        // documented design already doesn't want silent auto-approval.
       }
       
       return NextResponse.json({ success: true, status: 'verified' }, { headers: corsHeaders });

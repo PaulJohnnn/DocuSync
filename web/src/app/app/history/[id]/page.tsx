@@ -10,39 +10,57 @@ import { idbGetFile, idbSaveFile } from '@/lib/idb';
 import InteractiveConflictEditor from '@/components/InteractiveConflictEditor';
 import { diffWords } from 'diff';
 
-function renderDiff(oldText: string, newText: string, isSideBySide: boolean = false) {
+// Two full pages side by side — the selected historical snapshot on the
+// left, the current/latest version on the right — each showing its own
+// complete text with the specific words that differ from the OTHER side
+// highlighted in place. Previously this was a single inline diff (one
+// merged block of text with strikethroughs), which meant a user could
+// never actually read either version as a whole document; and the
+// two-page layout that already existed for this was unreachable dead code
+// (gated on eventType === 'merge', a value the backend never produces).
+function renderDiff(oldText: string, newText: string) {
   const strip = (html: string) => html ? html.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ') : '';
   const oldClean = strip(oldText);
   const newClean = strip(newText);
-  
-  if (isSideBySide) {
-    return (
-      <div style={{ display: 'flex', gap: 16, width: '100%', alignItems: 'stretch' }}>
-        <div style={{ flex: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5', background: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 8, border: '1px solid #10b981' }}>
-          <div style={{ color: '#10b981', fontWeight: 'bold', marginBottom: 8, borderBottom: '1px solid #10b981', paddingBottom: 4 }}>WINNER (LWW Kept)</div>
-          {newClean || 'No data'}
-        </div>
-        <div style={{ flex: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5', background: 'rgba(239, 68, 68, 0.1)', padding: 16, borderRadius: 8, border: '1px solid #eab308' }}>
-          <div style={{ color: '#eab308', fontWeight: 'bold', marginBottom: 8, borderBottom: '1px solid #eab308', paddingBottom: 4 }}>LOSER (Overwritten)</div>
-          <span style={{ backgroundColor: 'rgba(234, 179, 8, 0.3)', textDecoration: 'line-through' }}>{oldClean || 'No data'}</span>
-        </div>
-      </div>
-    );
-  }
+  const diffs = diffWords(oldClean, newClean);
 
-  const diffs = diffWords(newClean, oldClean);
+  const pageStyle = {
+    flex: 1, minWidth: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace',
+    fontSize: '0.85rem', lineHeight: '1.6', background: 'var(--b1)',
+    padding: 16, borderRadius: 8, border: '1px solid var(--b2)',
+  };
+
   return (
-    <div style={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: '1.5', background: 'var(--b1)', padding: 16, borderRadius: 8 }}>
-      {diffs.map((part, index) => {
-        const color = part.added ? '#ef4444' : part.removed ? '#10b981' : 'var(--t2)';
-        const bg = part.added ? 'rgba(239, 68, 68, 0.15)' : part.removed ? 'rgba(16, 185, 129, 0.15)' : 'transparent';
-        const textDecoration = part.added ? 'line-through' : 'none';
-        return (
-          <span key={index} style={{ color, backgroundColor: bg, padding: part.removed || part.added ? '0 2px' : 0, borderRadius: 2, textDecoration }}>
+    <div style={{ display: 'flex', gap: 16, width: '100%', alignItems: 'stretch' }}>
+      <div style={pageStyle}>
+        <div style={{ color: '#ef4444', fontWeight: 'bold', marginBottom: 8, borderBottom: '1px solid #ef4444', paddingBottom: 4 }}>
+          Previous Version
+        </div>
+        {diffs.filter(part => !part.added).map((part, index) => (
+          <span key={index} style={{
+            backgroundColor: part.removed ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
+            textDecoration: part.removed ? 'line-through' : 'none',
+            color: part.removed ? '#ef4444' : 'var(--t1)',
+            padding: part.removed ? '0 2px' : 0, borderRadius: 2,
+          }}>
             {part.value}
           </span>
-        );
-      })}
+        )) || 'No data'}
+      </div>
+      <div style={pageStyle}>
+        <div style={{ color: '#10b981', fontWeight: 'bold', marginBottom: 8, borderBottom: '1px solid #10b981', paddingBottom: 4 }}>
+          Current Version (Latest)
+        </div>
+        {diffs.filter(part => !part.removed).map((part, index) => (
+          <span key={index} style={{
+            backgroundColor: part.added ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+            color: part.added ? '#10b981' : 'var(--t1)',
+            padding: part.added ? '0 2px' : 0, borderRadius: 2,
+          }}>
+            {part.value}
+          </span>
+        )) || 'No data'}
+      </div>
     </div>
   );
 }
@@ -313,7 +331,7 @@ export default function HistoryPage() {
         const roomStr = uGet('current_room');
         const room = roomStr ? JSON.parse(roomStr) : null;
         if (room?.otp) {
-          const _WEB_BASE = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
+          const _WEB_BASE = process.env.NEXT_PUBLIC_MATCHMAKER_URL || `${window.location.origin}/api/lobby`;
           fetch(`${_WEB_BASE}/conflicts?otp=${room.otp}&conflictId=${conflictIdToRemove}`, {
             method: 'DELETE',
           }).catch(() => {});
@@ -486,7 +504,7 @@ export default function HistoryPage() {
             </div>
 
             <div style={{ padding: '0 20px 20px', overflowY: 'auto', flex: 1, fontSize: 14, color: 'var(--t1)' }}>
-              {events.length > 0 ? renderDiff(viewFullEvent.fullContent || viewFullEvent.payloadPreview || '', events.length > 1 ? events[1].fullContent || events[1].payloadPreview || '' : '', viewFullEvent.eventType === 'merge') : null}
+              {events.length > 0 ? renderDiff(viewFullEvent.fullContent || viewFullEvent.payloadPreview || '', events[0].fullContent || events[0].payloadPreview || '') : null}
             </div>
 
             <div style={{ padding: '12px 16px', background: 'var(--amb-bg)', border: '1px solid var(--amb)', color: 'var(--amb)', margin: '0 20px 16px', borderRadius: 8, display: 'flex', alignItems: 'flex-start', gap: 12 }}>

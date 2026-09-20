@@ -1,24 +1,25 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { uGet } from '@/lib/userStorage';
-import { Activity, Shield, Server, CheckCircle } from 'lucide-react';
+import { Activity, Shield, Server, CheckCircle, Info } from 'lucide-react';
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell,
   XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid
 } from 'recharts';
 
-interface HostMetrics {
-  pushCount: number;
-  pushSuccessCount: number;
-  avgPushLatencyMs: number | null;
+interface RealMetrics {
+  totalPushes: number;
+  totalConflicts: number;
+  unresolvedConflicts: number;
+  throughputPerSec: number;
   throughputPerMin: number;
-  conflictsDetectedThisSession: number;
-  conflictsResolvedThisSession: number;
-  avgConflictResolveMs: number | null;
-  eventLogRows: number;
-  connectedPeerCount: number;
-  pendingConflicts: number;
-  sessionDurationMs: number;
+  conflictResolutionTimeMs: number | null;
+  dataLossRatePct: number;
+  consistencySuccessRatePct: number | null;
+  conflictDetectionRatePct: number | null;
+  resolutionAccuracyPct: number | null;
+  systemScalabilityPct: number | null;
+  scalabilityInsufficientData: boolean;
 }
 
 interface TelemetryPoint {
@@ -28,22 +29,44 @@ interface TelemetryPoint {
   conflicts: number;
 }
 
+/**
+ * Small "?" affordance next to a label — hovering (or tapping, on touch)
+ * shows a plain-language explanation of what the metric means, aimed at
+ * someone without a distributed-systems background. This exists because
+ * a number like "Conflict Detection Rate: 66.7%" means nothing on its own
+ * to a non-technical reader.
+ */
+const InfoTip: React.FC<{ text: string }> = ({ text }) => (
+  <span
+    title={text}
+    style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: 14, height: 14, borderRadius: '50%', cursor: 'help',
+      color: 'var(--t3, #64748b)', flexShrink: 0,
+    }}
+  >
+    <Info size={13} />
+  </span>
+);
+
 // Executive Animated & Glowing Radial Gauge for RQ4 Causal Verification
 const RadialGauge: React.FC<{
   label: string;
   value: string;
-  percentage: number;
+  percentage: number | null;
   color: string;
   subtext: string;
   badge?: string;
-  tooltip?: string;
+  tooltip: string;
 }> = ({ label, value, percentage, color, subtext, badge, tooltip }) => {
   const radius = 38;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  const pct = percentage ?? 0;
+  const strokeDashoffset = circumference - (pct / 100) * circumference;
+  const noData = percentage === null;
 
   return (
-    <div title={tooltip} style={{
+    <div style={{
       background: 'var(--s1, #181d28)',
       border: '1px solid var(--b1, rgba(255,255,255,0.08))',
       borderRadius: 16,
@@ -55,11 +78,12 @@ const RadialGauge: React.FC<{
       overflow: 'hidden',
       boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
       transition: 'all 0.3s ease',
+      opacity: noData ? 0.7 : 1,
     }}>
       {/* Top Accent Color Bar */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 3.5,
-        background: color
+        background: noData ? 'var(--b1, #475569)' : color
       }} />
 
       {/* Ambient Glow */}
@@ -79,27 +103,30 @@ const RadialGauge: React.FC<{
             strokeWidth="8.5"
             fill="transparent"
           />
-          <circle
-            cx="46" cy="46" r={radius}
-            stroke={color}
-            strokeWidth="8.5"
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
-            strokeLinecap="round"
-            fill="transparent"
-            style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
-          />
+          {!noData && (
+            <circle
+              cx="46" cy="46" r={radius}
+              stroke={color}
+              strokeWidth="8.5"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+              fill="transparent"
+              style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}
+            />
+          )}
         </svg>
         <div style={{
           position: 'absolute',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
         }}>
           <span style={{
-            fontSize: '17px',
+            fontSize: noData ? '11px' : '17px',
             fontWeight: 800,
-            color: 'var(--t1, #1e293b)',
+            color: noData ? 'var(--t3, #64748b)' : 'var(--t1, #1e293b)',
             fontFamily: 'monospace',
-            letterSpacing: '-0.02em'
+            letterSpacing: '-0.02em',
+            textAlign: 'center',
           }}>
             {value}
           </span>
@@ -107,9 +134,10 @@ const RadialGauge: React.FC<{
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
           <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--t1, #1e293b)' }}>{label}</span>
-          {badge && (
+          <InfoTip text={tooltip} />
+          {badge && !noData && (
             <span style={{
               fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: 20,
               background: `${color}18`, color: color, border: `1px solid ${color}40`,
@@ -129,14 +157,14 @@ const RadialGauge: React.FC<{
 };
 
 export default function WebMetricsDashboard() {
-  const [hostMetrics, setHostMetrics] = useState<HostMetrics | null>(null);
-  const [_hostError, setHostError] = useState<string | null>(null);
-  const [_hostAddr, setHostAddr] = useState<string>('127.0.0.1:9000');
+  const [realMetrics, setRealMetrics] = useState<RealMetrics | null>(null);
+  const [hasData, setHasData] = useState(false);
   const [viewMode, setViewMode] = useState<'technical' | 'simple'>('technical');
+  const [avgLatencyMs, setAvgLatencyMs] = useState<number | null>(null);
+  const [connectedPeerCount, setConnectedPeerCount] = useState<number>(1);
 
   // Rolling real-time telemetry points for interactive charts
   const [telemetryHistory, setTelemetryHistory] = useState<TelemetryPoint[]>(() => {
-    // Initialize with 8 historical empty intervals so chart looks smooth immediately
     const now = new Date();
     return Array.from({ length: 8 }, (_, i) => {
       const t = new Date(now.getTime() - (7 - i) * 3000);
@@ -149,160 +177,74 @@ export default function WebMetricsDashboard() {
     });
   });
 
-  const fetchHostMetrics = useCallback(async () => {
+  // ── Real client-measured latency (L = t_ack - t_dispatch) ─────────────────
+  useEffect(() => {
+    const readLatency = () => {
+      try {
+        const samples: number[] = JSON.parse(localStorage.getItem('web_session_latency_samples') || '[]');
+        if (samples.length > 0) {
+          const avg = samples.reduce((a, b) => a + b, 0) / samples.length;
+          setAvgLatencyMs(Math.round(avg * 10) / 10);
+        }
+      } catch (_e) {}
+    };
+    readLatency();
+    const iv = setInterval(readLatency, 2000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // ── Real room-scoped metrics from actual sync activity ────────────────────
+  const fetchRealMetrics = useCallback(async () => {
     try {
       const storedRoomStr = uGet('current_room');
       const room = storedRoomStr ? JSON.parse(storedRoomStr) : null;
-      const ip = room?.hostIp;
-      if (!ip) {
-        setHostError("Couldn't find host address — try rejoining the room");
-        return;
-      }
-      const rawPort = room?.hostPort;
-      const port = (rawPort && rawPort !== 3000 && rawPort !== Number(window.location?.port)) ? rawPort : 9000;
-      setHostAddr(`${ip}:${port}`);
+      const otp = room?.otp;
+      if (!otp) return;
 
-      const res = await fetch(`http://${ip}:${port}/metrics`, { 
-        signal: AbortSignal.timeout(2000),
-        headers: { 'X-DocuSync-Token': room?.otp || '' }
-      });
+      const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || `${window.location.origin}/api/lobby`;
+      const res = await fetch(`${_MATCHMAKER_URL}/metrics?otp=${otp}`);
       if (res.ok) {
-        const data: HostMetrics = await res.json();
-        
-        // Also fetch from Redis lobby to add web-only conflicts
-        let webConflictsCount = 0;
-        if (room?.otp) {
-          try {
-            const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
-            const mmRes = await fetch(`${_MATCHMAKER_URL}/conflicts?otp=${room.otp}`);
-            if (mmRes.ok) {
-              const mmData = await mmRes.json();
-              if (mmData.conflicts) webConflictsCount = mmData.conflicts.length;
-            }
-          } catch (_e) {}
-        }
-        
-        data.conflictsDetectedThisSession = (data.conflictsDetectedThisSession || 0) + webConflictsCount;
+        const data = await res.json();
+        setHasData(!!data.hasData);
+        if (data.hasData) {
+          setRealMetrics(data.metrics);
 
-        setHostMetrics(data);
-        setHostError(null);
-
-        // Append new point to telemetry graph
-        const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        setTelemetryHistory(prev => {
-          const next = [
+          const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          setTelemetryHistory(prev => [
             ...prev.slice(-14),
             {
               timeLabel: nowStr,
-              throughput: data.throughputPerMin || 0,
-              latency: Math.round((data.avgPushLatencyMs || 0) * 10) / 10,
-              conflicts: data.conflictsDetectedThisSession || 0,
+              throughput: data.metrics.throughputPerMin || 0,
+              latency: avgLatencyMs || 0,
+              conflicts: data.metrics.totalConflicts || 0,
             }
-          ];
-          return next;
-        });
-      } else {
-        throw new Error('Host responded with error');
-      }
-    } catch {
-      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      setHostError("Disconnected from host");
-      setHostMetrics(null);
-      setTelemetryHistory(prev => [
-        ...prev.slice(-14),
-        {
-          timeLabel: nowStr,
-          throughput: 0,
-          latency: 0,
-          conflicts: 0,
+          ]);
         }
-      ]);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchHostMetrics();
-    const iv = setInterval(fetchHostMetrics, 3000);
-    return () => clearInterval(iv);
-  }, [fetchHostMetrics]);
-
-
-  // ── Web-only session op counter (fallback when no Desktop host) ──────────
-  const [webSessionOps, setWebSessionOps] = useState(0);
-  const [webSessionConflicts, setWebSessionConflicts] = useState(0);
-
-  useEffect(() => {
-    const ticker = setInterval(() => {
-      const raw = localStorage.getItem('web_session_push_count');
-      const conflictRaw = localStorage.getItem('web_session_conflict_count');
-      if (raw) setWebSessionOps(parseInt(raw, 10) || 0);
-      if (conflictRaw) setWebSessionConflicts(parseInt(conflictRaw, 10) || 0);
-    }, 1000);
-    return () => clearInterval(ticker);
-  }, []);
-
-  // RQ4 calculations — prefer Desktop host live data, fall back to web-tracked counters
-  const totalConflicts = (hostMetrics?.conflictsDetectedThisSession ?? 0) + (hostMetrics ? 0 : webSessionConflicts);
-  const resolvedConflicts = hostMetrics?.conflictsResolvedThisSession ?? 0;
-  const totalSyncEvents = (hostMetrics?.pushCount ?? 0) + (hostMetrics ? 0 : webSessionOps);
-  const pushSuccesses = (hostMetrics?.pushSuccessCount ?? 0) + (hostMetrics ? 0 : webSessionOps);
-  const resolutionAccuracyPct = totalConflicts > 0 ? Math.round((resolvedConflicts / totalConflicts) * 100) : 100;
-  const consistencySuccessPct = totalSyncEvents > 0 ? Math.round((pushSuccesses / totalSyncEvents) * 100) : 100;
-
-  const rq4ComparisonData = [
-    { name: 'Sync Ops', count: totalSyncEvents },
-    { name: 'Merged Safe', count: pushSuccesses },
-    { name: 'Conflicts', count: totalConflicts },
-    { name: 'Resolved', count: resolvedConflicts },
-  ];
-
-  // ── OT vs LWW Thesis-Aligned Comparison Matrix (RQ3) ──────────────────────
-  // Values derived from thesis benchmark methodology (Johnson & Thomas [45], Saito & Shapiro [47]).
-  // LWW conflict overhead: measured avg round-trip from real session if available, else thesis baseline.
-  const lwwRealLatency = hostMetrics?.avgPushLatencyMs ? Math.round(hostMetrics.avgPushLatencyMs) : 14;
-  const otLwwComparisonData = [
-    { 
-      metric: 'Conflict Overhead (ms)',
-      // LWW: uses real session latency; OT baseline is ~6-8x higher due to transform computation
-      LWW: lwwRealLatency,
-      OT: Math.round(lwwRealLatency * 6.2),
-    },
-    { 
-      metric: 'Memory Context (KB)',
-      // LWW only stores latest state + vector clock; OT must retain full operation history
-      LWW: 8,
-      OT: 34,
-    },
-    { 
-      metric: 'Sync Resolution Rate (%)',
-      // LWW: deterministic via vector clock comparison [45]. OT: operation conflicts can fail transforms
-      LWW: consistencySuccessPct,
-      OT: Math.min(82, consistencySuccessPct - 18),
-    },
-  ];
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const isLwwActive = true;
-
-  // Intercept Web-Only telemetry if Desktop host fails
-  useEffect(() => {
-    const handleStorage = () => {
-      const opsStr = localStorage.getItem('web_telemetry_ops');
-      if (opsStr) {
-         setTelemetryHistory(prev => {
-            const next = [...prev];
-            next[next.length - 1].throughput += parseInt(opsStr);
-            return next;
-         });
-         localStorage.removeItem('web_telemetry_ops');
       }
-    };
-    window.addEventListener('storage', handleStorage);
-    const int = setInterval(handleStorage, 500); // Poll for fast local intercept
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-      clearInterval(int);
-    };
-  }, []);
+
+      // Peer count comes from the room's own heartbeat-backed peer list —
+      // reuse whatever's already cached locally rather than a second
+      // network call.
+      const peersRaw = uGet('peers');
+      if (peersRaw) {
+        try {
+          const peers = JSON.parse(peersRaw);
+          const connected = Array.isArray(peers) ? peers.filter((p: any) => p.status === 'connected').length : 0;
+          setConnectedPeerCount(connected + 1);
+        } catch (_e) {}
+      }
+    } catch (_e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avgLatencyMs]);
+
+  useEffect(() => {
+    fetchRealMetrics();
+    const iv = setInterval(fetchRealMetrics, 3000);
+    return () => clearInterval(iv);
+  }, [fetchRealMetrics]);
+
+  const fmtPct = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${v}%`);
+  const fmtMs = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `${v}ms`);
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease', display: 'flex', flexDirection: 'column', gap: 24 }}>
@@ -313,11 +255,42 @@ export default function WebMetricsDashboard() {
         </div>
       </div>
 
+      {!hasData && (
+        <div style={{
+          padding: '14px 18px', background: 'var(--amb-bg, rgba(245,158,11,0.1))', border: '1px solid var(--amb, #f59e0b)',
+          borderRadius: 10, color: 'var(--amb, #f59e0b)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10
+        }}>
+          <Info size={16} />
+          No sync activity recorded yet this session. Every number below is measured from real edits and pushes — make an edit in this room to start populating them.
+        </div>
+      )}
+
       {viewMode === 'simple' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-          <RadialGauge label="Status" value="OK" percentage={100} color="#10b981" subtext="All Changes Synced ✓" tooltip="The connection to the Host is healthy and all edits are safely stored." />
-          <RadialGauge label="Data Integrity" value="100%" percentage={100} color="#3b82f6" subtext="No Data Lost" tooltip="Guaranteed by the append-only EventLog. Every edit is recorded as an immutable entry before resolution." />
-          <RadialGauge label="Active Users" value={`${hostMetrics?.connectedPeerCount || 1}`} percentage={100} color="#8b5cf6" subtext="Peers currently connected to this document" tooltip="The number of people currently collaborating in this room." />
+          <RadialGauge
+            label="Sync Success"
+            value={hasData ? fmtPct(realMetrics?.consistencySuccessRatePct) : '—'}
+            percentage={hasData ? (realMetrics?.consistencySuccessRatePct ?? null) : null}
+            color="#10b981"
+            subtext={hasData ? `${realMetrics?.totalPushes || 0} edits synced this session` : 'No edits synced yet'}
+            tooltip="Out of every save attempt this session, what percentage actually reached the server and was applied successfully. 100% means nothing failed to sync."
+          />
+          <RadialGauge
+            label="Data Kept Safe"
+            value={hasData ? `${(100 - (realMetrics?.dataLossRatePct ?? 0)).toFixed(1)}%` : '—'}
+            percentage={hasData ? 100 - (realMetrics?.dataLossRatePct ?? 0) : null}
+            color="#3b82f6"
+            subtext={hasData ? 'Percentage of typed content that survived every merge' : 'No edits yet'}
+            tooltip="When two people edit the same spot at the same time, the system has to pick one version. This is the percentage of everything typed this session that made it into the final document — not lost to a conflict."
+          />
+          <RadialGauge
+            label="Active Users"
+            value={`${connectedPeerCount}`}
+            percentage={100}
+            color="#8b5cf6"
+            subtext="People currently in this room"
+            tooltip="How many devices/browsers are connected to this room right now, including you."
+          />
         </div>
       ) : (
         <>
@@ -327,14 +300,15 @@ export default function WebMetricsDashboard() {
         border: '1px solid var(--b1, rgba(255,255,255,0.08))',
         boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <div title="Throughput: number of sync operations per minute. Latency: round-trip time for a push from Web to Desktop host." style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1, #fff)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1, #fff)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <Activity size={18} style={{ color: '#3b82f6' }} />
-              Live Engine Telemetry Stream (RQ5 Performance)
+              Live Sync Telemetry (RQ5 — latency &amp; throughput)
+              <InfoTip text="Throughput: how many edits per minute the server actually processed, counted from real save requests. Latency: how long each save took to round-trip, timed on your own device from the moment you sent it to the moment the server confirmed it." />
             </div>
             <div style={{ fontSize: 12, color: 'var(--t3, #8a94a6)', marginTop: 2 }}>
-              Real-time synchronization throughput (ops/min) and round-trip latency (ms)
+              Measured from this room&apos;s actual sync traffic — throughput (ops/min) and round-trip latency (ms)
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12 }}>
@@ -376,6 +350,11 @@ export default function WebMetricsDashboard() {
             </AreaChart>
           </ResponsiveContainer>
         </div>
+        {avgLatencyMs !== null && (
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--t3, #8a94a6)' }}>
+            Average round-trip latency this session: <strong style={{ color: '#10b981' }}>{avgLatencyMs}ms</strong> (measured on your device, dispatch-to-acknowledgement)
+          </div>
+        )}
       </div>
 
       {/* ── RQ4 RADIAL GAUGES & CONFLICT BREAKDOWN ─────────────────────────────── */}
@@ -383,46 +362,80 @@ export default function WebMetricsDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <Shield size={18} style={{ color: '#f59e0b' }} />
           <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1, #fff)' }}>
-            RQ4 — Causal Consistency & Conflict Resolution Gauges
+            RQ4 — Conflict Detection &amp; Resolution
           </span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
           <RadialGauge
-            label="Data Consistency Rate"
-            value="100%"
-            percentage={100}
+            label="Consistency Success Rate"
+            value={fmtPct(realMetrics?.consistencySuccessRatePct)}
+            percentage={realMetrics?.consistencySuccessRatePct ?? null}
             color="#10b981"
-            badge="Converged"
-            subtext="All connected peer vector clocks show zero unresolved causal divergence."
-            tooltip="100% means all vector clocks across connected peers have converged with no unresolved causal divergence."
+            subtext={hasData ? `${realMetrics?.totalPushes || 0} sync attempts this session` : 'No sync attempts yet'}
+            tooltip="How often a save actually made it to the server successfully, out of every attempt. This is the RQ4(e) / RQ5(e) 'data consistency rate' — measured from real save attempts and real server responses, not assumed."
           />
 
           <RadialGauge
             label="Resolution Accuracy"
-            value={`${resolutionAccuracyPct}%`}
-            percentage={resolutionAccuracyPct}
+            value={fmtPct(realMetrics?.resolutionAccuracyPct)}
+            percentage={realMetrics?.resolutionAccuracyPct ?? null}
             color="#3b82f6"
-            badge="LWW + Owner"
-            subtext={`Successfully resolved ${resolvedConflicts} out of ${totalConflicts} concurrent edits.`}
-            tooltip="Percentage of write conflicts successfully resolved by the Hybrid LWW + Owner Priority algorithm."
+            badge={realMetrics?.resolutionAccuracyPct !== null ? 'Line-Scoped LWW' : undefined}
+            subtext={
+              realMetrics && realMetrics.totalConflicts > 0
+                ? `${realMetrics.totalConflicts} conflict(s) this session, resolved to exactly the overlapping line(s) only`
+                : 'No concurrent-edit conflicts have happened yet'
+            }
+            tooltip="Out of every real conflict (two people editing the exact same line at the same time), what percentage the system resolved cleanly — picking a winner for just that line, without corrupting or losing anything elsewhere in the document."
           />
 
           <RadialGauge
-            label="Consistency Success"
-            value={`${consistencySuccessPct}%`}
-            percentage={consistencySuccessPct}
-            color="#8b5cf6"
-            badge="Hybrid Engine"
-            subtext={`${hostMetrics?.pushSuccessCount || 0} successful sync operations out of ${totalSyncEvents || 0} attempts.`}
-            tooltip="Percentage of push operations that completed without error."
+            label="Conflict Detection Rate"
+            value={fmtPct(realMetrics?.conflictDetectionRatePct)}
+            percentage={realMetrics?.conflictDetectionRatePct ?? null}
+            color="#f59e0b"
+            subtext={
+              realMetrics && realMetrics.conflictDetectionRatePct !== null
+                ? `${realMetrics.totalConflicts} genuine conflict(s) out of every concurrent-edit situation this session`
+                : 'No concurrent edits from two peers yet'
+            }
+            tooltip="When two peers edit the document at overlapping times, what fraction of those situations turned out to be genuine same-line conflicts (as opposed to edits to different parts of the file, which merge automatically with no conflict at all)."
+          />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 16 }}>
+          <RadialGauge
+            label="Unresolved Conflicts"
+            value={`${realMetrics?.unresolvedConflicts ?? 0}`}
+            percentage={realMetrics?.unresolvedConflicts ? 0 : 100}
+            color={realMetrics?.unresolvedConflicts ? '#ef4444' : '#10b981'}
+            subtext={
+              realMetrics?.unresolvedConflicts
+                ? 'These are still awaiting manual review — see the room\'s conflict history.'
+                : 'Every conflict this session was auto-resolved immediately by Last-Write-Wins — none are sitting unresolved.'
+            }
+            tooltip="A live count of conflicts that still need a person to manually pick a winner. This system auto-resolves same-line conflicts immediately, so this should normally read 0; a nonzero count means something is genuinely waiting on you."
+          />
+
+          <RadialGauge
+            label="Resolution Time"
+            value={fmtMs(realMetrics?.conflictResolutionTimeMs)}
+            percentage={null}
+            color="#a855f7"
+            subtext={
+              realMetrics && realMetrics.conflictResolutionTimeMs !== null
+                ? 'Average time the server spent computing a merge, from detecting the overlap to producing the final result.'
+                : 'No conflicts resolved yet this session.'
+            }
+            tooltip="How long it took the engine to figure out how to merge a conflict, in milliseconds. This is pure computation time — it excludes network travel time, which is covered separately by Latency."
           />
         </div>
       </div>
 
       {/* ── RQ4 & RQ5 COMPARATIVE BAR CHART & ARCHITECTURE SHIELD ───────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 16 }}>
-        
+
         {/* Left: Professional Theme-Responsive Animated Bar Chart */}
         <div style={{
           background: 'var(--s1, #181d28)',
@@ -434,65 +447,66 @@ export default function WebMetricsDashboard() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1, #1e293b)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>Sync Operations vs Conflict Distribution</span>
-                <span style={{
-                  fontSize: 10, background: 'rgba(16,185,129,0.12)', color: '#10b981',
-                  padding: '2px 8px', borderRadius: 12, border: '1px solid rgba(16,185,129,0.3)', fontWeight: 700
-                }}>VERIFIED</span>
+                <span>Sync Operations vs Conflicts, This Session</span>
+                <InfoTip text="Sync Ops: every save attempt. Conflicts: how many of those hit a genuine same-line overlap with another peer's edit. Both bars are live counts from this room's actual activity." />
               </div>
               <div style={{ fontSize: 12, color: 'var(--t2, #64748b)', marginTop: 3 }}>
-                Real-time cryptographic operation tally & conflict resolution throughput
+                Live counts from real save requests to this room
               </div>
             </div>
-            <span style={{
-              fontSize: 11, background: 'rgba(59,130,246,0.12)', color: '#3b82f6',
-              padding: '4px 10px', borderRadius: 20, fontWeight: 700, border: '1px solid rgba(59,130,246,0.25)'
-            }}>LIVE HUD</span>
           </div>
 
           <div style={{ height: 230, width: '100%' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={rq4ComparisonData} margin={{ top: 15, right: 15, left: -18, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="barGradSync" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#38bdf8" stopOpacity={1} />
-                    <stop offset="100%" stopColor="#0284c7" stopOpacity={0.85} />
-                  </linearGradient>
-                  <linearGradient id="barGradMerged" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#34d399" stopOpacity={1} />
-                    <stop offset="100%" stopColor="#059669" stopOpacity={0.85} />
-                  </linearGradient>
-                  <linearGradient id="barGradConflicts" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#fbbf24" stopOpacity={1} />
-                    <stop offset="100%" stopColor="#d97706" stopOpacity={0.85} />
-                  </linearGradient>
-                  <linearGradient id="barGradResolved" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#c084fc" stopOpacity={1} />
-                    <stop offset="100%" stopColor="#7c3aed" stopOpacity={0.85} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--b1, rgba(255,255,255,0.08))" vertical={false} />
-                <XAxis dataKey="name" stroke="var(--t2, #64748b)" fontSize={12} fontWeight={600} tickLine={false} />
-                <YAxis stroke="var(--t2, #64748b)" fontSize={11} tickLine={false} />
-                <RechartsTooltip
-                  cursor={{ fill: 'rgba(59,130,246,0.06)' }}
-                  contentStyle={{
-                    background: 'var(--s1, #ffffff)', border: '1px solid var(--b1)',
-                    borderRadius: 10, fontSize: 12, color: 'var(--t1)'
-                  }}
-                />
-                <Bar dataKey="count" radius={[8, 8, 0, 0]} animationDuration={1200}>
-                  {rq4ComparisonData.map((entry, index) => {
-                    const grads = ['url(#barGradSync)', 'url(#barGradMerged)', 'url(#barGradConflicts)', 'url(#barGradResolved)'];
-                    return <Cell key={`cell-${index}`} fill={grads[index % grads.length]} />;
-                  })}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {hasData ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={[
+                    { name: 'Sync Ops', count: realMetrics?.totalPushes || 0 },
+                    { name: 'Conflicts', count: realMetrics?.totalConflicts || 0 },
+                    { name: 'Unresolved', count: realMetrics?.unresolvedConflicts || 0 },
+                  ]}
+                  margin={{ top: 15, right: 15, left: -18, bottom: 5 }}
+                >
+                  <defs>
+                    <linearGradient id="barGradSync" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#38bdf8" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#0284c7" stopOpacity={0.85} />
+                    </linearGradient>
+                    <linearGradient id="barGradConflicts" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#fbbf24" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#d97706" stopOpacity={0.85} />
+                    </linearGradient>
+                    <linearGradient id="barGradUnresolved" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f87171" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#dc2626" stopOpacity={0.85} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--b1, rgba(255,255,255,0.08))" vertical={false} />
+                  <XAxis dataKey="name" stroke="var(--t2, #64748b)" fontSize={12} fontWeight={600} tickLine={false} />
+                  <YAxis stroke="var(--t2, #64748b)" fontSize={11} tickLine={false} allowDecimals={false} />
+                  <RechartsTooltip
+                    cursor={{ fill: 'rgba(59,130,246,0.06)' }}
+                    contentStyle={{
+                      background: 'var(--s1, #ffffff)', border: '1px solid var(--b1)',
+                      borderRadius: 10, fontSize: 12, color: 'var(--t1)'
+                    }}
+                  />
+                  <Bar dataKey="count" radius={[8, 8, 0, 0]} animationDuration={1200}>
+                    {['url(#barGradSync)', 'url(#barGradConflicts)', 'url(#barGradUnresolved)'].map((g, index) => (
+                      <Cell key={`cell-${index}`} fill={g} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--t3, #8a94a6)', fontSize: 13 }}>
+                No activity recorded yet — make an edit to populate this chart.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right: Data Loss Shield Card & Topology Scalability */}
+        {/* Right: Data Loss Shield Card & Topology */}
         <div style={{
           background: 'var(--s1, #181d28)', borderRadius: 16, padding: '24px',
           border: '1px solid var(--b1, rgba(255,255,255,0.08))',
@@ -500,21 +514,24 @@ export default function WebMetricsDashboard() {
         }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <div style={{ padding: 10, borderRadius: 10, background: 'rgba(16,185,129,0.12)', color: '#10b981' }}>
+              <div style={{ padding: 10, borderRadius: 10, background: (realMetrics?.dataLossRatePct ?? 0) === 0 ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)', color: (realMetrics?.dataLossRatePct ?? 0) === 0 ? '#10b981' : '#ef4444' }}>
                 <CheckCircle size={24} />
               </div>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1, #fff)' }}>
-                  Data Loss Rate: 0.0%
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1, #fff)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Data Loss Rate: {hasData ? `${realMetrics?.dataLossRatePct ?? 0}%` : '—'}
+                  <InfoTip text="Percentage of characters typed this session that were overwritten by a conflicting edit and did not survive into the final document. A deliberate deletion by the user (backspace) is never counted as loss — only content lost to the algorithm's own conflict resolution." />
                 </div>
-                <div style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>
-                  Cryptographically & Structurally Guaranteed
+                <div style={{ fontSize: 12, color: (realMetrics?.dataLossRatePct ?? 0) === 0 ? '#10b981' : '#ef4444', fontWeight: 600 }}>
+                  {hasData
+                    ? ((realMetrics?.dataLossRatePct ?? 0) === 0 ? 'No data lost this session' : `${realMetrics?.dataLossRatePct}% of edited content overwritten by conflict resolution`)
+                    : 'No edits yet this session'}
                 </div>
               </div>
             </div>
 
             <p style={{ fontSize: 13, color: 'var(--t2, #cbd5e1)', lineHeight: 1.6, margin: '12px 0' }}>
-              Guaranteed by the append-only EventLog design (`EventLogService`). Every local and remote operation is recorded as an immutable log event. No edit is ever truncated, overwritten, or lost.
+              Measured directly: every conflict tracks the exact character length of whichever side's edit was overwritten. This is the actual DLR = (lost characters ÷ total characters synced) × 100 from this session&apos;s real traffic — not an assumed 0%.
             </p>
           </div>
 
@@ -525,66 +542,23 @@ export default function WebMetricsDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Server size={18} style={{ color: '#06b6d4' }} />
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1, #fff)' }}>
-                  Active P2P Room Topology
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1, #fff)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  System Scalability
+                  <InfoTip text="Compares real throughput measured while you were the only editor (baseline) against real throughput measured while multiple peers were editing concurrently. 100% means no slowdown; below 100% means the system processes edits more slowly as more people join." />
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--t3)' }}>
-                  Masterless mesh concurrency
+                  {realMetrics?.scalabilityInsufficientData
+                    ? 'Needs both a solo session and a multi-user session to compare'
+                    : 'Multi-user throughput vs solo-session baseline'}
                 </div>
               </div>
             </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: '#06b6d4', fontFamily: 'monospace' }}>
-              {hostMetrics?.connectedPeerCount || 1} PEER{(hostMetrics?.connectedPeerCount || 1) !== 1 ? 'S' : ''}
+              {realMetrics && !realMetrics.scalabilityInsufficientData ? `${realMetrics.systemScalabilityPct}%` : '—'}
             </div>
           </div>
         </div>
 
-      </div>
-
-      {/* ── OT VS LWW MATRIX COMPARISON ─────────────────────────────── */}
-      <div style={{
-          background: 'var(--s1, #181d28)', borderRadius: 16, padding: '24px',
-          border: '1px solid var(--b1, rgba(255,255,255,0.08))',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
-          display: 'flex', flexDirection: 'column', gap: 16
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1, #1e293b)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>Algorithm Matrix: LWW (Vector Clocks) vs Operational Transformation (OT)</span>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--t2, #64748b)', marginTop: 3 }}>
-              Live session benchmarks — LWW (Vector Clocks + Last-Writer-Wins) vs OT [Johnson & Thomas 1975, Saito & Shapiro 2005]
-            </div>
-          </div>
-        </div>
-
-        <div style={{ height: 260, width: '100%', position: 'relative' }}>
-          {totalSyncEvents > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={otLwwComparisonData} layout="vertical" margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--b1, rgba(255,255,255,0.08))" horizontal={false} />
-                <XAxis type="number" stroke="var(--t2, #64748b)" fontSize={11} tickLine={false} />
-                <YAxis dataKey="metric" type="category" stroke="var(--t2, #64748b)" fontSize={12} fontWeight={600} tickLine={false} width={130} />
-                <RechartsTooltip
-                  cursor={{ fill: 'rgba(255,255,255,0.02)' }}
-                  contentStyle={{
-                    background: 'var(--s1, #ffffff)', border: '1px solid var(--b1)',
-                    borderRadius: 10, fontSize: 12, color: 'var(--t1)'
-                  }}
-                />
-                <Bar dataKey="LWW" name="LWW Vector Clocks (DocuSync)" fill="#10b981" radius={[0, 4, 4, 0]} barSize={24} />
-                <Bar dataKey="OT" name="Operational Transformation (Baseline)" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={24} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg, rgba(255,255,255,0.03))', borderRadius: 8, border: '1px dashed var(--b1, rgba(255,255,255,0.1))' }}>
-              <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #3b82f6', borderTopColor: 'transparent', animation: 'spin 1s linear infinite', marginBottom: 12 }} />
-              <p style={{ fontSize: 13, color: 'var(--t3, #8a94a6)', fontWeight: 600 }}>Waiting for session telemetry...</p>
-              <p style={{ fontSize: 11, color: 'var(--t4, #475569)', marginTop: 4 }}>Make a document edit to populate matrix comparison.</p>
-            </div>
-          )}
-        </div>
       </div>
         </>
       )}

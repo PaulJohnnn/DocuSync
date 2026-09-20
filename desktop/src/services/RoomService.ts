@@ -107,7 +107,7 @@ class RoomService {
     return rooms;
   }
 
-  static async createRoom(name: string): Promise<Room> {
+  static async createRoom(name: string, hostNodeId?: string): Promise<Room> {
     if (!name.trim()) throw new Error('Room name cannot be empty.');
     let otp = genOTP();
     let isMatchmakerSuccess = false;
@@ -135,7 +135,14 @@ class RoomService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           roomName: name.trim(),
-          hostNodeId: `desktop-${Date.now()}`,
+          // A throwaway `desktop-${Date.now()}` here (rather than this
+          // node's real, engine-assigned localNodeId) gets stored
+          // server-side as the room's permanent hostNodeId, forever
+          // mismatching the id this same node actually authenticates with
+          // on every later call (heartbeat, lock, kick) — silently
+          // breaking "owner" features for every room this app creates.
+          // Caller (PeersPage) passes the real id from useElectronSync().
+          hostNodeId: hostNodeId || `desktop-${Date.now()}`,
           hostIp: hostIp,
           hostPort: 9000,
           hostType: 'desktop'

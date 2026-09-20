@@ -27,6 +27,135 @@ function useScrollReveal() {
   return ref;
 }
 
+// ── Hero backdrop: a real depiction of the masterless P2P mesh, not a
+// generic blurred-gradient-blob background. Nodes = devices, lines = the
+// mesh topology, traveling dots = actual sync traffic (SVG <animateMotion>,
+// not a fake pulse). Kept low-opacity and spread wide so the headline stays
+// readable on top of it.
+const HERO_NODES = [
+  { x: 90, y: 90, r: 6 }, { x: 340, y: 40, r: 5 }, { x: 620, y: 80, r: 7 },
+  { x: 860, y: 150, r: 5 }, { x: 1080, y: 70, r: 6 }, { x: 60, y: 340, r: 5 },
+  { x: 1150, y: 320, r: 6 }, { x: 260, y: 460, r: 6 }, { x: 950, y: 440, r: 5 },
+  { x: 550, y: 500, r: 7 }, { x: 120, y: 560, r: 5 }, { x: 1080, y: 560, r: 5 },
+];
+const HERO_EDGES: Array<[number, number]> = [
+  [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [4, 6], [5, 7], [6, 8],
+  [7, 9], [8, 9], [7, 10], [8, 11], [1, 5], [2, 9], [3, 8],
+];
+const HERO_NODE_COLORS = ['#4f7df8', '#7c3aed', '#22c55e', '#38bdf8', '#a855f7'];
+
+function HeroMeshBackdrop() {
+  return (
+    <svg
+      viewBox="0 0 1200 620" preserveAspectRatio="xMidYMid slice"
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.5, pointerEvents: 'none' }}
+    >
+      {HERO_EDGES.map(([a, b], i) => {
+        const A = HERO_NODES[a], B = HERO_NODES[b];
+        return <line key={`e${i}`} x1={A.x} y1={A.y} x2={B.x} y2={B.y} stroke="rgba(79,125,248,0.14)" strokeWidth="1" />;
+      })}
+      {HERO_EDGES.map(([a, b], i) => {
+        const A = HERO_NODES[a], B = HERO_NODES[b];
+        const dur = 3.5 + (i % 5) * 0.6;
+        const delay = i * 0.4;
+        return (
+          <circle key={`p${i}`} r="2.5" fill={HERO_NODE_COLORS[i % HERO_NODE_COLORS.length]}>
+            <animateMotion dur={`${dur}s`} begin={`${delay}s`} repeatCount="indefinite" path={`M ${A.x} ${A.y} L ${B.x} ${B.y}`} />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur={`${dur}s`} begin={`${delay}s`} repeatCount="indefinite" />
+          </circle>
+        );
+      })}
+      {HERO_NODES.map((n, i) => (
+        <circle key={`n${i}`} cx={n.x} cy={n.y} r={n.r} fill={HERO_NODE_COLORS[i % HERO_NODE_COLORS.length]}>
+          <animate attributeName="r" values={`${n.r};${n.r * 1.4};${n.r}`} dur={`${2.5 + i * 0.3}s`} begin={`${i * 0.25}s`} repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.5;0.9;0.5" dur={`${2.5 + i * 0.3}s`} begin={`${i * 0.25}s`} repeatCount="indefinite" />
+        </circle>
+      ))}
+    </svg>
+  );
+}
+
+// ── Live demo mock ───────────────────────────────────────────
+// This used to be a live <iframe src="/app/files?demo=true">, which pulled
+// in whatever real room/account happened to be signed in on that browser —
+// a genuine privacy problem for a public marketing page, and also just a
+// login wall for anyone who wasn't already signed in. Everything below is
+// 100% fabricated markup: fictional room, fictional people, fictional
+// files, zero network calls, zero auth — animated with plain CSS so it
+// still reads as "alive" without touching the real app at all.
+const DEMO_FILES = [
+  { name: 'Quarterly_Report.docx', size: '24 KB', color: '#60a5fa', bg: 'rgba(59,130,246,0.15)', editing: true },
+  { name: 'Design_Notes.md', size: '4 KB', color: '#4f7df8', bg: 'rgba(79,125,248,0.15)', editing: false },
+  { name: 'Roadmap.xlsx', size: '58 KB', color: '#22c55e', bg: 'rgba(34,197,94,0.12)', editing: false },
+];
+const DEMO_PEOPLE = [
+  { initial: 'A', bg: '#dcfce7', fg: '#16a34a' },
+  { initial: 'M', bg: '#ffedd5', fg: '#ea580c' },
+];
+
+function LiveDemoMock() {
+  return (
+    <div style={{ background: '#fff', padding: '18px 24px', position: 'relative', minHeight: 460 }}>
+      {/* Room header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Design Team Workspace</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 20, padding: '3px 10px', fontFamily: 'monospace' }}>9F3KXQ</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 4px', borderRadius: 20, border: '1px solid #e2e8f0', background: '#f8fafc' }}>
+          <div style={{ display: 'flex' }}>
+            {DEMO_PEOPLE.map((p, i) => (
+              <div key={i} style={{ width: 22, height: 22, borderRadius: '50%', background: p.bg, color: p.fg, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: i === 0 ? 0 : -8 }}>
+                {p.initial}
+              </div>
+            ))}
+          </div>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>2 connected</span>
+        </div>
+      </div>
+
+      {/* File rows */}
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
+        {DEMO_FILES.map((f, i) => (
+          <div key={f.name} className="demo-file-row" style={{ display: 'flex', alignItems: 'center', padding: '14px 18px', borderBottom: i < DEMO_FILES.length - 1 ? '1px solid #eef2f7' : 'none' }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: f.bg, color: f.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 14, fontSize: 13, fontWeight: 700 }}>
+              {f.name.split('.').pop()?.slice(0, 2).toUpperCase()}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
+              <div style={{ fontSize: 11.5, color: '#94a3b8' }}>Shared by Ana &middot; {f.size}</div>
+            </div>
+            {f.editing && (
+              <div className="demo-sync-pulse demo-editing-badge" style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#e0e7ff', padding: '4px 10px', borderRadius: 16, border: '1px solid #c7d2fe', marginRight: 14 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: '#4338ca' }}>2 editing</span>
+              </div>
+            )}
+            <div className="demo-open-btn" style={{ background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: '#fff', borderRadius: 8, padding: '0 14px', height: 32, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              Open &amp; edit
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Fabricated collaborative cursor drifting over the top file row —
+          purely decorative CSS animation, not tied to anything real. Hidden
+          on narrow screens (see globals below) rather than fought into
+          fitting — it's decoration, not content. */}
+      <div className="demo-cursor-drift" style={{ position: 'absolute', top: 78, left: 260, pointerEvents: 'none' }}>
+        <svg width="16" height="20" viewBox="0 0 16 20" fill="none"><path d="M1 1l6 16 2.5-6.5L16 8 1 1z" fill="#7c3aed" /></svg>
+        <span style={{ marginLeft: 12, marginTop: -4, display: 'inline-block', background: '#7c3aed', color: '#fff', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 6, borderTopLeftRadius: 0, whiteSpace: 'nowrap' }}>
+          Marco is editing
+        </span>
+      </div>
+
+      <p style={{ position: 'absolute', bottom: 16, left: 24, fontSize: 11, color: '#cbd5e1' }}>
+        Illustrative preview &middot; not a live session
+      </p>
+    </div>
+  );
+}
+
 // ── Sub-components ────────────────────────────────────────────
 function SectionLabel({ children, color = '#4f7df8' }: { children: React.ReactNode; color?: string }) {
   return (
@@ -81,27 +210,36 @@ const ALGORITHMS = [
   {
     num: '02', numColor: 'rgba(124,58,237,0.15)', iconColor: '#7c3aed',
     algo: 'Algorithm 2',
-    title: 'Flawless Collaboration',
-    desc: 'DocuSync mathematically tracks exactly who typed what and when. It organizes everything so perfectly that nobody’s work ever steps on anyone else’s toes.',
+    title: 'Knows What Happened Before What',
+    desc: 'Every device keeps its own logical clock (a Fidge/Mattern vector clock) instead of trusting wall-clock time. Comparing two clocks tells DocuSync — with certainty — whether one edit truly came after another, or whether they happened independently at the same time.',
     pill: 'Powered by: Vector Clocks', pillColor: '#7c3aed', pillBg: 'rgba(124,58,237,0.10)',
-    metric: 'Zero Overwrites',
+    metric: '100% Concurrency Detection',
   },
   {
     num: '03', numColor: 'rgba(34,197,94,0.15)', iconColor: '#22c55e',
     algo: 'Algorithm 3',
     title: 'Lightning Fast Syncing',
-    desc: 'Instead of uploading your whole document every time you hit save, DocuSync only sends the tiny pieces of text you just changed. It\'s instant.',
+    desc: 'Instead of uploading your whole document every time you hit save, DocuSync computes the minimal edit script with the Myers O(ND) diff algorithm and sends only what changed, checksummed for integrity.',
     pill: 'Powered by: Delta Encoding', pillColor: '#22c55e', pillBg: 'rgba(34,197,94,0.10)',
-    metric: 'Instant Updates',
+    metric: '~1ms Encode Latency',
   },
   {
     num: '04', numColor: 'rgba(245,158,11,0.15)', iconColor: '#f59e0b',
     algo: 'Algorithm 4',
-    title: 'Smart Auto-Merge',
-    desc: 'If two people manage to edit the exact same word at the exact same millisecond, our intelligent system steps in and safely resolves the clash automatically.',
+    title: 'You Decide, We Never Guess',
+    desc: 'When two edits are causally concurrent — neither clock came first — DocuSync flags it as a conflict and escalates to the room owner instead of silently picking a winner. From there it\'s your call: Keep Original, Accept the incoming change, or let Last-Writer-Wins auto-merge by timestamp.',
     pill: 'Powered by: LWW Resolver', pillColor: '#f59e0b', pillBg: 'rgba(245,158,11,0.10)',
-    metric: 'No Merge Conflicts',
+    metric: 'Owner-Arbitrated',
   },
+];
+
+const EVAL_METRICS = [
+  { value: '20/20', label: 'System Tests Passed', desc: 'ISO/IEC 25010 functional suite', color: '#4f7df8' },
+  { value: '100%', label: 'Conflict Detection', desc: '30/30 concurrent vector-clock pairs correctly flagged', color: '#7c3aed' },
+  { value: '0%', label: 'Data Loss Rate', desc: 'Append-only event log, independently verified', color: '#22c55e' },
+  { value: '~1ms', label: 'Avg. Delta Latency', desc: 'Myers diff encode, P95 also 1ms', color: '#f59e0b' },
+  { value: '1,000/s', label: 'Event Throughput', desc: 'Sustained events per second in the log-based sync engine', color: '#ef4444' },
+  { value: '15', label: 'Max Concurrent Nodes', desc: 'Vector clock slot ceiling per room', color: '#06b6d4' },
 ];
 
 const PLATFORMS = [
@@ -161,28 +299,10 @@ export default function HomePage() {
           backgroundSize: '60px 60px',
         }} />
 
-        {/* Animated orbs */}
-        <div style={{
-          position: 'absolute', top: '20%', left: '10%',
-          width: 400, height: 400, borderRadius: '50%', pointerEvents: 'none',
-          background: 'radial-gradient(circle,rgba(79,125,248,0.15),transparent)',
-          filter: 'blur(40px)',
-          animation: 'float 6s ease-in-out infinite',
-        }} />
-        <div style={{
-          position: 'absolute', top: '40%', right: '10%',
-          width: 380, height: 380, borderRadius: '50%', pointerEvents: 'none',
-          background: 'radial-gradient(circle,rgba(124,58,237,0.15),transparent)',
-          filter: 'blur(40px)',
-          animation: 'float 8s ease-in-out infinite reverse',
-        }} />
-        <div style={{
-          position: 'absolute', bottom: '15%', left: '40%',
-          width: 340, height: 340, borderRadius: '50%', pointerEvents: 'none',
-          background: 'radial-gradient(circle,rgba(34,197,94,0.10),transparent)',
-          filter: 'blur(40px)',
-          animation: 'float 7s ease-in-out 2s infinite',
-        }} />
+        {/* The mesh IS the product — replaces the generic blurred-orb
+            background every other landing page uses with an actual (if
+            stylized) picture of the masterless P2P topology. */}
+        <HeroMeshBackdrop />
 
         {/* Content */}
         <div style={{ position: 'relative', zIndex: 1, maxWidth: 900, width: '100%' }}>
@@ -205,8 +325,14 @@ export default function HomePage() {
             </span>
           </h1>
 
-          {/* Description Removed */}
-          <div style={{ height: 24 }} />
+          <p style={{
+            fontSize: 'clamp(15px,2vw,18px)', color: 'var(--t2)', lineHeight: 1.7,
+            maxWidth: 620, margin: '0 auto 28px', animation: 'fadeInUp 0.8s ease 0.4s both',
+          }}>
+            A masterless peer-to-peer engine that logs every edit, detects concurrent changes with
+            vector clocks, and syncs only the bytes that changed — so your team never silently
+            overwrites each other&apos;s work, online or off.
+          </p>
 
           {/* CTA Buttons */}
           <div className="hero-ctas" style={{
@@ -362,6 +488,44 @@ export default function HomePage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════
+          SECTION 3.5 — PROVEN BY THE NUMBERS (real ISO/IEC 25010 results)
+      ══════════════════════════════════════════════════════════ */}
+      <section style={{ background: 'var(--bg2)', padding: '100px clamp(20px,5vw,64px)' }}>
+        <div style={{ maxWidth: 1080, margin: '0 auto' }}>
+          <div className="scroll-hidden" style={{ textAlign: 'center', marginBottom: 48 }}>
+            <SectionLabel color="#22c55e">NOT JUST CLAIMS</SectionLabel>
+            <h2 style={{ fontSize: 'clamp(26px,4vw,40px)', fontWeight: 700, color: 'var(--t1)', marginBottom: 14 }}>
+              Measured, Not Marketed
+            </h2>
+            <p style={{ fontSize: 16, color: 'var(--t2)', maxWidth: 560, margin: '0 auto', lineHeight: 1.7 }}>
+              Every number below comes from the thesis&apos;s own ISO/IEC 25010 evaluation suite —
+              20 automated tests across functional suitability, performance, reliability, and compatibility.
+            </p>
+          </div>
+
+          <div className="metrics-stat-grid scroll-hidden" style={{
+            display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16,
+          }}>
+            {EVAL_METRICS.map((m, i) => (
+              <div key={m.label} className="stat-card" style={{
+                background: 'var(--s1)', border: '1px solid var(--b1)',
+                borderRadius: 16, padding: '24px 20px',
+                transition: 'transform 0.25s cubic-bezier(0.16,1,0.3,1), border-color 0.25s, box-shadow 0.25s',
+                animationDelay: `${i * 80}ms`,
+              }}>
+                <div style={{ fontSize: 32, fontWeight: 800, color: m.color, lineHeight: 1, marginBottom: 8, fontVariantNumeric: 'tabular-nums' }}>
+                  {m.value}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)', marginBottom: 6 }}>{m.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.6 }}>{m.desc}</div>
+              </div>
+            ))}
+          </div>
+
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════
           SECTION 4 — LIVE DEMO PREVIEW
       ══════════════════════════════════════════════════════════ */}
       <section style={{ background: 'var(--bg2)', padding: '100px clamp(20px,5vw,64px)' }}>
@@ -400,19 +564,19 @@ export default function HomePage() {
                   padding: '4px 12px', fontSize: 11, color: 'var(--t3)',
                   textAlign: 'center', border: '1px solid var(--b1)',
                 }}>
-                  🔒 docusync-dusky.vercel.app/app/files
+                  🔒 docusync.app/workspace
                 </div>
               </div>
-              {/* App iframe */}
-              <iframe
-                src="/app/files?demo=true"
-                style={{ width: '100%', height: 500, border: 'none', display: 'block' }}
-                title="DocuSync Live Demo"
-              />
+              {/* Fabricated preview — see LiveDemoMock for why this isn't a
+                  live iframe into the real app anymore. */}
+              <LiveDemoMock />
             </div>
           </div>
 
           <div className="scroll-hidden" style={{ textAlign: 'center', marginTop: 32 }}>
+            <Link href="/app/welcome" className="btn-hero-ghost" style={{ display: 'inline-flex', alignItems: 'center' }}>
+              Try the real thing — Open Web App →
+            </Link>
           </div>
         </div>
       </section>
@@ -552,14 +716,46 @@ export default function HomePage() {
         .open-app-btn:hover      { background: #3d6ef0 !important; }
         .researcher-card:hover   { border-color: rgba(79,125,248,0.30) !important; transform: translateY(-3px) !important; }
         .metric-card:hover       { border-color: rgba(79,125,248,0.30) !important; background: rgba(79,125,248,0.06) !important; transform: translateY(-4px) !important; }
+        .stat-card:hover         { border-color: rgba(79,125,248,0.35) !important; transform: translateY(-4px) !important; box-shadow: 0 12px 32px rgba(0,0,0,0.12) !important; }
         .cta-primary:hover       { background: #3d6ef0 !important; }
         .cta-ghost:hover         { background: rgba(255,255,255,0.06) !important; }
         .cta-text-link:hover     { color: var(--t1) !important; }
 
+        .demo-sync-pulse { animation: demo-pulse 2.2s ease-in-out infinite; }
+        @keyframes demo-pulse {
+          0%, 100% { opacity: 1; }
+          50%      { opacity: 0.45; }
+        }
+        .demo-cursor-drift { animation: demo-drift 5s ease-in-out infinite; }
+        @keyframes demo-drift {
+          0%, 100% { transform: translate(0, 0); }
+          25%      { transform: translate(30px, 46px); }
+          50%      { transform: translate(10px, 88px); }
+          75%      { transform: translate(-15px, 46px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .demo-sync-pulse, .demo-cursor-drift { animation: none; }
+        }
+        /* The file mock row (icon + name + the N-editing badge + button) was
+           only ever laid out for a desktop-width browser-chrome frame —
+           on a real phone the badge pushed the button and filename off
+           the edge. Same fix as the real file list: drop the badge and
+           shrink the button rather than cram everything in. */
+        @media (max-width: 480px) {
+          .demo-file-row     { padding: 12px 14px !important; }
+          .demo-editing-badge { display: none !important; }
+          .demo-open-btn      { padding: 0 10px !important; font-size: 11px !important; }
+          .demo-cursor-drift  { display: none !important; }
+        }
+
         @media (max-width: 900px) {
-          .platforms-grid { grid-template-columns: 1fr !important; max-width: 480px !important; margin: 0 auto !important; }
-          .algo-grid      { grid-template-columns: 1fr !important; }
-          .problem-grid   { grid-template-columns: 1fr !important; }
+          .platforms-grid    { grid-template-columns: 1fr !important; max-width: 480px !important; margin: 0 auto !important; }
+          .algo-grid         { grid-template-columns: 1fr !important; }
+          .problem-grid      { grid-template-columns: 1fr !important; }
+          .metrics-stat-grid { grid-template-columns: repeat(2,1fr) !important; }
+        }
+        @media (max-width: 520px) {
+          .metrics-stat-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </div>

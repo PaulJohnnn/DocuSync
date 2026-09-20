@@ -22,6 +22,7 @@ export interface PeerInfo {
   latency: number;
   connectedAt?: string;
   displayName?: string;
+  openFileId?: string | null;
 }
 
 interface WebSyncContextValue {
@@ -31,6 +32,16 @@ interface WebSyncContextValue {
   pushCursor: (fileId: string, position: number, nodeIndex: number) => void;
   kickPeer: (targetNodeId: string) => void;
   socket: WebSocket | null;
+  /**
+   * Declares which file (if any) this client currently has open in the
+   * editor, so the room's presence heartbeat can report it — this is what
+   * lets a "last editor left this file" history checkpoint be scoped to
+   * the actual file, not just "the room emptied out". Pass `null` when
+   * leaving the editor.
+   */
+  setActiveFileId: (fileId: string | number | null) => void;
+  /** Tell the server this peer has left the room, immediately. */
+  leaveRoom: (otp: string) => void;
 }
 
 const WebSyncContext = createContext<WebSyncContextValue>({
@@ -40,12 +51,28 @@ const WebSyncContext = createContext<WebSyncContextValue>({
   pushCursor: () => {},
   kickPeer: () => {},
   socket: null,
+  setActiveFileId: () => {},
+  leaveRoom: () => {},
 });
 
 export function WebSyncProvider({ children }: { children: ReactNode }) {
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
-  
+  const lastCursorFileIdRef = useRef<string | number | null>(null);
+  const activeFileIdRef = useRef<string | number | null>(null);
+  const pollPresenceRef = useRef<() => void>(() => {});
+  const leaveRoomRef = useRef<(otp: string) => void>(() => {});
+  // setInterval fires on a fixed cadence regardless of whether the previous
+  // round trip finished — pollCursors alone runs every 1.5s. Against the
+  // real shared Redis backend a single call occasionally runs long (cold
+  // start, rate limiting, several peers polling at once), and without these
+  // guards the overlapping calls stack up and each one adds more load to
+  // the same bottleneck, compounding the slowdown instead of it recovering
+  // on its own.
+  const conflictsInFlightRef = useRef(false);
+  const presenceInFlightRef = useRef(false);
+  const cursorsInFlightRef = useRef(false);
+
   const localNodeIdRef = useRef<string>('');
   if (typeof window !== 'undefined' && !localNodeIdRef.current) {
     let nid = uGet('node_id') || '';
@@ -92,12 +119,14 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
   // Poll for global conflicts from Matchmaker to ensure all peers have same conflict list
   useEffect(() => {
     const pollConflicts = async () => {
+      if (conflictsInFlightRef.current) return;
       const s = uGet('current_room');
       if (!s) return;
+      conflictsInFlightRef.current = true;
       try {
         const room = JSON.parse(s);
         if (!room.otp) return;
-        const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
+        const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || `${window.location.origin}/api/lobby`;
         const res = await fetch(`${_MATCHMAKER_URL}/conflicts?otp=${room.otp}`);
         if (res.ok) {
           const data = await res.json();
@@ -115,26 +144,44 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
         }
       } catch (_e) {
         // ignore
+      } finally {
+        conflictsInFlightRef.current = false;
       }
     };
-    
+
     const pollPresence = async () => {
+      if (presenceInFlightRef.current) return;
       const s = uGet('current_room');
       if (!s) return;
+      presenceInFlightRef.current = true;
       try {
         const room = JSON.parse(s);
         if (!room.otp) return;
-        const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
+        const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || `${window.location.origin}/api/lobby`;
+        const session = mockAuthService.getCurrentUser();
+        const displayName = mockAuthService.getDisplayName(session);
         const res = await fetch(`${_MATCHMAKER_URL}/heartbeat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             nodeId: localNodeIdRef.current,
-            hostedRoom: { otp: room.otp }
+            displayName,
+            hostedRoom: { otp: room.otp },
+            openFileId: activeFileIdRef.current,
           })
         });
         if (res.ok) {
           const data = await res.json();
+          // Mirrors the PEER_KICK branch below (the WebSocket path desktop
+          // hosts use) — this is the equivalent for a web-hosted room, where
+          // the host's kick (see kickPeer) blocklists this node server-side
+          // and the very next heartbeat here reports it instead of quietly
+          // re-registering.
+          if (data.kicked === true) {
+            uSet('docusync_kicked', 'true');
+            window.location.href = '/app';
+            return;
+          }
           if (data.activePeers && Array.isArray(data.activePeers)) {
             setPeers((prev) => {
               const connected = data.activePeers.filter((p: any) => p.nodeId !== localNodeIdRef.current).map((p: any) => ({
@@ -144,21 +191,87 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
                 status: 'connected' as const,
                 latency: 0,
                 connectedAt: new Date(p.lastActive).toISOString(),
-                displayName: p.nodeId.slice(0, 8),
+                // Real account name from the room's own roster, not a
+                // slice of the technical device/node id (e.g. "web-muqm
+                // 8en") — that was never meant to be shown to a user. A
+                // brand-new peer's very first heartbeat can land before
+                // their name has propagated; show a friendly placeholder
+                // for that split second rather than raw node-id junk.
+                displayName: p.displayName || 'Connecting…',
+                openFileId: p.openFileId || null,
               }));
               uSet('peers', JSON.stringify(connected));
               return connected;
             });
           }
         }
-      } catch (_e) {}
+      } catch (_e) {
+      } finally {
+        presenceInFlightRef.current = false;
+      }
+    };
+    pollPresenceRef.current = pollPresence;
+
+    const pollCursors = async () => {
+      if (cursorsInFlightRef.current) return;
+      const s = uGet('current_room');
+      const activeFileId = lastCursorFileIdRef.current;
+      if (!s || activeFileId === null) return;
+      cursorsInFlightRef.current = true;
+      try {
+        const room = JSON.parse(s);
+        if (!room.otp) return;
+        const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || `${window.location.origin}/api/lobby`;
+        const res = await fetch(
+          `${_MATCHMAKER_URL}/cursors?otp=${room.otp}&nodeId=${localNodeIdRef.current}&fileId=${Number(activeFileId)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.cursors)) {
+            data.cursors.forEach((c: any) => {
+              window.dispatchEvent(new CustomEvent('docusync_ws_cursor', {
+                detail: {
+                  fileId: c.fileId,
+                  nodeId: c.nodeId,
+                  position: c.from,
+                  displayName: c.displayName,
+                  color: c.color,
+                },
+              }));
+            });
+          }
+        }
+      } catch (_e) {
+      } finally {
+        cursorsInFlightRef.current = false;
+      }
     };
 
     pollConflicts();
     pollPresence();
+    pollCursors();
     const iv = setInterval(pollConflicts, 15000);
     const iv2 = setInterval(pollPresence, 5000);
-    return () => { clearInterval(iv); clearInterval(iv2); };
+    const iv3 = setInterval(pollCursors, 1500);
+
+    // Covers a hard tab close / browser quit — the "Leave Room" button
+    // handles the explicit case, but a closed tab never runs that click
+    // handler at all. Without this, presence relies purely on the
+    // 5-minute TTL, which is what made the member count look stuck.
+    const handleUnload = () => {
+      const s = uGet('current_room');
+      if (!s) return;
+      try {
+        const room = JSON.parse(s);
+        if (room.otp) leaveRoomRef.current(room.otp);
+      } catch (_e) {}
+    };
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(iv); clearInterval(iv2); clearInterval(iv3);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
   }, []);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -340,6 +453,8 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const pushCursor = useCallback((fileId: string | number, position: number, nodeIndex: number) => {
+    lastCursorFileIdRef.current = fileId;
+
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({
         type: 'CURSOR_UPDATE',
@@ -350,16 +465,99 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
         timestamp: new Date().toISOString()
       }));
     }
-  }, [localNodeId]);
 
-  const kickPeer = useCallback((targetNodeId: string) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ type: 'PEER_KICK', targetNodeId, hostNodeId: localNodeId }));
+    // Cloud fallback: peers without a reachable P2P host (or with the WS not
+    // yet connected) still need to see each other's cursors, so always also
+    // publish over the REST matchmaker regardless of WS state.
+    const roomStr = uGet('current_room');
+    if (roomStr) {
+      try {
+        const room = JSON.parse(roomStr);
+        if (room.otp) {
+          const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || `${window.location.origin}/api/lobby`;
+          const session = mockAuthService.getCurrentUser();
+          fetch(`${_MATCHMAKER_URL}/cursors`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              otp: room.otp,
+              nodeId: localNodeId,
+              displayName: mockAuthService.getDisplayName(session),
+              color: nodeIndex === 0 ? '#3b82f6' : nodeIndex === 1 ? '#10b981' : '#f59e0b',
+              from: position,
+              to: position,
+              fileId: Number(fileId),
+            }),
+          }).catch(() => {});
+        }
+      } catch (_e) {}
     }
   }, [localNodeId]);
 
+  const kickPeer = useCallback((targetNodeId: string) => {
+    // Desktop-hosted rooms have a real WebSocket server to deliver this to,
+    // so keep sending it there when available. A web-hosted room has no
+    // such socket — socketRef is never opened for one — so PEER_KICK alone
+    // silently did nothing for the single most common case (someone using
+    // the site, no desktop app involved). The HTTP call below is what
+    // actually removes the peer for that case: it blocklists them
+    // server-side, and their own next heartbeat picks up the `kicked` flag
+    // (see pollPresence) and evicts them.
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: 'PEER_KICK', targetNodeId, hostNodeId: localNodeId }));
+    }
+    const s = uGet('current_room');
+    if (s) {
+      try {
+        const room = JSON.parse(s);
+        if (room.otp) {
+          const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || `${window.location.origin}/api/lobby`;
+          fetch(`${_MATCHMAKER_URL}/kick`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ otp: room.otp, nodeId: localNodeId, targetNodeId }),
+          }).catch(() => {});
+        }
+      } catch (_e) {}
+    }
+    setPeers((prev) => {
+      const updated = prev.filter((p) => p.id !== targetNodeId);
+      uSet('peers', JSON.stringify(updated));
+      return updated;
+    });
+  }, [localNodeId]);
+
+  const leaveRoom = useCallback((otp: string) => {
+    // Explicitly tell the server this peer is gone, instead of relying on
+    // its 5-minute presence TTL to expire — that's what made the member
+    // count look "stuck" for minutes after someone actually left.
+    // sendBeacon (not fetch) because this fires from a page that may be
+    // navigating away or closing right now; a normal fetch can get
+    // cancelled mid-flight when the page unloads, sendBeacon is
+    // guaranteed to be delivered.
+    try {
+      const _MATCHMAKER_URL = process.env.NEXT_PUBLIC_MATCHMAKER_URL || `${window.location.origin}/api/lobby`;
+      const payload = JSON.stringify({ nodeId: localNodeId, leaving: true, hostedRoom: { otp } });
+      const blob = new Blob([payload], { type: 'application/json' });
+      const sent = navigator.sendBeacon(`${_MATCHMAKER_URL}/heartbeat`, blob);
+      if (!sent) {
+        fetch(`${_MATCHMAKER_URL}/heartbeat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {});
+      }
+    } catch (_e) {}
+    activeFileIdRef.current = null;
+  }, [localNodeId]);
+  leaveRoomRef.current = leaveRoom;
+
+  const setActiveFileId = useCallback((fileId: string | number | null) => {
+    activeFileIdRef.current = fileId;
+    // Fire immediately (rather than waiting for the next 5s tick) so other
+    // peers see this client's arrival/departure from a file promptly —
+    // that's what a "last editor left" history checkpoint depends on.
+    pollPresenceRef.current();
+  }, []);
+
   return (
-    <WebSyncContext.Provider value={{ peers, connectToPeer, disconnectPeer, pushCursor, kickPeer, socket: socketRef.current }}>
+    <WebSyncContext.Provider value={{ peers, connectToPeer, disconnectPeer, pushCursor, kickPeer, socket: socketRef.current, setActiveFileId, leaveRoom }}>
       {children}
     </WebSyncContext.Provider>
   );

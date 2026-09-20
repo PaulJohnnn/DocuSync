@@ -14,7 +14,7 @@ export default function WebMetricsPage() {
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Performance Metrics</h1>
             <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>
-              Real-time evaluation dashboard (RQ4 & RQ5) — live data from Desktop Room Host
+              Real-time evaluation dashboard (RQ4 &amp; RQ5) — measured live from this room&apos;s actual sync activity
             </p>
           </div>
         </div>

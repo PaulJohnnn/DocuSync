@@ -12,12 +12,12 @@ function LogoMark() {
 const FOOTER_LINKS = {
   Product: [
     { label: 'Download Windows', href: '/download' },
-    { label: 'Open Web App', href: '/', external: true },
+    { label: 'Open Web App', href: '/app/welcome' },
     { label: 'Expo Mobile App', href: 'https://expo.dev/go', external: true },
   ],
   Resources: [
     { label: 'View Source Code', href: 'https://github.com/PaulJohnnn/DocuSync', external: true },
-    { label: 'Thesis Documentation', href: '/metrics' },
+    { label: 'Thesis Documentation', href: '/app/metrics' },
   ],
 };
 

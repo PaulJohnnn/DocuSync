@@ -187,20 +187,42 @@ export default function EditorPage() {
   };
   const localVectorClockRef = useRef<any>(createInitialWebClock());
 
-  const { peers, pushCursor, kickPeer } = useWebSync();
+  const { peers, pushCursor, kickPeer, setActiveFileId } = useWebSync();
   const _connectedPeersCount = peers.filter((p) => p.status === 'connected').length;
+  // Peers actively editing THIS file specifically — not just connected to
+  // the room. A "last editor left" history checkpoint should fire when
+  // this drops to 0, regardless of how many other peers are elsewhere in
+  // the room (e.g. on the file list, or editing a different file).
+  const _othersEditingThisFile = peers.filter((p) => p.status === 'connected' && String(p.openFileId ?? '') === String(fileId)).length;
+
+  // Declare "I'm editing this file" for as long as this page is mounted,
+  // so other peers' presence checks (and our own leave-detection below)
+  // see accurate per-file editing counts, not just room-wide presence.
+  useEffect(() => {
+    if (!fileId) return;
+    setActiveFileId(fileId);
+    return () => setActiveFileId(null);
+  }, [fileId, setActiveFileId]);
 
   // ── Remote Cursors ─────────────────────────────────────────────────────────
   const cursorThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor & { lastUpdate: number }>>({});
+
+  // Announce presence on this file as soon as it's opened — not just on the
+  // first click — so the cloud cursor poll starts immediately and peers who
+  // are only reading (not yet editing) still see everyone else's cursors.
+  useEffect(() => {
+    if (!fileId) return;
+    pushCursor(fileId, 0, 1);
+  }, [fileId, pushCursor]);
 
   useEffect(() => {
     const handleCursor = (e: any) => {
       const msg = e.detail;
       const localFileId = Number(fileId);
       if (msg.fileId !== localFileId) return;
-      const color = msg.nodeIndex === 0 ? '#3b82f6' : msg.nodeIndex === 1 ? '#10b981' : '#f59e0b';
-      const displayName = msg.nodeIndex === 0 ? 'Desktop' : msg.nodeIndex === 1 ? 'Web' : 'Mobile';
+      const color = msg.color || (msg.nodeIndex === 0 ? '#3b82f6' : msg.nodeIndex === 1 ? '#10b981' : '#f59e0b');
+      const displayName = msg.displayName || (msg.nodeIndex === 0 ? 'Desktop' : msg.nodeIndex === 1 ? 'Web' : 'Mobile');
       setRemoteCursors(prev => ({
         ...prev,
         [msg.nodeId]: {
@@ -483,7 +505,7 @@ export default function EditorPage() {
               
               if (room?.otp) {
                 try {
-                  const _WEB_BASE = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
+                  const _WEB_BASE = process.env.NEXT_PUBLIC_MATCHMAKER_URL || `${window.location.origin}/api/lobby`;
                   fetch(`${_WEB_BASE}/conflicts`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -527,9 +549,28 @@ export default function EditorPage() {
               hasPendingChangesRef.current = false;
               return;
             } else {
-              if (data.lwwResolved) {
-                if (explicit) {
+              const mergedContent = data.serverContent;
+              if (data.hadConflict) {
+                // A genuine same-line conflict was auto-resolved by LWW,
+                // scoped to just those line(s) — pull the merged result in
+                // so this client sees the same text as everyone else.
+                if (typeof mergedContent === 'string' && mergedContent !== currentContentRef.current) {
+                  setContentAndRef(mergedContent);
+                  lastSave.current = mergedContent;
+                }
+                toast.success(`Merged automatically — ${data.conflictHunks || 1} overlapping edit(s) resolved by Last-Write-Wins`, { duration: 5000 });
+              } else {
+                // `lwwResolved` here is set by the plain sequential push
+                // path for any ordinary accepted edit, not just real
+                // conflicts — keep the old explicit-only toast behavior.
+                if (data.lwwResolved && explicit) {
                   toast.success('Conflict resolved using Last-Write-Wins', { duration: 4000 });
+                }
+                if (typeof mergedContent === 'string' && mergedContent !== contentToSave && mergedContent !== currentContentRef.current) {
+                  // Clean auto-merge with another peer's concurrent edit to
+                  // a different line — no conflict, but our buffer needs it.
+                  setContentAndRef(mergedContent);
+                  lastSave.current = mergedContent;
                 }
               }
               // Track real push count for Web-only Metrics dashboard
@@ -537,7 +578,7 @@ export default function EditorPage() {
               localStorage.setItem('web_session_push_count', String(prevCount + 1));
               setSyncStatusMsg(`Synced ✓`);
               setOfflineQueue(false);
-              uSet('docusync_offline_base', contentToSave);
+              uSet('docusync_offline_base', typeof mergedContent === 'string' ? mergedContent : contentToSave);
               uSet(`docusync_offline_history_${fileId}`, '[]');
               console.log('[OfflineQueue] Reset to false after sync. Base updated.');
               hasPendingChangesRef.current = false;
@@ -552,6 +593,12 @@ export default function EditorPage() {
         // Fallback to Matchmaker Cloud if local IP is blocked (Mixed Content) or offline
         if (room && otp) {
           try {
+            // Thesis formula: L = tack - tdispatch, the full round-trip
+            // from the moment this device sends an edit to the moment it
+            // receives confirmation the server applied it. Measured here,
+            // client-side, exactly as the methodology describes — not
+            // simulated.
+            const tDispatch = performance.now();
             const mmRes = await fetch(`${_MATCHMAKER_URL}/doc`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -560,16 +607,50 @@ export default function EditorPage() {
                 fileId,
                 authorNodeId: localNodeIdRef.current,
                 content: contentToSave,
+                baseContent: uGet('docusync_offline_base'),
                 vectorClock: vectorClockSnapshot,
                 committedAt: Date.now(),
                 isSessionEnd,
-                isDone: explicit
+                isDone: explicit,
+                isOfflineReconnect: offlineQueue,
+                // How many peers (including this one) are connected right
+                // now — lets the metrics dashboard compute System
+                // Scalability from real solo-vs-multi-user throughput
+                // instead of a guess.
+                concurrentPeers: _connectedPeersCount + 1,
               }),
             });
+            const tAck = performance.now();
+            try {
+              const samples = JSON.parse(localStorage.getItem('web_session_latency_samples') || '[]');
+              samples.push(Math.round(tAck - tDispatch));
+              // Keep a rolling window so this stays a "recent" latency
+              // figure, not a lifetime average that hides regressions.
+              while (samples.length > 100) samples.shift();
+              localStorage.setItem('web_session_latency_samples', JSON.stringify(samples));
+            } catch (_e) {}
             if (mmRes.ok) {
+              const mmData = await mmRes.json().catch(() => null);
+              const mergedContent = mmData?.snapshot?.content;
+
+              if (mmData?.hadConflict && typeof mergedContent === 'string') {
+                // The server merged this edit against a concurrent one.
+                // Non-overlapping parts merged automatically; only the
+                // genuinely overlapping hunk(s) were LWW-arbitrated. Pull
+                // the merged result into the editor so this client sees
+                // the same text as everyone else, and re-base off it.
+                if (mergedContent !== currentContentRef.current) {
+                  setContentAndRef(mergedContent);
+                  lastSave.current = mergedContent;
+                }
+                uSet('docusync_offline_base', mergedContent);
+                toast.success(`Merged automatically — ${mmData.conflictHunks} overlapping edit${mmData.conflictHunks === 1 ? '' : 's'} resolved by Last-Write-Wins`, { duration: 5000 });
+              } else {
+                uSet('docusync_offline_base', typeof mergedContent === 'string' ? mergedContent : contentToSave);
+              }
+
               setSyncStatusMsg(`Cloud Synced ✓`);
               setOfflineQueue(false);
-              uSet('docusync_offline_base', contentToSave);
               uSet(`docusync_offline_history_${fileId}`, '[]');
               hasPendingChangesRef.current = false;
               directSuccess = true;
@@ -832,17 +913,22 @@ export default function EditorPage() {
   }, [saveFile]);
 
   useEffect(() => {
+    // Session-end (a "Previous Edit" history checkpoint) fires when NO
+    // OTHER peer is currently editing this specific file — not merely
+    // when the room as a whole is empty. Someone else could still be
+    // sitting on the file list or editing a different file in the same
+    // room; that shouldn't count as "everyone left this file".
     const handleBeforeUnload = (_e: BeforeUnloadEvent) => {
-      saveFile(currentContentRef.current, true, _connectedPeersCount === 0);
+      saveFile(currentContentRef.current, true, _othersEditingThisFile === 0);
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (hasPendingChangesRef.current || _connectedPeersCount === 0) {
-        saveFile(currentContentRef.current, true, _connectedPeersCount === 0);
+      if (hasPendingChangesRef.current || _othersEditingThisFile === 0) {
+        saveFile(currentContentRef.current, true, _othersEditingThisFile === 0);
       }
     };
-  }, [saveFile, _connectedPeersCount]);
+  }, [saveFile, _othersEditingThisFile]);
 
   useEffect(() => {
     if (isOnline && hasPendingChangesRef.current) {
@@ -870,8 +956,8 @@ export default function EditorPage() {
   return (
     <>
       <PageShell>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div className="ds-editor-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div className="ds-editor-header-left" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <button 
               onClick={async () => { await saveFile(content, true); router.push('/app/files'); }}
               style={{
@@ -894,7 +980,7 @@ export default function EditorPage() {
             </div>
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div className="ds-editor-header-right" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {/* Active Users Dropdown */}
             <div style={{ position: 'relative' }}>
               <div 
@@ -934,17 +1020,23 @@ export default function EditorPage() {
                   animation: 'slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginTop: 4, background: 'var(--s1)' }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
+                    <div className="ds-presence-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>
-                        {myName} (You) {(currentRoom as any)?.hostNodeId && localNodeIdRef.current === (currentRoom as any)?.hostNodeId ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}
+                        {myName} (You) {(currentRoom as any)?.isOwner ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
                     </div>
                   </div>
 
-                  {/* LOCK ROOM BUTTON */}
-                  {(currentRoom as any)?.hostNodeId && localNodeIdRef.current === (currentRoom as any)?.hostNodeId && (
+                  {/* LOCK ROOM BUTTON — was gated on currentRoom.hostNodeId,
+                      which is never populated on the client's locally-stored
+                      room object (it only ever carries `isOwner`), so this
+                      stayed permanently hidden for every room's actual owner.
+                      The server independently re-verifies ownership by real
+                      nodeId in /api/lobby/lock, so this is purely a display
+                      fix. */}
+                  {(currentRoom as any)?.isOwner && (
                     <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--b1)' }}>
                        <button onClick={toggleRoomLock} style={{ width: '100%', padding: '6px 0', background: (currentRoom as any)?.isLocked ? '#fef2f2' : '#f8fafc', color: (currentRoom as any)?.isLocked ? '#ef4444' : '#64748b', border: '1px solid ' + ((currentRoom as any)?.isLocked ? '#fca5a5' : '#e2e8f0'), borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: '0.15s' }}>
                          {(currentRoom as any)?.isLocked ? 'Unlock Room (Locked)' : 'Lock Room (Open)'}
@@ -958,14 +1050,14 @@ export default function EditorPage() {
                     return (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginTop: 4 }}
                         onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
+                        <div className="ds-presence-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{defaultName} {isDbOwner ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}</div>
                           <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
                         </div>
 
                         {/* KICK BUTTON */}
-                        {(currentRoom as any)?.hostNodeId && localNodeIdRef.current === (currentRoom as any)?.hostNodeId && !isDbOwner && (
+                        {(currentRoom as any)?.isOwner && !isDbOwner && (
                           <button onClick={(e) => { e.stopPropagation(); kickPeer(p.id); }} style={{ padding: '4px 8px', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Kick</button>
                         )}
                       </div>
@@ -1047,7 +1139,7 @@ export default function EditorPage() {
                   const room = roomStr ? JSON.parse(roomStr) : null;
                   if (room?.otp) {
                     try {
-                      const _WEB_BASE = process.env.NEXT_PUBLIC_MATCHMAKER_URL || 'http://localhost:3000/api/lobby';
+                      const _WEB_BASE = process.env.NEXT_PUBLIC_MATCHMAKER_URL || `${window.location.origin}/api/lobby`;
                       fetch(`${_WEB_BASE}/conflicts`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },

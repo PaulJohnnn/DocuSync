@@ -314,7 +314,7 @@ export interface CursorUpdateMessage {
   type: 'CURSOR_UPDATE';
   nodeId: string;
   nodeIndex: number;
-  fileId: string;
+  fileId: number;
   position: number;
   timestamp: string;
 }
@@ -455,7 +455,7 @@ const MESSAGE_FIELD_SPECS: Record<MessageType, Record<string, string>> = {
   CURSOR_UPDATE: {
     nodeId: 'string',
     nodeIndex: 'number',
-    fileId: 'string',
+    fileId: 'number',
     position: 'number',
     timestamp: 'string',
   },

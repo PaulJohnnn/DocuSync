@@ -63,7 +63,7 @@ export default function RightPanel() {
 
   if (isCollapsed) {
     return (
-      <aside style={{
+      <aside className="ds-right-panel" style={{
         width: 48, minWidth: 48, height: '100vh',
         background: 'var(--bg2)', borderLeft: '1px solid var(--b1)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 16,
@@ -80,7 +80,7 @@ export default function RightPanel() {
   }
 
   return (
-    <aside style={{
+    <aside className="ds-right-panel" style={{
       width: 270, minWidth: 270, height: '100vh',
       background: 'var(--bg2)', borderLeft: '1px solid var(--b1)',
       display: 'flex', flexDirection: 'column', overflow: 'hidden',

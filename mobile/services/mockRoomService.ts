@@ -11,6 +11,7 @@ function uuidv4(): string {
   });
 }
 import { uGet, uSet } from '../utils/userStorage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface Room {
   id: string;
@@ -86,12 +87,23 @@ export async function createRoom(name: string): Promise<Room> {
   try {
     const MATCHMAKER = process.env.EXPO_PUBLIC_MATCHMAKER_URL || 'https://docusync-dusky.vercel.app/api/lobby';
       
+    // A throwaway `mobile-${Date.now()}` here (rather than this device's
+    // real, persistent node id) would get stored server-side as the room's
+    // permanent hostNodeId, forever mismatching the id this same device
+    // actually authenticates with on every later call (heartbeat, lock,
+    // kick) — silently breaking "owner" features for every room this app
+    // creates. See the same fix in web/src/lib/mockRoomService.ts. Note:
+    // 'docusync_node_id' (not the user-scoped uGet) is the real key — see
+    // SettingsScreen.tsx / EditorScreen.tsx, which both read it raw because
+    // this module's own doc comment says global keys like node_id
+    // intentionally bypass the per-user uGet/uSet wrapper.
+    const realNodeId = await AsyncStorage.getItem('docusync_node_id');
     const res = await fetch(`${MATCHMAKER}/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         roomName: name.trim(),
-        hostNodeId: `mobile-${Date.now()}`,
+        hostNodeId: realNodeId || `mobile-${Date.now()}`,
         hostType: 'mobile'
       }),
     });

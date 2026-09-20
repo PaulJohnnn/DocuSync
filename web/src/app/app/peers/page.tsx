@@ -507,8 +507,10 @@ export default function RoomsPage() {
                     <div style={{ height: 1, background: 'var(--border)', margin: '4px 0 6px' }} />
                   </>
                 )}
-                {/* All rooms */}
-                {rooms.map(room => (
+                {/* All rooms — excludes starred ones, which already rendered
+                    above in Favourites; without this filter every starred
+                    room was showing up twice on the page. */}
+                {rooms.filter(r => !r.starred).map(room => (
                   <RoomCard
                     key={room.id}
                     room={room}

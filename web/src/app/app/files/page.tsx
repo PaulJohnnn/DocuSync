@@ -59,7 +59,7 @@ function extMeta(ext: string): { icon: React.ReactNode; color: string; bg: strin
 
 export default function FilesPage() {
   const router = useRouter();
-  const { kickPeer } = useWebSync();
+  const { kickPeer, leaveRoom } = useWebSync();
   const [myName, setMyName] = useState('You');
   const [localNodeId, setLocalNodeId] = useState('');
   useEffect(() => {
@@ -404,6 +404,24 @@ export default function FilesPage() {
   // ── Room workspace view ────────────────────────────────────────────────────
   return (
     <PageShell>
+      {/* Generic confirm modal — drives showConfirm(), used by the peers
+          dropdown's "Kick" button below. This was only ever rendered in the
+          "no room selected" branch above, so calling showConfirm() from
+          inside an actual room (the only place Kick exists) updated state
+          that nothing on screen displayed — the confirmation could never
+          appear, making Kick completely unreachable regardless of what the
+          click handler itself did. */}
+      <ConfirmModal
+        isOpen={confirmModalState.isOpen}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        onConfirm={confirmModalState.onConfirm}
+        onCancel={closeConfirm}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        isDestructive={true}
+      />
+
       {/* Leave Confirm Modal */}
       {showLeaveConfirm && (
         <div style={{
@@ -433,6 +451,7 @@ export default function FilesPage() {
                 style={{ background: '#ef4444', color: 'white', border: 'none', opacity: isLeaving ? 0.7 : 1 }}
                 disabled={isLeaving}
                 onClick={async () => {
+                  if (currentRoom?.otp) leaveRoom(currentRoom.otp);
                   uRemove('current_room');
                   uRemove('files');
                   setLocalFiles([]);
@@ -512,8 +531,8 @@ export default function FilesPage() {
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div className="ds-files-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div className="ds-files-header-left" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <button
             onClick={() => router.push('/app/peers')}
             style={{
@@ -544,7 +563,7 @@ export default function FilesPage() {
         </div>
 
         {/* Right side Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="ds-files-header-right" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {/* Active Users Pill + Dropdown Target */}
           <div style={{ position: 'relative' }}>
             <div 
@@ -584,17 +603,24 @@ export default function FilesPage() {
                 animation: 'slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginTop: 4, background: 'var(--s1)' }}>
-                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
+                  <div className="ds-presence-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>
-                      {myName} (You) {(currentRoom as any)?.hostNodeId && localNodeId === (currentRoom as any)?.hostNodeId ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}
+                      {myName} (You) {(currentRoom as any)?.isOwner ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
                   </div>
                 </div>
 
-                {/* LOCK ROOM BUTTON */}
-                {(currentRoom as any)?.hostNodeId && localNodeId === (currentRoom as any)?.hostNodeId && (
+                {/* LOCK ROOM BUTTON — was gated on currentRoom.hostNodeId, a
+                    field that's never actually populated on the client's
+                    locally-stored room object (confirmed via localStorage:
+                    the stored room only ever carries `isOwner`), so this
+                    stayed permanently hidden for every room's actual owner.
+                    The server independently re-verifies ownership by real
+                    nodeId in /api/lobby/lock, so this is purely a display
+                    fix — nothing to tighten security-wise. */}
+                {(currentRoom as any)?.isOwner && (
                   <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--b1)' }}>
                      <button onClick={toggleRoomLock} style={{ width: '100%', padding: '6px 0', background: (currentRoom as any)?.isLocked ? '#fef2f2' : '#f8fafc', color: (currentRoom as any)?.isLocked ? '#ef4444' : '#64748b', border: '1px solid ' + ((currentRoom as any)?.isLocked ? '#fca5a5' : '#e2e8f0'), borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: '0.15s' }}>
                        {(currentRoom as any)?.isLocked ? 'Unlock Room (Locked)' : 'Lock Room (Open)'}
@@ -615,15 +641,15 @@ export default function FilesPage() {
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginTop: 4 }}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--grn)' : 'var(--t3)' }} />
+                      <div className={isOnline ? 'ds-presence-dot' : undefined} style={{ width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--grn)' : 'var(--t3)' }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{defaultName} {isDbOwner ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}</div>
                         <div style={{ fontSize: 11, color: 'var(--t3)' }}>{isOnline ? 'Online' : 'Offline'}</div>
                       </div>
                       
                       {/* KICK BUTTON */}
-                      {(currentRoom as any)?.hostNodeId && localNodeId === (currentRoom as any)?.hostNodeId && !isDbOwner && isOnline && (
-                        <button onClick={(e) => { e.stopPropagation(); showConfirm('Kick Peer', `Ban ${defaultName} from the room?`, () => kickPeer(p.id)) }} style={{ padding: '4px 8px', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Kick</button>
+                      {(currentRoom as any)?.isOwner && !isDbOwner && isOnline && (
+                        <button onClick={(e) => { e.stopPropagation(); showConfirm('Kick Peer', `Ban ${defaultName} from the room?`, () => { kickPeer(p.id); closeConfirm(); }) }} style={{ padding: '4px 8px', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Kick</button>
                       )}
                     </div>
                   );
@@ -684,13 +710,14 @@ export default function FilesPage() {
                   return (
                     <div
                       key={i}
+                      className="ds-file-row"
                       style={{
                         display: 'flex', alignItems: 'center', padding: '16px 20px',
                         borderBottom: i < activeFiles.length - 1 ? '1px solid #e2e8f0' : 'none',
-                        transition: 'background 0.15s', height: 72
+                        transition: 'background 0.15s', height: 72,
                       }}
                       onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
                     >
                       <div style={{ width: 40, height: 40, borderRadius: 10, background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 16 }}>
                         {icon}
@@ -703,32 +730,35 @@ export default function FilesPage() {
                         <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Shared by {f.sharedBy === 'Web Node' || !f.sharedBy ? myName : (f.sharedBy || 'Peer')}</div>
                       </div>
 
-                      {/* "1 editing" Mock Badge if desired, let's keep it minimal if connected peers exist */}
+                      {/* "1 editing" Mock Badge if desired, let's keep it minimal if connected peers exist.
+                          Hidden below 560px (see globals.css) — secondary metadata that, combined with
+                          the size column, left negative room for the filename on a phone-width row. */}
                       {connectedPeers.length > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#e0e7ff', padding: '4px 10px', borderRadius: 16, border: '1px solid #c7d2fe', marginRight: 40 }}>
+                        <div className="ds-file-row-badge" style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#e0e7ff', padding: '4px 10px', borderRadius: 16, border: '1px solid #c7d2fe', marginRight: 40 }}>
                           <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
                           <span style={{ fontSize: 11, fontWeight: 600, color: '#4338ca' }}>{connectedPeers.length} editing</span>
                         </div>
                       )}
 
-                      <div style={{ width: 60, fontSize: 13, color: '#94a3b8', textAlign: 'right', marginRight: 24, fontWeight: 500 }}>
+                      <div className="ds-file-row-size" style={{ width: 60, fontSize: 13, color: '#94a3b8', textAlign: 'right', marginRight: 24, fontWeight: 500 }}>
                         {formatBytes(f.contentLength || f.content?.length || 0)}
                       </div>
 
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div className="ds-file-row-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         <button
                           onClick={() => handleOpenRoomFile(f)}
                           style={{
                             background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: '#fff', border: 'none',
                             borderRadius: 8, padding: '0 16px', height: 36, fontSize: 13,
                             fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
-                            display: 'flex', alignItems: 'center', boxShadow: '0 2px 6px rgba(37,99,235,0.2)'
+                            display: 'flex', alignItems: 'center', boxShadow: '0 2px 6px rgba(37,99,235,0.2)', flexShrink: 0,
                           }}
                         >
                           Open & edit
                         </button>
                         <button
                           onClick={() => handleDownloadRoomFile(f)}
+                          title="Download"
                           style={{
                             background: '#fff', color: '#475569', border: '1px solid #cbd5e1',
                             borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -739,12 +769,12 @@ export default function FilesPage() {
                         </button>
                         <button
                           onClick={() => handleDeleteRoomFile(f)}
+                          title="Delete file from room"
                           style={{
                             background: '#fff', color: '#ef4444', border: '1px solid #cbd5e1',
                             borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
                             cursor: 'pointer', flexShrink: 0,
                           }}
-                          title="Delete file from room"
                         >
                           <Trash2 size={16} />
                         </button>

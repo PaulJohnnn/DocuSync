@@ -35,12 +35,12 @@ import {
   type SessionTerminatedMessage,
 } from './message-schema';
 import type { SyncEvent } from '../lww/lww-resolver';
+import { mergeConcurrentEdit } from '../lww/line-merge';
 
 import { EventLogService } from '../log-sync/event-log';
 import { decode as decodeDelta } from '../delta/delta-decoder';
 import { VectorClock } from '../vector-clock/vector-clock';
 import type { VectorClockJSON } from '../vector-clock/vector-clock';
-import { diff_match_patch } from 'diff-match-patch';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -282,7 +282,7 @@ export class PeerManager {
             res.writeHead(500, {
               'Access-Control-Allow-Origin': '*',
               'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-              'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+              'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-DocuSync-Token',
               'Content-Type': 'application/json'
             });
             res.end(JSON.stringify({ error: e?.message || 'Internal error' }));
@@ -343,7 +343,11 @@ export class PeerManager {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      // Every browser push includes X-DocuSync-Token (see the token check
+      // right below); leaving it out of the preflight allow-list made the
+      // browser reject every request before it ever reached this server,
+      // silently forcing all web clients onto the cloud fallback path.
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-DocuSync-Token',
     };
 
     if (req.method === 'OPTIONS') {
@@ -630,68 +634,68 @@ export class PeerManager {
               let resolveResult: any = { outcome: 'escalated' };
               
               if (body.baseContent) {
-                console.log(`[PeerManager] Processing Concurrent Edit via 3-way merge`);
-                let autoMergedContent = null;
-                try {
-                  const dmp = new diff_match_patch();
-                    const patch = dmp.patch_make(body.baseContent, remoteContent || localContent);
-                    const [newText, results] = dmp.patch_apply(patch, localContent);
-                    if (results.every((r: boolean) => r === true)) {
-                      autoMergedContent = newText;
-                      console.log('[PeerManager] Offline 3-way merge successful');
-                    } else {
-                      console.log('[PeerManager] 3-way merge had overlaps. Escalating to manual conflict.');
-                    }
-                  } catch (e: any) {
-                    console.log('[PeerManager] 3-way merge failed:', e?.message);
-                  }
+                console.log(`[PeerManager] Processing Concurrent Edit via line-granular 3-way merge`);
 
-                if (autoMergedContent !== null) {
-                  // Merge Success
-                  try { this.config.vectorClock.merge(incomingVc); } catch {}
-                  
-                  if (this.config.onDeltaApplied) {
-                    await this.config.onDeltaApplied(fileId, autoMergedContent, crypto.randomUUID(), this.config.localNodeId, this.config.vectorClock.toJSON(), 'merge', true);
-                  }
+                const existingCommittedAt = latestEvent ? new Date(latestEvent.createdAt).getTime() : 0;
+                const incomingCommittedAtForMerge = body.committedAt || Date.now();
+                const mergeResult = mergeConcurrentEdit(
+                  localContent,
+                  body.baseContent,
+                  remoteContent || localContent,
+                  existingCommittedAt,
+                  incomingCommittedAtForMerge
+                );
 
-                  // Record it in Conflict History for transparency
+                // Non-overlapping lines/blocks merge automatically (OT-like).
+                // Only lines BOTH peers actually touched concurrently were
+                // decided by LWW, and only those lines were affected — the
+                // rest of the document is untouched either way.
+                try { this.config.vectorClock.merge(incomingVc); } catch {}
+
+                if (this.config.onDeltaApplied) {
+                  await this.config.onDeltaApplied(fileId, mergeResult.merged, crypto.randomUUID(), this.config.localNodeId, this.config.vectorClock.toJSON(), 'merge', true);
+                }
+
+                if (mergeResult.hadConflict) {
+                  // Record for audit/history, but resolve automatically —
+                  // no manual owner arbitration UI. The conflict is already
+                  // scoped to specific line(s), not the whole document.
                   const conflictId = crypto.randomUUID();
                   await this.config.lwwResolver.recordConflict(conflictId, fileId, this.config.localNodeId, nodeId, localContent, remoteContent || localContent, this.config.vectorClock.toJSON(), incomingVc.toJSON());
                   if (this.config.onConflictNotified) {
-                    await this.config.onConflictNotified(conflictId, fileId, `Automatic 3-way merge recorded between ${nodeId} and ${this.config.localNodeId}`);
+                    await this.config.onConflictNotified(conflictId, fileId, `${mergeResult.conflictHunks} concurrently-edited line(s) auto-resolved by Last-Write-Wins between ${nodeId} and ${this.config.localNodeId}`);
                   }
-
-                  // Broadcast the merge result so online Web Socket clients get it instantly
-                  this.broadcast({
-                    type: 'DELTA_PUSH',
-                    eventId: crypto.randomUUID(),
-                    nodeId: this.config.localNodeId,
-                    fileId,
-                    deltaBase64: '',
-                    content: autoMergedContent,
-                    logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
-                    vectorClockJson: this.config.vectorClock.toJSON(),
-                    timestamp: new Date().toISOString(),
-                  } as any);
-
-                  // Return conflict: true so web app records it and reverts editor to autoMergedContent
-                  this._metrics.pushSuccessCount++;
-                  this._metrics.pushTotalLatencyMs += Date.now() - pushT0;
-                  res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
-                  res.end(JSON.stringify({ 
-                    merged: false, // Let web app trigger the conflict revert
-                    conflict: true,
-                    conflictId: conflictId,
-                    serverContent: autoMergedContent,
-                    vectorClock: this.config.vectorClock.toJSON(),
-                    conflictMessage: 'Automatic 3-way merge applied.'
-                  }));
-                  return;
-                } else {
-                  console.log(`[PeerManager] Forcing auto-resolve pipeline for Offline Reconnect`);
-                  const conflictId = await this.config.lwwResolver.escalateToOwner(eventA, eventB);
-                  resolveResult.conflictId = conflictId;
                 }
+
+                // Broadcast the merge result so online Web Socket clients get it instantly
+                this.broadcast({
+                  type: 'DELTA_PUSH',
+                  eventId: crypto.randomUUID(),
+                  nodeId: this.config.localNodeId,
+                  fileId,
+                  deltaBase64: '',
+                  content: mergeResult.merged,
+                  logicalTimestamp: this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+                  vectorClockJson: this.config.vectorClock.toJSON(),
+                  timestamp: new Date().toISOString(),
+                } as any);
+
+                this._metrics.pushSuccessCount++;
+                this._metrics.pushTotalLatencyMs += Date.now() - pushT0;
+                res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                  merged: true,
+                  // NOTE: `lwwResolved` is also set (inaccurately) by the
+                  // plain sequential/"dominated" push path below for any
+                  // ordinary non-conflicting edit — don't key UI behavior
+                  // off it. `hadConflict` here means an actual concurrent,
+                  // overlapping line was just auto-resolved by LWW.
+                  hadConflict: mergeResult.hadConflict,
+                  conflictHunks: mergeResult.conflictHunks,
+                  serverContent: mergeResult.merged,
+                  vectorClock: this.config.vectorClock.toJSON(),
+                }));
+                return;
               } else {
                 resolveResult = await this.config.lwwResolver.resolve(eventA, eventB, this.config.vectorClock, incomingVc);
                 
@@ -1983,7 +1987,7 @@ export class PeerManager {
       if (peer.isAuthenticated && peer.nodeId && socket.readyState === WebSocket.OPEN) {
         activePeers.push({
           nodeId: peer.nodeId,
-          displayName: peer.displayName || peer.nodeId.substring(0, 8),
+          displayName: peer.displayName || 'Connecting…',
           address: peer.address,
           port: peer.port,
           isHost: false,

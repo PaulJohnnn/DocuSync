@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useTheme } from './ThemeProvider';
 import { Sun, Moon } from 'lucide-react';
@@ -21,20 +21,6 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
-
-  useEffect(() => {
-    setIsOnline(navigator.onLine);
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -59,18 +45,6 @@ export default function Navbar() {
             <LogoMark />
             <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', letterSpacing: '-0.01em' }}>DocuSync</span>
           </Link>
-          
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '4px 10px', borderRadius: 99,
-            background: isOnline ? 'var(--grb)' : 'rgba(239, 68, 68, 0.1)',
-            border: `1px solid ${isOnline ? 'var(--grbr)' : 'rgba(239, 68, 68, 0.2)'}`,
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: isOnline ? 'var(--grn)' : 'var(--red)', boxShadow: `0 0 6px ${isOnline ? 'var(--grn)' : 'var(--red)'}` }} />
-            <span style={{ fontSize: 11, fontWeight: 600, color: isOnline ? 'var(--grn)' : 'var(--red)' }}>
-              {isOnline ? 'Online' : 'Offline'}
-            </span>
-          </div>
         </div>
 
         {/* CENTER — Nav links (desktop) */}
@@ -108,16 +82,6 @@ export default function Navbar() {
           }}>
             Download
           </Link>
-          <Link href="/app/files" className="btn-accent-nav" style={{
-            display: 'inline-flex', alignItems: 'center',
-            background: 'linear-gradient(135deg, #4f7df8, #7c3aed)', color: '#fff',
-            borderRadius: 8, height: 36, padding: '0 16px',
-            fontSize: 13, fontWeight: 600, textDecoration: 'none',
-            transition: 'opacity 0.15s, transform 0.15s',
-            animation: 'pulse-glow 3s ease-in-out infinite',
-          }}>
-            Open App →
-          </Link>
         </div>
 
         {/* Hamburger (mobile) */}
@@ -149,9 +113,9 @@ export default function Navbar() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 40 }}>
             <Link href="/home" onClick={() => setOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
               <LogoMark />
-              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)' }}>DocuSync</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#f8fafc' }}>DocuSync</span>
             </Link>
-            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t2)', padding: 6 }}>
+            <button aria-label="Close menu" onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#cbd5e1', padding: 6 }}>
               <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
                 <path d="M5 5l12 12M17 5L5 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
               </svg>
@@ -167,7 +131,7 @@ export default function Navbar() {
                 rel={l.external ? 'noopener noreferrer' : undefined}
                 onClick={() => setOpen(false)}
                 style={{
-                  fontSize: 20, fontWeight: 600, color: 'var(--t1)',
+                  fontSize: 20, fontWeight: 600, color: '#f8fafc',
                   textDecoration: 'none', padding: '14px 0',
                   borderBottom: '1px solid rgba(255,255,255,0.06)',
                 }}
@@ -178,15 +142,10 @@ export default function Navbar() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 32 }}>
               <Link href="/download" onClick={() => setOpen(false)} style={{
                 display: 'flex', justifyContent: 'center', alignItems: 'center',
-                border: '1px solid var(--b2)', background: 'transparent',
-                color: 'var(--t1)', borderRadius: 10, height: 48,
+                border: '1px solid rgba(255,255,255,0.18)', background: 'transparent',
+                color: '#f8fafc', borderRadius: 10, height: 48,
                 fontSize: 15, fontWeight: 500, textDecoration: 'none',
               }}>Download</Link>
-              <Link href="/app/files" onClick={() => setOpen(false)} style={{
-                display: 'flex', justifyContent: 'center', alignItems: 'center',
-                background: 'linear-gradient(135deg, #4f7df8, #7c3aed)', color: '#fff', borderRadius: 10, height: 48,
-                fontSize: 15, fontWeight: 600, textDecoration: 'none',
-              }}>Open App →</Link>
             </div>
           </div>
         </div>

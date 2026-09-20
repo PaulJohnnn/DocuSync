@@ -138,7 +138,14 @@ export async function createRoom(name: string, algorithm: 'lww' | 'ot' = 'lww'):
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         roomName: name.trim(),
-        hostNodeId: `web-${Date.now()}`,
+        // This used to be a fresh `web-${Date.now()}` thrown away right
+        // after creation — completely disconnected from this device's real,
+        // persistent node id (the one every other call — heartbeat, lock,
+        // kick — actually authenticates with). The server stores whatever
+        // it's given here as the room's permanent hostNodeId, so every
+        // later "am I the owner" check (e.g. POST /api/lobby/lock) failed
+        // with 403 for literally every room ever created through this flow.
+        hostNodeId: uGet('node_id') || `web-${Date.now()}`,
         hostIp: getWebHostIp(),
         hostPort: 9000,
         hostType: 'web',

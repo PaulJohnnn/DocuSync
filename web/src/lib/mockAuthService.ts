@@ -30,9 +30,20 @@ const API_BASE = '/api/auth';
 // ── Polling logic for reactivity ─────────────────────────────────────────
 let _usersHash = '';
 let _pendingHash = '';
+let _pollInFlight = false;
 
 async function pollDatabase() {
   if (typeof window === 'undefined') return;
+  // setInterval fires every 2s regardless of whether the previous call's
+  // fetch has resolved. Locally that's harmless, but against the real
+  // shared Upstash instance a single round trip can occasionally run past
+  // 2s (cold start, rate limiting, or just several tabs/devices polling
+  // the same endpoint at once) — without this guard, overlapping calls
+  // stack up and each one adds more load to the same bottleneck, making
+  // every subsequent poll (including whatever's waiting on this one, like
+  // the admin-approval screen) progressively slower instead of recovering.
+  if (_pollInFlight) return;
+  _pollInFlight = true;
   try {
     const res = await fetch(`${API_BASE}?action=sync&t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
@@ -70,6 +81,8 @@ async function pollDatabase() {
     }
   } catch (_err) {
     // Ignore polling errors
+  } finally {
+    _pollInFlight = false;
   }
 }
 

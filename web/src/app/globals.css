@@ -68,6 +68,40 @@
   box-sizing: border-box;
 }
 
+/* ── Global interactive feedback ─────────────────────────────────────────
+   Baseline hover/press animation for every button in the app. Inline
+   styles on individual buttons still win (higher specificity), so this
+   only fills in the many buttons that never defined their own transition
+   — it can't break an existing custom interaction, only add one where
+   there wasn't any. */
+button:not(:disabled) {
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+              filter 0.15s ease,
+              box-shadow 0.15s ease;
+}
+button:not(:disabled):hover {
+  filter: brightness(1.06);
+}
+button:not(:disabled):active {
+  transform: scale(0.96);
+}
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled) { transition: none; }
+  button:not(:disabled):hover, button:not(:disabled):active { transform: none; filter: none; }
+}
+
+/* ── Base responsive rules ───────────────────────────────────────────────
+   Prevents horizontal overflow/scrollbars on narrow viewports regardless
+   of what a given page's own layout does; individual pages still control
+   their own breakpoint behavior below and inline. */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+img, svg {
+  max-width: 100%;
+}
+
 body {
   background: var(--bg);
   color: var(--t1);
@@ -226,37 +260,6 @@ body {
   border-color: var(--b2);
   background: var(--s2);
 }
-.ds-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  border: 1px solid var(--b1);
-  background: var(--s1);
-  color: var(--t1);
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-.ds-btn:hover {
-  background: var(--s2);
-  border-color: var(--b2);
-  transform: translateY(-1.5px);
-  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-  --grbr: rgba(22,163,74,.25);
-  --amb: #d97706;
-  --abb: rgba(217,119,6,.10);
-  --abbr: rgba(217,119,6,.25);
-  --red: #dc2626;
-  --rdb: rgba(220,38,38,.10);
-  --rdbr: rgba(220,38,38,.25);
-  --pur: #7c3aed;
-  --tel: #0d9488;
-}
-
 * {
   margin: 0;
   padding: 0;
@@ -593,6 +596,175 @@ body {
     padding: 32px 24px;
     background-image: none;
     min-height: 500px;
+  }
+  /* The 794px A4-page canvas (and its background "sheet" rectangles) were
+     hardcoded via inline style to simulate a physical printed page — harmless
+     on desktop, but on a narrow viewport it forced the whole editor
+     (toolbar included, since it shares the same shrink-to-fit ancestor) to
+     stay 794px wide, pushing content off-screen. Only inline styles or
+     !important can beat an inline width, so this overrides it directly and
+     drops the page-sheet backgrounds, which have no room to mean anything
+     at phone width anyway. */
+  .ds-editor-canvas {
+    width: 100% !important;
+  }
+  .ds-editor-page-sheet {
+    display: none;
+  }
+}
+
+/* ── Presence dot pulse ──────────────────────────────────────────────────
+   The little green "online" dots next to peer names in the collaboration
+   dropdowns were static — for a real-time sync product, a live presence
+   indicator reads as "alive" a lot more convincingly with a soft pulsing
+   ring than a flat circle. */
+.ds-presence-dot {
+  position: relative;
+}
+.ds-presence-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: inherit;
+  animation: ds-presence-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes ds-presence-pulse {
+  0% { transform: scale(1); opacity: 0.7; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-presence-dot::after { animation: none; }
+}
+
+/* ── Sidebar nav: sliding active indicator ─────────────────────────────────
+   Previously the active link's highlight just popped in/out instantly via
+   inline style, and non-active links had no hover feedback at all. The
+   indicator div is positioned in JS (Sidebar.tsx, measures the real active
+   link's rect) and slides there with a springy transition — same visual
+   (var(--acb) fill, var(--acbr) border) as before, just animated, and it
+   works whether the nav is a vertical rail or a horizontal tab bar since
+   the position comes from an actual DOM measurement either way. */
+.ds-sidebar-indicator {
+  position: absolute;
+  background: var(--acb);
+  border: 1px solid var(--acbr);
+  border-radius: 8px;
+  transition: top 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              width 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              height 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.2s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+.ds-sidebar-link {
+  position: relative;
+  z-index: 1;
+}
+.ds-sidebar-link:hover:not(.active) {
+  background: var(--s1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-sidebar-indicator { transition: opacity 0.2s ease; }
+}
+
+/* ── App shell responsiveness ─────────────────────────────────────────────
+   Sidebar was a fixed 210px-wide `aside` with no collapse behavior at
+   all — on a phone it just ate more than half the screen and pushed page
+   content off-frame (confirmed: file names and buttons were literally
+   cropped). Below 768px it becomes a fixed bottom tab bar instead, which
+   needs no JS state and keeps every nav item reachable. RightPanel (a
+   supplementary telemetry sidebar, not core navigation) is just hidden —
+   there's no room for a "nice to have" panel once the tab bar and content
+   both need the width. */
+@media (max-width: 768px) {
+  .ds-sidebar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    flex-direction: row !important;
+    border-right: none !important;
+    border-top: 1px solid var(--b1);
+    padding: 6px 4px !important;
+    z-index: 50;
+  }
+  .ds-sidebar-logo, .ds-sidebar-footer { display: none !important; }
+  .ds-sidebar-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-around;
+    align-items: stretch;
+    flex: 1;
+    padding: 0 !important;
+  }
+  .ds-sidebar-link {
+    flex-direction: column !important;
+    justify-content: center;
+    gap: 2px !important;
+    padding: 6px 4px !important;
+    margin-bottom: 0 !important;
+    flex: 1;
+    text-align: center;
+  }
+  .ds-sidebar-link-label {
+    font-size: 10px !important;
+    flex: none !important;
+  }
+  /* Room for the fixed bottom tab bar so it never covers page content */
+  main { padding-bottom: 72px !important; }
+
+  .ds-right-panel { display: none !important; }
+
+  /* File row: the "N editing" badge + size column were fixed-width siblings
+     that, combined with the icon and "Open & edit" button, already added up
+     to more room than a 375px row has — leaving the filename squeezed to
+     nothing and the row overflowing. They're secondary metadata, so drop
+     them at this breakpoint and let the filename actually have space. */
+  .ds-file-row-badge, .ds-file-row-size {
+    display: none !important;
+  }
+
+  /* Open & edit / Download / Delete are meant to stay directly visible
+     (no swipe-to-reveal) — but three buttons plus the icon and filename
+     never fit on one 375px line. Wrap the row onto two lines instead:
+     name on top, the action buttons on their own full-width line below,
+     rather than fighting for horizontal space and overlapping. */
+  .ds-file-row {
+    flex-wrap: wrap;
+    height: auto !important;
+    row-gap: 10px;
+  }
+  .ds-file-row-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  /* Editor header (back/title + peers pill/History/Done) was a single
+     no-wrap flex row fighting for 375px of width — let it wrap onto two
+     lines instead of pushing the right-hand buttons off-screen. */
+  .ds-editor-header {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .ds-editor-header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  /* Files page has the exact same header shape (back/title/OTP pill on the
+     left, peers pill + Leave room on the right) and the exact same
+     overflow bug at 375px — found during a later QA pass, missed when the
+     editor header was fixed. Same treatment. */
+  .ds-files-header {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .ds-files-header-right {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 

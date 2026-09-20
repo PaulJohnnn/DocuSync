@@ -13,6 +13,75 @@ const DocuSyncLogo: React.FC<{ size?: number }> = ({ size = 80 }) => (
   </svg>
 );
 
+// ── Animated P2P Sync Mesh ───────────────────────────────────────────────
+// Depicts what this product actually does: a masterless peer mesh, with
+// data packets genuinely traveling between nodes (SVG <animateMotion>,
+// not a faked illusion) and each node pulsing independently on its own
+// stagger — not one rigid shape bobbing as a single block.
+const MESH_NODES = [
+  { x: 400, y: 170, r: 9, color: '#6366f1' },
+  { x: 600, y: 300, r: 7, color: '#38bdf8' },
+  { x: 560, y: 540, r: 8, color: '#a855f7' },
+  { x: 340, y: 610, r: 7, color: '#818cf8' },
+  { x: 180, y: 470, r: 8, color: '#c084fc' },
+  { x: 210, y: 250, r: 7, color: '#38bdf8' },
+];
+const MESH_EDGES: Array<[number, number]> = [
+  [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0], [0, 2], [3, 5],
+];
+
+const AnimatedSyncMesh: React.FC = () => (
+  <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }}>
+    <svg viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice" style={{ width: '100%', height: '100%', opacity: 0.85 }}>
+      <defs>
+        <radialGradient id="meshNodeGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#a5b4fc" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#a5b4fc" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {MESH_EDGES.map(([a, b], i) => {
+        const A = MESH_NODES[a], B = MESH_NODES[b];
+        return (
+          <line
+            key={`edge-${i}`}
+            x1={A.x} y1={A.y} x2={B.x} y2={B.y}
+            stroke="rgba(129,140,248,0.28)" strokeWidth="1.5"
+          />
+        );
+      })}
+
+      {MESH_EDGES.map(([a, b], i) => {
+        const A = MESH_NODES[a], B = MESH_NODES[b];
+        const dur = 2.6 + (i % 4) * 0.5;
+        const delay = i * 0.35;
+        return (
+          <circle key={`packet-${i}`} r="3.5" fill={i % 2 === 0 ? '#38bdf8' : '#c084fc'}>
+            <animateMotion
+              dur={`${dur}s`}
+              begin={`${delay}s`}
+              repeatCount="indefinite"
+              path={`M ${A.x} ${A.y} L ${B.x} ${B.y}`}
+            />
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur={`${dur}s`} begin={`${delay}s`} repeatCount="indefinite" />
+          </circle>
+        );
+      })}
+
+      {MESH_NODES.map((n, i) => (
+        <g key={`node-${i}`}>
+          <circle cx={n.x} cy={n.y} r={22} fill="url(#meshNodeGlow)">
+            <animate attributeName="r" values={`${n.r + 10};${n.r + 22};${n.r + 10}`} dur={`${3 + i * 0.4}s`} begin={`${i * 0.3}s`} repeatCount="indefinite" />
+          </circle>
+          <circle cx={n.x} cy={n.y} r={n.r} fill={n.color}>
+            <animate attributeName="r" values={`${n.r};${n.r * 1.25};${n.r}`} dur={`${3 + i * 0.4}s`} begin={`${i * 0.3}s`} repeatCount="indefinite" />
+          </circle>
+        </g>
+      ))}
+    </svg>
+  </div>
+);
+
 const SixDigitPin: React.FC<{
   value: string;
   onChange: (v: string) => void;
@@ -744,14 +813,6 @@ export default function VaultLoginPage() {
               from { transform: translate(-50%, -50%) rotate(360deg); }
               to { transform: translate(-50%, -50%) rotate(0deg); }
             }
-            @keyframes floatWave {
-              0%, 100% { transform: translateY(0px) scale(1); }
-              50% { transform: translateY(-15px) scale(1.03); }
-            }
-            @keyframes pulseNode {
-              0%, 100% { opacity: 0.25; r: 4px; }
-              50% { opacity: 0.8; r: 6.5px; }
-            }
           `}} />
 
           {/* Glowing Ambient Backdrop */}
@@ -784,44 +845,8 @@ export default function VaultLoginPage() {
             animation: 'spinRingReverse 75s linear infinite'
           }} />
 
-          {/* Animated DNA Double-Helix / Network Mesh Art (Pure Graphic, No Text) */}
-          <div style={{
-            position: 'absolute', inset: 0,
-            pointerEvents: 'none', zIndex: 1,
-            animation: 'floatWave 9s ease-in-out infinite'
-          }}>
-            <svg viewBox="0 0 800 800" preserveAspectRatio="xMidYMid slice" style={{ width: '100%', height: '100%', opacity: 0.75 }}>
-              <defs>
-                <linearGradient id="dnaGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#818cf8" stopOpacity="0.45" />
-                  <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.1" />
-                </linearGradient>
-                <linearGradient id="dnaGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#c084fc" stopOpacity="0.4" />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity="0.1" />
-                </linearGradient>
-              </defs>
-
-              {/* Intersecting DNA / Mesh Wave Strands */}
-              <path d="M -100 250 C 150 100, 350 450, 600 250 C 750 120, 850 300, 950 200" fill="none" stroke="url(#dnaGrad1)" strokeWidth="2.5" />
-              <path d="M -100 320 C 150 480, 350 150, 600 350 C 750 480, 850 250, 950 380" fill="none" stroke="url(#dnaGrad2)" strokeWidth="2" />
-              <path d="M 50 650 C 300 500, 500 750, 750 550" fill="none" stroke="url(#dnaGrad1)" strokeWidth="1.8" strokeDasharray="6 6" />
-
-              {/* Connecting Bridge Rungs (Like DNA Base Pairs) */}
-              <line x1="130" y1="205" x2="140" y2="355" stroke="rgba(129,140,248,0.22)" strokeWidth="1.5" />
-              <line x1="280" y1="260" x2="285" y2="310" stroke="rgba(168,85,247,0.25)" strokeWidth="1.5" />
-              <line x1="440" y1="330" x2="435" y2="240" stroke="rgba(56,189,248,0.25)" strokeWidth="1.5" />
-              <line x1="600" y1="250" x2="600" y2="350" stroke="rgba(129,140,248,0.25)" strokeWidth="1.5" />
-
-              {/* Glowing Constellation / DNA Nodes */}
-              <circle cx="135" cy="205" r="5" fill="#6366f1" style={{ animation: 'pulseNode 3s ease-in-out infinite' }} />
-              <circle cx="140" cy="355" r="4" fill="#a855f7" style={{ animation: 'pulseNode 4s ease-in-out infinite 0.7s' }} />
-              <circle cx="280" cy="260" r="6" fill="#38bdf8" style={{ animation: 'pulseNode 3.5s ease-in-out infinite 1.2s' }} />
-              <circle cx="440" cy="330" r="5" fill="#818cf8" style={{ animation: 'pulseNode 4.5s ease-in-out infinite 0.4s' }} />
-              <circle cx="600" cy="250" r="6" fill="#6366f1" style={{ animation: 'pulseNode 3.8s ease-in-out infinite 1.8s' }} />
-              <circle cx="600" cy="350" r="4.5" fill="#c084fc" style={{ animation: 'pulseNode 4.2s ease-in-out infinite 2.1s' }} />
-            </svg>
-          </div>
+          {/* Animated P2P Sync Mesh — see AnimatedSyncMesh above */}
+          <AnimatedSyncMesh />
 
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 120, zIndex: 1, opacity: 0.6 }}>
             <svg viewBox="0 0 500 120" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>

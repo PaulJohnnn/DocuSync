@@ -91,6 +91,28 @@ function getMockRedis() {
       // Mock expire (file-backed mock doesn't run background GC)
       return 1;
     },
+    sadd: async (key: string, ...members: string[]) => {
+      const store = readStore();
+      const set = new Set<string>(Array.isArray(store[key]) ? store[key] : []);
+      let added = 0;
+      members.forEach(m => { if (!set.has(m)) { set.add(m); added++; } });
+      store[key] = Array.from(set);
+      writeStore(store);
+      return added;
+    },
+    srem: async (key: string, ...members: string[]) => {
+      const store = readStore();
+      const set = new Set<string>(Array.isArray(store[key]) ? store[key] : []);
+      let removed = 0;
+      members.forEach(m => { if (set.delete(m)) removed++; });
+      store[key] = Array.from(set);
+      writeStore(store);
+      return removed;
+    },
+    smembers: async (key: string) => {
+      const store = readStore();
+      return Array.isArray(store[key]) ? store[key] : [];
+    },
     // Mirrors the CAS semantics of the Lua script used against real Redis
     // (casSetIfNewer below). Safe here because there's no `await` between
     // the read and the write, so no other call can interleave.

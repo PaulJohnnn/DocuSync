@@ -51,3 +51,5 @@ metro-cache/
 npm-debug.log*
 
 desktop/release/
+.vercel
+.env*

@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
     const cursor = {
       nodeId,
-      displayName: displayName || nodeId.slice(0, 8),
+      displayName: displayName || 'Connecting…',
       color: color || '#4f7df8',
       from: Number(from) || 0,
       to: Number(to) || 0,

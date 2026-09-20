@@ -252,7 +252,7 @@ import { useElectronSync } from '../context/ElectronSyncContext';
 // ── Main page ─────────────────────────────────────────────────────────────
 export default function PeersPage() {
   const navigate = useNavigate();
-  const { setCurrentRoom } = useElectronSync();
+  const { setCurrentRoom, localNodeId } = useElectronSync();
   const [view, setView] = useState<View>('list');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
@@ -289,7 +289,7 @@ export default function PeersPage() {
     setRoomNameError('');
     setView('create_generating');
     try {
-      const room = await RoomService.createRoom(roomName);
+      const room = await RoomService.createRoom(roomName, localNodeId);
       setCreatedRoom(room);
       setRooms(prev => [...prev, room]);
       setView('create_success');

@@ -41,8 +41,22 @@ const RemoteCursorsExtension = Extension.create({
         key: new PluginKey('remoteCursors'),
         state: {
           init: () => DecorationSet.empty,
-          apply: (tr, _oldState) => {
-            const cursors = this.options.cursors;
+          apply: (tr, oldDecorationSet) => {
+            // `this.options` on a Tiptap Extension is a computed getter that
+            // merges configure()-time defaults, not a stable mutable object —
+            // assigning `ext.options.cursors = ...` from outside silently
+            // never persists (reads back as the original default on the
+            // very next access). Passing the live cursor list through the
+            // transaction's own meta is the reliable way to get fresh data
+            // into a ProseMirror plugin's `apply`.
+            const meta = tr.getMeta('remoteCursorsUpdate');
+            if (!meta) {
+              // No new cursor data on this transaction (e.g. the user just
+              // typed) — keep showing the existing decorations, remapped
+              // onto the new document positions.
+              return oldDecorationSet.map(tr.mapping, tr.doc);
+            }
+            const cursors: RemoteCursor[] = meta;
             const decorations: Decoration[] = [];
             const docSize = tr.doc.nodeSize;
 
@@ -124,47 +138,51 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       if (pm) {
         const PAGE_HEIGHT = 1123;
         const GAP_HEIGHT = 48; // Physical grey gap between pages
-        const MARGIN_TOP = 96; // Internal white padding top
-        const MARGIN_BOTTOM = 96;
+        // Must match the actual paddingTop/paddingBottom applied to
+        // .ds-paginated-editor-layer below (also driven by the `margin`
+        // prop) — these two used to disagree (this was hardcoded to 96
+        // regardless of the selected margin), so picking "Narrow" changed
+        // the visible padding but not this budget, and content got pushed
+        // to a "next page" offset that didn't match where the page's
+        // white background sheet actually ended, leaving text stranded on
+        // the bare canvas between pages.
+        const MARGIN_TOP = parseInt(margin) || 96;
+        const MARGIN_BOTTOM = parseInt(margin) || 96;
         const USABLE = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
+        const PAGE_STRIDE = PAGE_HEIGHT + GAP_HEIGHT;
 
         const updates: { el: HTMLElement, margin: number }[] = [];
-        let totalPushSoFar = 0;
-        let maxPageIndex = 0;
+        // Track which page we're filling and how much of its usable height
+        // is already consumed. Unlike a "does this block straddle a raw
+        // boundary" check, this catches every block that lands on a new
+        // page — including ones that fit entirely within a page's height
+        // but whose page index has already advanced because of blocks
+        // before them.
+        let pageIndex = 0;
+        let pageUsed = 0;
 
         Array.from(pm.children).forEach(child => {
           const el = child as HTMLElement;
           if (el.classList.contains('collaboration-cursor__caret')) return;
 
           const applied = parseFloat(el.getAttribute('data-push') || '0');
-          const physicalTop = el.offsetTop;
-          const h = el.offsetHeight;
+          const h = el.offsetHeight; // unaffected by margin-top
 
-          // Virtual unpushed coordinate relative to 0 margin text stream
-          const unpushedTop = physicalTop - applied - totalPushSoFar;
-          const unpushedBottom = unpushedTop + h;
-
-          const page1 = Math.floor(unpushedTop / USABLE);
-          const page2 = Math.floor(unpushedBottom / USABLE);
-          
-          if (page2 > maxPageIndex) { maxPageIndex = page2; }
-
-          if (page1 !== page2 && unpushedTop !== (page1 * USABLE)) {
-            // Block straddles a page break. Push it precisely to the start of page2.
-            const physicalTarget = (page2 * (PAGE_HEIGHT + GAP_HEIGHT)) + MARGIN_TOP;
-            const currentPhysicalTop = physicalTop - applied;
-            const push = physicalTarget - currentPhysicalTop;
-
-            if (Math.abs(push - applied) > 0.5) {
-              updates.push({ el, margin: push });
-            }
-            totalPushSoFar += push;
-          } else {
-            // Fits cleanly or exactly aligns
-            if (applied > 0) {
-              updates.push({ el, margin: 0 });
-            }
+          // Doesn't fit in what's left of the current page → start a new one.
+          if (pageUsed > 0 && pageUsed + h > USABLE) {
+            pageIndex += 1;
+            pageUsed = 0;
           }
+
+          const physicalTarget = (pageIndex * PAGE_STRIDE) + MARGIN_TOP + pageUsed;
+          const naturalPhysicalTop = el.offsetTop - applied;
+          const push = Math.max(0, physicalTarget - naturalPhysicalTop);
+
+          if (Math.abs(push - applied) > 0.5) {
+            updates.push({ el, margin: push });
+          }
+
+          pageUsed += h;
         });
 
         // Batch writes to prevent layout thrashing
@@ -178,13 +196,13 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
           }
         });
 
-        setPageCount(Math.max(1, maxPageIndex + 1));
+        setPageCount(Math.max(1, pageIndex + 1));
       }
       animFrame = requestAnimationFrame(adjustPages);
     };
     animFrame = requestAnimationFrame(adjustPages);
     return () => cancelAnimationFrame(animFrame);
-  }, []);
+  }, [margin]);
 
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
@@ -278,11 +296,10 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
 
   useEffect(() => {
     if (editor) {
-      const ext = editor.extensionManager.extensions.find(e => e.name === 'remoteCursors');
-      if (ext) {
-        ext.options.cursors = cursors;
-        editor.view.dispatch(editor.state.tr.setMeta('remoteCursorsUpdate', true));
-      }
+      // Pass the cursor list itself as the transaction meta payload (see
+      // the plugin's `apply` above for why — `ext.options` mutation
+      // doesn't work here).
+      editor.view.dispatch(editor.state.tr.setMeta('remoteCursorsUpdate', cursors));
     }
   }, [editor, cursors]);
 
@@ -360,12 +377,12 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       <style dangerouslySetInnerHTML={{ __html: `
         /* Remove internal TipTap margin as we control virtual margins programatically via the wrapper layout */
       `}} />
-      <div style={{ position: 'relative', width: 794, margin: '0 auto' }}>
-        
-        {/* Render True Physical A4 Background Pages */}
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 48, zIndex: 0 }}>
+      <div className="ds-editor-canvas" style={{ position: 'relative', width: 794, margin: '0 auto' }}>
+
+        {/* Render True Physical A4 Background Pages — desktop-only affordance, hidden on mobile where the canvas goes fluid */}
+        <div className="ds-editor-canvas-bg" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 48, zIndex: 0 }}>
           {Array.from({ length: pageCount }).map((_, i) => (
-            <div key={i} style={{
+            <div key={i} className="ds-editor-page-sheet" style={{
               width: 794, height: 1123, background: '#ffffff',
               boxShadow: '0 4px 12px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05)',
               flexShrink: 0, borderRadius: 2
@@ -384,7 +401,7 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
               setContextMenu({ x: e.clientX, y: e.clientY });
             }
           }}
-          style={{ position: 'relative', zIndex: 1, paddingLeft: parseInt(margin), paddingRight: parseInt(margin), paddingTop: 96, paddingBottom: 96 }}
+          style={{ position: 'relative', zIndex: 1, paddingLeft: parseInt(margin), paddingRight: parseInt(margin), paddingTop: parseInt(margin), paddingBottom: parseInt(margin) }}
         >
           <EditorContent editor={editor} />
         </div>

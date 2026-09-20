@@ -18,6 +18,9 @@ export interface LobbyEntry {
   peersJoined: number;
   files?: { fileName?: string; name?: string; [key: string]: unknown }[];
   isLocked?: boolean;
+  /** Node ids the host has kicked — heartbeat refuses to re-register them
+   * and tells their own client to leave (see /api/lobby/kick). */
+  kickedNodeIds?: string[];
   /** @deprecated kept for backwards compat with old create route */
   ip?: string;
   /** @deprecated */

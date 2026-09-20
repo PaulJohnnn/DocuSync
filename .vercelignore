@@ -1,0 +1,15 @@
+# Electron build output — irrelevant to the web deploy, and the packaged
+# installers here blow past Vercel's 100MB per-file upload limit.
+desktop/release
+desktop/dist
+desktop/dist-electron
+desktop/build
+
+# Mobile app isn't part of this deployment either.
+mobile/.expo
+mobile/node_modules
+
+# Misc large/irrelevant local artifacts.
+**/*.tsbuildinfo
+**/playwright-report
+**/test-results
