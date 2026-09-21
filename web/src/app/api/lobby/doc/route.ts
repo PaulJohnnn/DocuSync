@@ -103,13 +103,21 @@ function mergeConcurrentEdit(
   );
 
   const dmp = new diff_match_patch();
-  // Force exact matching. At line granularity each "character" is really
-  // a whole line/block, so any fuzziness at all can make a 1-line hunk
-  // match against an unrelated line that merely LOOKS similar under
-  // bitap's length-normalized scoring — exactly the case that must be
-  // treated as a conflict, not silently applied in the wrong place.
-  dmp.Match_Threshold = 0;
-  dmp.Match_Distance = 1000;
+  // Bitap scores a candidate as `errors / patternLength +
+  // distanceFromExpectedSpot / Match_Distance`. Each "character" here is a
+  // whole line, so ANY error means a different line and must be rejected
+  // — but a hunk whose lines are intact and merely SHIFTED (a peer inserted
+  // paragraphs above it) must still be found, or the OT-like "edits to
+  // different paragraphs merge cleanly" promise above breaks and every
+  // such edit becomes a spurious conflict spliced at a stale offset. A
+  // threshold of exactly 0 rejected those shifts too, since any distance
+  // scores above 0. This pair accepts an exact-content match up to 200
+  // lines from where it was expected (200 / 10000 = 0.02) while still
+  // rejecting even one wrong line, whose cost is at least
+  // 1 / Match_MaxBits = 1 / 32 ≈ 0.031. Patch_DeleteThreshold = 0 is a
+  // second gate on the same rule.
+  dmp.Match_Threshold = 0.02;
+  dmp.Match_Distance = 10000;
   dmp.Patch_DeleteThreshold = 0;
   // Default context margin pads each hunk with a few extra unchanged
   // lines on either side for anchoring. On a short document that padding
@@ -117,7 +125,24 @@ function mergeConcurrentEdit(
   // anchored on line 1 too — and fails to match if some OTHER peer's
   // unrelated edit already changed line 1. Each hunk is already a whole
   // line here, so no extra anchor context is needed at all.
+  //
   dmp.Patch_Margin = 0;
+  // A zero margin alone is a trap, though. patch_addContext_ grows its
+  // anchor by `padding += Patch_Margin` inside a `while` loop that runs
+  // until the anchor is unique in the text — with a margin of 0 the anchor
+  // never changes and the loop never exits. It is entered by any hunk whose
+  // pattern occurs more than once, which includes the EMPTY pattern of every
+  // insertion-only hunk (someone adds a paragraph while a peer has also
+  // pushed): `indexOf('')` is 0 but `lastIndexOf('')` is the text length.
+  // That pinned the server at 100% CPU with no clients attached (stack
+  // captured live: patch_addContext_ ← patch_make), and on Vercel it means
+  // the push times out and silently fails. So context-adding is disabled
+  // outright — that IS the behaviour a zero margin was meant to produce,
+  // minus the hang. The margin itself must still be 0: patch_addPadding
+  // assumes a hunk with no leading context sits at position 0 and shifts
+  // it by the margin, so a non-zero margin would make every hunk that
+  // isn't on the first line fail to apply.
+  (dmp as any).patch_addContext_ = () => {};
 
   const patches = dmp.patch_make(baseEnc, incomingEnc) as unknown as PatchLike[];
 
@@ -150,17 +175,34 @@ function mergeConcurrentEdit(
   let lostChars = 0;
   const incomingWins = incomingCommittedAt >= existingCommittedAt;
   if (incomingWins) {
-    // Apply in reverse index order so each hunk's own offset stays valid
-    // as earlier splices shift the string.
-    [...failedIndices].reverse().forEach((i: number) => {
+    // A failed hunk's `start1`/`length1` are positions in the BASE text.
+    // The merged document is not the base: the other peer may have added
+    // or removed lines above the conflict, and every hunk that did apply
+    // cleanly has shifted what follows it. Splicing at the raw base offset
+    // therefore replaced whichever line happened to sit there now — a
+    // neighbour of the real conflict — leaving the peer's line in place
+    // and destroying an unrelated one. Map both ends of the hunk through
+    // the base → merged diff instead, which lands on the peer's version of
+    // the same logical lines however far they moved, and absorbs a peer
+    // that replaced N lines with M.
+    const baseToMerged = dmp.diff_main(baseEnc, mergedEnc);
+    const spans = failedIndices.map((i: number) => {
+      const patch = patches[i];
+      const start1 = patch.start1 ?? 0;
+      const from = dmp.diff_xIndex(baseToMerged, start1);
+      const to = dmp.diff_xIndex(baseToMerged, start1 + patch.length1);
+      return { i, from: Math.min(from, to), to: Math.max(from, to) };
+    });
+    // Splice from the bottom up so earlier spans' offsets stay valid.
+    spans.sort((a, b) => b.from - a.from).forEach(({ i, from, to }) => {
       const patch = patches[i];
       const start2 = patch.start2 ?? 0;
       const newLinesEnc = incomingEnc.slice(start2, start2 + patch.length2);
-      const pos = Math.max(0, Math.min(start2, finalEnc.length));
-      const removeLen = Math.min(patch.length1, finalEnc.length - pos);
-      const losingText = decodeLines(finalEnc.slice(pos, pos + removeLen), lineArray);
+      const pos = Math.max(0, Math.min(from, finalEnc.length));
+      const end = Math.max(pos, Math.min(to, finalEnc.length));
+      const losingText = decodeLines(finalEnc.slice(pos, end), lineArray);
       lostChars += losingText.length;
-      finalEnc = finalEnc.slice(0, pos) + newLinesEnc + finalEnc.slice(pos + removeLen);
+      finalEnc = finalEnc.slice(0, pos) + newLinesEnc + finalEnc.slice(end);
     });
   } else {
     // else: incoming is the older edit — the server's lines at those spots
