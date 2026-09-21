@@ -728,7 +728,9 @@ export default function EditorPage() {
             });
             if (res.ok) {
               const data = await res.json();
-              if (!data.upToDate && data.content && data.authorNodeId !== localNodeIdRef.current) {
+              // Same reasoning as the cloud path below: never skip a snapshot
+              // just because the server stamped it with our own node id.
+              if (!data.upToDate && data.content) {
                 if (!(isTypingRef.current || hasPendingChangesRef.current) && data.content !== currentContentRef.current) {
                   setContentAndRef(data.content);
                   lastSave.current = data.content;
@@ -782,7 +784,15 @@ export default function EditorPage() {
           const mmRes = await fetch(`${_MATCHMAKER_URL}/doc?otp=${otp}&fileId=${fileId}&since=${_lastAcceptedSeq.current}`);
           if (mmRes.ok) {
             const data = await mmRes.json();
-            if (!data.upToDate && data.content && data.authorNodeId !== localNodeIdRef.current) {
+            // Deliberately NOT gated on authorNodeId !== ours. A snapshot the
+            // server attributes to us can still carry another peer's edit:
+            // any push of ours that lands after theirs is 3-way merged with
+            // it, and the merged result is stamped with OUR node id. Skipping
+            // "our own" snapshots therefore skipped their edit too, and it
+            // stayed invisible here until some third write changed the
+            // author. The content comparisons below already make a true echo
+            // of our own edit a no-op.
+            if (!data.upToDate && data.content) {
               if (!(isTypingRef.current || hasPendingChangesRef.current) && data.content !== currentContentRef.current) {
                 setContentAndRef(data.content);
                 lastSave.current = data.content;
@@ -838,12 +848,15 @@ export default function EditorPage() {
     // in an Electron shell — see main.ts loadURL) has no real WebSocket
     // server to deliver live deltas over; that path only ever connects
     // for a desktop-hosted room. This poll is therefore the ONLY sync
-    // path two ordinary peers actually have. At 10s, two people typing
-    // continuously (so isTypingRef/hasPendingChangesRef never both clear
-    // long enough for a tick to apply) could go a very long time without
-    // seeing each other's edits at all. Still nowhere near true
-    // character-level OT, but 2s cuts the worst-case staleness 5x.
-    channelRef.current = setInterval(pollDoc, 2000);
+    // path two ordinary peers actually have, so its interval is most of
+    // the visible lag between one device's keystroke and the other's
+    // screen. Each tick is one small Redis read, so 700ms is cheap; it
+    // brings the average wait for the next tick from ~1s down to ~350ms.
+    // Still nowhere near character-level OT — a peer that is mid-typing
+    // deliberately skips applying remote snapshots (see the guard at the
+    // top of pollDoc), since a full setContent would clobber their
+    // in-progress text.
+    channelRef.current = setInterval(pollDoc, 700);
     return () => { if (channelRef.current) clearInterval(channelRef.current); };
   }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
 
@@ -907,12 +920,18 @@ export default function EditorPage() {
     setSaved(false);
     isTypingRef.current = true;
     hasPendingChangesRef.current = true;
-    
+
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    // Idle debounce before pushing. This window also holds isTypingRef
+    // true, which blocks this peer from receiving remote updates — so it
+    // is paid twice on every keystroke burst (once before our edit goes
+    // out, once before the other side's can come in). 300ms still sits
+    // above a fast typist's inter-key gap, so pushes land at natural
+    // word/sentence pauses rather than mid-word.
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false;
       saveFile(wrapped);
-    }, 500);
+    }, 300);
   }, [saveFile]);
 
   const handleMarginChange = useCallback((newMargin: string) => {
@@ -927,8 +946,23 @@ export default function EditorPage() {
     typingTimeoutRef.current = setTimeout(() => {
       isTypingRef.current = false;
       saveFile(wrapped);
-    }, 500);
+    }, 300);
   }, [saveFile]);
+
+  // Kept in refs so the unmount checkpoint below reads live values without
+  // having to list them as effect dependencies. Listing them was a real
+  // bug: React runs an effect's cleanup every time a dependency changes,
+  // not only on unmount, so when the other peer's presence arrived and
+  // _othersEditingThisFile flipped 0 → 1 the cleanup ran with the STALE
+  // closure value (0) and fired a "session end" push of whatever this
+  // client happened to hold — nobody had typed. That stale push got
+  // merged server-side with the other peer's newer edit and re-authored
+  // the snapshot as ours, which the poll then ignored as an echo (see the
+  // author check in pollDoc), so their edit never appeared here.
+  const othersEditingRef = useRef(_othersEditingThisFile);
+  othersEditingRef.current = _othersEditingThisFile;
+  const saveFileRef = useRef(saveFile);
+  saveFileRef.current = saveFile;
 
   useEffect(() => {
     // Session-end (a "Previous Edit" history checkpoint) fires when NO
@@ -937,16 +971,16 @@ export default function EditorPage() {
     // sitting on the file list or editing a different file in the same
     // room; that shouldn't count as "everyone left this file".
     const handleBeforeUnload = (_e: BeforeUnloadEvent) => {
-      saveFile(currentContentRef.current, true, _othersEditingThisFile === 0);
+      saveFileRef.current(currentContentRef.current, true, othersEditingRef.current === 0);
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (hasPendingChangesRef.current || _othersEditingThisFile === 0) {
-        saveFile(currentContentRef.current, true, _othersEditingThisFile === 0);
+      if (hasPendingChangesRef.current || othersEditingRef.current === 0) {
+        saveFileRef.current(currentContentRef.current, true, othersEditingRef.current === 0);
       }
     };
-  }, [saveFile, _othersEditingThisFile]);
+  }, []);
 
   useEffect(() => {
     if (isOnline && hasPendingChangesRef.current) {
