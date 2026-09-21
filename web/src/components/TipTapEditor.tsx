@@ -101,6 +101,67 @@ const RemoteCursorsExtension = Extension.create({
   },
 });
 
+const PaginationPluginKey = new PluginKey('pagination');
+
+interface PaginationState {
+  pushes: number[];
+  decorations: DecorationSet;
+}
+
+/**
+ * Applies the measured page-break offsets as ProseMirror node decorations.
+ *
+ * These used to be written straight onto the DOM (`el.style.marginTop`), but
+ * ProseMirror owns that subtree: its DOM observer treats an outside mutation
+ * as corruption and re-renders the node, which reverted every offset within
+ * a frame or two (measured: ~10 node replacements a second, styles never
+ * surviving). The offsets silently never applied, so text flowed straight
+ * through the grey gap between page sheets instead of breaking onto the next
+ * page. Going through decorations makes ProseMirror itself the one applying
+ * the style, so it stops fighting us.
+ */
+const PaginationExtension = Extension.create({
+  name: 'pagination',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: PaginationPluginKey,
+        state: {
+          init: (): PaginationState => ({ pushes: [], decorations: DecorationSet.empty }),
+          apply: (tr, value: PaginationState, _oldState, newState): PaginationState => {
+            const meta = tr.getMeta(PaginationPluginKey);
+            const pushes: number[] = meta ? meta.pushes : value.pushes;
+
+            // Rebuild against the current doc every time — block positions
+            // shift on every edit, so a mapped-forward DecorationSet would
+            // drift out of alignment with the blocks it's spacing.
+            const decorations: Decoration[] = [];
+            let i = 0;
+            newState.doc.forEach((node, offset) => {
+              const push = pushes[i];
+              if (push && push > 0.5) {
+                decorations.push(
+                  Decoration.node(offset, offset + node.nodeSize, {
+                    style: `margin-top:${push}px`,
+                  })
+                );
+              }
+              i += 1;
+            });
+
+            return { pushes, decorations: DecorationSet.create(newState.doc, decorations) };
+          },
+        },
+        props: {
+          decorations(state) {
+            return PaginationPluginKey.getState(state)?.decorations;
+          },
+        },
+      }),
+    ];
+  },
+});
+
 interface Props {
   content: string;
   onChange: (content: string) => void;
@@ -132,79 +193,6 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
   const [pageCount, setPageCount] = useState(1);
 
   useEffect(() => {
-    let animFrame: number;
-    const adjustPages = () => {
-      const pm = document.querySelector('.ds-editor-page-view .ProseMirror') as HTMLElement;
-      if (pm) {
-        const PAGE_HEIGHT = 1123;
-        const GAP_HEIGHT = 48; // Physical grey gap between pages
-        // Must match the actual paddingTop/paddingBottom applied to
-        // .ds-paginated-editor-layer below (also driven by the `margin`
-        // prop) — these two used to disagree (this was hardcoded to 96
-        // regardless of the selected margin), so picking "Narrow" changed
-        // the visible padding but not this budget, and content got pushed
-        // to a "next page" offset that didn't match where the page's
-        // white background sheet actually ended, leaving text stranded on
-        // the bare canvas between pages.
-        const MARGIN_TOP = parseInt(margin) || 96;
-        const MARGIN_BOTTOM = parseInt(margin) || 96;
-        const USABLE = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;
-        const PAGE_STRIDE = PAGE_HEIGHT + GAP_HEIGHT;
-
-        const updates: { el: HTMLElement, margin: number }[] = [];
-        // Track which page we're filling and how much of its usable height
-        // is already consumed. Unlike a "does this block straddle a raw
-        // boundary" check, this catches every block that lands on a new
-        // page — including ones that fit entirely within a page's height
-        // but whose page index has already advanced because of blocks
-        // before them.
-        let pageIndex = 0;
-        let pageUsed = 0;
-
-        Array.from(pm.children).forEach(child => {
-          const el = child as HTMLElement;
-          if (el.classList.contains('collaboration-cursor__caret')) return;
-
-          const applied = parseFloat(el.getAttribute('data-push') || '0');
-          const h = el.offsetHeight; // unaffected by margin-top
-
-          // Doesn't fit in what's left of the current page → start a new one.
-          if (pageUsed > 0 && pageUsed + h > USABLE) {
-            pageIndex += 1;
-            pageUsed = 0;
-          }
-
-          const physicalTarget = (pageIndex * PAGE_STRIDE) + MARGIN_TOP + pageUsed;
-          const naturalPhysicalTop = el.offsetTop - applied;
-          const push = Math.max(0, physicalTarget - naturalPhysicalTop);
-
-          if (Math.abs(push - applied) > 0.5) {
-            updates.push({ el, margin: push });
-          }
-
-          pageUsed += h;
-        });
-
-        // Batch writes to prevent layout thrashing
-        updates.forEach(u => {
-          if (u.margin === 0) {
-            u.el.style.marginTop = '';
-            u.el.removeAttribute('data-push');
-          } else {
-            u.el.style.marginTop = `${u.margin}px`;
-            u.el.setAttribute('data-push', u.margin.toString());
-          }
-        });
-
-        setPageCount(Math.max(1, pageIndex + 1));
-      }
-      animFrame = requestAnimationFrame(adjustPages);
-    };
-    animFrame = requestAnimationFrame(adjustPages);
-    return () => cancelAnimationFrame(animFrame);
-  }, [margin]);
-
-  useEffect(() => {
     const handleClick = () => setContextMenu(null);
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
@@ -218,6 +206,7 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       Placeholder.configure({ placeholder: 'Start writing, or wait for teammates to join this room.' }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       RemoteCursorsExtension.configure({ cursors: [] }),
+      PaginationExtension,
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -302,6 +291,85 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       editor.view.dispatch(editor.state.tr.setMeta('remoteCursorsUpdate', cursors));
     }
   }, [editor, cursors]);
+
+  useEffect(() => {
+    if (!editor) return;
+    let animFrame: number;
+
+    const adjustPages = () => {
+      const pm = editor.view.dom as HTMLElement;
+      if (pm && pm.isConnected) {
+        const PAGE_HEIGHT = 1123;
+        const GAP_HEIGHT = 48; // Physical grey gap between pages
+        const MARGIN = parseInt(margin) || 96;
+        const USABLE = PAGE_HEIGHT - MARGIN * 2;
+        const PAGE_STRIDE = PAGE_HEIGHT + GAP_HEIGHT;
+
+        const applied: number[] = PaginationPluginKey.getState(editor.state)?.pushes ?? [];
+        const blocks = Array.from(pm.children).filter(
+          (el) => !el.classList.contains('collaboration-cursor__caret')
+        ) as HTMLElement[];
+
+        // Track which page we're filling and how much of its usable height
+        // is already consumed. Unlike a "does this block straddle a raw
+        // boundary" check, this catches every block that lands on a new
+        // page — including ones that fit entirely within a page's height
+        // but whose page index has already advanced because of blocks
+        // before them.
+        const next: number[] = [];
+        let pageIndex = 0;
+        let pageUsed = 0;
+        let changed = blocks.length !== applied.length;
+
+        blocks.forEach((el, i) => {
+          const alreadyPushed = applied[i] || 0;
+          const h = el.offsetHeight; // unaffected by margin-top
+          const naturalTop = el.offsetTop - alreadyPushed;
+          // Every block's margin-top is reset to 0 in globals.css, so the
+          // only real gap before the NEXT block is this element's own
+          // margin-bottom — a static CSS value, unaffected by whatever
+          // push is currently applied to any element. Summing offsetHeight
+          // alone (the previous approach) ignored this gap entirely, which
+          // silently let ~1-2 extra blocks' worth of content pile onto a
+          // page before the overflow check ever tripped.
+          const gapBelow = parseFloat(getComputedStyle(el).marginBottom) || 0;
+
+          // Doesn't fit in what's left of the current page → start a new one.
+          if (pageUsed > 0 && pageUsed + h > USABLE) {
+            pageIndex += 1;
+            pageUsed = 0;
+          }
+
+          // offsetTop is measured from ProseMirror's own content box, which
+          // .ds-paginated-editor-layer has already inset by one top margin.
+          // So a page's content origin is just its stride multiple — adding
+          // MARGIN here as well double-counted that padding and pushed every
+          // block a full margin too far down.
+          const target = pageIndex * PAGE_STRIDE + pageUsed;
+          const push = Math.max(0, target - naturalTop);
+
+          next.push(push);
+          if (Math.abs(push - alreadyPushed) > 0.5) changed = true;
+
+          pageUsed += h + gapBelow;
+        });
+
+        // Only dispatch when something actually moved, otherwise this would
+        // loop forever re-rendering the editor every animation frame.
+        if (changed) {
+          editor.view.dispatch(
+            editor.state.tr.setMeta(PaginationPluginKey, { pushes: next })
+          );
+        }
+
+        setPageCount(Math.max(1, pageIndex + 1));
+      }
+      animFrame = requestAnimationFrame(adjustPages);
+    };
+
+    animFrame = requestAnimationFrame(adjustPages);
+    return () => cancelAnimationFrame(animFrame);
+  }, [editor, margin]);
 
   if (!editor) return null;
 
