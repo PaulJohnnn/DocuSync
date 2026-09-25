@@ -251,12 +251,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true }, { headers: corsHeaders });
     }
 
+    // Every write below is awaited before the response is sent. This file
+    // already documents (see the `request` handler) that on a serverless
+    // deploy the function instance can be torn down as soon as it responds,
+    // taking any still-in-flight Redis write with it. The admin actions
+    // (approve/deny/revoke/reset_pin/renew_otp) and cancel_request were
+    // returning `success: true` without awaiting `saveDb`, so an admin's
+    // Approve could report success while the account silently stayed in
+    // `pending` — reproduced locally as a cancel_request that "succeeded"
+    // and left the request in place.
     if (action === 'cancel_request') {
       const { email } = body;
       const idx = db.pending.findIndex((p: any) => p.email.toLowerCase() === email.toLowerCase());
       if (idx !== -1) {
         db.pending.splice(idx, 1);
-        saveDb(db);
+        await saveDb(db);
       }
       return NextResponse.json({ success: true }, { headers: corsHeaders });
     }
@@ -286,7 +295,7 @@ export async function POST(req: Request) {
         db.users.push(newUser);
       }
       db.pending.splice(idx, 1);
-      saveDb(db);
+      await saveDb(db);
       
       return NextResponse.json({ success: true, pin }, { headers: corsHeaders });
     }
@@ -298,7 +307,7 @@ export async function POST(req: Request) {
       
       const newPin = Math.floor(100000 + Math.random() * 900000).toString();
       user.pin = newPin;
-      saveDb(db);
+      await saveDb(db);
       return NextResponse.json({ success: true, pin: newPin }, { headers: corsHeaders });
     }
 
@@ -316,7 +325,7 @@ export async function POST(req: Request) {
       const newPin = Math.floor(100000 + Math.random() * 900000).toString();
       user.pin = newPin;
       user.lastOtpRequest = now;
-      saveDb(db);
+      await saveDb(db);
       
       return NextResponse.json({ success: true, status: 'renew_approved', pin: newPin }, { headers: corsHeaders });
     }
@@ -326,7 +335,7 @@ export async function POST(req: Request) {
       const idx = db.pending.findIndex((p: any) => p.id === reqId);
       if (idx !== -1) {
         db.pending.splice(idx, 1);
-        saveDb(db);
+        await saveDb(db);
       }
       return NextResponse.json({ success: true }, { headers: corsHeaders });
     }
@@ -337,7 +346,7 @@ export async function POST(req: Request) {
       if (user) {
         user.status = 'revoked';
         user.pin = 'revoked'; // Invalidate pin
-        saveDb(db);
+        await saveDb(db);
       }
       return NextResponse.json({ success: true }, { headers: corsHeaders });
     }
