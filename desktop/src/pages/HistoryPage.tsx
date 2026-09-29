@@ -44,7 +44,6 @@ const TimelineItem: React.FC<{
   isLatest: boolean;
   restoring: boolean;
   versionParam: number;
-  versionParam: number;
   onRestore: (eventId: string) => void;
   onView: (entry: HistoryEntry) => void;
 }> = ({ entry, isLatest, restoring, versionParam, onRestore, onView }) => {
@@ -332,6 +331,7 @@ const HistoryPage: React.FC = () => {
                   const target = entries.find(e => e.eventId === eventId);
                   if (target) setComparingEvent(target);
                 }}
+                onView={(target) => setComparingEvent(target)}
               />
             ))}
           </div>

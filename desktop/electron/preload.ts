@@ -324,6 +324,11 @@ export interface DocuSyncBridge {
   getCacheSize: () => Promise<IPCResponse<{ rowCount: number }>>;
 
   /**
+   * Stores the room OTP so the engine can authorise peer HTTP requests.
+   */
+  setRoomToken: (token: string) => Promise<IPCResponse>;
+
+  /**
    * (Admin) Responds to a pending verify request.
    */
   respondToVerifyRequest: (reqId: string, allow: boolean) => Promise<IPCResponse<void>>;
