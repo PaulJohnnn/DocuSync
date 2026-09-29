@@ -31,6 +31,8 @@ const API_BASE = '/api/auth';
 let _usersHash = '';
 let _pendingHash = '';
 let _pollInFlight = false;
+/** Consecutive polls that reported the signed-in account as gone. */
+let _missingSelfStreak = 0;
 
 async function pollDatabase() {
   if (typeof window === 'undefined') return;
@@ -68,13 +70,31 @@ async function pollDatabase() {
       if (sessionStr) {
         try {
           const user = JSON.parse(sessionStr);
-          if (user && user.id) {
-            const stillExists = (data.users || []).find((u: any) => u.id === user.id && u.status === 'active');
-            if (!stillExists) {
+          // Only a payload that actually carries the user list can prove an
+          // account is gone. A 200 with a missing/empty `users` array (cold
+          // start, a Redis blip, a truncated response) is "we don't know",
+          // not "you were revoked" — treating those the same was logging
+          // every signed-in user out mid-session with an alert box, roughly
+          // whenever the sync endpoint hiccuped.
+          const roster: any[] = Array.isArray(data.users) ? data.users : [];
+          if (user && user.id && roster.length > 0) {
+            const me = roster.find((u: any) => u.id === user.id);
+            const gone = !me || me.status !== 'active';
+            if (gone) {
+              // Require two consecutive polls to agree before tearing the
+              // session down, so one bad read can never sign someone out.
+              _missingSelfStreak += 1;
+            } else {
+              _missingSelfStreak = 0;
+            }
+            if (_missingSelfStreak >= 2) {
+              _missingSelfStreak = 0;
               console.warn('[mockAuthService] Account deleted or revoked. Logging out.');
               if (typeof window !== 'undefined') alert('Your account has been deleted or revoked by an administrator.');
               logout();
             }
+          } else {
+            _missingSelfStreak = 0;
           }
         } catch { }
       }
@@ -340,6 +360,34 @@ export async function cancelRequest(email: string): Promise<void> {
   pollDatabase();
 }
 
+/**
+ * Renames the signed-in account and keeps the cached session in step, so
+ * the new name shows up on remote cursors and in the peer list without a
+ * re-login.
+ */
+export async function updateProfileName(userId: string, name: string): Promise<AuthUser> {
+  const res = await fetch(API_BASE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'update_profile', userId, name })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Failed to update profile');
+  }
+  if (typeof window !== 'undefined') {
+    const sessionStr = sessionStorage.getItem(SESSION_KEY);
+    if (sessionStr) {
+      try {
+        const current = JSON.parse(sessionStr);
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...current, name: data.user.name }));
+      } catch { }
+    }
+  }
+  pollDatabase();
+  return data.user;
+}
+
 export async function revokeUser(userId: string): Promise<void> {
   await fetch(API_BASE, {
     method: 'POST',
@@ -404,6 +452,7 @@ const mockAuthService = {
   rejectRequest,
   cancelRequest,
   revokeUser,
+  updateProfileName,
   resetUserPin,
   requestPinRenewal,
   forgotAccount,

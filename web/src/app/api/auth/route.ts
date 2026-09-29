@@ -351,6 +351,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true }, { headers: corsHeaders });
     }
 
+    // Lets a signed-in user rename themselves. The display name is what
+    // peers see on remote cursors and in the connected-peers list, so it
+    // belongs to the user rather than the admin; email, PIN, status and
+    // isAdmin are deliberately NOT editable here.
+    if (action === 'update_profile') {
+      const { userId, name } = body;
+      const trimmed = typeof name === 'string' ? name.trim() : '';
+      if (!userId || !trimmed) {
+        return NextResponse.json({ error: 'userId and name are required' }, { status: 400, headers: corsHeaders });
+      }
+      if (trimmed.length > 40) {
+        return NextResponse.json({ error: 'Name must be 40 characters or fewer' }, { status: 400, headers: corsHeaders });
+      }
+      const user = db.users.find((u: any) => u.id === userId);
+      if (!user) {
+        return NextResponse.json({ error: 'Account not found' }, { status: 404, headers: corsHeaders });
+      }
+      if (user.status !== 'active') {
+        return NextResponse.json({ error: 'Account is not active' }, { status: 403, headers: corsHeaders });
+      }
+      user.name = trimmed;
+      await saveDb(db);
+      const { pin: _pin, ...safe } = user;
+      return NextResponse.json({ success: true, user: safe }, { headers: corsHeaders });
+    }
+
     return NextResponse.json({ error: 'Unknown POST action' }, { status: 400, headers: corsHeaders });
 
   } catch (err) {

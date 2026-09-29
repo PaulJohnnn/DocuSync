@@ -318,19 +318,71 @@ export default function FilesPage() {
     router.push(`/app/editor/${newFile.id}`);
   };
 
+  /**
+   * Turns the editor's stored HTML into plain text that opens cleanly in any
+   * text editor. Block tags become line breaks, entities are decoded, and
+   * tags are dropped — previously the raw HTML was written straight into the
+   * file, so a download named `notes.docx` actually contained
+   * `<div data-margin="96"><p>…` and no word processor would open it.
+   */
+  const htmlToPlainText = (html: string): string => {
+    if (!html) return '';
+    if (!/<[a-z][\s\S]*>/i.test(html)) return html; // already plain
+    const withBreaks = html
+      .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+      .replace(/<\s*\/\s*(p|div|h[1-6]|li|tr|blockquote|pre)\s*>/gi, '\n')
+      .replace(/<\s*li[^>]*>/gi, '• ')
+      .replace(/<\s*\/\s*(td|th)\s*>/gi, '\t');
+    const doc = new DOMParser().parseFromString(withBreaks, 'text/html');
+    return (doc.body.textContent || '')
+      .replace(/ /g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .split('\n').map(l => l.trimEnd()).join('\n')
+      .trim();
+  };
+
   const handleDownloadRoomFile = async (f: any) => {
     try {
       const fileIdStr = f.fileId?.toString() || f.id?.toString();
       const existing = localFiles.find(ex => ex.id === fileIdStr);
-      const textContent = existing ? existing.content : (f.content || '');
-      
-      const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+      let raw = existing?.content || f.content || '';
+
+      // The room listing doesn't always carry the body, and the local copy
+      // may not exist yet for a file shared by someone else — in that case
+      // the old code silently produced an empty download. Fetch the current
+      // snapshot before giving up.
+      if (!raw && currentRoom) {
+        const code = (currentRoom as any).otp || currentRoom.id;
+        try {
+          const res = await fetch(`${MATCHMAKER_URL}/doc?otp=${code}&fileId=${fileIdStr}`);
+          if (res.ok) {
+            const data = await res.json();
+            raw = data?.content || data?.snapshot?.content || '';
+          }
+        } catch { /* fall through to the guard below */ }
+      }
+
+      const text = htmlToPlainText(raw);
+      if (!text) {
+        alert('This file has no content to download yet.');
+        return;
+      }
+
+      // Keep the user's own base name but use .txt, because what we can
+      // honestly produce here is text — not a real .docx container.
+      const original = f.fileName || f.name || 'document';
+      const base = original.replace(/\.[^./\\]+$/, '') || 'document';
+
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = f.fileName || f.name || 'file.txt';
+      a.href = url; a.download = `${base}.txt`;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(url);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      alert('Download failed. Please try again.');
+    }
   };
 
   const handleDeleteRoomFile = async (f: any) => {
@@ -347,6 +399,21 @@ export default function FilesPage() {
             method: 'DELETE',
           });
           if (res.ok) {
+            // The server soft-deletes the room entry, but the file also
+            // lives in this browser's IndexedDB and in the cached room
+            // listing. Without clearing both, the row reappeared on the
+            // next poll (from cache) or stayed in My Files forever, which
+            // read as "delete does nothing".
+            const idStr = String(targetId);
+            try { await idbDeleteFile(idStr); } catch { /* not stored locally */ }
+            setLocalFiles(prev => prev.filter(lf => String(lf.id) !== idStr));
+
+            setRoomFiles(prev => {
+              const next = prev.filter(rf => String(rf.fileId ?? rf.id) !== idStr);
+              try { uSet(`docusync_cached_room_files_${code}`, JSON.stringify(next)); } catch { }
+              return next;
+            });
+
             setRoomTick(t => t + 1);
             closeConfirm();
           } else {

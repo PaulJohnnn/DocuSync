@@ -69,7 +69,37 @@ export default function SettingsPage() {
     setNodeId(id);
   }, []);
 
-  const user = mockAuthService.getCurrentUser() || { name: 'Paul Palamara', email: 'paulpalamaras' };
+  // Held in state rather than read inline, so renaming re-renders the card
+  // straight away instead of waiting for a navigation.
+  const [user, setUser] = useState<any>(() => mockAuthService.getCurrentUser() || { name: 'Paul Palamara', email: 'paulpalamaras' });
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
+  const openEditProfile = () => {
+    setEditName(user?.name || '');
+    setProfileError('');
+    setEditOpen(true);
+  };
+
+  const saveProfile = async () => {
+    const next = editName.trim();
+    if (!next) { setProfileError('Display name cannot be empty.'); return; }
+    if (next === user?.name) { setEditOpen(false); return; }
+    if (!user?.id) { setProfileError('No signed-in account to update.'); return; }
+    setSavingProfile(true);
+    setProfileError('');
+    try {
+      const updated = await mockAuthService.updateProfileName(user.id, next);
+      setUser((prev: any) => ({ ...prev, name: updated.name }));
+      setEditOpen(false);
+    } catch (err: any) {
+      setProfileError(err?.message || 'Could not save the new name.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
 
   return (
     <PageShell>
@@ -78,6 +108,79 @@ export default function SettingsPage() {
         message={confirmModalState.message} onConfirm={confirmModalState.onConfirm}
         onCancel={closeConfirm} confirmText="Confirm" cancelText="Cancel" isDestructive={true}
       />
+
+      {editOpen && (
+        <div
+          onClick={() => !savingProfile && setEditOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 420, background: 'var(--bg)', borderRadius: 16,
+              border: '1px solid var(--b1)', padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+            }}
+          >
+            <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Edit Profile</h2>
+            <p style={{ fontSize: 13, color: 'var(--t3)', margin: '6px 0 18px' }}>
+              Your display name is what other peers see on your cursor and in the connected-peers list.
+            </p>
+
+            <label htmlFor="ds-display-name" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--t2)', marginBottom: 8 }}>
+              Display name
+            </label>
+            <input
+              id="ds-display-name"
+              type="text"
+              value={editName}
+              maxLength={40}
+              autoFocus
+              disabled={savingProfile}
+              onChange={(e) => { setEditName(e.target.value); setProfileError(''); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') saveProfile();
+                if (e.key === 'Escape' && !savingProfile) setEditOpen(false);
+              }}
+              style={{
+                width: '100%', background: 'var(--s1)', border: `1px solid ${profileError ? '#ef4444' : 'var(--b1)'}`,
+                borderRadius: 12, padding: '12px 16px', fontSize: 14, color: 'var(--t1)', outline: 'none',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, minHeight: 18 }}>
+              <span style={{ fontSize: 12, color: '#ef4444' }}>{profileError}</span>
+              <span style={{ fontSize: 12, color: 'var(--t3)' }}>{editName.length}/40</span>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+              <button
+                onClick={() => setEditOpen(false)}
+                disabled={savingProfile}
+                style={{
+                  flex: 1, padding: '11px', borderRadius: 10, fontSize: 14, fontWeight: 600,
+                  background: 'var(--s1)', color: 'var(--t2)', border: '1px solid var(--b1)',
+                  cursor: savingProfile ? 'default' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveProfile}
+                disabled={savingProfile}
+                style={{
+                  flex: 1, padding: '11px', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                  background: '#4f46e5', color: '#fff', border: 'none',
+                  cursor: savingProfile ? 'default' : 'pointer', opacity: savingProfile ? 0.7 : 1,
+                }}
+              >
+                {savingProfile ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 60, paddingTop: 30, paddingLeft: 20, paddingRight: 20, width: '100%' }}>
         
         {/* Header */}
@@ -184,11 +287,11 @@ export default function SettingsPage() {
                             <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--t1)' }}>{user.name}</div>
                             <div style={{ background: 'rgba(79, 70, 229, 0.1)', color: 'rgb(79, 70, 229)', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>Local Node Owner</div>
                           </div>
-                          <div style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 2 }}>@{user.name.toLowerCase().replace(/\\s+/g,'')}</div>
+                          <div style={{ fontSize: 13, color: 'var(--t3)', marginBottom: 2 }}>@{user.name.toLowerCase().replace(/\s+/g, '')}</div>
                           <div style={{ fontSize: 13, color: 'var(--t2)' }}>Decentralized workspace accessible by peers.</div>
                         </div>
                       </div>
-                      <button style={{ background: '#4f46e5', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: '999px', cursor: 'pointer', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 2px 4px rgba(79,70,229,0.3)' }}>
+                      <button onClick={openEditProfile} style={{ background: '#4f46e5', border: 'none', color: '#fff', padding: '10px 20px', borderRadius: '999px', cursor: 'pointer', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 2px 4px rgba(79,70,229,0.3)' }}>
                         <Edit2 size={16} /> Edit Profile
                       </button>
                     </div>
