@@ -199,10 +199,10 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '3rem', alignItems: 'flex-start' }}>
+        <div className="ds-settings-layout" style={{ display: 'flex', gap: '3rem', alignItems: 'flex-start' }}>
           
           {/* Left Sidebar */}
-          <div style={{ width: '280px', flexShrink: 0, position: 'sticky', top: 20 }}>
+          <div className="ds-settings-nav" style={{ width: '280px', flexShrink: 0, position: 'sticky', top: 20 }}>
             <div style={{ background: 'var(--bg)', borderRadius: 16, border: '1px solid var(--b1)', padding: 16, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <button
@@ -274,8 +274,8 @@ export default function SettingsPage() {
                     <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Profile & Local Identity</h2>
                     <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 24px' }}>Manage your profile information and UI preferences.</p>
                     
-                    <div style={{ background: 'var(--bg)', borderRadius: 12, border: '1px solid var(--b1)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                    <div className="ds-settings-split" style={{ background: 'var(--bg)', borderRadius: 12, border: '1px solid var(--b1)', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                      <div className="ds-settings-identity" style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
                         <div style={{ position: 'relative' }}>
                           <div style={{ width: 64, height: 64, borderRadius: 16, background: '#4f46e5', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, fontWeight: 700 }}>
                             {user.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() || 'U'}
@@ -309,7 +309,7 @@ export default function SettingsPage() {
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', gap: 24 }}>
+                      <div className="ds-settings-cols" style={{ display: 'flex', gap: 24 }}>
                         <div style={{ flex: 1 }}>
                           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--t2)', marginBottom: 8 }}>Local Identifier (Username)</label>
                           <div style={{ position: 'relative' }}>

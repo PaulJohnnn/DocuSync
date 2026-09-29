@@ -266,7 +266,7 @@ export default function WebMetricsDashboard() {
       )}
 
       {viewMode === 'simple' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
           <RadialGauge
             label="Sync Success"
             value={hasData ? fmtPct(realMetrics?.consistencySuccessRatePct) : '—'}
@@ -366,7 +366,7 @@ export default function WebMetricsDashboard() {
           </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
           <RadialGauge
             label="Consistency Success Rate"
             value={fmtPct(realMetrics?.consistencySuccessRatePct)}
@@ -404,7 +404,7 @@ export default function WebMetricsDashboard() {
           />
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, marginTop: 16 }}>
           <RadialGauge
             label="Unresolved Conflicts"
             value={`${realMetrics?.unresolvedConflicts ?? 0}`}
@@ -434,7 +434,10 @@ export default function WebMetricsDashboard() {
       </div>
 
       {/* ── RQ4 & RQ5 COMPARATIVE BAR CHART & ARCHITECTURE SHIELD ───────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 16 }}>
+      {/* min() keeps the two-up desktop grid but lets each card shrink to the
+          column on a phone. A bare minmax(420px, …) forced every chart card
+          to 420px on a 375px screen, so they ran ~70px off the right edge. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: 16 }}>
 
         {/* Left: Professional Theme-Responsive Animated Bar Chart */}
         <div style={{

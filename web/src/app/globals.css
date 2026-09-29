@@ -592,10 +592,75 @@ body {
 @media (max-width: 880px) {
   .ds-editor-page-view .ProseMirror {
     width: 100%;
-    margin: 0 16px;
-    padding: 32px 24px;
+    margin: 0 8px;
+    padding: 32px 12px;
     background-image: none;
     min-height: 500px;
+  }
+
+  /* The document margin is a print measurement — 96px is roughly one inch —
+     and it was applied as raw pixels at every screen size. On a ~350px-wide
+     phone sheet that spent 192px of the available width on side margins,
+     leaving a 109px text column: about one word per line, which is what
+     made the editor unusable phone-to-phone. Clamp the HORIZONTAL inset on
+     small screens so the text column stays readable. The vertical padding
+     is deliberately untouched, because the pagination maths measures page
+     fill against the top/bottom margin and changing it here would move
+     every page break. The layer sets its padding inline, so these need
+     !important to win. */
+  .ds-paginated-editor-layer {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+
+  /* Page-break rule is positioned with a negative desktop inset (-80px)
+     that hangs far outside a phone-width sheet. */
+  .ds-editor-page-view .ProseMirror hr {
+    margin-left: -12px !important;
+    margin-right: -12px !important;
+  }
+
+  /* Settings rows were laid out as single-line flex rows sized for a wide
+     screen. At phone width the right-hand item ran past the viewport and
+     was clipped by an ancestor's overflow, so "Edit Profile" sat at
+     x=322–414 on a 375px screen and simply could not be tapped. Stacking
+     the rows brings every control back on-screen. */
+  /* The Settings screen is a two-pane row: a fixed 280px tab rail plus a
+     3rem gap, then the content. That's 328px of a 375px phone, so the
+     content pane collapsed to about 2px and its children were clipped by
+     an ancestor's overflow — the page rendered as a tab list above an
+     empty area, and nothing in it could be reached. Stack the two panes
+     and let each take the full width. */
+  .ds-settings-layout {
+    flex-direction: column;
+    gap: 20px !important;
+  }
+  .ds-settings-nav {
+    width: 100% !important;
+    position: static !important;
+  }
+  .ds-settings-layout > * {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ds-settings-split {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 16px;
+  }
+  .ds-settings-split > button {
+    width: 100%;
+    justify-content: center;
+  }
+  .ds-settings-identity {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .ds-settings-cols {
+    flex-direction: column;
+    gap: 16px !important;
   }
   /* The 794px A4-page canvas (and its background "sheet" rectangles) were
      hardcoded via inline style to simulate a physical printed page — harmless
