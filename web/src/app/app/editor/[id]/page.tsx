@@ -486,6 +486,21 @@ export default function EditorPage() {
   const getSyncBaseUrl = useCallback((room: any): string => {
     const ip = room?.hostIp;
     if (!ip) throw new Error("Couldn't find host address");
+    // A room created from the web records this web app's own address as its
+    // "host" (the create API requires one), but no peer server listens there
+    // — only the desktop app runs one, on port 9000. Attempting it anyway
+    // burned a full failed-connection timeout on every push and every poll
+    // before falling back to the cloud relay, which is what pushed measured
+    // round-trip latency into seconds. Refuse it up front so those rooms go
+    // straight to the relay; a genuine desktop host has a different address
+    // and still takes the direct path.
+    if (typeof window !== 'undefined') {
+      const selfHost = window.location.hostname;
+      const loopback = (h: string) => h === 'localhost' || h === '127.0.0.1' || h === '::1';
+      if (ip === selfHost || (loopback(ip) && loopback(selfHost))) {
+        throw new Error('No peer host for this room');
+      }
+    }
     const rawPort = room?.hostPort;
     const port = (rawPort && rawPort !== 3000 && rawPort !== Number(window.location?.port)) ? rawPort : 9000;
     return `http://${ip}:${port}`;

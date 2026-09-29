@@ -76,6 +76,20 @@ function delay(ms = 600): Promise<void> {
   return new Promise(res => setTimeout(res, ms));
 }
 
+/**
+ * Address recorded as the room's peer host when the room is created from
+ * the web.
+ *
+ * A browser cannot listen for connections — only the desktop app runs the
+ * peer server on port 9000 — so this address is not a real host. It is kept
+ * because `POST /api/lobby/create` rejects a room with no `hostIp` (400),
+ * and the room record is what every peer looks up by invite code.
+ *
+ * The client must therefore NOT treat it as a reachable peer: see
+ * `getSyncBaseUrl` in the editor, which refuses an address that is really
+ * just this web app, so sync goes straight to the cloud relay instead of
+ * paying a failed-connection timeout on every push and poll.
+ */
 function getWebHostIp(): string {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
