@@ -58,7 +58,16 @@ const RadialGauge: React.FC<{
   subtext: string;
   badge?: string;
   tooltip: string;
-}> = ({ label, value, percentage, color, subtext, badge, tooltip }) => {
+  /**
+   * Where the number is measured. Two peers looking at this dashboard see
+   * identical values for every room-scoped figure, because those count the
+   * shared document's sync session on the server rather than anything about
+   * the device you happen to be sitting at. Only the latency reading is
+   * local, which is why it is the one number that legitimately differs
+   * between screens. Saying so on the card stops that looking like a bug.
+   */
+  scope?: 'room' | 'device';
+}> = ({ label, value, percentage, color, subtext, badge, tooltip, scope = 'room' }) => {
   const radius = 38;
   const circumference = 2 * Math.PI * radius;
   const pct = percentage ?? 0;
@@ -137,6 +146,20 @@ const RadialGauge: React.FC<{
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
           <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--t1, #1e293b)' }}>{label}</span>
           <InfoTip text={tooltip} />
+          <span
+            title={scope === 'room'
+              ? 'Counted on the server for the whole room, so every peer sees the same value.'
+              : 'Timed on this device only, so each peer sees its own value.'}
+            style={{
+              fontSize: '10px', fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase',
+              padding: '2px 8px', borderRadius: 20, whiteSpace: 'nowrap',
+              background: scope === 'room' ? 'rgba(99,102,241,0.12)' : 'rgba(16,185,129,0.12)',
+              color: scope === 'room' ? '#6366f1' : '#10b981',
+              border: `1px solid ${scope === 'room' ? 'rgba(99,102,241,0.3)' : 'rgba(16,185,129,0.3)'}`,
+            }}
+          >
+            {scope === 'room' ? 'Room-wide' : 'This device'}
+          </span>
           {badge && !noData && (
             <span style={{
               fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: 20,
@@ -352,7 +375,10 @@ export default function WebMetricsDashboard() {
         </div>
         {avgLatencyMs !== null && (
           <div style={{ marginTop: 10, fontSize: 12, color: 'var(--t3, #8a94a6)' }}>
-            Average round-trip latency this session: <strong style={{ color: '#10b981' }}>{avgLatencyMs}ms</strong> (measured on your device, dispatch-to-acknowledgement)
+            Average round-trip latency this session: <strong style={{ color: '#10b981' }}>{avgLatencyMs}ms</strong>{' '}
+            — timed on <strong>this device</strong>, from sending an edit to the server confirming it. Another peer
+            will show a different figure here: it is the only reading on this page measured locally rather than
+            counted on the server for the whole room.
           </div>
         )}
       </div>

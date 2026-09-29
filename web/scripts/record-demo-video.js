@@ -106,8 +106,10 @@ async function focusEnd(page) {
 
   const ctxA = await mk('paul');
   const ctxB = await mk('zyra');
+  const ctxC = await mk('admin');
   const paul = await ctxA.newPage();
   const zyra = await ctxB.newPage();
+  const admin = await ctxC.newPage();
 
   // Scene offsets, measured from the moment recording starts, so narration
   // can be placed against the finished video rather than guessed at.
@@ -122,9 +124,10 @@ async function focusEnd(page) {
   try {
     // ── 1. Sign in ────────────────────────────────────────────────────
     console.log('Scene 1: sign in');
-    scene('signin', 'Signing in on two separate devices');
-    await Promise.all([login(paul, 'Paul'), login(zyra, 'Zyra')]);
-    await beat(paul, 1200);
+    scene('signin', 'Two collaborators and an administrator sign in');
+    await Promise.all([login(paul, 'Paul'), login(zyra, 'Zyra'), login(admin, 'Admin')]);
+    await admin.goto(`${BASE}/app/admin/dashboard`);
+    await beat(paul, 1800);
 
     // ── 2. Create a room ──────────────────────────────────────────────
     console.log('Scene 2: create room');
@@ -150,12 +153,35 @@ async function focusEnd(page) {
     await beat(zyra, 1200);
     await zyra.click('button:has-text("Join Room")');
     await beat(zyra, 800);
-    await zyra.locator('input[maxlength="6"]').fill(otp);
+    // Fill the code, then confirm the form actually registered all six
+    // characters before submitting — the submit button stays disabled until
+    // it has them, and clicking a disabled button silently does nothing.
+    const otpBox = zyra.locator('input[maxlength="6"]');
+    await otpBox.fill(otp);
+    await zyra.waitForFunction(
+      (code) => document.querySelector('input[maxlength="6"]')?.value === code,
+      otp, { timeout: 10000 }
+    );
     await beat(zyra, 900);
     // "Join Room" labels both the nav button that opens this form and the
     // submit button inside it; take the last match so we press submit.
-    await zyra.locator('button:has-text("Join Room")').last().click();
-    await zyra.waitForSelector('text=Joined Room!', { timeout: 30000 });
+    const submitJoin = zyra.locator('button:has-text("Join Room")').last();
+    await submitJoin.click();
+    try {
+      await zyra.waitForSelector('text=Joined Room!', { timeout: 25000 });
+    } catch {
+      // One retry: with three recorded contexts sharing a dev server the
+      // first submit occasionally lands while the form is still settling.
+      console.log('  join did not confirm — retrying once');
+      await zyra.goto(`${BASE}/app/peers`);
+      await beat(zyra, 1500);
+      await zyra.click('button:has-text("Join Room")');
+      await beat(zyra, 800);
+      await zyra.locator('input[maxlength="6"]').fill(otp);
+      await beat(zyra, 900);
+      await zyra.locator('button:has-text("Join Room")').last().click();
+      await zyra.waitForSelector('text=Joined Room!', { timeout: 40000 });
+    }
     await beat(zyra, 1600);
     await zyra.click('text=Enter Workspace');
     await beat(zyra, 1800);
@@ -208,6 +234,7 @@ async function focusEnd(page) {
     // ── 7. Version history — the append-only log ──────────────────────
     console.log('Scene 7: version history');
     scene('history', 'Version history — the append-only event log');
+    await admin.goto(`${BASE}/app/admin/dashboard`);
     await paul.goto(`${BASE}/app/history/${fileId}`);
     await beat(paul, 4500);
 
@@ -245,6 +272,7 @@ async function focusEnd(page) {
     // Videos are only flushed to disk on context close.
     await ctxA.close();
     await ctxB.close();
+    await ctxC.close();
     await browser.close();
   }
 
@@ -261,6 +289,7 @@ async function focusEnd(page) {
   const outputs = [
     ['paul', 'DocuSync-Demo-Device1-Paul.webm'],
     ['zyra', 'DocuSync-Demo-Device2-Zyra.webm'],
+    ['admin', 'DocuSync-Demo-Device3-Admin.webm'],
   ];
   for (const [dir, name] of outputs) {
     const src = pick(dir);

@@ -42,14 +42,14 @@ const FFMPEG = findFfmpeg();
 
 // ── narration copy, keyed to the recorder's scene ids ───────────────────
 const SCRIPT = {
-  signin:  "DocuSync is a collaborative document editor for devices that may go offline.",
+  signin:  "DocuSync is a collaborative document editor for devices that may go offline. Two collaborators sign in on separate devices, and an administrator signs in on a third.",
   create:  "Paul creates a sync room, and the system generates a six character invite code.",
   join:    "Zyra joins from the second device using that code. Both devices are now peers in the same room.",
   open:    "They open the same document. Each device keeps its own copy in local storage, so editing carries on even when the network does not.",
   syncAB:  "Paul types. The edit is held briefly, stamped with a logical clock, and pushed. It reaches Zyra's device in well under a second.",
   syncBA:  "Zyra replies, and her text travels back the same way. The coloured label is her live cursor, shown on Paul's screen as she moves.",
   history: "Every edit is appended to a log rather than overwriting the document, so any earlier version can be restored.",
-  metrics: "The metrics dashboard is computed from this room's real traffic: consistency, resolution accuracy, and measured round trip latency.",
+  metrics: "Now the evaluation dashboard. Notice that both devices show the same percentages. That is deliberate, not a fault. Consistency, resolution accuracy and conflict detection are counted on the server for the whole room, because they describe the shared document's sync session rather than any one machine. Each card is marked room-wide for that reason. Latency is the exception: it is timed on each device separately, from sending an edit to the server confirming it, so the two screens legitimately show different figures there.",
 };
 
 const psQuote = (s) => "'" + String(s).replace(/'/g, "''") + "'";
@@ -87,8 +87,9 @@ function durationOf(file) {
 (async () => {
   const vA = path.join(DIR, 'DocuSync-Demo-Device1-Paul.webm');
   const vB = path.join(DIR, 'DocuSync-Demo-Device2-Zyra.webm');
+  const vC = path.join(DIR, 'DocuSync-Demo-Device3-Admin.webm');
   const tlPath = path.join(DIR, 'timeline.json');
-  for (const f of [vA, vB, tlPath]) {
+  for (const f of [vA, vB, vC, tlPath]) {
     if (!fs.existsSync(f)) throw new Error('missing ' + f + ' — run record-demo-video.js first');
   }
   const tl = JSON.parse(fs.readFileSync(tlPath, 'utf8'));
@@ -150,28 +151,38 @@ function durationOf(file) {
     const from = c.at;
     const to = i + 1 < clips.length ? clips[i + 1].at : finalLen;
     return `drawtext=fontfile='${font}':text='${esc(c.caption)}':fontcolor=0xE8EDF7:fontsize=26:` +
-           `x=(w-text_w)/2:y=h-46:enable='between(t,${from.toFixed(2)},${to.toFixed(2)})'`;
+           `x=(w-text_w)/2:y=h-38:enable='between(t,${from.toFixed(2)},${to.toFixed(2)})'`;
   }).join(',');
 
   // ── 4. compose ───────────────────────────────────────────────────────
   // Each 1280x720 device is scaled to 960x540 and padded to leave a header
   // strip for its label; the pair is stacked side by side, then a footer
   // band carries the caption.
+  // Three panels: the two collaborating devices and the administrator.
+  // Each 1280x720 capture is scaled to 640x360 with a header strip for its
+  // label, so the row lands at 1920 wide without cropping anything.
+  const panelFilter = (idx, label, colour) =>
+    `[${idx}:v]scale=640:360,pad=640:404:0:44:color=0x141A2E,` +
+    `drawtext=fontfile='${fontB}':text='${label}':fontcolor=${colour}:fontsize=17:x=16:y=13`;
+  const extraTail = Math.max(0, finalLen - videoLen);
+  const holdTail = extraTail > 0.2 ? `,tpad=stop_mode=clone:stop_duration=${extraTail.toFixed(2)}` : '';
   const filter =
-    `[0:v]scale=960:540,pad=960:596:0:56:color=0x141A2E,` +
-    `drawtext=fontfile='${fontB}':text='DEVICE 1 — PAUL':fontcolor=0x17B3A3:fontsize=24:x=24:y=16[a];` +
-    `[1:v]scale=960:540,pad=960:596:0:56:color=0x141A2E,` +
-    `drawtext=fontfile='${fontB}':text='DEVICE 2 — ZYRA':fontcolor=0x17B3A3:fontsize=24:x=24:y=16[b];` +
-    `[a][b]hstack=inputs=2,pad=1920:668:0:0:color=0x141A2E,${captions},` +
+    `${panelFilter(0, 'DEVICE 1 — PAUL', '0x17B3A3')}[a];` +
+    `${panelFilter(1, 'DEVICE 2 — ZYRA', '0x17B3A3')}[b];` +
+    `${panelFilter(2, 'ADMINISTRATOR', '0xE8A33D')}[c];` +
+    // Narration can outlast the footage (the closing explanation is long),
+    // and without this the video stream simply ends while the audio keeps
+    // going — a silent black tail. Hold the final frame instead.
+    `[a][b][c]hstack=inputs=3${holdTail},pad=1920:476:0:0:color=0x141A2E,${captions},` +
     `drawtext=fontfile='${fontB}':text='DocuSync — Hybrid File Synchronization Engine':` +
-    `fontcolor=0x7C88A8:fontsize=20:x=w-text_w-24:y=16[v]`;
+    `fontcolor=0x7C88A8:fontsize=16:x=w-text_w-20:y=13[v]`;
 
   console.log('Composing final video...');
   try {
     execFileSync(FFMPEG, [
-      '-y', '-i', vA, '-i', vB, '-i', narration,
+      '-y', '-i', vA, '-i', vB, '-i', vC, '-i', narration,
       '-filter_complex', filter,
-      '-map', '[v]', '-map', '2:a',
+      '-map', '[v]', '-map', '3:a',
       '-c:v', 'libx264', '-preset', 'medium', '-crf', '21', '-pix_fmt', 'yuv420p', '-r', '25',
       '-c:a', 'aac', '-b:a', '160k',
       '-t', String(finalLen),
