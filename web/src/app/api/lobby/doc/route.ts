@@ -32,7 +32,18 @@ function splitIntoLines(text: string): string[] {
   // Re-attach the newline to every line but the last, mirroring how
   // diff-match-patch's own line-mode keeps line terminators attached so
   // reconstruction is a plain join with no separator logic needed.
-  return lines.map((l, i) => (i < lines.length - 1 ? l + '\n' : l)).filter(l => l.length > 0);
+  // Drop lines that carry no content. A document saved with literal newlines
+  // between its block tags produces bare newline-only lines here, while the
+  // same document re-serialised by the editor (which emits none) produces
+  // no such lines — so the two sides had different line structures and the
+  // merge could not align them. Patch hunks then addressed the wrong rows
+  // and the splice ate whole paragraphs: a peer reconnecting after an
+  // offline edit dropped the other peer's untouched leading line, and even
+  // the opening wrapper tag, leaving malformed HTML. Whitespace carries no
+  // meaning between HTML blocks, so ignoring it makes both sides agree.
+  return lines
+    .map((l, i) => (i < lines.length - 1 ? l + String.fromCharCode(10) : l))
+    .filter(l => l.trim().length > 0);
 }
 
 /**
@@ -229,6 +240,21 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
+/**
+ * Cheap, stable fingerprint of a document (FNV-1a, 32-bit, base 36).
+ * The client computes this over the content it currently holds and sends it
+ * as `have`; an identical value means there is nothing to send. Must stay
+ * byte-for-byte identical to the copy in the editor.
+ */
+function contentFingerprint(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const otp = searchParams.get('otp');
@@ -247,8 +273,19 @@ export async function GET(request: Request) {
       return NextResponse.json({ upToDate: true, snapshot: null }, { headers: corsHeaders });
     }
 
-    const clientSince = parseInt(since, 10);
-    const isUpToDate = clientSince >= (snapshot.committedAt || 0) && clientSince > 0;
+    // Whether the caller already holds this exact document.
+    //
+    // This used to be a timestamp comparison, which cannot answer the
+    // question: a peer whose edit lost a Last-Write-Wins arbitration holds
+    // DIFFERENT content at the SAME point in time, and was told it was up to
+    // date — so it never received the winning text and stayed permanently out
+    // of step with everyone else. Comparing a hash of what the caller
+    // actually has answers it exactly, and still costs one short query
+    // parameter instead of shipping the document on every poll.
+    const have = searchParams.get('have');
+    const isUpToDate = have != null
+      ? have === contentFingerprint(snapshot.content || '')
+      : (() => { const cs = parseInt(since, 10); return cs >= (snapshot.committedAt || 0) && cs > 0; })();
 
     return NextResponse.json({
       upToDate: isUpToDate,

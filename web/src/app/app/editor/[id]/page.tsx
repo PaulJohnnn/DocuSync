@@ -507,18 +507,31 @@ export default function EditorPage() {
   }, []);
 
   // ── Push content to Host ──────────────────────────────────────────────────
-  const pushToHost = useCallback(async (contentToSave: string, vectorClockSnapshot: Record<string, number>, explicit = false, isSessionEnd = false) => {
+  const pushToHost = useCallback(async (contentToSave: string, vectorClockSnapshot: Record<string, number>, explicit = false, isSessionEnd = false, mergeBase = '') => {
+    // An empty string is never a real document. It means the editor has not
+    // loaded its content yet — and the unmount handler saves unconditionally,
+    // so opening a document and navigating away before it loaded pushed an
+    // EMPTY session-end save over whatever the room actually had. A user who
+    // genuinely clears the page leaves "<p></p>" behind, not "", so this
+    // guard cannot discard real work.
+    if (!contentToSave || !contentToSave.trim()) {
+      devLog('[PUSH] refused an empty document', { explicit, isSessionEnd });
+      return;
+    }
+
     // Instantly update local storage representation of the file so rejoining file displays new content
     updateLocalStorageFile(fileId, contentToSave);
 
     const room = getRoomHostInfo();
     const otp = room?.otp || room?.id;
     if (!room && !otp) {
+      devLog('[PUSH-EXIT] room unavailable');
       setSyncStatusMsg("Room unavailable");
       return;
     }
 
     if (!navigator.onLine || syncState === 'offline' || (window as any).__DOCUSYNC_DEV_OFFLINE__ === true) {
+      devLog('[PUSH-EXIT] treated as offline', { online: navigator.onLine, syncState });
       setSyncStatusMsg('Offline — queued');
       setOfflineQueue(true);
       return;
@@ -551,7 +564,16 @@ export default function EditorPage() {
               content: contentToSave,
               vectorClock: vectorClockSnapshot,
               isOfflineReconnect: offlineQueue,
-              baseContent: uGet('docusync_offline_base'),
+              // The three-way merge needs the version this edit was derived
+              // from. This used to send only the OFFLINE baseline, which is
+              // set exclusively by the offline/reconnect flow — so an
+              // ordinary live edit pushed baseContent: null, the server had
+              // nothing to merge against, and it fell back to overwriting
+              // whole. Two people typing at once therefore lost an edit
+              // instead of merging. `lastSave` is this client's copy of the
+              // last content the server confirmed, which is exactly the base
+              // a three-way merge wants.
+              baseContent: (offlineQueue ? uGet('docusync_offline_base') : null) || mergeBase || null,
               committedAt: Date.now(),
             }),
           });
@@ -686,7 +708,7 @@ export default function EditorPage() {
                 fileId,
                 authorNodeId: localNodeIdRef.current,
                 content: contentToSave,
-                baseContent: uGet('docusync_offline_base'),
+                baseContent: (offlineQueue ? uGet('docusync_offline_base') : null) || mergeBase || null,
                 vectorClock: vectorClockSnapshot,
                 committedAt: Date.now(),
                 isSessionEnd,
@@ -726,6 +748,15 @@ export default function EditorPage() {
                 toast.success(`Merged automatically — ${mmData.conflictHunks} overlapping edit${mmData.conflictHunks === 1 ? '' : 's'} resolved by Last-Write-Wins`, { duration: 5000 });
               } else {
                 uSet('docusync_offline_base', typeof mergedContent === 'string' ? mergedContent : contentToSave);
+              }
+
+              // Adopt the server's own timestamp for the stored snapshot, so
+              // the next poll asks from the right point. Without this the
+              // cursor lags our own writes and we re-fetch content we already
+              // have; with a wrong (local-clock) value we miss content we do
+              // not have.
+              if (typeof mmData?.snapshot?.committedAt === 'number') {
+                _lastAcceptedSeq.current = mmData.snapshot.committedAt;
               }
 
               setSyncStatusMsg(`Cloud Synced ✓`);
@@ -774,6 +805,20 @@ export default function EditorPage() {
 
   // ── Track last accepted seq to avoid re-applying same snapshot ───────────
   const _lastAcceptedSeq = useRef<number>(0);
+
+  /**
+   * Fingerprint of the document this client currently holds, sent with each
+   * poll so the server can tell whether there is anything to send. Must stay
+   * byte-for-byte identical to contentFingerprint() in /api/lobby/doc.
+   */
+  const contentFingerprint = useCallback((text: string): string => {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h.toString(36);
+  }, []);
 
   // ── Poll Matchmaker for remote updates ───────────────────────────────────
   useEffect(() => {
@@ -859,7 +904,7 @@ export default function EditorPage() {
 
         // Step 2: Fallback to Matchmaker Cloud
         try {
-          const mmRes = await fetch(`${_MATCHMAKER_URL}/doc?otp=${otp}&fileId=${fileId}&since=${_lastAcceptedSeq.current}`);
+          const mmRes = await fetch(`${_MATCHMAKER_URL}/doc?otp=${otp}&fileId=${fileId}&since=${_lastAcceptedSeq.current}&have=${contentFingerprint(currentContentRef.current || '')}`);
           if (mmRes.ok) {
             const data = await mmRes.json();
             // Deliberately NOT gated on authorNodeId !== ours. A snapshot the
@@ -876,7 +921,14 @@ export default function EditorPage() {
                 lastSave.current = data.content;
                 setSaved(true);
                 setSyncStatusMsg('☁ Live synced from cloud');
-                _lastAcceptedSeq.current = data.snapshot?.committedAt || Date.now();
+                // Only ever advance this cursor to a timestamp the SERVER
+                // gave us. It falls back to Date.now() before, which made the
+                // client claim it had seen state as recent as its own clock —
+                // so the server answered "up to date" and stopped sending
+                // updates the client had never actually received. A peer whose
+                // edit lost a Last-Write-Wins arbitration would sit there
+                // permanently stale, showing text nobody else had.
+                _lastAcceptedSeq.current = data.snapshot?.committedAt ?? _lastAcceptedSeq.current;
                 lastSyncedAt.current = Date.now();
               } else if ((isTypingRef.current || hasPendingChangesRef.current) && currentContentRef.current !== data.content) {
                 if (room.algorithm === 'ot') {
@@ -968,6 +1020,13 @@ export default function EditorPage() {
         }
       }
 
+    // The content the server last confirmed, captured BEFORE lastSave is
+    // advanced to what we are about to send. This is the three-way merge
+    // base: without it the push carries base === content, the server has
+    // nothing to merge against, and two people typing at once overwrite
+    // each other instead of merging.
+    const mergeBase = lastSave.current;
+
     lastSave.current = contentToSave;
     setSaved(true);
     // NOTE: Do NOT update lastSyncedAt here — only update it when we receive
@@ -975,7 +1034,7 @@ export default function EditorPage() {
     // poll to return 'unchanged' for Desktop edits saved before our save time.
 
     devLog('[SEND] clock counters:', JSON.stringify(localVectorClockRef.current?.root?.children?.map((c: any) => c.counter) ?? []));
-    await pushToHost(contentToSave, localVectorClockRef.current, forcePush, isSessionEnd);
+    await pushToHost(contentToSave, localVectorClockRef.current, forcePush, isSessionEnd, mergeBase);
     } finally {
       isPushingRef.current = false;
       if (queuedContentRef.current !== null) {

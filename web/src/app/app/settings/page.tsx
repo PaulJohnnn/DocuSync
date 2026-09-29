@@ -77,6 +77,35 @@ export default function SettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState('');
 
+  // "Sync Now" previously had no handler at all — it was a button that did
+  // nothing. It re-reads this account from the server, which is the useful
+  // thing to offer here: it confirms the profile shown is current and that
+  // the account is still active.
+  const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'done' | 'error'>('idle');
+
+  const syncNow = async () => {
+    setSyncState('syncing');
+    try {
+      const me = mockAuthService.getCurrentUser();
+      const res = await fetch(`/api/auth?action=sync&t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('sync request failed');
+      const data = await res.json();
+      const fresh = (data.users || []).find((u: any) => u.id === me?.id);
+      if (fresh) {
+        setUser((prev: any) => ({ ...prev, ...fresh }));
+        try {
+          const s = sessionStorage.getItem('docusync_auth_user');
+          if (s) sessionStorage.setItem('docusync_auth_user', JSON.stringify({ ...JSON.parse(s), ...fresh }));
+        } catch { /* session unreadable — the in-page copy is still updated */ }
+      }
+      setSyncState('done');
+      setTimeout(() => setSyncState('idle'), 2500);
+    } catch {
+      setSyncState('error');
+      setTimeout(() => setSyncState('idle'), 3000);
+    }
+  };
+
   const openEditProfile = () => {
     setEditName(user?.name || '');
     setProfileError('');
@@ -189,13 +218,21 @@ export default function SettingsPage() {
             <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--t1)', margin: 0 }}>Settings</h1>
             <p style={{ fontSize: 13, color: 'var(--t3)', margin: '4px 0 0' }}>Manage parameters and preferences</p>
           </div>
-          <button style={{ 
-            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', 
-            borderRadius: 8, border: '1px solid var(--b1)', background: 'var(--bg)', 
-            cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--t1)',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-          }}>
-            <RefreshCw size={14} /> Sync Now
+          <button
+            onClick={syncNow}
+            disabled={syncState === 'syncing'}
+            title="Re-read this account from the server"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px',
+              borderRadius: 8, border: '1px solid var(--b1)', background: 'var(--bg)',
+              cursor: syncState === 'syncing' ? 'default' : 'pointer',
+              fontSize: 13, fontWeight: 600,
+              color: syncState === 'error' ? '#ef4444' : syncState === 'done' ? '#16a34a' : 'var(--t1)',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            }}
+          >
+            <RefreshCw size={14} className={syncState === 'syncing' ? 'spin' : undefined} />
+            {syncState === 'syncing' ? 'Syncing…' : syncState === 'done' ? 'Up to date' : syncState === 'error' ? 'Sync failed' : 'Sync Now'}
           </button>
         </div>
 

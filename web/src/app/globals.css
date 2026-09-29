@@ -841,3 +841,9 @@ body {
   height: 0;
   pointer-events: none;
 }
+
+/* Used by buttons that show progress while a request is in flight
+   (e.g. Settings → Sync Now). Existing code already referenced `.spin`
+   without it being defined anywhere, so the icon sat still. */
+@keyframes ds-spin { to { transform: rotate(360deg); } }
+.spin { animation: ds-spin 0.9s linear infinite; }
