@@ -8,6 +8,7 @@
  *   online ↔ offline → syncing → synced (auto-merge) | conflict (manual review)
  */
 import React, { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
+import { devLog } from '@/lib/log';
 
 export type SyncState = 'online' | 'offline' | 'syncing' | 'synced' | 'conflict';
 
@@ -158,24 +159,24 @@ export function SyncStateProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = true;
     setSyncStateRaw('offline');
     setPendingEdits(1);
-    console.log('[Phase 5 Dev Tools] Rapid Flicker Test Step 1: OFFLINE (Type edit 1 now)');
+    devLog('[Phase 5 Dev Tools] Rapid Flicker Test Step 1: OFFLINE (Type edit 1 now)');
 
     setTimeout(() => {
       if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = false;
       setSyncStateRaw('syncing');
-      console.log('[Phase 5 Dev Tools] Rapid Flicker Test Step 2: BRIEF ONLINE PULSE');
+      devLog('[Phase 5 Dev Tools] Rapid Flicker Test Step 2: BRIEF ONLINE PULSE');
 
       setTimeout(() => {
         if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = true;
         setSyncStateRaw('offline');
         setPendingEdits(2);
-        console.log('[Phase 5 Dev Tools] Rapid Flicker Test Step 3: OFFLINE AGAIN (Type edit 2 now)');
+        devLog('[Phase 5 Dev Tools] Rapid Flicker Test Step 3: OFFLINE AGAIN (Type edit 2 now)');
 
         setTimeout(() => {
           if (typeof window !== 'undefined') (window as any).__DOCUSYNC_DEV_OFFLINE__ = false;
           setSyncStateRaw('synced');
           setPendingEdits(0);
-          console.log('[Phase 5 Dev Tools] Rapid Flicker Test Complete: FULLY RECONNECTED');
+          devLog('[Phase 5 Dev Tools] Rapid Flicker Test Complete: FULLY RECONNECTED');
           setTimeout(() => setSyncStateRaw('online'), 2500);
         }, 4000);
       }, 1000);

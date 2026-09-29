@@ -1,3 +1,4 @@
+import { devLog } from '@/lib/log';
 /**
  * @module mockAuthService
  * Centralized auth backend proxy for Desktop, Web, and Mobile.
@@ -135,7 +136,7 @@ export async function login(email: string, pin: string): Promise<AuthUser> {
     }
 
     if (isDifferentUser) {
-      console.log('[Auth Web] New or different user logging in. Isolating workspace...');
+      devLog('[Auth Web] New or different user logging in. Isolating workspace...');
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
         if (k && (k.startsWith('ds_') || k.startsWith('docusync_') || k === 'files' || k === 'current_room')) {
@@ -316,11 +317,17 @@ export async function getActiveUsers(): Promise<AuthUser[]> {
 
 export async function checkApprovalStatus(email: string): Promise<string | null> {
   try {
-    const res = await fetch(`${API_BASE}?action=sync&t=${Date.now()}`, { cache: 'no-store' });
+    // Asks only for this one address's credential. The roster returned by
+    // `action=sync` no longer carries anyone's pin, because every client
+    // polls it every two seconds and it was therefore exposing every
+    // account's password in the browser's Network tab.
+    const res = await fetch(
+      `${API_BASE}?action=claim_pin&email=${encodeURIComponent(email)}&t=${Date.now()}`,
+      { cache: 'no-store' }
+    );
     if (res.ok) {
       const data = await res.json();
-      const user = (data.users || []).find((u: any) => u.email.toLowerCase() === email.toLowerCase());
-      if (user && user.status === 'active') return user.pin;
+      if (data.status === 'active' && data.pin) return data.pin;
     }
     return null;
   } catch {

@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { uGet, uSet } from '@/lib/userStorage';
 import { idbGetFile, idbSaveFile } from '@/lib/idb';
 import * as mockAuthService from '@/lib/mockAuthService';
+import { devLog, devWarn, redactUrl } from '@/lib/log';
 
 export interface PeerInfo {
   id: string;
@@ -304,7 +305,9 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
       return; // Already connected
     }
 
-    console.log(`[WebSync] 🌐 Attempting WebSocket connection to: ${wsUrl}`);
+    // The URL carries ?token=<room OTP>, which is the join credential for
+    // the workspace — redact it before it reaches the console.
+    devLog(`[WebSync] 🌐 Attempting WebSocket connection to: ${redactUrl(wsUrl)}`);
 
     setPeers((prev) => {
       const exists = prev.find((p) => p.id === peerId);
@@ -322,7 +325,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
       (window as any).docusync_socket = ws;
 
       ws.onopen = () => {
-        console.log(`[WebSync] 🔌 WS connection established to ${wsUrl}! Sending PEER_HELLO...`);
+        devLog(`[WebSync] 🔌 WS connection established to ${redactUrl(wsUrl)}! Sending PEER_HELLO...`);
         const session = mockAuthService.getCurrentUser();
         const displayName = mockAuthService.getDisplayName(session);
         ws.send(JSON.stringify({ type: 'PEER_HELLO', nodeId: localNodeId, displayName, nodeCount: 3, nodeIndex: 1, timestamp: new Date().toISOString() }));
@@ -367,7 +370,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
             window.dispatchEvent(new CustomEvent('docusync_ws_merge_reject', { detail: msg }));
           }
           if (msg.type === 'DELTA_PUSH') {
-            console.log('[WebSync] 📥 Received DELTA_PUSH from', msg.nodeId);
+            devLog('[WebSync] 📥 Received DELTA_PUSH from', msg.nodeId);
             
             // Globally update the file content in local storage so Editor has latest state
             try {
@@ -418,7 +421,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
       };
 
       ws.onerror = (err) => {
-        console.warn(`[WebSync] ❌ WS connection failed to ${wsUrl}`, err);
+        devWarn(`[WebSync] ❌ WS connection failed to ${redactUrl(wsUrl)}`, err);
         setPeers((prev) => {
           const updated = prev.map((p) => (p.id === peerId ? { ...p, status: 'disconnected' as const } : p));
           uSet('peers', JSON.stringify(updated));
@@ -427,7 +430,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
       };
 
       ws.onclose = () => {
-        console.warn('[WebSync] WS connection closed');
+        devWarn('[WebSync] WS connection closed');
         setPeers((prev) => {
           const updated = prev.map((p) => (p.id === peerId ? { ...p, status: 'disconnected' as const } : p));
           uSet('peers', JSON.stringify(updated));
@@ -436,7 +439,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
         socketRef.current = null;
       };
     } catch {
-      console.warn('[WebSync] WS not supported in this context');
+      devWarn('[WebSync] WS not supported in this context');
     }
   }, [localNodeId]);
 

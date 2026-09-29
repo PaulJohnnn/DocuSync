@@ -24,6 +24,28 @@ const DEFAULT_USERS = [
   },
 ];
 
+/**
+ * Fields that must never leave the server on a listing endpoint.
+ * `pin` doubles as the account password (`set_password` writes the chosen
+ * password straight into it), and the `resetOtp*` fields are a live
+ * account-recovery token.
+ */
+const SECRET_FIELDS = ['pin', 'resetOtp', 'resetOtpIssuedAt', 'resetOtpVerified'] as const;
+
+function publicUser(u: any) {
+  const safe: any = { ...u };
+  for (const f of SECRET_FIELDS) delete safe[f];
+  // Keep the shape callers rely on without revealing the value itself.
+  safe.hasPin = Boolean(u?.pin);
+  return safe;
+}
+
+function publicPending(p: any) {
+  const safe: any = { ...p };
+  for (const f of SECRET_FIELDS) delete safe[f];
+  return safe;
+}
+
 async function getDb() {
   try {
     const raw = await redis.get('auth_db');
@@ -66,7 +88,33 @@ export async function GET(req: Request) {
   if (action === 'sync') {
     // Only return current states. Auto-approval logic has been permanently removed.
     // Accounts will sit in db.pending indefinitely until an Admin manually calls the approve API.
-    return NextResponse.json({ users: db.users, pending: db.pending }, { headers: corsHeaders });
+    //
+    // Secrets are stripped before this leaves the server. Every signed-in
+    // client polls this endpoint every two seconds, so anything included
+    // here sits in plain sight in the browser's Network tab — and `pin`
+    // holds the account's actual login credential (see `set_password`,
+    // which writes the chosen password into that field). It was returning
+    // the whole user record, so opening dev tools exposed every account's
+    // password, along with the live password-reset codes.
+    return NextResponse.json(
+      { users: db.users.map(publicUser), pending: db.pending.map(publicPending) },
+      { headers: corsHeaders }
+    );
+  }
+
+  // Lets a pending applicant collect their own credential once an admin has
+  // approved them, without the roster having to carry everyone's. Scoped to
+  // a single address and only while that account is active.
+  if (action === 'claim_pin') {
+    const email = url.searchParams.get('email');
+    if (!email) {
+      return NextResponse.json({ error: 'email is required' }, { status: 400, headers: corsHeaders });
+    }
+    const user = db.users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
+    if (!user || user.status !== 'active') {
+      return NextResponse.json({ success: true, status: user?.status ?? 'pending', pin: null }, { headers: corsHeaders });
+    }
+    return NextResponse.json({ success: true, status: 'active', pin: user.pin }, { headers: corsHeaders });
   }
 
   return NextResponse.json({ error: 'Unknown GET action' }, { status: 400, headers: corsHeaders });

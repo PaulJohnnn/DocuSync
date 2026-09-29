@@ -13,6 +13,7 @@ const TipTapEditor = dynamic(() => import('@/components/TipTapEditor'), { ssr: f
 import type { RemoteCursor } from '@/components/TipTapEditor';
 import { toast } from 'sonner';
 import { computeSignatureMerge } from '@/engine/delta/signature-merge';
+import { devLog, describeContent } from '@/lib/log';
 
 // ── Matchmaker URL ─────────────────────────────────────────────────────────
 const _MATCHMAKER_URL = process.env.NODE_ENV === 'development'
@@ -268,7 +269,11 @@ export default function EditorPage() {
       if (msg.nodeId === localNodeIdRef.current) return;
       if (msg.authorNodeId === localNodeIdRef.current) return;
       if (isTypingRef.current || hasPendingChangesRef.current) return; // Don't stomp on local typing or pending pushes
-      console.log('[APPLY]', 'source:', msg.nodeId, 'my content before:', currentContentRef.current, 'incoming content:', msg.content);
+      // Describe the payload rather than printing it: this used to dump both
+      // the local and the incoming document body into the console on every
+      // remote apply, putting the collaborators' text on screen for anyone
+      // with dev tools open.
+      devLog('[APPLY]', 'source:', msg.nodeId, 'local:', describeContent(currentContentRef.current), 'incoming:', describeContent(msg.content));
       if (msg.content && msg.content !== currentContentRef.current) {
         
         // Detect if the incoming payload contains newly appended offline pages
@@ -318,7 +323,7 @@ export default function EditorPage() {
       const localFileId = Number(fileId);
       if (msg.fileId !== localFileId) return;
       
-      console.log('[CONFLICT RESOLVED] Host resolved conflict block. Unlocking local diff barriers.');
+      devLog('[CONFLICT RESOLVED] Host resolved conflict block. Unlocking local diff barriers.');
       
       // Crucial: Unlock the Web App's pending push state
       hasPendingChangesRef.current = false;
@@ -354,7 +359,7 @@ export default function EditorPage() {
       const devOffline = (window as any).__DOCUSYNC_DEV_OFFLINE__ === true || syncState === 'offline';
       setIsOnline(!devOffline);
       if (!devOffline) {
-        console.log('[Online Flusher] Network reconnected! Waiting for user to click Reconnect...');
+        devLog('[Online Flusher] Network reconnected! Waiting for user to click Reconnect...');
       }
     };
     const goOffline = () => {
@@ -581,7 +586,7 @@ export default function EditorPage() {
               setOfflineQueue(false);
               uSet('docusync_offline_base', typeof mergedContent === 'string' ? mergedContent : contentToSave);
               uSet(`docusync_offline_history_${fileId}`, '[]');
-              console.log('[OfflineQueue] Reset to false after sync. Base updated.');
+              devLog('[OfflineQueue] Reset to false after sync. Base updated.');
               hasPendingChangesRef.current = false;
             }
           } else {
@@ -896,9 +901,7 @@ export default function EditorPage() {
     // content from the server. Updating it on save would cause the Matchmaker
     // poll to return 'unchanged' for Desktop edits saved before our save time.
 
-    console.log('[VC SHAPE]', JSON.stringify(localVectorClockRef.current, null, 2));
-
-    console.log('[SEND]', JSON.stringify(localVectorClockRef.current));
+    devLog('[SEND] clock counters:', JSON.stringify(localVectorClockRef.current?.root?.children?.map((c: any) => c.counter) ?? []));
     await pushToHost(contentToSave, localVectorClockRef.current, forcePush, isSessionEnd);
     } finally {
       isPushingRef.current = false;
