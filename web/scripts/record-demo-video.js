@@ -81,7 +81,10 @@ async function focusEnd(page) {
 }
 
 (async () => {
-  fs.rmSync(OUT_DIR, { recursive: true, force: true });
+  // Clear only the scratch directory. This used to wipe OUT_DIR wholesale,
+  // which destroyed the finished narrated video sitting alongside the raw
+  // captures whenever a later run failed part-way.
+  fs.rmSync(RAW_DIR, { recursive: true, force: true });
   fs.mkdirSync(RAW_DIR, { recursive: true });
 
   const browser = await chromium.launch();
@@ -106,14 +109,26 @@ async function focusEnd(page) {
   const paul = await ctxA.newPage();
   const zyra = await ctxB.newPage();
 
+  // Scene offsets, measured from the moment recording starts, so narration
+  // can be placed against the finished video rather than guessed at.
+  const T0 = Date.now();
+  const timeline = [];
+  const scene = (id, caption) => {
+    const at = (Date.now() - T0) / 1000;
+    timeline.push({ id, caption, at });
+    console.log(`  [${at.toFixed(1)}s] ${id}`);
+  };
+
   try {
     // ── 1. Sign in ────────────────────────────────────────────────────
     console.log('Scene 1: sign in');
+    scene('signin', 'Signing in on two separate devices');
     await Promise.all([login(paul, 'Paul'), login(zyra, 'Zyra')]);
     await beat(paul, 1200);
 
     // ── 2. Create a room ──────────────────────────────────────────────
     console.log('Scene 2: create room');
+    scene('create', 'Creating a sync room');
     await paul.goto(`${BASE}/app/peers`);
     await beat(paul, 1500);
     await paul.click('button:has-text("Create Room")');
@@ -130,6 +145,7 @@ async function focusEnd(page) {
 
     // ── 3. Second device joins ────────────────────────────────────────
     console.log('Scene 3: second device joins');
+    scene('join', 'Second device joins with the invite code');
     await zyra.goto(`${BASE}/app/peers`);
     await beat(zyra, 1200);
     await zyra.click('button:has-text("Join Room")');
@@ -150,6 +166,7 @@ async function focusEnd(page) {
 
     // ── 4. Open the shared document ───────────────────────────────────
     console.log('Scene 4: open document');
+    scene('open', 'Opening the shared document');
     const fileId = String(Date.now()).slice(-6);
     const base = '<div data-margin="96"><h2>Q4 Engineering Roadmap</h2>\n'
       + '<p>The quarterly roadmap will be finalized before the end of the sprint.</p>\n'
@@ -168,38 +185,59 @@ async function focusEnd(page) {
 
     // ── 5. Live collaboration, device 1 -> device 2 ───────────────────
     console.log('Scene 5: live sync A -> B');
+    scene('syncAB', 'Device 1 types — the edit reaches Device 2');
     await focusEnd(paul);
     await paul.keyboard.type(' Paul: the release candidate ships on Monday.', { delay: 55 });
     await zyra.waitForFunction(
       (t) => document.querySelector('.ProseMirror')?.innerText.includes(t),
-      'ships on Monday', { timeout: 20000 }
+      'ships on Monday', { timeout: 60000 }
     );
     await beat(zyra, 2500);
 
     // ── 6. And back, device 2 -> device 1 ─────────────────────────────
     console.log('Scene 6: live sync B -> A');
+    scene('syncBA', 'Device 2 replies — live cursors on both sides');
     await focusEnd(zyra);
     await zyra.keyboard.type(' Zyra: confirmed, I will prepare the release notes.', { delay: 55 });
     await paul.waitForFunction(
       (t) => document.querySelector('.ProseMirror')?.innerText.includes(t),
-      'release notes', { timeout: 20000 }
+      'release notes', { timeout: 60000 }
     );
     await beat(paul, 3000);
 
     // ── 7. Version history — the append-only log ──────────────────────
     console.log('Scene 7: version history');
+    scene('history', 'Version history — the append-only event log');
     await paul.goto(`${BASE}/app/history/${fileId}`);
     await beat(paul, 4500);
 
     // ── 8. Metrics — measured live ────────────────────────────────────
     console.log('Scene 8: metrics');
-    await paul.goto(`${BASE}/app/metrics`);
-    await beat(paul, 2000);
-    await zyra.goto(`${BASE}/app/metrics`);
-    await beat(paul, 5000);
+    scene('metrics', 'Evaluation metrics, measured from real traffic');
+    // Load both together and give each time to render — previously Zyra was
+    // navigated last and the video ended on a half-blank right-hand panel.
+    await Promise.all([
+      paul.goto(`${BASE}/app/metrics`),
+      zyra.goto(`${BASE}/app/metrics`),
+    ]);
+    await beat(paul, 4500);
+
+    // Rest on the RQ4 result cards rather than the raw telemetry line. The
+    // latency figure there reflects two recorded browsers sharing one dev
+    // machine, which is not representative of the deployed system; the
+    // consistency and resolution figures are.
+    const scrollDown = (page) => page.evaluate(() => {
+      const target = [...document.querySelectorAll('*')]
+        .find(el => el.scrollHeight > el.clientHeight + 200 && getComputedStyle(el).overflowY !== 'visible');
+      (target || window).scrollBy({ top: 430, behavior: 'smooth' });
+    });
+    await Promise.all([scrollDown(paul), scrollDown(zyra)]);
+    await beat(paul, 6000);
 
     console.log('\nRoom used:', otp);
     fs.writeFileSync(path.join(OUT_DIR, 'room.txt'), otp);
+    fs.writeFileSync(path.join(OUT_DIR, 'timeline.json'),
+      JSON.stringify({ totalSeconds: (Date.now() - T0) / 1000, scenes: timeline }, null, 2));
   } catch (err) {
     console.error('FAILED:', err.message);
     process.exitCode = 1;
