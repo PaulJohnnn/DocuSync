@@ -264,7 +264,97 @@ export default function AdminDashboardPage() {
 
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', maxWidth: 800, margin: '0 auto', gap: 40 }}>
-        
+
+        {/* Pending Requests — the manual approval queue.
+            Requests were being fetched into state and counted for the
+            "new request" toast, but never rendered, so there was no way to
+            approve anyone: the requester sat on "Waiting for Approval"
+            indefinitely while the admin had no control to act on. */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10, margin: 0, color: '#f8fafc' }}>
+              <div style={{ background: 'rgba(245,158,11,0.12)', padding: 6, borderRadius: 8 }}>
+                <Clock size={18} color="#f59e0b" />
+              </div>
+              Pending Requests
+            </h2>
+            {pendingRequests.length > 0 && (
+              <div style={{
+                background: 'rgba(245,158,11,0.15)', color: '#f59e0b',
+                border: '1px solid rgba(245,158,11,0.3)', padding: '4px 12px',
+                borderRadius: 999, fontSize: 13, fontWeight: 700,
+              }}>
+                {pendingRequests.length} awaiting approval
+              </div>
+            )}
+          </div>
+
+          <div style={{
+            background: 'rgba(15,23,42,0.6)', border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 16, overflow: 'hidden',
+          }}>
+            {pendingRequests.length === 0 ? (
+              <div style={{ padding: '32px 24px', textAlign: 'center', color: '#64748b', fontSize: 14 }}>
+                No requests waiting. New profile requests appear here for approval.
+              </div>
+            ) : (
+              pendingRequests.map((r, i) => (
+                <div key={r.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+                  padding: '16px 24px',
+                  borderBottom: i === pendingRequests.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.04)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                      background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+                      color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 18, fontWeight: 700,
+                    }}>
+                      {(r.email || '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {r.email}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        Requested {r.requestedAt ? new Date(r.requestedAt).toLocaleString() : 'recently'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                    <button
+                      onClick={() => handleReject(r.id)}
+                      title="Deny this request"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: 'rgba(239,68,68,0.12)', color: '#f87171',
+                        border: '1px solid rgba(239,68,68,0.3)', padding: '8px 14px',
+                        borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                      }}
+                    >
+                      <X size={14} /> Deny
+                    </button>
+                    <button
+                      onClick={() => handleApprove(r.id)}
+                      title="Approve and create this profile"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff',
+                        border: 'none', padding: '8px 16px',
+                        borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                      }}
+                    >
+                      <Check size={14} /> Approve
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         {/* Active Users Column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
