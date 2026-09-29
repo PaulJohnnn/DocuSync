@@ -110,6 +110,8 @@ async function pollDatabase() {
 if (typeof window !== 'undefined') {
   setInterval(pollDatabase, 2000);
   pollDatabase(); // Initial fetch
+  // Keeps the admin presence heartbeat in step with who is signed in.
+  setInterval(syncAdminHeartbeat, 2000);
 }
 
 // ── Auth methods ───────────────────────────────────────────────────────────
@@ -274,6 +276,21 @@ export function clearRememberedEmail(): void {
 
 export function logout() {
   if (typeof window !== 'undefined') {
+    // An administrator signing out should stop counting as present straight
+    // away, so anyone waiting on approval is told the truth immediately
+    // rather than after the staleness window elapses.
+    try {
+      const prev = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+      if (prev?.isAdmin && prev?.id) {
+        fetch(API_BASE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'admin_signout', userId: prev.id }),
+          keepalive: true,
+        }).catch(() => { /* the heartbeat ages out regardless */ });
+      }
+    } catch { /* no readable session — nothing to clear */ }
+
     sessionStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(SESSION_KEY);
     window.location.href = '/app/login';
@@ -395,6 +412,60 @@ export async function updateProfileName(userId: string, name: string): Promise<A
   return data.user;
 }
 
+/**
+ * Reports whether an administrator is actually signed in right now, based
+ * on heartbeats posted by admin sessions — not on a guess.
+ */
+export async function getAdminPresence(): Promise<{ online: boolean; adminsOnline: number; lastSeenSecondsAgo: number | null }> {
+  try {
+    const res = await fetch(`${API_BASE}?action=admin_status&t=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) {
+      const d = await res.json();
+      return {
+        online: !!d.online,
+        adminsOnline: d.adminsOnline ?? 0,
+        lastSeenSecondsAgo: d.lastSeenSecondsAgo ?? null,
+      };
+    }
+  } catch { /* treated as unknown below */ }
+  // A failed check is "we don't know", not "nobody is there" — say online so
+  // a network blip never tells a waiting person something false.
+  return { online: true, adminsOnline: 0, lastSeenSecondsAgo: null };
+}
+
+let _adminBeatTimer: ReturnType<typeof setInterval> | null = null;
+
+/** Starts/stops the admin presence heartbeat for the signed-in account. */
+function syncAdminHeartbeat(): void {
+  if (typeof window === 'undefined') return;
+  const user = (() => {
+    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+  })();
+
+  const shouldBeat = !!(user && user.isAdmin && user.status !== 'revoked');
+  if (shouldBeat && !_adminBeatTimer) {
+    const beat = () => {
+      fetch(API_BASE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'admin_heartbeat', userId: user.id }),
+      }).catch(() => { /* a missed beat just ages out */ });
+    };
+    beat();
+    _adminBeatTimer = setInterval(beat, 15000);
+    // Stop counting as present the moment the tab goes away.
+    window.addEventListener('pagehide', () => {
+      navigator.sendBeacon?.(
+        API_BASE,
+        new Blob([JSON.stringify({ action: 'admin_signout', userId: user.id })], { type: 'application/json' })
+      );
+    });
+  } else if (!shouldBeat && _adminBeatTimer) {
+    clearInterval(_adminBeatTimer);
+    _adminBeatTimer = null;
+  }
+}
+
 export async function revokeUser(userId: string): Promise<void> {
   await fetch(API_BASE, {
     method: 'POST',
@@ -460,6 +531,7 @@ const mockAuthService = {
   cancelRequest,
   revokeUser,
   updateProfileName,
+  getAdminPresence,
   resetUserPin,
   requestPinRenewal,
   forgotAccount,

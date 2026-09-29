@@ -202,6 +202,9 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
   const [emailError, setEmailError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  // null = not checked yet, so the screen shows neither claim until we know.
+  const [adminOnline, setAdminOnline] = useState<boolean | null>(null);
+  const [adminLastSeen, setAdminLastSeen] = useState<number | null>(null);
 
   const [approvedPin, setApprovedPin] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -232,6 +235,20 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
     // Initial check in case it was instantly approved (rare)
     check();
 
+    // Is anyone actually able to approve this? Checked against live admin
+    // heartbeats rather than assumed, and refreshed while the person waits.
+    const checkAdmins = () => {
+      mockAuthService.getAdminPresence()
+        .then(p => {
+          if (cancelled) return;
+          setAdminOnline(p.online);
+          setAdminLastSeen(p.lastSeenSecondsAgo);
+        })
+        .catch(() => {});
+    };
+    checkAdmins();
+    const adminPoll = setInterval(checkAdmins, 5000);
+
     // This screen is the single place in the app where a user is actively
     // staring at a timer waiting for something to happen, so it shouldn't
     // depend on the app-wide 2s diff poll noticing a change somewhere in
@@ -250,6 +267,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
       cancelled = true;
       unsubscribe();
       clearInterval(fastPoll);
+      clearInterval(adminPoll);
       clearInterval(timerInterval);
     };
   }, [success, email]);
@@ -314,12 +332,49 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
                   <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 24, lineHeight: 1.5 }}>
                     Your profile request for <strong>{email}</strong> has been logged locally. Please contact the device administrator to approve this profile.
                   </p>
-                  <div style={{ padding: '16px', background: '#f1f5f9', borderRadius: 12, marginBottom: 24 }}>
+                  <div style={{ padding: '16px', background: '#f1f5f9', borderRadius: 12, marginBottom: adminOnline === false ? 12 : 24 }}>
                     <div style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
                       {Math.floor(waitTimer / 60)}:{(waitTimer % 60).toString().padStart(2, '0')}
                     </div>
                     <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Waiting for Approval</div>
                   </div>
+
+                  {/* Tell the truth about whether anyone can actually act on
+                      this. `adminOnline` comes from heartbeats posted by live
+                      administrator sessions, so "nobody is online" is measured
+                      rather than assumed — and the request itself is already
+                      saved, which the wording has to make clear so nobody
+                      resubmits or gives up on a request that is safely queued. */}
+                  {adminOnline === false && (
+                    <div style={{
+                      padding: '14px 16px', marginBottom: 24, textAlign: 'left',
+                      background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 12,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#94a3b8', flexShrink: 0 }} />
+                        <strong style={{ fontSize: 13, color: '#92400e' }}>No administrator is online right now</strong>
+                      </div>
+                      <p style={{ fontSize: 12.5, color: '#78350f', margin: 0, lineHeight: 1.5 }}>
+                        Your request is saved and sits at the top of the approval queue, but it
+                        cannot be approved until an administrator signs in
+                        {adminLastSeen !== null && adminLastSeen < 86400
+                          ? ` (last seen ${adminLastSeen < 60 ? 'less than a minute' : Math.round(adminLastSeen / 60) + ' minute'} ago)`
+                          : ''}.
+                        This page will update by itself the moment that happens — you can also
+                        close it and come back.
+                      </p>
+                    </div>
+                  )}
+
+                  {adminOnline === true && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      marginBottom: 24, fontSize: 12.5, color: '#166534',
+                    }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+                      An administrator is online and can approve this now
+                    </div>
+                  )}
                   {waitTimer > 15 && (
                     <button onClick={() => { setWaitTimer(0); setSuccess(false); }} style={{ background: 'none', border: 'none', color: '#dc2626', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>Cancel & Try Again</button>
                   )}

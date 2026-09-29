@@ -32,6 +32,16 @@ const DEFAULT_USERS = [
  */
 const SECRET_FIELDS = ['pin', 'resetOtp', 'resetOtpIssuedAt', 'resetOtpVerified'] as const;
 
+/** Redis key holding `{ [adminUserId]: lastSeenEpochMs }`. */
+const ADMIN_PRESENCE_KEY = 'admin_presence';
+/**
+ * How stale a heartbeat may be before that admin counts as gone. Admin
+ * sessions beat every 15s, so this tolerates two missed beats — long enough
+ * to ride out a slow request, short enough that closing the tab is noticed
+ * within about a minute.
+ */
+const ADMIN_ONLINE_WINDOW_MS = 45_000;
+
 function publicUser(u: any) {
   const safe: any = { ...u };
   for (const f of SECRET_FIELDS) delete safe[f];
@@ -115,6 +125,28 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, status: user?.status ?? 'pending', pin: null }, { headers: corsHeaders });
     }
     return NextResponse.json({ success: true, status: 'active', pin: user.pin }, { headers: corsHeaders });
+  }
+
+  // Is an administrator actually signed in right now?
+  //
+  // This is measured, not assumed: an admin's own session posts a heartbeat
+  // (see `admin_heartbeat`) while its tab is open, and this reports whether
+  // any of those beats is still fresh. If no admin has beaten recently the
+  // answer is a plain "no" — the waiting requester is told the truth rather
+  // than being left staring at a timer.
+  if (action === 'admin_status') {
+    const presence = ((await redis.get(ADMIN_PRESENCE_KEY)) || {}) as Record<string, number>;
+    const now = Date.now();
+    const liveIds = Object.entries(presence)
+      .filter(([, seen]) => now - Number(seen) < ADMIN_ONLINE_WINDOW_MS)
+      .map(([id]) => id);
+    const lastSeen = Object.values(presence).reduce<number>((a, b) => Math.max(a, Number(b) || 0), 0);
+    return NextResponse.json({
+      success: true,
+      online: liveIds.length > 0,
+      adminsOnline: liveIds.length,
+      lastSeenSecondsAgo: lastSeen ? Math.round((now - lastSeen) / 1000) : null,
+    }, { headers: corsHeaders });
   }
 
   return NextResponse.json({ error: 'Unknown GET action' }, { status: 400, headers: corsHeaders });
@@ -423,6 +455,38 @@ export async function POST(req: Request) {
       await saveDb(db);
       const { pin: _pin, ...safe } = user;
       return NextResponse.json({ success: true, user: safe }, { headers: corsHeaders });
+    }
+
+    // Posted by an administrator's own signed-in session while its tab is
+    // open. This is what makes `admin_status` a real measurement: presence
+    // is only ever recorded by a live admin session, never inferred.
+    if (action === 'admin_heartbeat') {
+      const { userId } = body;
+      const user = db.users.find((u: any) => u.id === userId);
+      if (!user || !user.isAdmin || user.status !== 'active') {
+        return NextResponse.json({ error: 'Not an active administrator' }, { status: 403, headers: corsHeaders });
+      }
+      const now = Date.now();
+      const presence = ((await redis.get(ADMIN_PRESENCE_KEY)) || {}) as Record<string, number>;
+      // Drop entries that are long dead so the record cannot grow forever.
+      for (const [id, seen] of Object.entries(presence)) {
+        if (now - Number(seen) > ADMIN_ONLINE_WINDOW_MS * 10) delete presence[id];
+      }
+      presence[userId] = now;
+      await redis.set(ADMIN_PRESENCE_KEY, presence, { ex: 60 * 60 });
+      return NextResponse.json({ success: true }, { headers: corsHeaders });
+    }
+
+    // An administrator signing out should stop counting as present at once,
+    // rather than lingering for the whole staleness window.
+    if (action === 'admin_signout') {
+      const { userId } = body;
+      const presence = ((await redis.get(ADMIN_PRESENCE_KEY)) || {}) as Record<string, number>;
+      if (userId && presence[userId]) {
+        delete presence[userId];
+        await redis.set(ADMIN_PRESENCE_KEY, presence, { ex: 60 * 60 });
+      }
+      return NextResponse.json({ success: true }, { headers: corsHeaders });
     }
 
     return NextResponse.json({ error: 'Unknown POST action' }, { status: 400, headers: corsHeaders });
