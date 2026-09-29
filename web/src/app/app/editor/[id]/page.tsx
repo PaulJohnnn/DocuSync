@@ -405,7 +405,65 @@ export default function EditorPage() {
             lastLocalSaveTime.current = ts;
             lastSyncedAt.current = ts;
           }
+          return;
         }
+
+        // Not on this device yet. That is the normal case for a second phone
+        // or laptop opening a document someone else shared: the room knows
+        // about the file but this browser's IndexedDB has never seen it, and
+        // the screen used to dead-end on "File not found". Adopt the room's
+        // copy instead, which is exactly what the Files list does when you
+        // press "Open & edit".
+        const roomStr = uGet('current_room');
+        if (!roomStr) return;
+        const room = JSON.parse(roomStr);
+        const code = room?.otp || room?.id;
+        if (!code) return;
+
+        const base = process.env.NEXT_PUBLIC_MATCHMAKER_URL || `${window.location.origin}/api/lobby`;
+        let name = 'Shared document';
+        let content = '';
+
+        try {
+          const listRes = await fetch(`${base}/files?otp=${code}`);
+          if (listRes.ok) {
+            const data = await listRes.json();
+            const entry = (data.files || []).find(
+              (f: any) => String(f.fileId ?? f.id) === String(fileId)
+            );
+            if (entry) {
+              name = entry.fileName || entry.name || name;
+              content = entry.content || '';
+            }
+          }
+        } catch { /* fall through to the snapshot */ }
+
+        // The room listing does not always carry the body, so take the
+        // current merged snapshot as the authoritative content.
+        try {
+          const docRes = await fetch(`${base}/doc?otp=${code}&fileId=${fileId}`);
+          if (docRes.ok) {
+            const data = await docRes.json();
+            content = data?.content || data?.snapshot?.content || content;
+          }
+        } catch { /* keep whatever the listing gave us */ }
+
+        if (!content) return; // genuinely unknown file — leave the not-found screen
+
+        const adopted: FileRecord = {
+          id: String(fileId),
+          name,
+          type: 'text/plain',
+          size: content.length,
+          content,
+          status: 'synced',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await idbSaveFile(adopted);
+        setFile(adopted);
+        setContentAndRef(content);
+        lastSave.current = content;
       } catch (e) {
         console.error("IDB load error:", e);
       }
