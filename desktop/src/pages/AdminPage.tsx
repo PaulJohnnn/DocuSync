@@ -164,7 +164,7 @@ const AdminPage: React.FC = () => {
                 {/* Delete Group */}
                 <div style={{ flex: 1, minWidth: 300 }}>
                   <h3 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--ds-red)' }}>Delete Repository (Group)</h3>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--ds-text3)', marginBottom: '1rem' }}>Force-terminate a collaboration group by its OTP.</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--ds-text3)', marginBottom: '1rem' }}>Force-terminate a collaboration group by its invite code.</p>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <input 
                       type="text" 
@@ -328,7 +328,7 @@ const AdminPage: React.FC = () => {
               ) : (
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 1fr 100px', padding: '8px 1.25rem', fontSize: 11, fontWeight: 600, color: 'var(--ds-text3)', textTransform: 'uppercase', letterSpacing: '0.05em', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--ds-border)' }}>
-                    <span>Room Name</span><span>Room OTP</span><span>Host Node</span><span>Members</span>
+                    <span>Room Name</span><span>Room Code</span><span>Host Node</span><span>Members</span>
                   </div>
                   <div style={{ maxHeight: 300, overflowY: 'auto' }}>
                     {stats.rooms.map((r: any) => (

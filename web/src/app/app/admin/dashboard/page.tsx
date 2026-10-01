@@ -112,7 +112,7 @@ export default function AdminDashboardPage() {
     if (!deleteOtp.trim()) return;
     showConfirm(
       'Terminate Repository',
-      `Are you sure you want to forcibly terminate the repository with OTP ${deleteOtp}?`,
+      `Are you sure you want to forcibly terminate the repository with invite code ${deleteOtp}?`,
       async () => {
         setDeleting(true);
         try {

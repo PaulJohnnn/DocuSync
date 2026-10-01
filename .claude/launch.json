@@ -4,14 +4,38 @@
     {
       "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "web"],
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "web"
+      ],
       "port": 3000
     },
     {
       "name": "mobile-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "web", "--prefix", "mobile", "--", "--port", "19006"],
+      "runtimeArgs": [
+        "run",
+        "web",
+        "--prefix",
+        "mobile",
+        "--",
+        "--port",
+        "19006"
+      ],
       "port": 19006
+    },
+    {
+      "name": "desktop-renderer",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "desktop"
+      ],
+      "port": 5173
     }
   ]
 }

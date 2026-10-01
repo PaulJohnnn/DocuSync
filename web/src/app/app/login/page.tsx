@@ -597,7 +597,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
     e.preventDefault();
     let hasErr = false;
     if (!email) { setEmailError('Username is required.'); hasErr = true; }
-    if (pin.length < 5) { setPinError('PIN must be at least 5 characters.'); hasErr = true; }
+    if (pin.length < 5) { setPinError('Password must be at least 5 characters.'); hasErr = true; }
     if (hasErr) { triggerShake(); return; }
 
     setEmailError('');
@@ -857,7 +857,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         </div>
       )}
 
-      {/* Remember + Forgot PIN row */}
+      {/* Remember + Forgot Password row */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, marginTop: 8 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#475569' }}>
           <input
@@ -872,7 +872,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
           type="button"
           onClick={async () => {
             if (!email) {
-              setEmailError('Please enter your username first to request a PIN reset.');
+              setEmailError('Please enter your username first to request a new Access Code.');
               triggerShake();
               return;
             }
@@ -881,14 +881,14 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
               const newPin = await mockAuthService.forgotAccount(email);
               setRenewedPin(newPin);
             } catch (err: any) {
-              setAuthError(err.message || 'Failed to request PIN renewal.');
+              setAuthError(err.message || 'Failed to request a new Access Code.');
             } finally {
               setLoading(false);
             }
           }}
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#4f46e5', fontWeight: 500 }}
         >
-          Forgot PIN?
+          Forgot Password?
         </button>
       </div>
 

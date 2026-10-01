@@ -82,14 +82,29 @@ const AnimatedSyncMesh: React.FC = () => (
   </div>
 );
 
-const SixDigitPin: React.FC<{
+/**
+ * Credential entry for the vault.
+ *
+ * This was six fixed boxes that hard-truncated to 6 characters
+ * (`value.slice(0, 6)`), which matched the 6-digit access code the server
+ * issues on approval — but NOT the permanent password the web app lets you
+ * choose afterwards, which has no upper bound. Since `pin` is a single
+ * server-side field compared with `===`, anyone who set a password longer
+ * than six characters on the web simply could not type it here, and was
+ * locked out of the desktop entirely. A plain password field accepts both
+ * the short access code and a full-length password, so one input serves the
+ * whole flow and the two platforms stay interchangeable.
+ */
+const PasswordField: React.FC<{
   value: string;
   onChange: (v: string) => void;
   showPin: boolean;
   onToggleShow: () => void;
   error?: string;
   shake?: boolean;
-}> = ({ value, onChange, showPin, onToggleShow, error, shake }) => {
+  placeholder?: string;
+  autoComplete?: string;
+}> = ({ value, onChange, showPin, onToggleShow, error, shake, placeholder = 'Enter your password', autoComplete = 'current-password' }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -111,29 +126,20 @@ const SixDigitPin: React.FC<{
           <path d="M7 11V7a5 5 0 0 1 10 0v4" />
         </svg>
 
-        <div style={{ flex: 1, display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
-          {Array.from({ length: 6 }).map((_, i) => {
-            const filled = i < value.length;
-            const char = value[i] ?? '';
-            return (
-              <div key={i} style={{
-                width: 30, height: 30,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                borderRadius: 7,
-                background: filled ? 'rgba(79,70,229,0.07)' : 'rgba(0,0,0,0.025)',
-                border: `1.5px solid ${(isFocused && (value.length === i || (value.length === 6 && i === 5))) ? '#4f46e5' : filled ? 'rgba(79,70,229,0.3)' : 'rgba(0,0,0,0.08)'}`,
-                boxShadow: (isFocused && (value.length === i || (value.length === 6 && i === 5))) ? '0 0 0 3px rgba(79,70,229,0.2)' : undefined,
-                transition: 'all 0.15s',
-              }}>
-                {filled && (
-                  showPin
-                    ? <span style={{ fontSize: 15, fontWeight: 700, color: '#3730a3', lineHeight: 1 }}>{char}</span>
-                    : <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#3730a3' }} />
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <input
+          ref={inputRef}
+          type={showPin ? 'text' : 'password'}
+          value={value}
+          placeholder={placeholder}
+          onChange={e => onChange(e.target.value)}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          autoComplete={autoComplete}
+          style={{
+            flex: 1, border: 'none', outline: 'none', background: 'transparent',
+            padding: '2px 0', fontSize: 14, color: '#0f172a', fontFamily: 'inherit',
+          }}
+        />
 
         <button
           type="button"
@@ -143,7 +149,7 @@ const SixDigitPin: React.FC<{
             color: '#94a3b8', padding: 3, flexShrink: 0,
             display: 'flex', alignItems: 'center',
           }}
-          title={showPin ? 'Hide PIN' : 'Show PIN'}
+          title={showPin ? 'Hide password' : 'Show password'}
         >
           {showPin ? (
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -158,17 +164,6 @@ const SixDigitPin: React.FC<{
           )}
         </button>
 
-        <input
-          ref={inputRef}
-          type="text"
-          maxLength={6}
-          value={value}
-          onChange={e => onChange(e.target.value.slice(0, 6))}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          style={{ position: 'absolute', opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
-          autoComplete="one-time-code"
-        />
       </div>
     </div>
   );
@@ -184,6 +179,15 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
   const [copyState, setCopyState] = useState<'idle' | 'loading' | 'copied'>('idle');
   const [waitTimer, setWaitTimer] = useState(0);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  // Password setup, mirroring the web: the access code issued on approval is
+  // exchanged once for a permanent password, so the account is in the same
+  // state whichever platform created it.
+  const [settingPassword, setSettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
 
   useEffect(() => {
     if (!success) return;
@@ -241,7 +245,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
           <>
             <h3 style={{ fontSize: 20, fontWeight: 700, color: '#166534', marginBottom: 8 }}>Request Approved!</h3>
             <p style={{ fontSize: 13, color: '#4b5563', marginBottom: 16, lineHeight: 1.5 }}>
-              Your profile has been approved. Use the PIN below to log in.
+              Your profile has been approved. Use the Access Code below to log in.
             </p>
             <div style={{
               background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, padding: '16px',
@@ -264,7 +268,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
                   background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex',
                   alignItems: 'center', justifyContent: 'center', color: '#64748b'
                 }}
-                title="Copy PIN"
+                title="Copy Access Code"
               >
                 {copyState === 'loading' && (
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1s linear infinite' }}>
@@ -287,9 +291,66 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
                 )}
               </button>
             </div>
-            <button onClick={() => setShowSaveConfirm(true)} style={{ padding: '12px 24px', borderRadius: 10, fontSize: 14, fontWeight: 700, background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(34,197,94,0.3)' }}>
-              Continue to Login
-            </button>
+            {settingPassword ? (
+              <div style={{ textAlign: 'left' }}>
+                <h4 style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>Set Your Password</h4>
+                <p style={{ fontSize: 12.5, color: '#475569', marginBottom: 14, lineHeight: 1.6 }}>
+                  Create a permanent password for this account. You will use this to sign in next time instead of the Access Code.
+                </p>
+                <PasswordField
+                  value={newPassword}
+                  onChange={v => { setNewPassword(v); if (pwError) setPwError(''); }}
+                  showPin={showNewPassword}
+                  onToggleShow={() => setShowNewPassword(s => !s)}
+                  error={pwError}
+                  placeholder="Enter new password (min. 5 chars)"
+                  autoComplete="new-password"
+                />
+                <PasswordField
+                  value={confirmPassword}
+                  onChange={v => { setConfirmPassword(v); if (pwError) setPwError(''); }}
+                  showPin={showNewPassword}
+                  onToggleShow={() => setShowNewPassword(s => !s)}
+                  error={pwError}
+                  placeholder="Confirm new password"
+                  autoComplete="new-password"
+                />
+                {pwError && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#ef4444' }}>{pwError}</p>}
+                <button
+                  disabled={pwSaving}
+                  onClick={async () => {
+                    if (newPassword.length < 5) { setPwError('Password must be at least 5 characters.'); return; }
+                    if (newPassword !== confirmPassword) { setPwError('Passwords do not match.'); return; }
+                    if (!approvedPin) { setPwError('Access Code is no longer available. Please sign in with it instead.'); return; }
+                    setPwSaving(true);
+                    try {
+                      await mockAuthService.setPassword(email, approvedPin, newPassword);
+                      window.location.hash = '#/';
+                      window.location.reload();
+                    } catch (e: any) {
+                      setPwError(e?.message || 'Failed to set password.');
+                      setPwSaving(false);
+                    }
+                  }}
+                  style={{
+                    width: '100%', marginTop: 14, padding: '12px 24px', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                    background: pwSaving ? '#94a3b8' : 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)',
+                    color: '#fff', border: 'none', cursor: pwSaving ? 'default' : 'pointer',
+                  }}
+                >
+                  {pwSaving ? 'Saving…' : 'Save Password & Continue'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button onClick={() => setSettingPassword(true)} style={{ padding: '12px 24px', borderRadius: 10, fontSize: 14, fontWeight: 700, background: 'linear-gradient(135deg, #4f46e5 0%, #4338ca 100%)', color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(79,70,229,0.3)' }}>
+                  Set Up Your Password
+                </button>
+                <button onClick={() => setShowSaveConfirm(true)} style={{ padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600, background: 'transparent', color: '#475569', border: '1.5px solid #e2e8f0', cursor: 'pointer' }}>
+                  Skip — sign in with the Access Code
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -343,7 +404,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
                 Did you save the OTP?
               </h3>
               <p style={{ fontSize: 14, color: '#475569', marginBottom: 24, lineHeight: 1.6 }}>
-                You will need this PIN to log in. Are you sure you saved it?
+                You will need this Access Code to log in. Are you sure you saved it?
               </p>
               <div style={{ display: 'flex', gap: 12 }}>
                 <button
@@ -378,7 +439,7 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
     <form onSubmit={handleSignup} noValidate style={{ animation: 'fadeInUp 0.3s ease' }}>
       <div style={{ marginBottom: 20 }}>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>
-          Desired Local Identifier (Email)
+          Desired Local Identifier (Username)
         </label>
         <div style={{
           display: 'flex', alignItems: 'center',
@@ -393,9 +454,9 @@ function SignUpForm({ onBack }: { onBack: () => void }) {
             </svg>
           </span>
           <input
-            type="email"
+            type="text"
             value={email}
-            placeholder="Enter your email"
+            placeholder="Enter your username"
             onChange={e => { setEmail(e.target.value); if (emailError) setEmailError(''); }}
             style={{
               flex: 1, border: 'none', outline: 'none', background: 'transparent',
@@ -466,7 +527,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
     e.preventDefault();
     let hasErr = false;
     if (!email) { setEmailError('Email is required.'); hasErr = true; }
-    if (pin.length < 5) { setPinError('PIN must be at least 5 characters.'); hasErr = true; }
+    if (pin.length < 5) { setPinError('Password must be at least 5 characters.'); hasErr = true; }
     if (hasErr) { triggerShake(); return; }
 
     setEmailError('');
@@ -513,7 +574,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
           ? 'Login rejected. Error: Account not found'
           : rawMsg;
       setAuthError(friendlyMsg);
-      setPinError('Incorrect PIN');
+      setPinError('Incorrect password');
       setPin('');
       triggerShake();
     } finally {
@@ -539,12 +600,12 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
         <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(34,197,94,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
           <Check size={32} color="var(--ds-green)" />
         </div>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--ds-text)', marginBottom: '0.5rem' }}>PIN Renewed!</h3>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--ds-text)', marginBottom: '0.5rem' }}>Access Code Renewed!</h3>
         <div style={{ fontSize: '0.8rem', color: 'var(--ds-text)', marginBottom: '1rem', lineHeight: 1.5, background: '#fef3c7', padding: '12px', borderRadius: '8px', border: '1px solid #fde68a' }}>
           <strong>Notice:</strong> You can only change your password 1 time for this account. The next time will be next week.
         </div>
         <p style={{ fontSize: '0.85rem', color: 'var(--ds-text3)', marginBottom: '1rem' }}>
-          Use your new PIN below to log in.
+          Use your new Access Code below to log in.
         </p>
         <div style={{
           background: 'var(--ds-bg)', border: '1px solid var(--ds-border)', borderRadius: 'var(--ds-radius-md)', padding: '1rem',
@@ -564,7 +625,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center', color: copied ? '#fff' : 'var(--ds-text3)',
               borderRadius: 'var(--ds-radius-sm)', transition: 'all 0.2s ease', transform: copied ? 'scale(1.1)' : 'scale(1)'
             }}
-            title="Copy PIN"
+            title="Copy Access Code"
           >
             {copied ? <Check size={20} /> : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2-2v1"></path></svg>}
           </button>
@@ -600,7 +661,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
     <form onSubmit={handleUnlock} noValidate>
       <div style={{ marginBottom: 20 }}>
         <label htmlFor="unlock-email" style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>
-          Local Identifier (Email)
+          Local Identifier (Username)
         </label>
         <div style={{
           display: 'flex', alignItems: 'center',
@@ -619,11 +680,11 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
           </span>
           <input
             id="unlock-email"
-            type="email"
+            type="text"
             value={email}
-            placeholder="Enter your email"
+            placeholder="Enter your username"
             onChange={e => { setEmail(e.target.value); if (emailError) setEmailError(''); }}
-            autoComplete="email"
+            autoComplete="username"
             style={{
               flex: 1, border: 'none', outline: 'none', background: 'transparent',
               padding: '13px 12px', fontSize: 14, color: '#0f172a', fontFamily: 'inherit',
@@ -635,9 +696,9 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
 
       <div style={{ marginBottom: 4 }}>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 6 }}>
-          6-Digit Security PIN
+          Password
         </label>
-        <SixDigitPin
+        <PasswordField
           value={pin}
           onChange={v => { setPin(v); if (pinError) setPinError(''); if (authError) setAuthError(''); }}
           showPin={showPin}
@@ -672,7 +733,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
           type="button"
           onClick={async () => {
             if (!email) {
-              setEmailError('Please enter your username first to request a PIN reset.');
+              setEmailError('Please enter your username first to request a new Access Code.');
               triggerShake();
               return;
             }
@@ -681,14 +742,14 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
               const newPin = await mockAuthService.requestPinRenewal(email);
               setRenewedPin(newPin);
             } catch (err: any) {
-              setAuthError(err.message || 'Failed to request PIN renewal.');
+              setAuthError(err.message || 'Failed to request a new Access Code.');
             } finally {
               setLoading(false);
             }
           }}
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--ds-accent)', fontWeight: 500 }}
         >
-          Forgot PIN?
+          Forgot Password?
         </button>
       </div>
 

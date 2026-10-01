@@ -493,7 +493,7 @@ export default function PeersPage() {
               </p>
             </div>
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textAlign: 'center', marginBottom: 8 }}>INVITE CODE / OTP</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textAlign: 'center', marginBottom: 8 }}>INVITE CODE</div>
               {createdRoom && <OtpDisplay otp={createdRoom.otp} />}
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 24, flexWrap: 'wrap' }}>

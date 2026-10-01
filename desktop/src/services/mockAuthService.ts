@@ -286,6 +286,34 @@ export async function requestPinRenewal(email: string): Promise<string> {
   return data.pin;
 }
 
+/**
+ * Exchanges the one-time access code issued on approval for a permanent
+ * password of the user's choosing, and signs them in.
+ *
+ * The web app has always done this; the desktop never did, so a desktop user
+ * kept authenticating with the short code forever while a web user moved on
+ * to a real password. Both write to the same server-side field, so without
+ * this the two platforms drifted apart on the same account.
+ */
+export async function setPassword(email: string, pin: string, password: string): Promise<AuthUser> {
+  const res = await authFetch('', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'set_password', email, pin, password })
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Failed to set password');
+  }
+
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
+  }
+  pollDatabase();
+  return data.user;
+}
+
 const mockAuthService = {
   login,
   requestAccount,
@@ -296,6 +324,7 @@ const mockAuthService = {
   logout,
   checkApprovalStatus,
   requestPinRenewal,
+  setPassword,
   subscribeToDatabaseChanges,
 };
 
