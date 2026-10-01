@@ -251,7 +251,12 @@ const MetricsPage: React.FC = () => {
         let webConflictsCount = 0;
         if (room?.otp) {
           try {
-            const mmRes = await fetch(`http://localhost:3000/api/lobby/conflicts?otp=${room.otp}`);
+            // Hardcoded to localhost until now, so an installed desktop asked
+            // the user's own machine for the room's conflicts and always came
+            // back with zero. Resolve the same way every other call does.
+            const _WEB_BASE = import.meta.env.VITE_WEB_URL
+              || (import.meta.env.DEV ? 'http://localhost:3000' : 'https://docusync-dusky.vercel.app');
+            const mmRes = await fetch(`${_WEB_BASE}/api/lobby/conflicts?otp=${room.otp}`);
             if (mmRes.ok) {
               const mmData = await mmRes.json();
               if (mmData.conflicts) webConflictsCount = mmData.conflicts.length;
