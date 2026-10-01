@@ -9,6 +9,7 @@ import {
   LogOut, Loader2, ArrowLeft, Upload
 } from 'lucide-react';
 import { uGet, uSet, uRemove } from '@/lib/userStorage';
+import { buildExport, toPlainText, EXPORT_FORMATS, ACCEPTED_UPLOAD_EXTS, type ExportExt } from '@/lib/exportDocument';
 import { idbGetFiles, idbSaveFile, idbDeleteFile } from '@/lib/idb';
 import * as mockAuthService from '@/lib/mockAuthService';
 import { useWebSync } from '@/context/WebSyncContext';
@@ -170,6 +171,25 @@ export default function FilesPage() {
   const [isPeersOpen, setIsPeersOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [uploadError, setUploadError] = useState<{ filename: string, reason: string } | null>(null);
+  /**
+   * The open "Download as…" menu, with the screen coordinates of the button
+   * that opened it. The menu is positioned fixed rather than absolutely,
+   * because the file card clips its overflow and swallowed the dropdown.
+   */
+  const [downloadMenu, setDownloadMenu] = useState<{ id: string | number; x: number; y: number } | null>(null);
+
+  // Dismiss the download menu on any click elsewhere, so it never strands
+  // itself open over the file list.
+  useEffect(() => {
+    if (!downloadMenu) return;
+    const close = () => setDownloadMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [downloadMenu]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -211,7 +231,10 @@ export default function FilesPage() {
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
-    input.accept = '*/*';
+    // Was '*/*', so the picker offered every file on the machine and the
+    // rejection only arrived afterwards as an error. Listing what the engine
+    // accepts means an unsupported file is never selectable in the first place.
+    input.accept = ACCEPTED_UPLOAD_EXTS.join(',');
 
     input.onchange = async (e) => {
       setSharing(true);
@@ -318,30 +341,7 @@ export default function FilesPage() {
     router.push(`/app/editor/${newFile.id}`);
   };
 
-  /**
-   * Turns the editor's stored HTML into plain text that opens cleanly in any
-   * text editor. Block tags become line breaks, entities are decoded, and
-   * tags are dropped — previously the raw HTML was written straight into the
-   * file, so a download named `notes.docx` actually contained
-   * `<div data-margin="96"><p>…` and no word processor would open it.
-   */
-  const htmlToPlainText = (html: string): string => {
-    if (!html) return '';
-    if (!/<[a-z][\s\S]*>/i.test(html)) return html; // already plain
-    const withBreaks = html
-      .replace(/<\s*br\s*\/?\s*>/gi, '\n')
-      .replace(/<\s*\/\s*(p|div|h[1-6]|li|tr|blockquote|pre)\s*>/gi, '\n')
-      .replace(/<\s*li[^>]*>/gi, '• ')
-      .replace(/<\s*\/\s*(td|th)\s*>/gi, '\t');
-    const doc = new DOMParser().parseFromString(withBreaks, 'text/html');
-    return (doc.body.textContent || '')
-      .replace(/ /g, ' ')
-      .replace(/\n{3,}/g, '\n\n')
-      .split('\n').map(l => l.trimEnd()).join('\n')
-      .trim();
-  };
-
-  const handleDownloadRoomFile = async (f: any) => {
+  const handleDownloadRoomFile = async (f: any, ext: ExportExt = 'docx') => {
     try {
       const fileIdStr = f.fileId?.toString() || f.id?.toString();
       const existing = localFiles.find(ex => ex.id === fileIdStr);
@@ -362,21 +362,21 @@ export default function FilesPage() {
         } catch { /* fall through to the guard below */ }
       }
 
-      const text = htmlToPlainText(raw);
+      const text = toPlainText(raw);
       if (!text) {
         alert('This file has no content to download yet.');
         return;
       }
 
-      // Keep the user's own base name but use .txt, because what we can
-      // honestly produce here is text — not a real .docx container.
+      // Every offered format is one the app can genuinely produce, including
+      // a real OOXML container for .docx rather than text under a .docx name.
       const original = f.fileName || f.name || 'document';
       const base = original.replace(/\.[^./\\]+$/, '') || 'document';
 
-      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const blob = buildExport(raw, ext, base);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = `${base}.txt`;
+      a.href = url; a.download = `${base}.${ext}`;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(url);
     } catch (err) {
@@ -823,17 +823,64 @@ export default function FilesPage() {
                         >
                           Open & edit
                         </button>
-                        <button
-                          onClick={() => handleDownloadRoomFile(f)}
-                          title="Download"
-                          style={{
-                            background: '#fff', color: '#475569', border: '1px solid #cbd5e1',
-                            borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', flexShrink: 0,
-                          }}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        </button>
+                        {/* Download used to fire straight away and always
+                            produce a .txt, with no say in the matter. It now
+                            opens a short menu of the formats the app can
+                            actually generate. */}
+                        <div style={{ position: 'relative', flexShrink: 0 }}>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              const id = f.fileId || f.id;
+                              if (downloadMenu?.id === id) { setDownloadMenu(null); return; }
+                              const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              setDownloadMenu({ id, x: r.right, y: r.bottom + 6 });
+                            }}
+                            title="Download as…"
+                            aria-haspopup="menu"
+                            aria-expanded={downloadMenu?.id === (f.fileId || f.id)}
+                            style={{
+                              background: '#fff', color: '#475569', border: '1px solid #cbd5e1',
+                              borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          </button>
+                          {downloadMenu && downloadMenu.id === (f.fileId || f.id) && (
+                            <div
+                              role="menu"
+                              onClick={e => e.stopPropagation()}
+                              style={{
+                                position: 'fixed', left: downloadMenu.x, top: downloadMenu.y,
+                                transform: 'translateX(-100%)', zIndex: 2000, minWidth: 200,
+                                background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
+                                boxShadow: '0 10px 30px rgba(15,23,42,0.14)', padding: 6,
+                              }}
+                            >
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', padding: '6px 10px 4px', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                                Download as
+                              </div>
+                              {EXPORT_FORMATS.map(fmt => (
+                                <button
+                                  key={fmt.ext}
+                                  role="menuitem"
+                                  onClick={() => { setDownloadMenu(null); handleDownloadRoomFile(f, fmt.ext); }}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                                    width: '100%', padding: '9px 10px', background: 'transparent', border: 'none',
+                                    borderRadius: 7, cursor: 'pointer', fontSize: 13, color: '#0f172a', textAlign: 'left',
+                                  }}
+                                  onMouseEnter={e => (e.currentTarget.style.background = '#f1f5f9')}
+                                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                >
+                                  <span style={{ fontWeight: 600 }}>{fmt.label}</span>
+                                  <code style={{ fontSize: 11.5, color: '#64748b' }}>{fmt.hint}</code>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <button
                           onClick={() => handleDeleteRoomFile(f)}
                           title="Delete file from room"

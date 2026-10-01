@@ -296,8 +296,20 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
     if (!editor) return;
     let animFrame: number;
 
+    // Re-measuring every single frame forces a full layout of the document on
+    // every tick, which on a long paste (tens of thousands of characters) is
+    // both visibly janky and pointless — the layout only moves when the
+    // document, the margin or the viewport changes. So measure only while
+    // there is something to settle, then idle until something marks it dirty
+    // again.
+    let dirty = true;
+    const markDirty = () => { dirty = true; };
+    editor.on('update', markDirty);
+    window.addEventListener('resize', markDirty);
+
     const adjustPages = () => {
       const pm = editor.view.dom as HTMLElement;
+      if (!dirty) { animFrame = requestAnimationFrame(adjustPages); return; }
       if (pm && pm.isConnected) {
         const PAGE_HEIGHT = 1123;
         const GAP_HEIGHT = 48; // Physical grey gap between pages
@@ -321,10 +333,27 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
         let pageUsed = 0;
         let changed = blocks.length !== applied.length;
 
+        // offsetTop and offsetHeight are rounded to whole pixels, while the
+        // push written back is fractional. Applying a fractional push shifts
+        // the rounded reading by a pixel, which flips the computed push back,
+        // which dispatches again — the editor visibly shook every frame and
+        // never settled on a long document. getBoundingClientRect reports
+        // subpixel values, so measurement and correction are in the same
+        // units and the loop reaches a fixed point.
+        const pmRect = pm.getBoundingClientRect();
+        const pmStyle = getComputedStyle(pm);
+        // Rects are measured from the border box; offsetTop was measured from
+        // the content box, so discount the top border and padding to keep the
+        // origin identical to what the push maths below assumes.
+        const pmOrigin = pmRect.top
+          + (parseFloat(pmStyle.borderTopWidth) || 0)
+          + (parseFloat(pmStyle.paddingTop) || 0);
+
         blocks.forEach((el, i) => {
           const alreadyPushed = applied[i] || 0;
-          const h = el.offsetHeight; // unaffected by margin-top
-          const naturalTop = el.offsetTop - alreadyPushed;
+          const rect = el.getBoundingClientRect();
+          const h = rect.height; // unaffected by margin-top
+          const naturalTop = (rect.top - pmOrigin) - alreadyPushed;
           // Every block's margin-top is reset to 0 in globals.css, so the
           // only real gap before the NEXT block is this element's own
           // margin-bottom — a static CSS value, unaffected by whatever
@@ -357,9 +386,14 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
         // Only dispatch when something actually moved, otherwise this would
         // loop forever re-rendering the editor every animation frame.
         if (changed) {
+          // Still converging — the dispatch relays out, so measure again next
+          // frame. `dirty` stays set.
           editor.view.dispatch(
             editor.state.tr.setMeta(PaginationPluginKey, { pushes: next })
           );
+        } else {
+          // Reached the fixed point. Stop measuring until something changes.
+          dirty = false;
         }
 
         setPageCount(Math.max(1, pageIndex + 1));
@@ -368,7 +402,11 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
     };
 
     animFrame = requestAnimationFrame(adjustPages);
-    return () => cancelAnimationFrame(animFrame);
+    return () => {
+      cancelAnimationFrame(animFrame);
+      editor.off('update', markDirty);
+      window.removeEventListener('resize', markDirty);
+    };
   }, [editor, margin]);
 
   if (!editor) return null;
