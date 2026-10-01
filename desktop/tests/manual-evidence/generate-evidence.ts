@@ -618,6 +618,105 @@ async function main(): Promise<void> {
   }));
 
   // ════════════════════════════════════════════════════════════════════════
+  // TEST 4G — Data loss measurement
+  //
+  // The Chapter IV reliability figures used to be written into the output as
+  // string literals ('0%', '100%'), which asserted a result rather than
+  // measuring one. This test measures it instead, and distinguishes the two
+  // meanings of "loss" that were previously conflated:
+  //
+  //   active-view loss — characters of the losing side that are not present
+  //                      in the document the user now sees. LWW always has a
+  //                      losing side, so this is normally NON-ZERO.
+  //   permanent loss   — characters that can no longer be retrieved at all.
+  //                      The append-only log and the conflict record keep
+  //                      both sides, so this is what should be zero, and the
+  //                      test fails if any losing text is unrecoverable.
+  // ════════════════════════════════════════════════════════════════════════
+  results.push(await runTest('4G', 'Data loss measurement', async () => {
+    const lossFileId = conflictFileId + 100;
+    const clockL1 = createVectorClock(3, 0);
+    const clockL2 = createVectorClock(3, 1);
+    clockL1.increment();
+    clockL2.increment();
+    clockL2.increment();
+
+    const payloadA = '<p>Data loss side A — this text is authored by node A.</p>';
+    const payloadB = '<p>Data loss side B — authored concurrently by node B.</p>';
+
+    const eventL1 = {
+      eventId: generateUUID(),
+      fileId: lossFileId,
+      nodeId: generateUUID(),
+      payload: payloadA,
+      logicalTimestamp: 1,
+      vectorClockJson: clockL1.toJSON(),
+    };
+    const eventL2 = {
+      eventId: generateUUID(),
+      fileId: lossFileId,
+      nodeId: generateUUID(),
+      payload: payloadB,
+      logicalTimestamp: 2,
+      vectorClockJson: clockL2.toJSON(),
+    };
+
+    const detected = await lwwResolver.resolve(eventL1, eventL2, clockL1, clockL2);
+
+    const mergedClockL = createVectorClock(3, 0);
+    mergedClockL.increment();
+    mergedClockL.increment();
+    mergedClockL.increment();
+
+    // Higher logical timestamp wins under LWW, so B is the surviving side.
+    const resolved = await lwwResolver.autoResolve(
+      detected.conflictId!,
+      'B',
+      testNodeId,
+      mergedClockL.toJSON()
+    );
+
+    const winner = resolved.conflict.winner;
+    const survivingPayload = winner === 'A' ? payloadA : payloadB;
+    const losingPayload = winner === 'A' ? payloadB : payloadA;
+
+    const totalChars = payloadA.length + payloadB.length;
+    // The losing text is absent from the visible document by definition of LWW.
+    const activeViewLostChars = survivingPayload.includes(losingPayload)
+      ? 0
+      : losingPayload.length;
+
+    // Is the losing side still retrievable? Read it back from the stored
+    // conflict record rather than assuming the write succeeded.
+    const stored = await lwwResolver.getConflict(detected.conflictId!);
+    const storedPayloads = [stored?.payloadA, stored?.payloadB];
+    const losingRecoverable = storedPayloads.includes(losingPayload);
+    const permanentlyLostChars = losingRecoverable ? 0 : losingPayload.length;
+
+    const pct = (n: number) => `${((n / totalChars) * 100).toFixed(2)}%`;
+
+    return {
+      // The reliability claim under test is recoverability, not survival in
+      // the active view — so the pass condition is permanent loss of zero.
+      pass: permanentlyLostChars === 0,
+      output: {
+        totalChars,
+        winner,
+        activeViewLostChars,
+        activeViewDataLossRate: pct(activeViewLostChars),
+        permanentlyLostChars,
+        permanentDataLossRate: pct(permanentlyLostChars),
+        losingSideRecoverable: losingRecoverable,
+        conflictId: detected.conflictId,
+      },
+      notes:
+        `Measured: ${activeViewLostChars}/${totalChars} chars absent from the active view ` +
+        `(${pct(activeViewLostChars)}); ${permanentlyLostChars} chars unrecoverable ` +
+        `(${pct(permanentlyLostChars)}). Losing side retrievable from the conflict record: ${losingRecoverable}.`,
+    };
+  }));
+
+  // ════════════════════════════════════════════════════════════════════════
   // TEST 5A — Peer manager creation
   // ════════════════════════════════════════════════════════════════════════
   const peerNodeIdA = generateUUID();
@@ -943,6 +1042,65 @@ async function main(): Promise<void> {
   const test2A = results.find((r) => r.testId === '2A')!;
   const test5B = results.find((r) => r.testId === '5B')!;
   const test5C = results.find((r) => r.testId === '5C')!;
+  const test3A = results.find((r) => r.testId === '3A')!;
+  const test4G = results.find((r) => r.testId === '4G')!;
+
+  // ── Derived reliability figures ──────────────────────────────────────────
+  // Counted from what the conflict tests actually did, grouped by conflict
+  // identity. Two things make a naive per-test count wrong:
+  //
+  //   • Tests 4C and 4D act on the SAME conflictId — 4C escalates it, 4D
+  //     resolves it — so counting rows would double-count one conflict.
+  //   • A conflict escalated to the owner was NOT auto-resolved, even though
+  //     it ends up resolved. Reporting 100% while an escalation sat pending
+  //     is precisely the overstatement this replaces.
+  //
+  // So: fold the rows into one record per conflictId, then classify each
+  // distinct conflict by how it actually reached its final state.
+  const conflictRows = results.filter(
+    (r) => /^4[CDEF]$/.test(r.testId) &&
+      typeof r.actualOutput === 'object' &&
+      typeof r.actualOutput.conflictId === 'string'
+  );
+
+  const byConflict = new Map<string, { escalated: boolean; resolved: boolean }>();
+  for (const row of conflictRows) {
+    const id = row.actualOutput.conflictId as string;
+    const entry = byConflict.get(id) ?? { escalated: false, resolved: false };
+    if (row.actualOutput.outcome === 'escalated' || row.actualOutput.status === 'pending') {
+      entry.escalated = true;
+    }
+    // A conflict counts as settled once a winning side has been recorded,
+    // whether the row reports it via `status` (4D, 4F) or only via `winner`
+    // (4E, which omits `status`).
+    if (row.actualOutput.status === 'resolved' || row.actualOutput.winner !== undefined) {
+      entry.resolved = true;
+    }
+    byConflict.set(id, entry);
+  }
+
+  const conflictOutcomes = Array.from(byConflict.values());
+  // Needed owner arbitration — the system could not settle it alone.
+  const escalatedCount = conflictOutcomes.filter((c) => c.escalated).length;
+  // Settled automatically, without escalating to a person.
+  const autoResolvedCount = conflictOutcomes.filter((c) => c.resolved && !c.escalated).length;
+  const autoResolveRate = conflictOutcomes.length > 0
+    ? `${((autoResolvedCount / conflictOutcomes.length) * 100).toFixed(1)}%`
+    : 'not measured';
+
+  // Consistency is observed from the one cross-node sync test available here.
+  // The running system refuses to publish a rate below MIN_SAMPLES = 5
+  // (web/src/app/api/lobby/metrics/route.ts); the same honesty is applied
+  // here rather than presenting a single observation as a percentage.
+  const CONSISTENCY_MIN_SAMPLES = 5;
+  const consistencyObservations = [test5C].filter(Boolean);
+  const consistencySuccesses = consistencyObservations.filter(
+    (r) => r.status === 'PASS' && r.actualOutput.deltaReceived === true
+  ).length;
+  const consistencyRate = consistencyObservations.length >= CONSISTENCY_MIN_SAMPLES
+    ? `${((consistencySuccesses / consistencyObservations.length) * 100).toFixed(1)}%`
+    : `insufficient data (${consistencySuccesses}/${consistencyObservations.length} observed, ` +
+      `${CONSISTENCY_MIN_SAMPLES} required)`;
 
   // Compute performance metrics from latencies.
   const avgLatency = latencies.length > 0
@@ -974,10 +1132,19 @@ async function main(): Promise<void> {
         originalSizeBytes: test2A.actualOutput.originalSizeBytes,
       },
       reliability: {
-        dataLossRate: '0%',
-        consistencySuccessRate: '100%',
-        autoResolveSuccessRate: '100%',
-        eventLogIntegrity: 'append-only verified',
+        // These three were previously written as the string literals '0%',
+        // '100%' and '100%'. Nothing computed them, so the evidence asserted
+        // a result instead of measuring one. They are now derived from the
+        // recorded outcomes of the tests above; if a figure cannot be
+        // measured from the available evidence it reports that rather than a
+        // flattering number.
+        activeViewDataLossRate: test4G.actualOutput.activeViewDataLossRate ?? 'not measured',
+        permanentDataLossRate: test4G.actualOutput.permanentDataLossRate ?? 'not measured',
+        losingSideRecoverable: test4G.actualOutput.losingSideRecoverable ?? 'not measured',
+        autoResolveSuccessRate: autoResolveRate,
+        autoResolveDetail: `${autoResolvedCount} auto-resolved, ${escalatedCount} escalated to the owner, of ${conflictOutcomes.length} distinct conflicts`,
+        consistencySuccessRate: consistencyRate,
+        eventLogIntegrity: test3A.status === 'PASS' ? 'append-only verified' : 'NOT verified',
         vectorClockOverflowProtection: 'enabled (max 4,294,967,295)',
       },
       compatibility: {

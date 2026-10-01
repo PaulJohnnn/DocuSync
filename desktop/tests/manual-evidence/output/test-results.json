@@ -2,9 +2,9 @@
   "project": "DocuSync",
   "institution": "Pamantasan ng Cabuyao",
   "researcher": "Paul John G. Palamara",
-  "timestamp": "2026-06-18T03:09:45.008Z",
-  "totalTests": 20,
-  "passed": 20,
+  "timestamp": "2026-10-01T15:09:38.539Z",
+  "totalTests": 21,
+  "passed": 21,
   "failed": 0,
   "passRate": "100.0%",
   "results": [
@@ -20,7 +20,7 @@
         "contentPreview": "DocuSync Plain Text Test File\n==============================\n\nThis file tests the basic text synchro"
       },
       "notes": "Extension \".txt\" is allowed. Content: 270 chars.",
-      "durationMs": 2
+      "durationMs": 0
     },
     {
       "testId": "1B",
@@ -33,7 +33,7 @@
         "fileId": 1
       },
       "notes": "Metadata: sample.txt, .txt, 270B, ID#1",
-      "durationMs": 1
+      "durationMs": 0
     },
     {
       "testId": "2A",
@@ -45,10 +45,10 @@
         "originalSizeBytes": 270,
         "compressionRatio": 1.7333333333333334,
         "isChunked": false,
-        "encodingLatencyMs": 1
+        "encodingLatencyMs": 0
       },
-      "notes": "Delta: 468B, ratio: 173.3%, latency: 1ms",
-      "durationMs": 2
+      "notes": "Delta: 468B, ratio: 173.3%, latency: 0ms",
+      "durationMs": 0
     },
     {
       "testId": "2B",
@@ -85,7 +85,7 @@
         }
       },
       "notes": "Clock after 3 increments: [3, 0, 0]",
-      "durationMs": 0
+      "durationMs": 1
     },
     {
       "testId": "2C",
@@ -101,7 +101,7 @@
         ]
       },
       "notes": "Save pipeline: delta encoded + vector clock incremented.",
-      "durationMs": 1
+      "durationMs": 0
     },
     {
       "testId": "3A",
@@ -122,7 +122,7 @@
         ]
       },
       "notes": "3 events in ascending order: [1, 2, 3]",
-      "durationMs": 67
+      "durationMs": 39
     },
     {
       "testId": "3B",
@@ -134,7 +134,7 @@
         "totalEvents": 3
       },
       "notes": "Newest (ts=3) > Oldest (ts=1)",
-      "durationMs": 3
+      "durationMs": 0
     },
     {
       "testId": "3C",
@@ -142,12 +142,12 @@
       "status": "PASS",
       "actualOutput": {
         "restoreEventFound": true,
-        "restoreEventId": "e623cb5c-d9ce-478a-94d0-c127cb84e756",
+        "restoreEventId": "a35637f2-d170-42bc-a44f-1ea0eafb4a9d",
         "eventType": "restore",
         "totalEventsAfterRestore": 4
       },
       "notes": "Restore event found in history with eventType='restore'.",
-      "durationMs": 13
+      "durationMs": 21
     },
     {
       "testId": "4A",
@@ -168,7 +168,7 @@
         "isConcurrent": true
       },
       "notes": "Clock A [2,0,0] vs Clock B [0,2,0] → concurrent",
-      "durationMs": 1
+      "durationMs": 0
     },
     {
       "testId": "4B",
@@ -188,33 +188,33 @@
       "status": "PASS",
       "actualOutput": {
         "outcome": "escalated",
-        "conflictId": "6f154f9b-f2cc-4801-8fbf-6de31f08f57f",
+        "conflictId": "50bb8045-7e8d-4ad0-ba61-57f3fc253843",
         "status": "pending",
         "relation": "concurrent"
       },
-      "notes": "Conflict 6f154f9b... escalated and stored as pending.",
-      "durationMs": 46
+      "notes": "Conflict 50bb8045... escalated and stored as pending.",
+      "durationMs": 73
     },
     {
       "testId": "4D",
       "description": "Keep Original",
       "status": "PASS",
       "actualOutput": {
-        "conflictId": "6f154f9b-f2cc-4801-8fbf-6de31f08f57f",
+        "conflictId": "50bb8045-7e8d-4ad0-ba61-57f3fc253843",
         "winner": "A",
         "status": "resolved",
-        "resolvedBy": "7444f958-23aa-466f-907a-a66cc85b236d",
+        "resolvedBy": "d024830d-e68d-4513-a686-e1fe00b3a502",
         "mergeAcceptType": "MERGE_ACCEPT"
       },
-      "notes": "Conflict resolved: winner=A, resolvedBy=7444f958...",
-      "durationMs": 36
+      "notes": "Conflict resolved: winner=A, resolvedBy=d024830d...",
+      "durationMs": 44
     },
     {
       "testId": "4E",
       "description": "LWW Auto-Merge",
       "status": "PASS",
       "actualOutput": {
-        "conflictId": "e69ab2e2-53b8-438a-9414-b462b061dcc7",
+        "conflictId": "152630f2-881e-4ce0-9f8c-09c49df231d4",
         "escalated": true,
         "winningSide": "B",
         "timestampA": 1,
@@ -223,19 +223,36 @@
         "winner": "B"
       },
       "notes": "LWW: B wins (ts=2 > ts=1). Higher logical timestamp wins.",
-      "durationMs": 63
+      "durationMs": 97
     },
     {
       "testId": "4F",
       "description": "Accept Change",
       "status": "PASS",
       "actualOutput": {
-        "conflictId": "81acd219-f0cb-48c1-b705-ac074ba8da4e",
+        "conflictId": "56336b70-d03d-4443-bbf4-3ea3d99bd965",
         "winner": "B",
         "status": "resolved"
       },
       "notes": "Accept Change: winner=B, conflict resolved.",
-      "durationMs": 64
+      "durationMs": 119
+    },
+    {
+      "testId": "4G",
+      "description": "Data loss measurement",
+      "status": "PASS",
+      "actualOutput": {
+        "totalChars": 116,
+        "winner": "B",
+        "activeViewLostChars": 58,
+        "activeViewDataLossRate": "50.00%",
+        "permanentlyLostChars": 0,
+        "permanentDataLossRate": "0.00%",
+        "losingSideRecoverable": true,
+        "conflictId": "39ea7181-10a3-490e-83be-ee38472dbdff"
+      },
+      "notes": "Measured: 58/116 chars absent from the active view (50.00%); 0 chars unrecoverable (0.00%). Losing side retrievable from the conflict record: true.",
+      "durationMs": 105
     },
     {
       "testId": "5A",
@@ -243,11 +260,11 @@
       "status": "PASS",
       "actualOutput": {
         "instanceCreated": true,
-        "localNodeId": "14474b7e-5e43-4c26-8794-14c78529377c",
+        "localNodeId": "c0a90245-80e0-4f98-be5a-522bfcf1adeb",
         "connectionCount": 0
       },
-      "notes": "PeerManager created with nodeId=14474b7e...",
-      "durationMs": 1
+      "notes": "PeerManager created with nodeId=c0a90245...",
+      "durationMs": 0
     },
     {
       "testId": "5B",
@@ -257,15 +274,15 @@
         "nodeAConnections": 1,
         "nodeBConnections": 1,
         "nodeAPeerIds": [
-          "6a6ebc5b-8ecf-417d-b838-3e5290af1052"
+          "ce378272-aa34-46d4-a3df-044c1d2869b3"
         ],
         "nodeBPeerIds": [
-          "c0336a24-aed7-4660-8a4b-e5a5516d7749"
+          "84500a77-6308-4036-a524-e40bbec304b3"
         ],
         "connectionEstablished": true
       },
       "notes": "Node A connections: 1, Node B connections: 1",
-      "durationMs": 1878
+      "durationMs": 1853
     },
     {
       "testId": "5C",
@@ -278,7 +295,7 @@
         "connectionCountD": 1
       },
       "notes": "Broadcast sent to 1 peer(s). Delta received: true.",
-      "durationMs": 2872
+      "durationMs": 2847
     },
     {
       "testId": "5D",
@@ -290,7 +307,7 @@
         "expectedBehavior": "Connection should fail with error"
       },
       "notes": "Connection to unreachable port correctly threw: \"connect ECONNREFUSED 127.0.0.1:19999\"",
-      "durationMs": 25
+      "durationMs": 7
     },
     {
       "testId": "6A",
@@ -341,7 +358,7 @@
         }
       },
       "notes": "6/6 binary formats rejected: [png, jpg, mp4, mp3, exe, zip]",
-      "durationMs": 1
+      "durationMs": 0
     }
   ]
 }

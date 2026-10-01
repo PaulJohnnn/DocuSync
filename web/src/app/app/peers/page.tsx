@@ -590,10 +590,18 @@ export default function RoomsPage() {
                   <input type="radio" name="algorithm" value="ot" checked={algorithm === 'ot'} onChange={() => setAlgorithm('ot')} style={{ marginTop: 2, accentColor: '#4f46e5' }} />
                   <div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: algorithm === 'ot' ? '#4f46e5' : '#0f172a' }}>OT Algorithm</div>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: '#eab308', background: 'rgba(234,179,8,0.1)', padding: '2px 6px', borderRadius: 4 }}>HISTORY DISABLED</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: algorithm === 'ot' ? '#4f46e5' : '#0f172a' }}>OT (experimental)</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#eab308', background: 'rgba(234,179,8,0.1)', padding: '2px 6px', borderRadius: 4 }}>NOT IMPLEMENTED</div>
                     </div>
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Operational Transformation logic using pure CRDT trees. LWW overwrite loop is bypassed.</div>
+                    {/* The previous copy here claimed Operational
+                        Transformation over CRDT trees, and that the LWW path
+                        was bypassed. None of that was implemented: the branch
+                        it referred to overwrote unsaved local work instead of
+                        merging it. That branch has been removed, so the
+                        setting is now recorded on the room but does not change
+                        conflict handling, and the label says so.
+                        Regression test: tests/e2e/10-ot-mode-no-data-loss.spec.ts */}
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 3 }}>Recorded on the room for comparison purposes. Operational Transformation is not implemented — conflict handling is identical to LWW.</div>
                   </div>
                 </label>
               </div>

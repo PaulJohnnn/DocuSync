@@ -81,7 +81,7 @@ let _pendingHash = '';
 async function pollDatabase() {
   if (typeof window === 'undefined' || !navigator.onLine) return;
   try {
-    const res = await authFetch('?action=sync');
+    const res = await authFetch(`?action=sync&t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
       const currentUsersStr = JSON.stringify(data.users || []);
@@ -252,11 +252,10 @@ export async function logout() {
 
 export async function checkApprovalStatus(email: string): Promise<string | null> {
   try {
-    const res = await authFetch('?action=sync');
+    const res = await authFetch(`?action=claim_pin&email=${encodeURIComponent(email)}&t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
-      const user = (data.users || []).find((u: any) => u.email.toLowerCase() === email.toLowerCase());
-      if (user && user.status === 'active') return user.pin;
+      if (data.status === 'active' && data.pin) return data.pin;
     }
     return null;
   } catch {

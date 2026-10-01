@@ -862,36 +862,43 @@ export default function EditorPage() {
                   lastSyncedAt.current = Date.now();
                   uSet('docusync_offline_base', data.content);
                 } else if ((isTypingRef.current || hasPendingChangesRef.current) && currentContentRef.current !== data.content) {
-                  if (room.algorithm === 'ot') {
-                    setContentAndRef(data.content);
-                    lastSave.current = data.content;
-                    setSaved(true);
-                    setSyncStatusMsg('Synced via OT ✓');
-                    uSet('docusync_offline_base', data.content);
-                  } else {
-                    // We have offline/pending changes or are typing AND the server has new changes. Conflict!
-                    const original = offlineBaselineRef.current || lastSave.current;
-                    const merged = computeSignatureMerge(original, data.content, currentContentRef.current, myName);
-                    if (merged !== currentContentRef.current) {
-                      setContentAndRef(merged);
-                      setSyncStatusMsg('Merged Signature Edit ✓');
-                      toast.success('Offline edits merged automatically');
-                      // Push conflict to Redis so all peers receive it
-                      const conflictId = crypto.randomUUID();
-                      fetch(`${_MATCHMAKER_URL}/conflicts`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          otp,
-                          conflictId,
-                          fileId,
-                          localContent: currentContentRef.current,
-                          serverContent: data.content,
-                          mergedContent: merged,
-                          timestamp: Date.now()
-                        })
-                      }).catch(() => {});
-                    }
+                  // This branch runs when the local user has unsaved work AND
+                  // the server has moved on — the one moment where the choice
+                  // of handling decides whether that work survives.
+                  //
+                  // A room created with algorithm 'ot' used to take a separate
+                  // path here that assigned the server's copy over the local
+                  // document and advanced lastSave past it, discarding the
+                  // user's in-progress edit with no merge and no conflict
+                  // record. It was labelled "Operational Transformation" but
+                  // performed no transformation, and because loss is only
+                  // counted inside the server's merge, the discarded text was
+                  // never counted either — the mode that lost the most work
+                  // reported the least. Both settings now take the same
+                  // three-way merge below, so an 'ot' room is no longer a
+                  // data-loss path and existing ones are safe without
+                  // migration.
+                  const original = offlineBaselineRef.current || lastSave.current;
+                  const merged = computeSignatureMerge(original, data.content, currentContentRef.current, myName);
+                  if (merged !== currentContentRef.current) {
+                    setContentAndRef(merged);
+                    setSyncStatusMsg('Merged Signature Edit ✓');
+                    toast.success('Offline edits merged automatically');
+                    // Push conflict to Redis so all peers receive it
+                    const conflictId = crypto.randomUUID();
+                    fetch(`${_MATCHMAKER_URL}/conflicts`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        otp,
+                        conflictId,
+                        fileId,
+                        localContent: currentContentRef.current,
+                        serverContent: data.content,
+                        mergedContent: merged,
+                        timestamp: Date.now()
+                      })
+                    }).catch(() => {});
                   }
                 }
               }
@@ -931,36 +938,30 @@ export default function EditorPage() {
                 _lastAcceptedSeq.current = data.snapshot?.committedAt ?? _lastAcceptedSeq.current;
                 lastSyncedAt.current = Date.now();
               } else if ((isTypingRef.current || hasPendingChangesRef.current) && currentContentRef.current !== data.content) {
-                if (room.algorithm === 'ot') {
-                  setContentAndRef(data.content);
-                  lastSave.current = data.content;
-                  setSaved(true);
-                  setSyncStatusMsg('Synced via OT ☁');
-                  uSet('docusync_offline_base', data.content);
-                } else {
-                  // Conflict in cloud Matchmaker
-                  const original = offlineBaselineRef.current || lastSave.current;
-                  const merged = computeSignatureMerge(original, data.content, currentContentRef.current, myName);
-                  if (merged !== currentContentRef.current) {
-                    setContentAndRef(merged);
-                    setSyncStatusMsg('Merged Signature Edit ☁');
-                    toast.success('Offline edits merged via cloud');
-                    // Push conflict event to Redis via Matchmaker History API
-                    const conflictId = crypto.randomUUID();
-                    fetch(`${_MATCHMAKER_URL}/conflicts`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        otp,
-                        conflictId,
-                        fileId,
-                        localContent: currentContentRef.current,
-                        serverContent: data.content,
-                        mergedContent: merged,
-                        timestamp: Date.now()
-                      })
-                    }).catch(() => {});
-                  }
+                // Same reasoning as the direct-host branch above: the 'ot'
+                // special case overwrote unsaved local work instead of merging
+                // it, so both algorithm settings now take the merge path.
+                const original = offlineBaselineRef.current || lastSave.current;
+                const merged = computeSignatureMerge(original, data.content, currentContentRef.current, myName);
+                if (merged !== currentContentRef.current) {
+                  setContentAndRef(merged);
+                  setSyncStatusMsg('Merged Signature Edit ☁');
+                  toast.success('Offline edits merged via cloud');
+                  // Push conflict event to Redis via Matchmaker History API
+                  const conflictId = crypto.randomUUID();
+                  fetch(`${_MATCHMAKER_URL}/conflicts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      otp,
+                      conflictId,
+                      fileId,
+                      localContent: currentContentRef.current,
+                      serverContent: data.content,
+                      mergedContent: merged,
+                      timestamp: Date.now()
+                    })
+                  }).catch(() => {});
                 }
               }
             }
