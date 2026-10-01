@@ -1,0 +1,206 @@
+[
+  {
+    "phase": "PHASE A — editing accuracy (exact content)",
+    "name": "A1 single character appended at end of document",
+    "ok": true,
+    "detail": "sha f88b22ecfa32 vs f88b22ecfa32"
+  },
+  {
+    "phase": "PHASE A — editing accuracy (exact content)",
+    "name": "A2 single character inserted at start of document",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE A — editing accuracy (exact content)",
+    "name": "A3 single character removed from the middle line",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE A — editing accuracy (exact content)",
+    "name": "A4 word replaced in the middle line",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE A — editing accuracy (exact content)",
+    "name": "A5 whole line appended",
+    "ok": true,
+    "detail": "lines 4 vs 4"
+  },
+  {
+    "phase": "PHASE A — editing accuracy (exact content)",
+    "name": "A6 middle line deleted",
+    "ok": true,
+    "detail": "chars 77 vs 77"
+  },
+  {
+    "phase": "PHASE A — editing accuracy (exact content)",
+    "name": "A7 correct occurrence edited among five identical lines",
+    "ok": true,
+    "detail": "exact"
+  },
+  {
+    "phase": "PHASE A — editing accuracy (exact content)",
+    "name": "A8 large document (400 paragraphs) edits exactly",
+    "ok": true,
+    "detail": "20324 chars, sha 14b828a1673a"
+  },
+  {
+    "phase": "PHASE B — concurrent editing, multiple users",
+    "name": "B1 two users on different lines — both edits survive",
+    "ok": true,
+    "detail": "A=true B=true"
+  },
+  {
+    "phase": "PHASE B — concurrent editing, multiple users",
+    "name": "B1b no duplication after the merge",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE B — concurrent editing, multiple users",
+    "name": "B2 three users on three different lines — all survive",
+    "ok": true,
+    "detail": "survived: AAA,BBB,CCC"
+  },
+  {
+    "phase": "PHASE B — concurrent editing, multiple users",
+    "name": "B3 same-line conflict resolves to the later timestamp (LWW)",
+    "ok": true,
+    "detail": "B won as expected"
+  },
+  {
+    "phase": "PHASE B — concurrent editing, multiple users",
+    "name": "B3b the two sides are not concatenated into one line",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE B — concurrent editing, multiple users",
+    "name": "B4 delete-vs-edit leaves the untouched lines intact",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE B — concurrent editing, multiple users",
+    "name": "B4b delete-vs-edit reaches a defined state",
+    "ok": true,
+    "detail": "Keep me. | Contested line. EDITED. | Keep me too."
+  },
+  {
+    "phase": "PHASE C — version history",
+    "name": "C1 an entry is recorded per explicit save",
+    "ok": true,
+    "detail": "3 entries"
+  },
+  {
+    "phase": "PHASE C — version history",
+    "name": "C2 version 1 content is retained",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE C — version history",
+    "name": "C3 version 2 content is retained",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE C — version history",
+    "name": "C4 version 3 content is retained",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE C — version history",
+    "name": "C5 every entry carries a timestamp",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE C — version history",
+    "name": "C6 every entry records its author node",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE C — version history",
+    "name": "C7 an earlier version is unchanged by a later edit",
+    "ok": true,
+    "detail": "hash stable"
+  },
+  {
+    "phase": "PHASE D — offline and reconnection",
+    "name": "D1 reconnecting peer keeps its offline edit and gains the online one",
+    "ok": true,
+    "detail": "A=true B=true"
+  },
+  {
+    "phase": "PHASE D — offline and reconnection",
+    "name": "D1b no duplication on reconnect",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE D — offline and reconnection",
+    "name": "D2 two offline peers reconnecting in sequence both converge",
+    "ok": true,
+    "detail": "B=true C=true"
+  },
+  {
+    "phase": "PHASE D — offline and reconnection",
+    "name": "D3 a long offline session replays all queued content",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE E — cross-client convergence (same backend)",
+    "name": "E1 concurrent readers observe one identical document",
+    "ok": true,
+    "detail": "distinct states: 1"
+  },
+  {
+    "phase": "PHASE E — cross-client convergence (same backend)",
+    "name": "E2 a defined winner exists after same-line contention",
+    "ok": true,
+    "detail": "survivors: B"
+  },
+  {
+    "phase": "PHASE E — cross-client convergence (same backend)",
+    "name": "E3 same-line contention does not concatenate every side",
+    "ok": true,
+    "detail": "marks present: 1"
+  },
+  {
+    "phase": "PHASE F — metrics integrity",
+    "name": "F1 metrics record real pushes",
+    "ok": true,
+    "detail": "totalPushes=3"
+  },
+  {
+    "phase": "PHASE F — metrics integrity",
+    "name": "F2 a data-loss rate is reported",
+    "ok": true,
+    "detail": "dataLossRatePct=31.21"
+  },
+  {
+    "phase": "PHASE F — metrics integrity",
+    "name": "F3 a real same-line conflict is counted",
+    "ok": true,
+    "detail": "totalConflicts=1"
+  },
+  {
+    "phase": "PHASE F — metrics integrity",
+    "name": "F4 data loss is measured when a side is overwritten",
+    "ok": true,
+    "detail": "dataLossRatePct=31.21"
+  },
+  {
+    "phase": "PHASE F — metrics integrity",
+    "name": "F5 detection rate reports 100% for a detected conflict",
+    "ok": true,
+    "detail": "detectionRate=100"
+  }
+]

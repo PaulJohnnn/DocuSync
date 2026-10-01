@@ -37,3 +37,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# QA fixture: contains test-account passwords, never commit
+scripts/qa-accounts.json
+web/scripts/qa-accounts.json

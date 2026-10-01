@@ -1,0 +1,224 @@
+[
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Plain text: filename ends .txt",
+    "ok": true,
+    "detail": "qa-download.txt"
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Plain text: file is not empty",
+    "ok": true,
+    "detail": "68 bytes"
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Plain text: content preserved",
+    "ok": true,
+    "detail": "QA Heading"
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Plain text: HTML tags stripped",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Plain text: HTML entities decoded to their characters",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Markdown: filename ends .md",
+    "ok": true,
+    "detail": "qa-download.md"
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Markdown: file is not empty",
+    "ok": true,
+    "detail": "78 bytes"
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Markdown: content preserved",
+    "ok": true,
+    "detail": "# QA Heading"
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Web page: filename ends .html",
+    "ok": true,
+    "detail": "qa-download.html"
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Web page: file is not empty",
+    "ok": true,
+    "detail": "649 bytes"
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Web page: correct file signature",
+    "ok": true,
+    "detail": "\"<!\""
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Web page: content preserved",
+    "ok": true,
+    "detail": "<h1>QA Heading</h1>"
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Word document: filename ends .docx",
+    "ok": true,
+    "detail": "qa-download.docx"
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Word document: file is not empty",
+    "ok": true,
+    "detail": "4466 bytes"
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Word document: correct file signature",
+    "ok": true,
+    "detail": "\"PK\""
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Word: package contains word/document.xml",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE G — download integrity (real bytes)",
+    "name": "G Word: heading text present in the package",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE H — Web → Web (two accounts, exact content)",
+    "name": "H1 web client A opened the shared document",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE H — Web → Web (two accounts, exact content)",
+    "name": "H2 web client B opened the same document",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE H — Web → Web (two accounts, exact content)",
+    "name": "H3 A’s edit reached B’s editor",
+    "ok": true,
+    "detail": "LINE ONE. FROM-A.LINE TWO."
+  },
+  {
+    "phase": "PHASE H — Web → Web (two accounts, exact content)",
+    "name": "H4 B’s reply reached A’s editor",
+    "ok": true,
+    "detail": "LINE ONE. FROM-A.LINE TWO. FROM-B."
+  },
+  {
+    "phase": "PHASE H — Web → Web (two accounts, exact content)",
+    "name": "H5 both web clients converge to byte-identical text",
+    "ok": true,
+    "detail": "sha bf89a9ad1f66"
+  },
+  {
+    "phase": "PHASE H — Web → Web (two accounts, exact content)",
+    "name": "H6 neither edit was lost in the merge",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE H — Web → Web (two accounts, exact content)",
+    "name": "H7 the server snapshot holds both edits",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE I — Web ↔ Desktop (same backend)",
+    "name": "I1 desktop client signed in against the shared backend",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE I — Web ↔ Desktop (same backend)",
+    "name": "I2 Desktop → Web: the web editor received the desktop edit",
+    "ok": true,
+    "detail": "WEB side line.DESKTOP side line. FROM-DESKTOP."
+  },
+  {
+    "phase": "PHASE I — Web ↔ Desktop (same backend)",
+    "name": "I3 Web → Desktop: the web edit reached shared storage",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE I — Web ↔ Desktop (same backend)",
+    "name": "I4 both directions survive in one document",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE I — Web ↔ Desktop (same backend)",
+    "name": "I5 desktop-local file open / save (Electron IPC)",
+    "ok": null,
+    "detail": "NOT TESTABLE here — window.docuSync is undefined outside Electron"
+  },
+  {
+    "phase": "PHASE I — Web ↔ Desktop (same backend)",
+    "name": "I6 Desktop ↔ Desktop peer-to-peer over WebSocket :9000",
+    "ok": null,
+    "detail": "NOT TESTABLE here — requires two running Electron instances"
+  },
+  {
+    "phase": "PHASE J — version history (rendered)",
+    "name": "J1 history page rendered",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE J — version history (rendered)",
+    "name": "J2 event count reflects the two saves",
+    "ok": true,
+    "detail": "File ID: hui-1 • 2 events"
+  },
+  {
+    "phase": "PHASE J — version history (rendered)",
+    "name": "J3 both versions listed as v1 and v2",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE J — version history (rendered)",
+    "name": "J4 each entry records its author",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE J — version history (rendered)",
+    "name": "J5 a restore control is offered",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE J — version history (rendered)",
+    "name": "J6a document is version two before restore",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "phase": "PHASE J — version history (rendered)",
+    "name": "J6b restoring v1 reverts the stored document",
+    "ok": true,
+    "detail": "History version one."
+  }
+]
