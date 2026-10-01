@@ -1,0 +1,52 @@
+[
+  {
+    "name": "instance A launched",
+    "ok": true,
+    "detail": "ws port 9000, userData docusync-qa-A-tUqznN"
+  },
+  {
+    "name": "instance B launched",
+    "ok": true,
+    "detail": "ws port 9001, userData docusync-qa-B-RGdtxh"
+  },
+  {
+    "name": "instance A window URL",
+    "ok": true,
+    "detail": "https://docusync-dusky.vercel.app/home"
+  },
+  {
+    "name": "instance B window URL",
+    "ok": true,
+    "detail": "https://docusync-dusky.vercel.app/home"
+  },
+  {
+    "name": "packaged desktop loads the hosted web app (shell architecture)",
+    "ok": true,
+    "detail": "confirmed — not the local desktop renderer"
+  },
+  {
+    "name": "preload exposes window.docuSync to the loaded page",
+    "ok": true,
+    "detail": "typeof=object methods=46"
+  },
+  {
+    "name": "engine bridge instrumented for observation",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "name": "the loaded UI calls the Electron sync engine",
+    "ok": false,
+    "detail": "NO calls observed in 10s of runtime"
+  },
+  {
+    "name": "main process is responsive",
+    "ok": true,
+    "detail": "{\"appName\":\"Electron\",\"version\":\"35.7.5\"}"
+  },
+  {
+    "name": "Desktop ↔ Desktop document sync over the P2P engine",
+    "ok": false,
+    "detail": "BLOCKED — the engine is running but the UI that ships never calls it"
+  }
+]
