@@ -138,7 +138,12 @@ const focusEnd = async (page) => {
       URL.createObjectURL = (b) => { window.__dlBlob = b; return orig(b); };
       HTMLAnchorElement.prototype.click = function () { if (this.download) { window.__dl = { name: this.download }; return; } };
     });
-    await A.click('button[title="Download"]');
+    // Download is no longer a single button that always emits .txt — it opens
+    // a format menu. Open it, then choose plain text so the assertions below
+    // still describe the format they were written for.
+    await A.click('button[title="Download as…"]');
+    await A.waitForSelector('[role="menu"]', { timeout: 10000 });
+    await A.click('[role="menu"] button:has-text("Plain text")');
     await A.waitForTimeout(2500);
     const dl = await A.evaluate(async () => ({
       name: window.__dl?.name,
@@ -148,6 +153,20 @@ const focusEnd = async (page) => {
     check(!!dl.text && dl.text.includes('QA Document'), 'download contains the document text');
     check(!!dl.text && !/[<>]/.test(dl.text), 'download is plain text, not raw HTML');
     check(!!dl.text && dl.text.includes('& entity'), 'HTML entities decoded in the download');
+
+    // The menu must also offer a real Word document, not text under a .docx
+    // name — the exporter builds an OOXML package, so the blob must be a ZIP.
+    await A.click('button[title="Download as…"]');
+    await A.waitForSelector('[role="menu"]', { timeout: 10000 });
+    await A.click('[role="menu"] button:has-text("Word document")');
+    await A.waitForTimeout(2500);
+    const docx = await A.evaluate(async () => {
+      if (!window.__dlBlob) return null;
+      const buf = new Uint8Array(await window.__dlBlob.arrayBuffer());
+      return { name: window.__dl?.name, bytes: buf.length, magic: String.fromCharCode(buf[0], buf[1]) };
+    });
+    check(!!docx && docx.name.endsWith('.docx'), 'Word download is named .docx', docx?.name || 'none');
+    check(!!docx && docx.magic === 'PK', 'Word download is a real OOXML container', docx?.magic || 'none');
 
     // ══ 4. EDITOR + COLLABORATION ══════════════════════════════════════
     console.log('\n[4] Editor and collaboration');
