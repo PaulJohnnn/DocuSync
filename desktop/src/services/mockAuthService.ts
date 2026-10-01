@@ -78,8 +78,33 @@ async function authFetch(path: string = '', options: RequestInit = {}): Promise<
 let _usersHash = '';
 let _pendingHash = '';
 
+/**
+ * Consecutive polls in which the signed-in account was absent from a roster
+ * that actually contained users.
+ *
+ * The session used to be torn down the instant one poll failed to find the
+ * account, with a blocking alert claiming an administrator had revoked it.
+ * That ran every two seconds against a response the client does not control,
+ * so any single bad read — a cold start, a Redis blip, a truncated or empty
+ * payload, a network stall after the machine woke from sleep — signed the
+ * user out and accused an administrator of doing it. Leaving the app idle
+ * was enough to trigger it, because an idle app still polls.
+ *
+ * A revocation is a persistent state, so requiring several consecutive polls
+ * to agree costs a few seconds in the real case and removes the false one.
+ * The desktop polls every 2s, so three strikes is ~6 seconds.
+ */
+let _missingSelfStreak = 0;
+const MISSING_SELF_STRIKES = 3;
+
 async function pollDatabase() {
-  if (typeof window === 'undefined' || !navigator.onLine) return;
+  if (typeof window === 'undefined') return;
+  if (!navigator.onLine) {
+    // Going offline is not evidence about the account. Clear any suspicion so
+    // that reconnecting does not resume a streak started before the drop.
+    _missingSelfStreak = 0;
+    return;
+  }
   try {
     const res = await authFetch(`?action=sync&t=${Date.now()}`);
     if (res.ok) {
@@ -100,23 +125,42 @@ async function pollDatabase() {
         window.dispatchEvent(new Event('docusync_db_update'));
       }
 
-      const sessionStr = sessionStorage.getItem(SESSION_KEY);
+      const sessionStr = sessionStorage.getItem(SESSION_KEY)
+        || localStorage.getItem(SESSION_KEY);
       if (sessionStr) {
         try {
           const user = JSON.parse(sessionStr);
-          if (user && user.id) {
-            const stillExists = (data.users || []).find((u: any) => u.id === user.id && u.status === 'active');
-            if (!stillExists) {
+          // Only a payload that actually carries the user list can prove an
+          // account is gone. A 200 with a missing or empty `users` array means
+          // "we don't know", not "you were revoked" — treating those as proof
+          // was the direct cause of the false logout.
+          const roster: any[] = Array.isArray(data.users) ? data.users : [];
+          if (user && user.id && roster.length > 0) {
+            const me = roster.find((u: any) => u.id === user.id);
+            const gone = !me || me.status !== 'active';
+            _missingSelfStreak = gone ? _missingSelfStreak + 1 : 0;
+
+            if (_missingSelfStreak >= MISSING_SELF_STRIKES) {
+              _missingSelfStreak = 0;
               console.warn('[mockAuthService] Account deleted or revoked. Logging out.');
               if (typeof window !== 'undefined') window.alert("Your account has been deleted or revoked by an administrator.");
               logout();
             }
+          } else {
+            // Nothing was proven this round, so forget any earlier suspicion.
+            _missingSelfStreak = 0;
           }
         } catch { }
       }
+    } else {
+      // A non-OK response is not evidence about the account either.
+      _missingSelfStreak = 0;
     }
   } catch (err) {
-    // Ignore polling errors
+    // A failed poll proves nothing either, and must not let suspicion carry
+    // across an unrelated outage — otherwise two bad-roster reads separated
+    // by a network error would still add up to a logout.
+    _missingSelfStreak = 0;
   }
 }
 
@@ -231,6 +275,13 @@ export function getCurrentUser(): AuthUser | null {
 export async function logout() {
   if (typeof window !== 'undefined') {
     sessionStorage.removeItem(SESSION_KEY);
+    // The persistent copy written for "remember this device" lives under the
+    // same key in localStorage and does not carry the `ds_` prefix, so the
+    // loop below never removed it. Logging out left it behind, which meant a
+    // session the user had ended could still be read back — and, once the
+    // poll began falling back to localStorage, the revocation notice fired a
+    // second time against the session it had just torn down.
+    localStorage.removeItem(SESSION_KEY);
     // Clear user-scoped localStorage
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
