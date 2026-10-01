@@ -622,7 +622,7 @@ function UnlockForm({ onSwitchToSignup }: { onSwitchToSignup: () => void }) {
       }, 800);
     } catch (err: any) {
       setAuthError(err?.message ?? 'Invalid credentials. Please try again.');
-      setPinError('Incorrect PIN');
+      setPinError('Incorrect password');
       setPin('');
       triggerShake();
     } finally {

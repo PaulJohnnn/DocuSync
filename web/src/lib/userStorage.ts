@@ -13,17 +13,35 @@
  * raw localStorage directly.
  */
 
-/** Read the current logged-in user's ID from sessionStorage. */
+/**
+ * Read the current logged-in user's ID.
+ *
+ * This used to read sessionStorage alone, which quietly orphaned everything
+ * the user owned. sessionStorage is per-tab and is discarded when the browser
+ * closes, while the data it namespaces lives in localStorage and persists. So
+ * on the next launch — or merely in a second tab — this returned 'guest'
+ * before `getCurrentUser()` had restored the session, every `uGet` read the
+ * empty `ds_guest_*` namespace, and the workspace came up with no rooms and
+ * no files. Worse, any write that followed landed under `ds_guest_*` too,
+ * leaving the real `ds_{userId}_*` data stranded.
+ *
+ * `getCurrentUser()` already falls back to localStorage for exactly this
+ * reason; mirroring that here keeps the namespace stable no matter which
+ * runs first.
+ */
 function getCurrentUserId(): string {
   if (typeof window === 'undefined') return 'guest';
-  try {
-    const raw = sessionStorage.getItem('docusync_auth_user');
-    if (!raw) return 'guest';
-    const user = JSON.parse(raw) as { id?: string };
-    return user?.id ?? 'guest';
-  } catch {
-    return 'guest';
-  }
+  const read = (store: Storage): string | null => {
+    try {
+      const raw = store.getItem('docusync_auth_user');
+      if (!raw) return null;
+      const user = JSON.parse(raw) as { id?: string };
+      return user?.id ?? null;
+    } catch {
+      return null;
+    }
+  };
+  return read(sessionStorage) ?? read(localStorage) ?? 'guest';
 }
 
 /** Build a user-namespaced localStorage key. */
