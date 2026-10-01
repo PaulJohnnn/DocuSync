@@ -704,15 +704,22 @@ export function registerIPCHandlers(services: EngineServices): void {
 
       // If no path provided, open a file dialog.
       if (!filePath) {
+        // Derived from ALLOWED_EXTENSIONS so the dialog can never offer a file
+        // that validateExtension will reject a moment later. The "All Files"
+        // option was doing exactly that: it let a user pick anything, and the
+        // refusal only arrived afterwards as an error.
+        const supported = Array.from(ALLOWED_EXTENSIONS)
+          .filter(Boolean)
+          .map(e => e.replace('.', ''));
         const options: Electron.OpenDialogOptions = {
           properties: ['openFile'],
           filters: [
+            { name: 'Supported documents', extensions: supported },
             { name: 'Word Documents', extensions: ['docx', 'doc'] },
             {
               name: 'Text & Code Files',
-              extensions: ['txt', 'md', 'json', 'csv', 'ts', 'tsx', 'js', 'jsx', 'css', 'html'],
+              extensions: supported.filter(e => e !== 'docx' && e !== 'doc'),
             },
-            { name: 'All Files', extensions: ['*'] },
           ],
         };
         console.log('[IPC] file:open → showing open dialog asynchronously (unattached)...');

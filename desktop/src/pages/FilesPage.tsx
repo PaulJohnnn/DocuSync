@@ -17,6 +17,7 @@ import { ServiceError } from '@/services/errors/ServiceError';
 import { notify } from '@docusync/shared/utils/notifications';
 import { basename, formatSize } from '@docusync/shared/utils/formatters';
 import { uRemove } from '@/utils/userStorage';
+import { buildExport, EXPORT_FORMATS, type ExportExt } from '@/utils/exportDocument';
 import ConfirmModal from '@/components/ConfirmModal';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -53,6 +54,21 @@ const FilesPage: React.FC = () => {
   const { connectedPeers, currentRoom, setCurrentRoom, matchmakerPeerCount } = useElectronSync();
   const [roomFiles, setRoomFiles] = useState<any[]>([]);
   const [opening, setOpening] = useState(false);
+  /** The open "Download as…" menu, with the screen position of its button. */
+  const [downloadMenu, setDownloadMenu] = useState<{ id: string | number; x: number; y: number } | null>(null);
+
+  // Dismiss the menu on any click or scroll elsewhere, so it never strands
+  // itself open over the file list.
+  useEffect(() => {
+    if (!downloadMenu) return;
+    const close = () => setDownloadMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [downloadMenu]);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -225,19 +241,23 @@ const FilesPage: React.FC = () => {
     } finally { setOpening(false); }
   }, [navigate, currentRoom]);
 
-  const handleDownloadRoomFile = useCallback((file: any) => {
+  /**
+   * Downloads a room file in a chosen format.
+   *
+   * This used to write `file.content` straight into a text blob and rename any
+   * .docx to .txt. Stored content is editor HTML, so the download was a file
+   * full of `<div data-margin="96"><p>…` markup, and the only option was plain
+   * text. Each format is now produced properly, including a real OOXML .docx.
+   */
+  const handleDownloadRoomFile = useCallback((file: any, ext: ExportExt = 'docx') => {
     try {
-      const origName = file.fileName || file.name || 'file.txt';
-      const ext = origName.split('.').pop()?.toLowerCase() || '';
-      let finalExt = origName;
-      if (ext === 'docx' || ext === 'doc') {
-         finalExt = origName.replace(/\.docx?$/, '.txt');
-      }
-      const blob = new Blob([file.content || ''], { type: 'text/plain;charset=utf-8' });
+      const origName = file.fileName || file.name || 'document';
+      const base = origName.replace(/\.[^./\\]+$/, '') || 'document';
+      const blob = buildExport(file.content || '', ext, base);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = finalExt;
+      a.download = `${base}.${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -603,7 +623,15 @@ const FilesPage: React.FC = () => {
                       {opening ? '...' : 'Open & Edit'}
                     </button>
                         <button
-                          onClick={() => handleDownloadRoomFile(f)}
+                          onClick={e => {
+                            e.stopPropagation();
+                            const id = f.fileId || f.id;
+                            if (downloadMenu?.id === id) { setDownloadMenu(null); return; }
+                            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                            setDownloadMenu({ id, x: r.right, y: r.bottom + 6 });
+                          }}
+                          aria-haspopup="menu"
+                          aria-expanded={downloadMenu?.id === (f.fileId || f.id)}
                           style={{
                             background: 'var(--bg-card-hover)', color: 'var(--text-primary)', border: '1px solid var(--border)',
                             borderRadius: 7, padding: '0 12px', height: 32, fontSize: 12,
@@ -613,6 +641,41 @@ const FilesPage: React.FC = () => {
                         >
                           Download
                         </button>
+                        {/* Fixed rather than absolute: the file card clips its
+                            overflow and would swallow the menu. */}
+                        {downloadMenu && downloadMenu.id === (f.fileId || f.id) && (
+                          <div
+                            role="menu"
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                              position: 'fixed', left: downloadMenu.x, top: downloadMenu.y,
+                              transform: 'translateX(-100%)', zIndex: 2000, minWidth: 200,
+                              background: 'var(--bg-card)', border: '1px solid var(--border)',
+                              borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,0.35)', padding: 6,
+                            }}
+                          >
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', padding: '6px 10px 4px', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                              Download as
+                            </div>
+                            {EXPORT_FORMATS.map(fmt => (
+                              <button
+                                key={fmt.ext}
+                                role="menuitem"
+                                onClick={() => { setDownloadMenu(null); handleDownloadRoomFile(f, fmt.ext); }}
+                                style={{
+                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                                  width: '100%', padding: '9px 10px', background: 'transparent', border: 'none',
+                                  borderRadius: 7, cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)', textAlign: 'left',
+                                }}
+                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card-hover)')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                              >
+                                <span style={{ fontWeight: 600 }}>{fmt.label}</span>
+                                <code style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>{fmt.hint}</code>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <button
                           onClick={() => handleDeleteRoomFile(f)}
                           style={{

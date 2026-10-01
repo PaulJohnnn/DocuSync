@@ -21,6 +21,7 @@ import {
 import { formatBytes, basename } from '@docusync/shared/utils/formatters';
 import { notify } from '@docusync/shared/utils/notifications';
 import SyncService from '@/services/SyncService';
+import { buildExport, EXPORT_FORMATS } from '@/utils/exportDocument';
 import { toast } from 'sonner';
 import { File } from 'lucide-react';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -307,11 +308,35 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
   }, [fileId]);
 
   const [pageCount, setPageCount] = useState(1);
+  /** The open "Download as…" menu, positioned against its button's screen rect. */
+  const [downloadMenu, setDownloadMenu] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!downloadMenu) return;
+    const close = () => setDownloadMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [downloadMenu]);
 
   useEffect(() => {
     let animFrame: number;
+
+    // Re-measuring on every frame re-laid out the whole document sixty times a
+    // second, which is wasted work on a short file and visibly janky on a long
+    // one. The layout only moves when the document, the margin or the viewport
+    // changes, so measure while converging and then idle.
+    let dirty = true;
+    const markDirty = () => { dirty = true; };
+    editor?.on('update', markDirty);
+    window.addEventListener('resize', markDirty);
+
     const adjustPages = () => {
       const pm = document.querySelector('.ds-desktop-editor-wrap .ProseMirror') as HTMLElement;
+      if (!dirty) { animFrame = requestAnimationFrame(adjustPages); return; }
       if (pm) {
         const PAGE_HEIGHT = 1123;
         const GAP_HEIGHT = 48; // Physical spacing between desktop A4 papers
@@ -323,13 +348,26 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
         let totalPushSoFar = 0;
         let maxPageIndex = 0;
 
+        // offsetTop and offsetHeight are rounded to whole pixels while the push
+        // written back is fractional, so applying a push shifted the rounded
+        // reading by a pixel, which flipped the push back and dispatched again
+        // — the page shook continuously and never settled. Rects report
+        // subpixel values, putting measurement and correction in the same units
+        // so the loop reaches a fixed point.
+        const pmRect = pm.getBoundingClientRect();
+        const pmStyle = getComputedStyle(pm);
+        const pmOrigin = pmRect.top
+          + (parseFloat(pmStyle.borderTopWidth) || 0)
+          + (parseFloat(pmStyle.paddingTop) || 0);
+
         Array.from(pm.children).forEach(child => {
           const el = child as HTMLElement;
           if (el.classList.contains('collaboration-cursor__caret')) return;
 
           const applied = parseFloat(el.getAttribute('data-push') || '0');
-          const physicalTop = el.offsetTop;
-          const h = el.offsetHeight;
+          const rect = el.getBoundingClientRect();
+          const physicalTop = rect.top - pmOrigin;
+          const h = rect.height;
 
           const unpushedTop = physicalTop - applied - totalPushSoFar;
           const unpushedBottom = unpushedTop + h;
@@ -365,13 +403,21 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
           }
         });
 
+        // Nothing moved this pass, so the layout has settled: stop measuring
+        // until an edit or a resize marks it dirty again.
+        if (updates.length === 0) dirty = false;
+
         setPageCount(Math.max(1, maxPageIndex + 1));
       }
       animFrame = requestAnimationFrame(adjustPages);
     };
     animFrame = requestAnimationFrame(adjustPages);
-    return () => cancelAnimationFrame(animFrame);
-  }, []);
+    return () => {
+      cancelAnimationFrame(animFrame);
+      editor?.off('update', markDirty);
+      window.removeEventListener('resize', markDirty);
+    };
+  }, [editor]);
 
   useEffect(() => {
     if (pendingConflicts > prevConflictCount.current) {
@@ -946,42 +992,67 @@ const EditorCore: React.FC<{ initialContent: string; filePath: string }> = ({ in
               </button>
               <button
                 className="ds-btn"
-                onClick={() => {
-                  if (!editor) return;
-                  const origName = filePath ? filePath.split(/[\\/]/).pop() || `document_${fileId}` : `document_${fileId}`;
-                  const ext = origName.split('.').pop()?.toLowerCase() || '';
-
-                  if (ext === 'docx' || ext === 'doc') {
-                    const wordHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset="utf-8"><title>${origName}</title></head><body>${editor.getHTML()}</body></html>`;
-                    const blob = new Blob([wordHtml], { type: 'application/msword' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = origName.replace(/\.docx?$/, '.doc');
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    return;
-                  }
-
-                  const isHtml = ext === 'html' || ext === 'htm';
-                  const contentForDownload = isHtml ? editor.getHTML() : editor.getText({ blockSeparator: '\n' });
-                  const mimeType = isHtml ? 'text/html' : 'text/plain;charset=utf-8';
-                  const blob = new Blob([contentForDownload], { type: mimeType });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = origName;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
+                onClick={e => {
+                  e.stopPropagation();
+                  if (downloadMenu) { setDownloadMenu(null); return; }
+                  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  setDownloadMenu({ x: r.right, y: r.bottom + 6 });
                 }}
+                aria-haspopup="menu"
+                aria-expanded={!!downloadMenu}
                 style={{ height: 30, fontSize: 12, padding: '0 14px' }}
               >
                 Download
               </button>
+              {/* The toolbar clips its overflow, so the menu is positioned
+                  fixed against the button's screen rect. */}
+              {downloadMenu && (
+                <div
+                  role="menu"
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    position: 'fixed', left: downloadMenu.x, top: downloadMenu.y,
+                    transform: 'translateX(-100%)', zIndex: 2000, minWidth: 200,
+                    background: 'var(--bg-card)', border: '1px solid var(--border)',
+                    borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,0.35)', padding: 6,
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', padding: '6px 10px 4px', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    Download as
+                  </div>
+                  {EXPORT_FORMATS.map(fmt => (
+                    <button
+                      key={fmt.ext}
+                      role="menuitem"
+                      onClick={() => {
+                        setDownloadMenu(null);
+                        if (!editor) return;
+                        const origName = filePath ? filePath.split(/[\\/]/).pop() || `document_${fileId}` : `document_${fileId}`;
+                        const base = origName.replace(/\.[^./\\]+$/, '') || `document_${fileId}`;
+                        const blob = buildExport(editor.getHTML(), fmt.ext, base);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${base}.${fmt.ext}`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                        width: '100%', padding: '9px 10px', background: 'transparent', border: 'none',
+                        borderRadius: 7, cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)', textAlign: 'left',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card-hover)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <span style={{ fontWeight: 600 }}>{fmt.label}</span>
+                      <code style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>{fmt.hint}</code>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
