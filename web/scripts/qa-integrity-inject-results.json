@@ -1,0 +1,98 @@
+[
+  {
+    "group": "Launch one instance and open a document",
+    "name": "instance running with its engine port open",
+    "ok": true,
+    "detail": "ws://127.0.0.1:9000"
+  },
+  {
+    "group": "Launch one instance and open a document",
+    "name": "document imported",
+    "ok": true,
+    "detail": "fileId=1790981256452"
+  },
+  {
+    "group": "Launch one instance and open a document",
+    "name": "instance holds its own edit before injection",
+    "ok": true,
+    "detail": "b337e08912b99850"
+  },
+  {
+    "group": "Speak the peer protocol as an unmodified peer would",
+    "name": "handshake accepted, socket still open",
+    "ok": true,
+    "detail": "inbound messages: PEER_HELLO,PEER_LIST,SYNC_REQUEST"
+  },
+  {
+    "group": "I1 - a corrupted payload must be refused",
+    "name": "I1 document unchanged after a corrupted delta",
+    "ok": true,
+    "detail": "b337e08912b99850 -> b337e08912b99850"
+  },
+  {
+    "group": "I1 - a corrupted payload must be refused",
+    "name": "I1 the rejection is visible in the engine log",
+    "ok": true,
+    "detail": "[err] [PeerManager] Failed to apply DELTA_PUSH for file 1790981256452: Malformed delta payload: Invalid JSON in delta payload."
+  },
+  {
+    "group": "I2 - a payload whose checksum does not match must be refused",
+    "name": "I2 document unchanged when the checksum disagrees",
+    "ok": true,
+    "detail": "b337e08912b99850 -> b337e08912b99850"
+  },
+  {
+    "group": "I3 - a payload that misreports its own result must be refused",
+    "name": "I3 document unchanged when the claimed result is false",
+    "ok": true,
+    "detail": "b337e08912b99850 -> b337e08912b99850"
+  },
+  {
+    "group": "I3 - a payload that misreports its own result must be refused",
+    "name": "I3 none of the forged content was written",
+    "ok": true,
+    "detail": "absent"
+  },
+  {
+    "group": "I4 - a valid concurrent delta must still reach the merge",
+    "name": "I4 the valid concurrent delta merged line-wise, keeping both edits",
+    "ok": true,
+    "detail": "line 1=\"I one. LOCAL-EDIT.\" line 3=\"I three. REMOTE-EDIT.\""
+  },
+  {
+    "group": "I4 - a valid concurrent delta must still reach the merge",
+    "name": "I4 the document did change for the valid delta",
+    "ok": true,
+    "detail": "b337e08912b99850 -> f5ef113e0b8ec3f1"
+  },
+  {
+    "group": "I4 - a valid concurrent delta must still reach the merge",
+    "name": "I4 the engine logged a line-wise merge",
+    "ok": true,
+    "detail": "[PeerManager] Concurrent edit on file 1790981256452 merged line-wise (local ts=2, remote ts=50 → remote wins contested lines); 0 contested region(s)"
+  },
+  {
+    "group": "I5 - a delta with no stated ancestor must be refused",
+    "name": "I5 document unchanged with no ancestor supplied",
+    "ok": true,
+    "detail": "f5ef113e0b8ec3f1 -> f5ef113e0b8ec3f1"
+  },
+  {
+    "group": "I5 - a delta with no stated ancestor must be refused",
+    "name": "I5 the unanchored edit was not written",
+    "ok": true,
+    "detail": "absent"
+  },
+  {
+    "group": "Event log state after the injections",
+    "name": "only the accepted events were logged",
+    "ok": true,
+    "detail": "3 entries: restore/7dad05e5 | edit/7dad05e5 | merge/00000000 (expected baseline + local edit + one merge)"
+  },
+  {
+    "group": "Event log state after the injections",
+    "name": "every logged event still rebuilds from the log",
+    "ok": true,
+    "detail": "restore,edit,merge"
+  }
+]

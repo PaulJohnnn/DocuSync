@@ -1,0 +1,158 @@
+[
+  {
+    "group": "P - production default must be unchanged",
+    "name": "P1 without DOCUSYNC_LOCAL_UI the window loads the hosted web app",
+    "ok": true,
+    "detail": "https://docusync-dusky.vercel.app/home"
+  },
+  {
+    "group": "P - production default must be unchanged",
+    "name": "P2 with DOCUSYNC_LOCAL_UI=1 the window loads the local renderer",
+    "ok": true,
+    "detail": "file:///C:/Users/Paul%20John%20Palamara/"
+  },
+  {
+    "group": "P - production default must be unchanged",
+    "name": "P3 engine integration remains opt-in",
+    "ok": null,
+    "detail": "default start shows the hosted UI, which does not call window.docuSync"
+  },
+  {
+    "group": "H - imported file history and restoring its first version",
+    "name": "H1 the imported file has a baseline entry followed by its edits",
+    "ok": true,
+    "detail": "3 entries: restore,edit,edit"
+  },
+  {
+    "group": "H - imported file history and restoring its first version",
+    "name": "H2 the first history entry holds real document content",
+    "ok": true,
+    "detail": "\"H original one.\""
+  },
+  {
+    "group": "H - imported file history and restoring its first version",
+    "name": "H3 the first entry is not raw transport data",
+    "ok": true,
+    "detail": "readable text"
+  },
+  {
+    "group": "H - imported file history and restoring its first version",
+    "name": "H4 every version rebuilt from the log",
+    "ok": true,
+    "detail": "restore,edit,edit"
+  },
+  {
+    "group": "H - imported file history and restoring its first version",
+    "name": "H5 restoring the very first version succeeded",
+    "ok": true,
+    "detail": "restored"
+  },
+  {
+    "group": "H - imported file history and restoring its first version",
+    "name": "H6 restoring the first version reproduced the imported document exactly",
+    "ok": true,
+    "detail": "8eceb02b0b232a8f vs original 8eceb02b0b232a8f"
+  },
+  {
+    "group": "F - one global clock must not couple two files",
+    "name": "F0 link established",
+    "ok": true,
+    "detail": "connected"
+  },
+  {
+    "group": "F - one global clock must not couple two files",
+    "name": "F1 the heavily-edited file reached the other peer",
+    "ok": true,
+    "detail": "A=\"F1 line one. A6\" B=\"F1 line one. A6\""
+  },
+  {
+    "group": "F - one global clock must not couple two files",
+    "name": "F2 the other file’s single edit was NOT skipped despite the clock gap",
+    "ok": true,
+    "detail": "A=\"F2 line two. FROM-B.\" B=\"F2 line two. FROM-B.\""
+  },
+  {
+    "group": "F - one global clock must not couple two files",
+    "name": "F3 neither file picked up the other’s content",
+    "ok": true,
+    "detail": "f1 line2=\"F1 line two.\" f2 line1=\"F2 line one.\""
+  },
+  {
+    "group": "D - replaying catch-up must not duplicate anything",
+    "name": "D1 event counts unchanged after replaying catch-up twice",
+    "ok": true,
+    "detail": "A 7->7 | B 7->7"
+  },
+  {
+    "group": "D - replaying catch-up must not duplicate anything",
+    "name": "D2 all event ids still unique",
+    "ok": true,
+    "detail": "A 7 unique 7"
+  },
+  {
+    "group": "D - replaying catch-up must not duplicate anything",
+    "name": "D3 the document was not modified again by the replay",
+    "ok": true,
+    "detail": "A 619c8b887b5df655->619c8b887b5df655 | B 619c8b887b5df655->619c8b887b5df655"
+  },
+  {
+    "group": "R - restore after offline divergence",
+    "name": "R1 A can identify its version one in history",
+    "ok": true,
+    "detail": "restore/e4b51b86"
+  },
+  {
+    "group": "R - restore after offline divergence",
+    "name": "R2 A restored version one while disconnected",
+    "ok": true,
+    "detail": "restored"
+  },
+  {
+    "group": "R - restore after offline divergence",
+    "name": "R3 state before reconnection",
+    "ok": null,
+    "detail": "A=\"R version one.\"/\"R steady line.\" (ee4bd5d0c581d274) | B=\"R version one.\"/\"R steady line. FROM-B.\" (3bf2fc0ac600264e)"
+  },
+  {
+    "group": "R - restore after offline divergence",
+    "name": "R4 link established after the offline period",
+    "ok": true,
+    "detail": "connected"
+  },
+  {
+    "group": "R - restore after offline divergence",
+    "name": "R5 state after reconnection",
+    "ok": null,
+    "detail": "A=\"R version one.\"/\"R steady line. FROM-B.\" (3bf2fc0ac600264e) | B=\"R version two.\"/\"R steady line. FROM-B.\" (df7559972c318d87)"
+  },
+  {
+    "group": "R - restore after offline divergence",
+    "name": "R6 the two peers converged after an offline restore",
+    "ok": false,
+    "detail": "A=3bf2fc0ac600264e B=df7559972c318d87 (divergent)"
+  },
+  {
+    "group": "R - restore after offline divergence",
+    "name": "R7 B’s unrelated offline work survived the restore",
+    "ok": true,
+    "detail": "A has it=true B has it=true"
+  },
+  {
+    "group": "R - restore after offline divergence",
+    "name": "R8 the restore reached the other peer",
+    "ok": false,
+    "detail": "B line 1 = \"R version two.\" (expected \"R version one.\")"
+  },
+  {
+    "group": "R - restore after offline divergence",
+    "name": "R9 both event logs still rebuild from the log",
+    "ok": true,
+    "detail": "A: restore,edit,restore,merge | B: restore,edit,merge"
+  },
+  {
+    "group": "R - restore after offline divergence",
+    "name": "R10 event logs after the offline restore",
+    "ok": null,
+    "detail": "A(4): restore,edit,restore,merge | B(3): restore,edit,merge"
+  }
+]
