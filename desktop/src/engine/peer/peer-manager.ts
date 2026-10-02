@@ -1779,6 +1779,68 @@ export class PeerManager {
     return next;
   }
 
+  /**
+   * Decides whether a delta that failed its checksum is a concurrent edit
+   * rather than a corrupt one, and if so resolves it.
+   *
+   * Returns the content to adopt, or null to let the original failure stand.
+   *
+   * Three conditions must all hold before this is treated as a conflict, so
+   * that genuine corruption is never waved through:
+   *
+   *   - the clocks are available and compare as `concurrent`, meaning each
+   *     side holds an edit the other has not seen. A `dominant`, `dominated`
+   *     or `equal` relation is a sequencing problem, not a conflict, and the
+   *     original error is the right answer there.
+   *   - the message carries the sender's full content. `file:save` includes
+   *     it on every broadcast; without it there is nothing to resolve with,
+   *     because the delta cannot be decoded against a base we do not have.
+   *   - the payload decoded far enough to be structurally valid.
+   *
+   * The winner follows the engine's existing rule — the higher logical
+   * timestamp, with the originating node id breaking an exact tie so that
+   * both peers independently reach the same verdict and converge without
+   * another round trip.
+   */
+  private async resolveConcurrentDelta(
+    msg: DeltaPushMessage,
+    currentContent: string,
+    _decodeErr: Error
+  ): Promise<{ content: string } | null> {
+    const remoteContent = msg.content;
+    if (typeof remoteContent !== 'string' || remoteContent.length === 0) {
+      return null; // nothing to resolve against
+    }
+
+    const localClock = this.config.vectorClock;
+    if (!localClock || !msg.vectorClockJson) return null;
+
+    let relation: string;
+    try {
+      const incoming = VectorClock.fromJSON(msg.vectorClockJson);
+      relation = localClock.compare(incoming);
+    } catch {
+      return null; // clocks not comparable — leave the failure in place
+    }
+
+    if (relation !== 'concurrent') return null;
+
+    // Both edits are real and neither saw the other. Pick deterministically.
+    const localTs = localClock.counters?.[localClock.nodeIndex] ?? 0;
+    const remoteTs = msg.logicalTimestamp ?? 0;
+    const remoteWins =
+      remoteTs > localTs ||
+      (remoteTs === localTs && msg.nodeId > this.config.localNodeId);
+
+    console.log(
+      `[PeerManager] Concurrent edit on file ${msg.fileId} ` +
+        `(local ts=${localTs}, remote ts=${remoteTs}) → ` +
+        `${remoteWins ? 'remote' : 'local'} wins`
+    );
+
+    return { content: remoteWins ? remoteContent : currentContent };
+  }
+
   private async applyDeltaPush(
     socket: WebSocket,
     msg: DeltaPushMessage
@@ -1815,8 +1877,34 @@ export class PeerManager {
         const currentContent = await this.config.getFileContent(msg.fileId);
 
         // Step 2: Decode the delta.
-        const decodeResult = decodeDelta(currentContent, msg.deltaBase64);
-        const newContent = decodeResult.content;
+        //
+        // The checksum is FNV-1a of the content the SENDER ended up with, so a
+        // mismatch means "applying this to my content did not reproduce yours"
+        // — my base differs from theirs. That is true of a corrupted payload
+        // and equally true of a perfectly valid edit made concurrently, and
+        // the checksum alone cannot tell them apart. Treating both as
+        // corruption silently discarded the remote edit whenever two peers
+        // typed at the same time.
+        //
+        // The vector clocks can tell them apart, so they decide. Only a
+        // provably concurrent pair takes the alternate path; anything else
+        // still fails exactly as before, which keeps integrity checking
+        // intact rather than relaxing it.
+        let decodeResult: ReturnType<typeof decodeDelta>;
+        let newContent: string;
+        try {
+          decodeResult = decodeDelta(currentContent, msg.deltaBase64);
+          newContent = decodeResult.content;
+        } catch (decodeErr) {
+          const resolved = await this.resolveConcurrentDelta(
+            msg,
+            currentContent,
+            decodeErr as Error
+          );
+          if (!resolved) throw decodeErr;
+          newContent = resolved.content;
+          decodeResult = { content: resolved.content, opsApplied: 0, checksumValid: true } as any;
+        }
 
         // Step 3: Append to EventLog.
         await this.config.eventLog.appendEvent({

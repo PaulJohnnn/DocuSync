@@ -9,7 +9,7 @@
     "group": "Setup — two real Electron instances",
     "name": "both instances hold the same base document",
     "ok": true,
-    "detail": "fileId=1790904460701"
+    "detail": "fileId=1790910078161"
   },
   {
     "group": "Setup — two real Electron instances",
@@ -75,25 +75,25 @@
     "group": "D4 — concurrent editing",
     "name": "D4-1 different lines: both engines logged events",
     "ok": true,
-    "detail": "A:edit | B:edit"
+    "detail": "A:edit,merge | B:merge,edit"
   },
   {
     "group": "D4 — concurrent editing",
     "name": "D4-1 different lines: engines converged",
-    "ok": false,
-    "detail": "A=df5c81fc880288b3 B=13ce4d6f87640ff3"
+    "ok": true,
+    "detail": "A=13ce4d6f87640ff3 B=13ce4d6f87640ff3"
   },
   {
     "group": "D4 — concurrent editing",
     "name": "D4-2 same line: both engines recorded the attempt",
     "ok": true,
-    "detail": "A:edit | B:edit"
+    "detail": "A:edit,merge | B:merge,edit"
   },
   {
     "group": "D4 — concurrent editing",
     "name": "D4-2 same line: engines reached one state",
-    "ok": false,
-    "detail": "A=71af5a07c27e40e4 B=126682f29c1235bb (divergent)"
+    "ok": true,
+    "detail": "126682f29c1235bb"
   },
   {
     "group": "Version history through the Desktop engine",
@@ -105,7 +105,7 @@
     "group": "Version history through the Desktop engine",
     "name": "VH restoreVersion accepted by the engine",
     "ok": true,
-    "detail": "eventId=daf83d8c"
+    "detail": "eventId=733c52c2"
   },
   {
     "group": "Version history through the Desktop engine",
@@ -129,7 +129,7 @@
     "group": "Native offline — edits with no peer connected, then catch-up",
     "name": "offline pair prepared, no peer link established",
     "ok": true,
-    "detail": "fileId=1790904526662"
+    "detail": "fileId=1790910143709"
   },
   {
     "group": "Native offline — edits with no peer connected, then catch-up",
