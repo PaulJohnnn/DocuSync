@@ -286,6 +286,24 @@ export class EventLogService {
   public async appendEvent(input: AppendEventInput): Promise<EventLogEntry> {
     assertValidEventType(input.eventType);
 
+    // `eventId` is unique in the schema, so re-appending one would throw a
+    // constraint violation rather than being ignored. That never mattered
+    // while every event was created locally with a fresh UUID, but catch-up
+    // replay deliberately re-sends events a peer may already hold: a peer that
+    // reconnects twice, or two peers answering the same SYNC_REQUEST, would
+    // otherwise raise errors on events that are simply already applied.
+    //
+    // An event is identified by its `eventId`, so seeing one again is a
+    // repeat, not new information. Return what is already stored and leave the
+    // log untouched — replay becomes idempotent and the append-only guarantee
+    // is preserved, because nothing is overwritten.
+    const existing = await this.prisma.eventLog.findUnique({
+      where: { eventId: input.eventId },
+    });
+    if (existing) {
+      return toEventLogEntry(existing);
+    }
+
     const row = await this.prisma.eventLog.create({
       data: {
         eventId: input.eventId,

@@ -380,6 +380,62 @@ export async function initEngine(
   }
 
   // ── Peer Manager ───────────────────────────────────────────────
+  /**
+   * Asks connected peers for anything this node missed.
+   *
+   * Reconnection fires `onPeerListChanged` several times in quick succession
+   * as sockets settle, and a peer list can also change for reasons unrelated
+   * to catch-up. Rather than issue a burst of requests, the work is collapsed
+   * into one pass on a short timer.
+   *
+   * Re-requesting is harmless on its own terms: each reply carries the
+   * original `eventId`, and `appendEvent` now returns the stored row instead
+   * of inserting a second copy, so a repeated answer cannot duplicate
+   * anything. The debounce exists to avoid pointless traffic, not to protect
+   * correctness.
+   */
+  let autoCatchUpTimer: NodeJS.Timeout | null = null;
+  function scheduleAutoCatchUp(): void {
+    if (autoCatchUpTimer) clearTimeout(autoCatchUpTimer);
+    autoCatchUpTimer = setTimeout(() => {
+      autoCatchUpTimer = null;
+      void runAutoCatchUp();
+    }, 1500);
+  }
+
+  async function runAutoCatchUp(): Promise<void> {
+    try {
+      const peers = peerManager.getConnectedPeerIds();
+      if (peers.length === 0 || openFiles.size === 0) return;
+
+      let requested = 0;
+      for (const [fileId] of openFiles) {
+        // Ask from the last event this node actually holds for the file, so
+        // the answer contains only what is genuinely missing.
+        const history = await eventLog.getHistory(fileId);
+        const latestTs = history.length > 0
+          ? history[history.length - 1].logicalTimestamp
+          : 0;
+
+        peerManager.broadcast({
+          type: 'SYNC_REQUEST',
+          nodeId: localNodeId,
+          fileId,
+          sinceTimestamp: latestTs,
+          timestamp: new Date().toISOString(),
+        } as PeerMessage);
+        requested++;
+      }
+
+      console.log(
+        `[IPC] auto catch-up → requested ${requested} file(s) from ${peers.length} peer(s)`
+      );
+    } catch (err) {
+      console.error('[IPC] auto catch-up failed', err);
+    }
+  }
+
+
   const peerManager = createPeerManager({
     localNodeId,
     localDisplayName: lanIp,
@@ -391,6 +447,71 @@ export async function initEngine(
     vectorClock,
     getFileContent: async (fileId: number) => {
       return fileContents.get(fileId) ?? '';
+    },
+    /**
+     * Answers a peer's catch-up request after it reconnects.
+     *
+     * `PeerManager.handleSyncRequest` already received SYNC_REQUEST and looked
+     * for this callback, but nothing supplied it — so the request arrived, the
+     * guard failed, and the reconnecting peer was never sent anything. The
+     * query it needs, `getEventsSince`, existed but had no production caller.
+     *
+     * Each missed event is replayed as the delta it already is, rather than a
+     * full snapshot: the log stores `payload` as the encoded delta, and
+     * DELTA_PUSH treats `content` as optional, so the receiver reconstructs
+     * through `decodeDelta` exactly as it would for a live edit. Events go out
+     * in ascending logical-timestamp order, which is the order
+     * `getEventsSince` returns them in, because each delta is encoded against
+     * its predecessor's result.
+     *
+     * The original author's `nodeId` and `vectorClockJson` are preserved so
+     * causality is not rewritten in the receiver's log, and the original
+     * `eventId` is reused so a replay that overlaps something already applied
+     * is ignored rather than duplicated.
+     */
+    onSyncRequested: async (requesterNodeId: string, fileId: number, sinceTimestamp: number) => {
+      try {
+        const missed = await eventLog.getEventsSince(fileId, sinceTimestamp);
+        if (missed.length === 0) {
+          console.log(
+            `[IPC] sync:request from ${requesterNodeId} for file ${fileId} ` +
+              `since ts=${sinceTimestamp} → already current`
+          );
+          return;
+        }
+
+        // DELTA_PUSH accepts a narrower set of event types than the log
+        // records; anything outside it replays as a plain edit, which is how
+        // the receiver would treat it anyway.
+        const PUSHABLE = ['edit', 'restore', 'delete', 'merge'] as const;
+        type PushableType = typeof PUSHABLE[number];
+        const asPushable = (t: string): PushableType =>
+          (PUSHABLE as readonly string[]).includes(t) ? (t as PushableType) : 'edit';
+
+        let sent = 0;
+        for (const entry of missed) {
+          const ok = peerManager.sendTo(requesterNodeId, {
+            type: 'DELTA_PUSH',
+            eventId: entry.eventId,
+            nodeId: entry.nodeId,
+            fileId,
+            deltaBase64: entry.payload,
+            eventType: asPushable(entry.eventType),
+            logicalTimestamp: entry.logicalTimestamp,
+            vectorClockJson: entry.vectorClockJson,
+            timestamp: new Date().toISOString(),
+          } as PeerMessage);
+          if (ok) sent++;
+          else break; // the socket is gone; stop rather than spin
+        }
+
+        console.log(
+          `[IPC] sync:request from ${requesterNodeId} for file ${fileId} ` +
+            `since ts=${sinceTimestamp} → replayed ${sent}/${missed.length} events`
+        );
+      } catch (err) {
+        console.error('[IPC] sync:request → failed to replay missed events', err);
+      }
     },
     onDeltaApplied: async (fileId, newContent, _eventId, _nodeId, _vcJson, eventType, lwwResolved) => {
       // Handle delete events
@@ -494,6 +615,11 @@ export async function initEngine(
       if (win) {
         win.webContents.send('evt:peer-updated');
       }
+      // A peer appearing is the moment a reconnection becomes actionable, so
+      // catch-up starts here rather than waiting for someone to press a sync
+      // button. `sync:trigger` already builds exactly this request; this is
+      // the same work, driven by the event instead of by the user.
+      scheduleAutoCatchUp();
     },
     onCursorUpdate: (msg) => {
       BrowserWindow.getAllWindows()[0]?.webContents.send('evt:cursor-update', msg);

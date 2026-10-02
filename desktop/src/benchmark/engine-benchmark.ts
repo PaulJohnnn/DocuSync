@@ -13,6 +13,12 @@ export class MockPrismaClient {
       this.eventLog.records.push(data);
       return data;
     },
+    findUnique: async (args: any) => {
+      // The real client has this, and appendEvent relies on it to make event
+      // replay idempotent; the double must offer the same surface or the
+      // engine behaves differently under test than in production.
+      return this.eventLog.records.find((r) => r.eventId === args.where.eventId) || null;
+    },
     findFirst: async (args: any) => {
       const reversed = [...this.eventLog.records].reverse();
       return reversed.find((r) => Number(r.fileId) === Number(args.where.fileId)) || null;

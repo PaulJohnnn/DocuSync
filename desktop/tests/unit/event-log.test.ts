@@ -45,6 +45,11 @@ function createMockPrisma() {
 
   return {
     eventLog: {
+      // Mirrors the real client: appendEvent looks an event up by its unique
+      // eventId so a replayed event is returned rather than duplicated.
+      findUnique: jest.fn(async ({ where }: { where: any }) =>
+        rows.find((r) => r.eventId === where.eventId) ?? null
+      ),
       create: jest.fn(async ({ data }: { data: any }) => {
         const row: MockRow = {
           id: autoId++,
