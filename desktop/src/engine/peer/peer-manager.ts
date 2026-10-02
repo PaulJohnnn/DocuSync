@@ -145,7 +145,8 @@ export type OnMergeAccepted = (
 export type OnSyncRequested = (
   nodeId: string,
   fileId: number,
-  sinceTimestamp: number
+  sinceTimestamp: number,
+  knownPerNode?: Record<string, number>
 ) => void | Promise<void>;
 
 /**
@@ -1908,10 +1909,32 @@ export class PeerManager {
     let localNode = this.config.localNodeId;
     try {
       const history = await this.config.eventLog.getHistory(msg.fileId);
-      const latest = history[history.length - 1];
-      if (latest) {
-        localTs = latest.logicalTimestamp;
-        localNode = latest.nodeId;
+      // The HIGHEST (logicalTimestamp, nodeId) among this file's events, not
+      // the one most recently applied.
+      //
+      // Last-Write-Wins means the highest logical timestamp wins. Taking the
+      // last-applied event instead made the comparison depend on arrival
+      // order, and arrival order differs per peer: a bystander's edit to
+      // another region could be the newest arrival, so one peer compared the
+      // incoming edit against that bystander while the two peers actually
+      // contesting the region compared against each other. They then chose
+      // different winners for the same region and stayed divergent. Measured
+      // with three instances reconnecting after editing offline: all three
+      // held the right text in every region, but one disagreed on which of
+      // the two contesting versions the contested region should carry.
+      let best: { logicalTimestamp: number; nodeId: string } | null = null;
+      for (const e of history) {
+        if (
+          !best ||
+          e.logicalTimestamp > best.logicalTimestamp ||
+          (e.logicalTimestamp === best.logicalTimestamp && e.nodeId > best.nodeId)
+        ) {
+          best = { logicalTimestamp: e.logicalTimestamp, nodeId: e.nodeId };
+        }
+      }
+      if (best) {
+        localTs = best.logicalTimestamp;
+        localNode = best.nodeId;
       }
     } catch {
       // Fall back to the clock values above.
@@ -2219,7 +2242,8 @@ export class PeerManager {
       await this.config.onSyncRequested(
         msg.nodeId,
         msg.fileId,
-        msg.sinceTimestamp
+        msg.sinceTimestamp,
+        msg.knownPerNode
       );
     }
   }
