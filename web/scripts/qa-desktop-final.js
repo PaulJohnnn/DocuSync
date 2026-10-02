@@ -57,7 +57,18 @@ async function launch(label, wsPort, nodeIndex, user) {
   await page.fill('input[placeholder="Enter your password"]', user.password);
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => !location.hash.includes('vault-login'), { timeout: 40000 });
-  const inst = { app, page, userData, label, wsPort };
+  const inst = { app, page, userData, label, wsPort, logs: [] };
+  try {
+    const proc = app.process();
+    const keep = (d) => {
+      for (const l of String(d).split(String.fromCharCode(10))) {
+        const t = l.trim();
+        if (t) inst.logs.push(t);
+      }
+    };
+    proc.stdout?.on('data', (d) => keep(d.toString()));
+    proc.stderr?.on('data', (d) => keep('[err] ' + d.toString()));
+  } catch { }
   instances.push(inst);
   return inst;
 }
@@ -86,6 +97,19 @@ const log = (p, id) => p.evaluate(async (i) => {
     latest: entries.length ? entries[entries.length - 1].payload : null,
   };
 }, id);
+
+/**
+ * The document the instance actually holds, read back from the file the
+ * engine writes. `log()` reports the newest EVENT-LOG entry instead, which
+ * is a weaker proxy: entries sharing a logical timestamp are ordered by
+ * insertion, so the newest entry is not always the newest state of the
+ * document. Convergence is a statement about the documents.
+ */
+const liveDoc = (p, id, name) => p.evaluate(async (a) => {
+  const r = await window.docuSync.openFile(a.id, a.name);
+  const d = (r && r.data) || {};
+  return d.content ?? null;
+}, { id, name });
 
 const connect = (p, host, port) => p.evaluate(async (a) => {
   const r = await window.docuSync.connectToPeer(a.host, a.port);
@@ -164,8 +188,10 @@ const settle = (ms) => new Promise((r) => setTimeout(r, ms));
     // ── D4: concurrent editing ─────────────────────────────────────────────
     phase('D4 — concurrent editing');
     const cBase = 'C1 line one.\nC2 line two.\nC3 line three.\n';
-    const cid = (await imp(A.page, `conc-${Date.now()}.txt`, cBase)).fileId;
-    await imp(B.page, `conc-${Date.now()}.txt`, cBase, cid);
+    const cNameA = `conc-a-${Date.now()}.txt`;
+    const cNameB = `conc-b-${Date.now()}.txt`;
+    const cid = (await imp(A.page, cNameA, cBase)).fileId;
+    await imp(B.page, cNameB, cBase, cid);
     await settle(1500);
 
     // Case 1 — different lines, issued without waiting for propagation.
@@ -177,8 +203,23 @@ const settle = (ms) => new Promise((r) => setTimeout(r, ms));
     const c1A = await log(A.page, cid), c1B = await log(B.page, cid);
     check(c1A.ok && c1B.ok, 'D4-1 different lines: both engines logged events',
       `A:${c1A.types.join(',')} | B:${c1B.types.join(',')}`);
-    check(sha(c1A.latest) === sha(c1B.latest), 'D4-1 different lines: engines converged',
-      `A=${sha(c1A.latest)} B=${sha(c1B.latest)}`);
+    const d1A = await liveDoc(A.page, cid, cNameA), d1B = await liveDoc(B.page, cid, cNameB);
+    check(sha(d1A) === sha(d1B), 'D4-1 different lines: engines converged',
+      sha(d1A) === sha(d1B) ? sha(d1A) : `A=${sha(d1A)} B=${sha(d1B)}`);
+    check(
+      String(d1A).includes('A-DIFF.') && String(d1A).includes('B-DIFF.') &&
+      String(d1B).includes('A-DIFF.') && String(d1B).includes('B-DIFF.'),
+      'D4-1 different lines: BOTH edits present on both engines',
+      `A:${String(d1A).includes('A-DIFF.')}/${String(d1A).includes('B-DIFF.')} B:${String(d1B).includes('A-DIFF.')}/${String(d1B).includes('B-DIFF.')}`);
+    check(sha(c1A.latest) === sha(c1B.latest),
+      'D4-1 newest log entry also matches (informational)',
+      sha(c1A.latest) === sha(c1B.latest) ? sha(c1A.latest)
+        : `A=${sha(c1A.latest)} B=${sha(c1B.latest)} log tails differ in order; documents compared above`);
+      for (const inst of [A, B]) {
+        const rel = inst.logs.filter((l) => /fold-check|merged line-wise|Applied delta|file:save . conc-/.test(l));
+        console.log(`      [${inst.label}] ` + (rel.length ? rel.slice(-6).join(`
+      [${inst.label}] `) : 'no relevant lines'));
+      }
 
     // Case 2 — same line, concurrently.
     const sBase2 = 'S1 contested line.\nS2 untouched.\n';

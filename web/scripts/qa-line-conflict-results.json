@@ -1,0 +1,278 @@
+[
+  {
+    "group": "Launch three real Electron instances",
+    "name": "three desktop instances running",
+    "ok": true,
+    "detail": "ports 9000 / 9001 / 9002, separate user-data dirs and node indices"
+  },
+  {
+    "group": "Launch three real Electron instances",
+    "name": "each loaded the local renderer that drives the engine",
+    "ok": true,
+    "detail": "A=file:// B=file:// C=file://"
+  },
+  {
+    "group": "Full mesh peer links",
+    "name": "B-A, C-A and C-B peer links established",
+    "ok": true,
+    "detail": "B-A=true C-A=true C-B=true"
+  },
+  {
+    "group": "L1 - single edit, no concurrency: only the edited region changes",
+    "name": "L1 A holds the edit with neighbours intact",
+    "ok": true,
+    "detail": "3 region(s) verified"
+  },
+  {
+    "group": "L1 - single edit, no concurrency: only the edited region changes",
+    "name": "L1 B received it with neighbours intact",
+    "ok": true,
+    "detail": "3 region(s) verified"
+  },
+  {
+    "group": "L1 - single edit, no concurrency: only the edited region changes",
+    "name": "L1 no line gained or lost",
+    "ok": true,
+    "detail": "3 non-empty line(s), expected 3"
+  },
+  {
+    "group": "L1 - single edit, no concurrency: only the edited region changes",
+    "name": "L1 B logged the remote event",
+    "ok": true,
+    "detail": "types: restore,merge"
+  },
+  {
+    "group": "L2 - CONCURRENT edits on DIFFERENT lines: both must survive",
+    "name": "L2 A kept BOTH independent edits",
+    "ok": true,
+    "detail": "3 region(s) verified"
+  },
+  {
+    "group": "L2 - CONCURRENT edits on DIFFERENT lines: both must survive",
+    "name": "L2 B kept BOTH independent edits",
+    "ok": true,
+    "detail": "3 region(s) verified"
+  },
+  {
+    "group": "L2 - CONCURRENT edits on DIFFERENT lines: both must survive",
+    "name": "L2 the two engines agree on one document",
+    "ok": true,
+    "detail": "847f79f5994783dd"
+  },
+  {
+    "group": "L2 - CONCURRENT edits on DIFFERENT lines: both must survive",
+    "name": "L2 no line gained or lost",
+    "ok": true,
+    "detail": "3 non-empty line(s), expected 3"
+  },
+  {
+    "group": "L2 - CONCURRENT edits on DIFFERENT lines: both must survive",
+    "name": "L2 no conflict recorded for non-overlapping regions",
+    "ok": true,
+    "detail": "0 conflict(s) on A"
+  },
+  {
+    "group": "L3 - CONCURRENT edits on the SAME line: conflict stays on that line",
+    "name": "L3 A: one side won line 1, bystanders undamaged",
+    "ok": true,
+    "detail": "3 region(s) verified"
+  },
+  {
+    "group": "L3 - CONCURRENT edits on the SAME line: conflict stays on that line",
+    "name": "L3 B: one side won line 1, bystanders undamaged",
+    "ok": true,
+    "detail": "3 region(s) verified"
+  },
+  {
+    "group": "L3 - CONCURRENT edits on the SAME line: conflict stays on that line",
+    "name": "L3 both engines chose the same winner",
+    "ok": true,
+    "detail": "97ae9408fb7a8301"
+  },
+  {
+    "group": "L3 - CONCURRENT edits on the SAME line: conflict stays on that line",
+    "name": "L3 no line gained or lost",
+    "ok": true,
+    "detail": "3 non-empty line(s), expected 3"
+  },
+  {
+    "group": "L4 - same-line conflict PLUS an independent edit in the same round",
+    "name": "L4 A: both uncontested edits survived the conflict",
+    "ok": true,
+    "detail": "4 region(s) verified"
+  },
+  {
+    "group": "L4 - same-line conflict PLUS an independent edit in the same round",
+    "name": "L4 B: both uncontested edits survived the conflict",
+    "ok": true,
+    "detail": "4 region(s) verified"
+  },
+  {
+    "group": "L4 - same-line conflict PLUS an independent edit in the same round",
+    "name": "L4 no line gained or lost",
+    "ok": true,
+    "detail": "4 non-empty line(s), expected 4"
+  },
+  {
+    "group": "L5 - INSERTION against an edit on a different line",
+    "name": "L5 A kept the insertion AND the far-line edit",
+    "ok": true,
+    "detail": "insertion=true far-edit=true | 4 line(s)"
+  },
+  {
+    "group": "L5 - INSERTION against an edit on a different line",
+    "name": "L5 B kept the insertion AND the far-line edit",
+    "ok": true,
+    "detail": "insertion=true far-edit=true | 4 line(s)"
+  },
+  {
+    "group": "L5 - INSERTION against an edit on a different line",
+    "name": "L5 insertion produced exactly one extra line",
+    "ok": true,
+    "detail": "4 non-empty line(s), expected 4"
+  },
+  {
+    "group": "L6 - THREE desktops: A vs B contest line 1 while C edits line 3",
+    "name": "L6 A: line 1 contested, line 3 is C's edit, rest intact",
+    "ok": true,
+    "detail": "4 region(s) verified"
+  },
+  {
+    "group": "L6 - THREE desktops: A vs B contest line 1 while C edits line 3",
+    "name": "L6 B: line 1 contested, line 3 is C's edit, rest intact",
+    "ok": true,
+    "detail": "4 region(s) verified"
+  },
+  {
+    "group": "L6 - THREE desktops: A vs B contest line 1 while C edits line 3",
+    "name": "L6 C: line 1 contested, line 3 is C's edit, rest intact",
+    "ok": true,
+    "detail": "4 region(s) verified"
+  },
+  {
+    "group": "L6 - THREE desktops: A vs B contest line 1 while C edits line 3",
+    "name": "L6 all three engines agree on one document",
+    "ok": true,
+    "detail": "1bd3279def8aa8a9 / 1bd3279def8aa8a9 / 1bd3279def8aa8a9"
+  },
+  {
+    "group": "L6 - THREE desktops: A vs B contest line 1 while C edits line 3",
+    "name": "L6 no line gained or lost",
+    "ok": true,
+    "detail": "4 non-empty line(s), expected 4"
+  },
+  {
+    "group": "L7 - line DELETION against an edit on a different line",
+    "name": "L7 A applied the deletion AND kept the far edit",
+    "ok": true,
+    "detail": "deleted=true far-edit=true neighbours=true"
+  },
+  {
+    "group": "L7 - line DELETION against an edit on a different line",
+    "name": "L7 B applied the deletion AND kept the far edit",
+    "ok": true,
+    "detail": "deleted=true far-edit=true neighbours=true"
+  },
+  {
+    "group": "L8 - BLOCK granularity: concurrent edits in different paragraphs",
+    "name": "L8 A merged both paragraphs, middle untouched",
+    "ok": true,
+    "detail": "A-para=true B-para=true middle=true"
+  },
+  {
+    "group": "L8 - BLOCK granularity: concurrent edits in different paragraphs",
+    "name": "L8 B merged both paragraphs, middle untouched",
+    "ok": true,
+    "detail": "A-para=true B-para=true middle=true"
+  },
+  {
+    "group": "L9 - editing still works normally AFTER a conflict (no poisoning)",
+    "name": "L9 round 1 produced a resolved document",
+    "ok": true,
+    "detail": "3f98eb0beba737f0 / 3 line(s)"
+  },
+  {
+    "group": "L9 - editing still works normally AFTER a conflict (no poisoning)",
+    "name": "L9 A post-conflict edits both landed",
+    "ok": true,
+    "detail": "R2-A=true R2-B=true round-1-winner-still-present=true"
+  },
+  {
+    "group": "L9 - editing still works normally AFTER a conflict (no poisoning)",
+    "name": "L9 B post-conflict edits both landed",
+    "ok": true,
+    "detail": "R2-A=true R2-B=true round-1-winner-still-present=true"
+  },
+  {
+    "group": "L10 - structural integrity of a long document around a conflict",
+    "name": "L10 A 11 uncontested rows intact, no duplication",
+    "ok": true,
+    "detail": "12 rows, dupes=false, missing=none"
+  },
+  {
+    "group": "L10 - structural integrity of a long document around a conflict",
+    "name": "L10 B 11 uncontested rows intact, no duplication",
+    "ok": true,
+    "detail": "12 rows, dupes=false, missing=none"
+  },
+  {
+    "group": "H1 - Version History reconstruction for an imported room file",
+    "name": "H1 history entries expose readable content, not raw base64 deltas",
+    "ok": true,
+    "detail": "payload: \"H1 original line. EDITED.\n\""
+  },
+  {
+    "group": "R1 - a version restore reaches the other desktops",
+    "name": "R1 all peers are on the newest version before the restore",
+    "ok": true,
+    "detail": "B line 1 = \"R1 version three.\""
+  },
+  {
+    "group": "R1 - a version restore reaches the other desktops",
+    "name": "R1 every history entry was rebuilt from the log",
+    "ok": true,
+    "detail": "restore:\"R1 version one.\" | edit:\"R1 version two.\" | edit:\"R1 version three.\""
+  },
+  {
+    "group": "R1 - a version restore reaches the other desktops",
+    "name": "R1 version two is present in history as readable content",
+    "ok": true,
+    "detail": "d59f310e"
+  },
+  {
+    "group": "R1 - a version restore reaches the other desktops",
+    "name": "R1 A restored version two",
+    "ok": true,
+    "detail": "restored"
+  },
+  {
+    "group": "R1 - a version restore reaches the other desktops",
+    "name": "R1 A holds the restored version",
+    "ok": true,
+    "detail": "2 region(s) verified"
+  },
+  {
+    "group": "R1 - a version restore reaches the other desktops",
+    "name": "R1 B holds the restored version",
+    "ok": true,
+    "detail": "2 region(s) verified"
+  },
+  {
+    "group": "R1 - a version restore reaches the other desktops",
+    "name": "R1 C holds the restored version",
+    "ok": true,
+    "detail": "2 region(s) verified"
+  },
+  {
+    "group": "Topology - peer delivery across the mesh",
+    "name": "B edit reached A over their direct link",
+    "ok": true,
+    "detail": "A has it = true"
+  },
+  {
+    "group": "Topology - peer delivery across the mesh",
+    "name": "B edit reached C over their direct link",
+    "ok": true,
+    "detail": "C has it = true"
+  }
+]

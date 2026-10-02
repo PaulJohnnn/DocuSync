@@ -9,7 +9,7 @@
     "group": "Setup — two real Electron instances",
     "name": "both instances hold the same base document",
     "ok": true,
-    "detail": "fileId=1790910078161"
+    "detail": "fileId=1790935096230"
   },
   {
     "group": "Setup — two real Electron instances",
@@ -27,97 +27,109 @@
     "group": "D2 — Desktop B → Desktop A",
     "name": "D2 B wrote an event to its own SQLite log",
     "ok": true,
-    "detail": "1 event(s): edit"
+    "detail": "2 event(s): restore,edit"
   },
   {
     "group": "D2 — Desktop B → Desktop A",
     "name": "D2 A received and logged the peer event",
     "ok": true,
-    "detail": "1 event(s): merge"
+    "detail": "2 event(s): restore,merge"
   },
   {
     "group": "D2 — Desktop B → Desktop A",
     "name": "D2 content converged (SHA-256 from each engine’s own log)",
     "ok": true,
-    "detail": "A=9cb9e87d6ba6c724 B=9cb9e87d6ba6c724"
+    "detail": "A=a9e524479963179d B=a9e524479963179d"
   },
   {
     "group": "D3 — bidirectional A→B→A→B",
     "name": "D3 after A edit (R1-A) both engines agree",
     "ok": true,
-    "detail": "A=ce915583122195f0 B=ce915583122195f0"
+    "detail": "A=0c71e2c8fbd6510d B=0c71e2c8fbd6510d"
   },
   {
     "group": "D3 — bidirectional A→B→A→B",
     "name": "D3 after B edit (R2-B) both engines agree",
     "ok": true,
-    "detail": "A=4dccb967bc6dc79b B=4dccb967bc6dc79b"
+    "detail": "A=5059bd4bb82ae218 B=5059bd4bb82ae218"
   },
   {
     "group": "D3 — bidirectional A→B→A→B",
     "name": "D3 after A edit (R3-A) both engines agree",
     "ok": true,
-    "detail": "A=fc0e0a16ee2ccb7b B=fc0e0a16ee2ccb7b"
+    "detail": "A=c9ac69cfe7cf0fc9 B=c9ac69cfe7cf0fc9"
   },
   {
     "group": "D3 — bidirectional A→B→A→B",
     "name": "D3 after B edit (R4-B) both engines agree",
     "ok": true,
-    "detail": "A=eeac7bdce78bae31 B=eeac7bdce78bae31"
+    "detail": "A=5f1c198b1870edeb B=5f1c198b1870edeb"
   },
   {
     "group": "D3 — bidirectional A→B→A→B",
     "name": "D3 no duplicate event ids in either log",
     "ok": true,
-    "detail": "A=5 unique=5 | B=5 unique=5"
+    "detail": "A=6 unique=6 | B=6 unique=6"
   },
   {
     "group": "D4 — concurrent editing",
     "name": "D4-1 different lines: both engines logged events",
     "ok": true,
-    "detail": "A:edit,merge | B:merge,edit"
+    "detail": "A:restore,edit,merge | B:restore,edit,merge"
   },
   {
     "group": "D4 — concurrent editing",
     "name": "D4-1 different lines: engines converged",
     "ok": true,
-    "detail": "A=13ce4d6f87640ff3 B=13ce4d6f87640ff3"
+    "detail": "de5eb2b4cecfa28d"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-1 different lines: BOTH edits present on both engines",
+    "ok": true,
+    "detail": "A:true/true B:true/true"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-1 newest log entry also matches (informational)",
+    "ok": true,
+    "detail": "de5eb2b4cecfa28d"
   },
   {
     "group": "D4 — concurrent editing",
     "name": "D4-2 same line: both engines recorded the attempt",
     "ok": true,
-    "detail": "A:edit,merge | B:merge,edit"
+    "detail": "A:restore,edit,merge | B:restore,edit,merge"
   },
   {
     "group": "D4 — concurrent editing",
     "name": "D4-2 same line: engines reached one state",
     "ok": true,
-    "detail": "126682f29c1235bb"
+    "detail": "b33553ebc1f9b3fe"
   },
   {
     "group": "Version history through the Desktop engine",
     "name": "VH versions recorded in the local event log",
     "ok": true,
-    "detail": "2 event(s): edit,edit"
+    "detail": "3 event(s): restore,edit,edit"
   },
   {
     "group": "Version history through the Desktop engine",
     "name": "VH restoreVersion accepted by the engine",
     "ok": true,
-    "detail": "eventId=733c52c2"
+    "detail": "eventId=93dc8b73"
   },
   {
     "group": "Version history through the Desktop engine",
     "name": "VH restore changed engine state / logged a restore event",
     "ok": true,
-    "detail": "types: edit,edit,restore"
+    "detail": "types: restore,edit,edit,restore"
   },
   {
     "group": "Duplicate event handling (real sync path)",
     "name": "DUP replayed events did not create duplicate records",
     "ok": true,
-    "detail": "before=5 after=5"
+    "detail": "before=6 after=6"
   },
   {
     "group": "Duplicate event handling (real sync path)",
@@ -129,13 +141,13 @@
     "group": "Native offline — edits with no peer connected, then catch-up",
     "name": "offline pair prepared, no peer link established",
     "ok": true,
-    "detail": "fileId=1790910143709"
+    "detail": "fileId=1790935162748"
   },
   {
     "group": "Native offline — edits with no peer connected, then catch-up",
     "name": "OFF3 all offline edits persisted to local SQLite while unconnected",
     "ok": true,
-    "detail": "5 event(s)"
+    "detail": "6 event(s)"
   },
   {
     "group": "Native offline — edits with no peer connected, then catch-up",
@@ -153,13 +165,13 @@
     "group": "Native offline — edits with no peer connected, then catch-up",
     "name": "OFF4 missed events recovered by the peer that was behind",
     "ok": true,
-    "detail": "5 event(s): merge,merge,merge,merge,merge"
+    "detail": "6 event(s): restore,merge,merge,merge,merge,merge"
   },
   {
     "group": "Native offline — edits with no peer connected, then catch-up",
     "name": "OFF1 both engines converged after reconnection",
     "ok": true,
-    "detail": "C=8cdbb4024b7d1228 D=8cdbb4024b7d1228"
+    "detail": "C=8d8e6567a1507ea5 D=8d8e6567a1507ea5"
   },
   {
     "group": "Scope limits",
