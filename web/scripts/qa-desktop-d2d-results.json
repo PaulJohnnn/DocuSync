@@ -37,17 +37,17 @@
   {
     "name": "D1 file imported into A’s local store",
     "ok": true,
-    "detail": "fileId=1790902182141 "
+    "detail": "fileId=1790947625332 "
   },
   {
     "name": "D1 the same document is present on B under the same file id",
     "ok": true,
-    "detail": "fileId=1790902182141 "
+    "detail": "fileId=1790947625332 "
   },
   {
     "name": "D1 file:save reached the local engine",
     "ok": true,
-    "detail": "{\"fileId\":1790902182141,\"saved\":true,\"synced\":true,\"deltaSizeBytes\":232,\"compres"
+    "detail": "{\"fileId\":1790947625332,\"saved\":true,\"synced\":true,\"deltaSizeBytes\":232,\"compres"
   },
   {
     "name": "D1 the call genuinely reached the engine (delta produced in the main process)",
@@ -57,12 +57,12 @@
   {
     "name": "D1 an event was written to A’s local SQLite event log",
     "ok": true,
-    "detail": "1 event(s), types: edit"
+    "detail": "2 event(s), types: restore,edit"
   },
   {
     "name": "D1 the edit reached instance B’s local event log",
     "ok": true,
-    "detail": "1 event(s), types: merge"
+    "detail": "2 event(s), types: restore,merge"
   },
   {
     "name": "D1 expected content hash",

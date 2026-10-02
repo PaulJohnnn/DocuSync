@@ -1,0 +1,134 @@
+[
+  {
+    "group": "Launch three instances, deliberately NOT connected",
+    "name": "three desktop instances running, no peer links yet",
+    "ok": true,
+    "detail": "ports 9000 / 9001 / 9002"
+  },
+  {
+    "group": "Offline edits made with no peer link",
+    "name": "each instance persisted its own offline edit before any link existed",
+    "ok": true,
+    "detail": "A=197bb891f3def243 B=ebadc0e0c7a5fad7 (deliberately different)"
+  },
+  {
+    "group": "Reconnect the mesh and let catch-up run",
+    "name": "peer links established after the offline period",
+    "ok": true,
+    "detail": "B-A=true C-A=true C-B=true"
+  },
+  {
+    "group": "O1 - offline edits on DIFFERENT regions",
+    "name": "O1 A kept both offline edits",
+    "ok": true,
+    "detail": "3 region(s) verified"
+  },
+  {
+    "group": "O1 - offline edits on DIFFERENT regions",
+    "name": "O1 B kept both offline edits",
+    "ok": true,
+    "detail": "3 region(s) verified"
+  },
+  {
+    "group": "O1 - offline edits on DIFFERENT regions",
+    "name": "O1 both engines agree",
+    "ok": true,
+    "detail": "c9aff0bab2ac6304"
+  },
+  {
+    "group": "O2 - offline edits on the SAME region",
+    "name": "O2 A resolved line 1, bystanders intact",
+    "ok": true,
+    "detail": "3 region(s) verified"
+  },
+  {
+    "group": "O2 - offline edits on the SAME region",
+    "name": "O2 B resolved line 1, bystanders intact",
+    "ok": true,
+    "detail": "3 region(s) verified"
+  },
+  {
+    "group": "O2 - offline edits on the SAME region",
+    "name": "O2 both engines chose the same winner",
+    "ok": true,
+    "detail": "4db2daff799bbf90"
+  },
+  {
+    "group": "O3 - MIXED: two contest a region while a third edits another",
+    "name": "O3 A: region 1 contested, region 3 is C's edit",
+    "ok": true,
+    "detail": "4 region(s) verified"
+  },
+  {
+    "group": "O3 - MIXED: two contest a region while a third edits another",
+    "name": "O3 B: region 1 contested, region 3 is C's edit",
+    "ok": true,
+    "detail": "4 region(s) verified"
+  },
+  {
+    "group": "O3 - MIXED: two contest a region while a third edits another",
+    "name": "O3 C: region 1 contested, region 3 is C's edit",
+    "ok": true,
+    "detail": "4 region(s) verified"
+  },
+  {
+    "group": "O3 - MIXED: two contest a region while a third edits another",
+    "name": "O3 all three engines agree",
+    "ok": true,
+    "detail": "eddcf8d58f550804 / eddcf8d58f550804 / eddcf8d58f550804"
+  },
+  {
+    "group": "V - version history immutability",
+    "name": "V1 every version rebuilt from the log",
+    "ok": true,
+    "detail": "\"V one.\" -> \"V two.\" -> \"V three.\""
+  },
+  {
+    "group": "V - version history immutability",
+    "name": "V2 earlier versions unchanged after editing the current state",
+    "ok": true,
+    "detail": "3 earlier version(s) compared by content hash"
+  },
+  {
+    "group": "V - version history immutability",
+    "name": "V3 the new edit added exactly one version",
+    "ok": true,
+    "detail": "3 -> 4"
+  },
+  {
+    "group": "B - burst behaviour under the per-file lock",
+    "name": "B1 all ten sequential edits present on the author",
+    "ok": true,
+    "detail": "10/10 markers"
+  },
+  {
+    "group": "B - burst behaviour under the per-file lock",
+    "name": "B1 the peer converged on the same document",
+    "ok": true,
+    "detail": "c73bbbde37d4ad06"
+  },
+  {
+    "group": "B - burst behaviour under the per-file lock",
+    "name": "B1 every burst event still rebuilds from the log",
+    "ok": true,
+    "detail": "11 entries, types: restore,edit"
+  },
+  {
+    "group": "B - burst behaviour under the per-file lock",
+    "name": "B2 a self-race left the document structurally intact",
+    "ok": true,
+    "detail": "10 lines, duplicates=false"
+  },
+  {
+    "group": "B - burst behaviour under the per-file lock",
+    "name": "B2 the peer still converged",
+    "ok": true,
+    "detail": "1518303ecf758373"
+  },
+  {
+    "group": "B - burst behaviour under the per-file lock",
+    "name": "B2 markers surviving a five-way self-race (informational)",
+    "ok": null,
+    "detail": "5/5 kept: R1,R2,R3,R4,R5"
+  }
+]

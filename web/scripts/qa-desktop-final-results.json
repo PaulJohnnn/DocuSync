@@ -9,7 +9,7 @@
     "group": "Setup — two real Electron instances",
     "name": "both instances hold the same base document",
     "ok": true,
-    "detail": "fileId=1790935096230"
+    "detail": "fileId=1790947539614"
   },
   {
     "group": "Setup — two real Electron instances",
@@ -117,7 +117,7 @@
     "group": "Version history through the Desktop engine",
     "name": "VH restoreVersion accepted by the engine",
     "ok": true,
-    "detail": "eventId=93dc8b73"
+    "detail": "eventId=1ce48833"
   },
   {
     "group": "Version history through the Desktop engine",
@@ -141,7 +141,7 @@
     "group": "Native offline — edits with no peer connected, then catch-up",
     "name": "offline pair prepared, no peer link established",
     "ok": true,
-    "detail": "fileId=1790935162748"
+    "detail": "fileId=1790947605154"
   },
   {
     "group": "Native offline — edits with no peer connected, then catch-up",
