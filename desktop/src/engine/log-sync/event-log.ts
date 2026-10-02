@@ -353,10 +353,19 @@ export class EventLogService {
   public async getHistory(fileId: number): Promise<EventLogEntry[]> {
     const rows = await this.prisma.eventLog.findMany({
       where: { fileId: fileId.toString() },
-      orderBy: [
-        { logicalTimestamp: 'asc' },
-        { id: 'asc' },
-      ],
+      // Insertion order, which is the order these events were APPLIED on
+      // this node. Each delta was encoded against the result of the delta
+      // before it, so a replay is only valid in that order.
+      //
+      // Ordering by `logicalTimestamp` instead put events in a different
+      // order than they were applied, because a peer's event can carry a
+      // lower timestamp than something this node had already applied. Two
+      // instances editing different lines at the same time ended up with
+      // logs that each replayed to a different document — one of them not
+      // the document that instance was holding — so version history listed a
+      // version that never existed and restoring it would have recreated it.
+      // The live documents were identical; only the replay was wrong.
+      orderBy: [{ id: 'asc' }],
     });
 
     return rows.map(toEventLogEntry);

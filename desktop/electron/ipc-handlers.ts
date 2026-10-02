@@ -43,6 +43,7 @@ import { encode, validateTextFile } from '../src/engine/delta/delta-encoder';
 import { decode } from '../src/engine/delta/delta-decoder';
 import { createVectorClock, VectorClock } from '../src/engine/vector-clock/vector-clock';
 import { createLWWResolver, LWWResolver } from '../src/engine/lww/lww-resolver';
+import { mergeThreeWay } from '../src/engine/lww/line-merge-3way';
 import { createPeerManager, PeerManager } from '../src/engine/peer/peer-manager';
 import type { PeerMessage } from '../src/engine/peer/message-schema';
 import type { VectorClockJSON } from '../src/engine/vector-clock/vector-clock';
@@ -1047,6 +1048,34 @@ export function registerIPCHandlers(services: EngineServices): void {
       openFiles.set(newFileId, destPath);
       fileContents.set(newFileId, finalContent);
 
+      // ── Give the delta chain an origin ──────────────────────────
+      // `file:history` and `file:restore` both reconstruct a version by
+      // folding deltas from an empty string. An imported room file had no
+      // event at all to start from, so the first `edit` delta — computed
+      // against this imported content, not against "" — could not decode,
+      // and both handlers fell back to treating the undecodable payload as
+      // content. History then displayed raw base64 where the document should
+      // be, and restore WROTE that base64 into the user's file.
+      //
+      // A baseline snapshot fixes both at the source. `restore` is the event
+      // type both readers already understand as "payload is the full
+      // document", so no reader needs to change to recognise it.
+      try {
+        vectorClock.increment();
+        await eventLog.appendEvent({
+          eventId: generateUUID(),
+          fileId: newFileId,
+          nodeId: localNodeId,
+          eventType: 'restore',
+          logicalTimestamp: vectorClock.counters[vectorClock.nodeIndex],
+          vectorClockJson: vectorClock.toJSON(),
+          payload: finalContent,
+        });
+      } catch (baselineErr) {
+        // A missing baseline degrades history, not the import itself.
+        console.warn(`[IPC] file:import-room-file → could not log baseline:`, baselineErr);
+      }
+
       console.log(`[IPC] file:import-room-file → ${destPath} (fileId=${newFileId})`);
 
       return {
@@ -1157,58 +1186,129 @@ export function registerIPCHandlers(services: EngineServices): void {
         }
       }
 
-      // ── Write to disk ───────────────────────────────────────────
-      // We write the raw HTML regardless of extension to prevent TipTap from losing formatting.
-      await fs.promises.writeFile(filePath, newContent, 'utf-8');
+      // Everything from here to the broadcast runs on this file’s
+      // serialisation chain, so a peer’s delta cannot be applied and logged
+      // in the middle of it. See PeerManager.withFileLock.
+      const saveOutcome = await peerManager.withFileLock(fileId, async () => {
+        // ── Fold in anything a peer applied while this save was in flight ──
+        // `previousContent` was captured when the save began. Applying a peer's
+        // delta is asynchronous, so it can complete between that capture and
+        // this write — and the write would then put this save's content over
+        // the top of it, discarding the peer's edit from disk, from the cache
+        // and from the delta stored in the log. Measured on two instances: two
+        // users edited different lines at the same time and whichever save
+        // landed second erased the other user's line completely.
+        //
+        // Re-reading the cache here detects it, and the same line-granular
+        // 3-way merge the peer path uses reconciles the two: lines only the
+        // peer touched keep the peer's text, lines only this user touched keep
+        // this user's, and a line both changed goes to this user, who is the
+        // one actively typing.
+        const liveContent = fileContents.get(fileId) ?? '';
+        let contentToStore = newContent;
+        let foldedPeerEdit = false;
+        if (liveContent !== previousContent && liveContent !== newContent) {
+          const folded = mergeThreeWay(liveContent, previousContent, newContent, true);
+          contentToStore = folded.merged;
+          foldedPeerEdit = contentToStore !== newContent;
+          if (foldedPeerEdit) {
+            console.log(
+              `[IPC] file:save → folded in a peer edit applied mid-save ` +
+                `(file ${fileId}, ${folded.conflictHunks} contested line(s))`
+            );
+          }
+        }
 
-      // ── Update in-memory cache (keep HTML for TipTap/delta engine) ──
-      fileContents.set(fileId, newContent);
+        // The delta must describe the change from whatever the log and the
+        // cache actually hold now, or replaying the log stops reproducing the
+        // document. Re-encode against `liveContent` when it moved.
+        let effectiveEncode = encodeResult;
+        if (contentToStore !== newContent || liveContent !== previousContent) {
+          try {
+            effectiveEncode = encode(liveContent, contentToStore, fileName);
+          } catch {
+            // Keep the original encoding rather than fail the save.
+          }
+        }
 
-      // ── Increment vector clock ──────────────────────────────────
-      vectorClock.increment();
-      const vcJson = vectorClock.toJSON();
-      const logicalTimestamp = vectorClock.counters[vectorClock.nodeIndex];
+        // ── Write to disk ───────────────────────────────────────────
+        // We write the raw HTML regardless of extension to prevent TipTap from losing formatting.
+        await fs.promises.writeFile(filePath, contentToStore, 'utf-8');
 
-      // ── Append to EventLog ──────────────────────────────────────
-      await eventLog.appendEvent({
-        eventId,
-        fileId,
-        nodeId: localNodeId,
-        eventType: 'edit',
-        logicalTimestamp,
-        vectorClockJson: vcJson,
-        payload,
-      });
+        // ── Update in-memory cache (keep HTML for TipTap/delta engine) ──
+        fileContents.set(fileId, contentToStore);
 
-      // ── Broadcast to peers ──────────────────────────────────────
-      let peersNotified = 0;
-      if (encodeResult.deltaBase64) {
-        const pushMsg: any = {
-          type: 'DELTA_PUSH',
+        // Tell the editor what was actually stored, so it is not left showing
+        // text that no longer matches the file and re-saving it.
+        if (foldedPeerEdit) {
+          BrowserWindow.getAllWindows()[0]?.webContents.send(
+            'evt:file-updated',
+            fileId,
+            contentToStore,
+            true
+          );
+        }
+
+        // ── Increment vector clock ──────────────────────────────────
+        vectorClock.increment();
+        const vcJson = vectorClock.toJSON();
+        const logicalTimestamp = vectorClock.counters[vectorClock.nodeIndex];
+
+        // ── Append to EventLog ──────────────────────────────────────
+        await eventLog.appendEvent({
           eventId,
-          nodeId: localNodeId,
           fileId,
-          deltaBase64: encodeResult.deltaBase64,
-          content: newContent,
+          nodeId: localNodeId,
+          eventType: 'edit',
           logicalTimestamp,
           vectorClockJson: vcJson,
-          timestamp: new Date().toISOString(),
+          payload: effectiveEncode.deltaBase64 ?? payload,
+        });
+
+        // ── Broadcast to peers ──────────────────────────────────────
+        let peersNotified = 0;
+        if (effectiveEncode.deltaBase64) {
+          const pushMsg: any = {
+            type: 'DELTA_PUSH',
+            eventId,
+            nodeId: localNodeId,
+            fileId,
+            deltaBase64: effectiveEncode.deltaBase64,
+            content: contentToStore,
+            // The base this delta was taken against. A peer whose own content
+            // has moved on cannot apply the delta, and without the base its
+            // only options were to adopt this whole document or drop the edit
+            // — either way one side's untouched regions were lost. With the
+            // base it can merge the changed lines and keep both. It is the base
+            // this delta was actually encoded against, which is the live
+            // content when a peer edit was folded in above.
+            baseContent: liveContent !== previousContent ? liveContent : previousContent,
+            logicalTimestamp,
+            vectorClockJson: vcJson,
+            timestamp: new Date().toISOString(),
+          };
+          peersNotified = peerManager.broadcast(pushMsg);
+        }
+
+        return {
+          peersNotified,
+          deltaSizeBytes: effectiveEncode.deltaSizeBytes,
+          compressionRatio: effectiveEncode.compressionRatio,
         };
-        peersNotified = peerManager.broadcast(pushMsg);
-      }
+      });
 
       console.log(
-        `[IPC] file:save → ${fileName} (delta=${encodeResult.deltaSizeBytes}B, ` +
-          `peers=${peersNotified})`
+        `[IPC] file:save → ${fileName} (delta=${saveOutcome.deltaSizeBytes}B, ` +
+          `peers=${saveOutcome.peersNotified})`
       );
 
       return {
         fileId,
         saved: true,
         synced: true,
-        deltaSizeBytes: encodeResult.deltaSizeBytes,
-        compressionRatio: encodeResult.compressionRatio,
-        peersNotified,
+        deltaSizeBytes: saveOutcome.deltaSizeBytes,
+        compressionRatio: saveOutcome.compressionRatio,
+        peersNotified: saveOutcome.peersNotified,
         eventId,
       };
     })
@@ -1237,6 +1337,7 @@ export function registerIPCHandlers(services: EngineServices): void {
 
       let currentContent = '';
       const reconstructedEntries = history.map((entry) => {
+        let reconstructed = true;
         if (!entry.isCompacted) {
           try {
             if (entry.eventType === 'edit' || entry.eventType === 'merge') {
@@ -1246,10 +1347,15 @@ export function registerIPCHandlers(services: EngineServices): void {
               currentContent = entry.payload;
             }
           } catch {
-            currentContent = entry.payload;
+            // The delta did not apply to the content reconstructed so far, so
+            // this version cannot be rebuilt. The payload is an encoded delta,
+            // NOT a document — showing it put raw base64 in front of the user
+            // where the document should be. Keep the last content that was
+            // genuinely reconstructed and mark the entry instead.
+            reconstructed = false;
           }
         }
-        
+
         return {
           id: entry.id,
           eventId: entry.eventId,
@@ -1260,6 +1366,8 @@ export function registerIPCHandlers(services: EngineServices): void {
           isCompacted: entry.isCompacted,
           payload: currentContent,
           payloadPreview: currentContent.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').slice(0, 200),
+          /** False when this version could not be rebuilt from the log. */
+          reconstructed,
         };
       });
 
@@ -1306,6 +1414,7 @@ export function registerIPCHandlers(services: EngineServices): void {
       // Walk the history up to and including the target event,
       // applying each delta sequentially.
       let content = '';
+      let broken = false;
       for (const event of history) {
         if (event.isCompacted) continue;
 
@@ -1318,12 +1427,23 @@ export function registerIPCHandlers(services: EngineServices): void {
             content = event.payload;
           }
         } catch {
-          // If delta decoding fails (e.g., checksum mismatch from
-          // different content state), try treating payload as raw content.
-          content = event.payload;
+          // The delta did not apply to the content rebuilt so far. The
+          // payload is an encoded delta, not a document, so adopting it as
+          // content wrote raw base64 JSON into the user's file — a restore
+          // that destroyed the document it was asked to recover. Record that
+          // the chain is broken and refuse below rather than write garbage.
+          broken = true;
         }
 
         if (event.eventId === targetEventId) break;
+      }
+
+      if (broken) {
+        throw new Error(
+          `Version "${targetEventId}" cannot be rebuilt: the change history for ` +
+            `this file has a gap, so restoring it would not reproduce that version. ` +
+            `The file on disk has been left unchanged.`
+        );
       }
 
       // ── Write restored content to disk ───────────
