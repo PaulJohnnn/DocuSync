@@ -200,6 +200,23 @@ export interface SyncRequestMessage {
   fileId: number;
   /** Exclusive lower bound — events after this timestamp are needed. */
   sinceTimestamp: number;
+  /**
+   * The highest logical timestamp the requester already holds FOR EACH
+   * author, for this file.
+   *
+   * `sinceTimestamp` alone cannot express what is missing. It is one number
+   * compared against timestamps that come from every peer's own clock, and
+   * those clocks are per node and count every file. Two peers that have made
+   * the same number of edits stamp their events with the same numbers, so a
+   * peer asking for "events after 2" is told it is already current by a peer
+   * whose missing edit is also numbered 2 — which is exactly the case after
+   * both sides edit while disconnected.
+   *
+   * A timestamp is monotonic per author, so one high-water mark per author
+   * does express it exactly. Optional: a peer running an older build does not
+   * send it, and the responder falls back to `sinceTimestamp`.
+   */
+  knownPerNode?: Record<string, number>;
   /** ISO 8601 timestamp of the request. */
   timestamp: string;
 }
