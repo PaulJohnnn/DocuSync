@@ -1745,7 +1745,41 @@ export class PeerManager {
    *
    * @internal
    */
-  private async handleDeltaPush(
+  /**
+   * Serialises delta application per file.
+   *
+   * Applying a delta is read-modify-write: the handler reads the file's
+   * current content, decodes against it, then writes the result back. Nothing
+   * held those steps together, so deltas arriving close in time all read the
+   * same content before any of them had written, decoded against a base that
+   * was about to be superseded, and were rejected by the checksum guard.
+   *
+   * It showed up wherever deltas arrive in a burst — a reconnecting peer being
+   * sent five missed events applied one and failed four with "Delta checksum
+   * mismatch", and two peers saving at the same moment each dropped the
+   * other's edit. The deltas were never corrupted; they were simply applied
+   * against the wrong base.
+   *
+   * Chaining per file makes each delta see the result of the one before it.
+   * Different files remain independent, so this does not serialise unrelated
+   * work, and a failure is contained to its own link rather than stalling the
+   * chain.
+   */
+  private deltaChains: Map<number, Promise<void>> = new Map();
+
+  private handleDeltaPush(
+    socket: WebSocket,
+    msg: DeltaPushMessage
+  ): Promise<void> {
+    const previous = this.deltaChains.get(msg.fileId) ?? Promise.resolve();
+    const next = previous
+      .catch(() => { /* a failed predecessor must not block what follows */ })
+      .then(() => this.applyDeltaPush(socket, msg));
+    this.deltaChains.set(msg.fileId, next.catch(() => { }));
+    return next;
+  }
+
+  private async applyDeltaPush(
     socket: WebSocket,
     msg: DeltaPushMessage
   ): Promise<void> {

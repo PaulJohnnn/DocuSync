@@ -1,0 +1,182 @@
+[
+  {
+    "group": "Setup — two real Electron instances",
+    "name": "two Electron processes signed in",
+    "ok": true,
+    "detail": "qa-alpha / qa-bravo, ports 9000/9001"
+  },
+  {
+    "group": "Setup — two real Electron instances",
+    "name": "both instances hold the same base document",
+    "ok": true,
+    "detail": "fileId=1790904460701"
+  },
+  {
+    "group": "Setup — two real Electron instances",
+    "name": "peer link established (B → A, WebSocket :9000)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "group": "D2 — Desktop B → Desktop A",
+    "name": "D2 file:save reached B’s local engine",
+    "ok": true,
+    "detail": "delta=252B synced=true"
+  },
+  {
+    "group": "D2 — Desktop B → Desktop A",
+    "name": "D2 B wrote an event to its own SQLite log",
+    "ok": true,
+    "detail": "1 event(s): edit"
+  },
+  {
+    "group": "D2 — Desktop B → Desktop A",
+    "name": "D2 A received and logged the peer event",
+    "ok": true,
+    "detail": "1 event(s): merge"
+  },
+  {
+    "group": "D2 — Desktop B → Desktop A",
+    "name": "D2 content converged (SHA-256 from each engine’s own log)",
+    "ok": true,
+    "detail": "A=9cb9e87d6ba6c724 B=9cb9e87d6ba6c724"
+  },
+  {
+    "group": "D3 — bidirectional A→B→A→B",
+    "name": "D3 after A edit (R1-A) both engines agree",
+    "ok": true,
+    "detail": "A=ce915583122195f0 B=ce915583122195f0"
+  },
+  {
+    "group": "D3 — bidirectional A→B→A→B",
+    "name": "D3 after B edit (R2-B) both engines agree",
+    "ok": true,
+    "detail": "A=4dccb967bc6dc79b B=4dccb967bc6dc79b"
+  },
+  {
+    "group": "D3 — bidirectional A→B→A→B",
+    "name": "D3 after A edit (R3-A) both engines agree",
+    "ok": true,
+    "detail": "A=fc0e0a16ee2ccb7b B=fc0e0a16ee2ccb7b"
+  },
+  {
+    "group": "D3 — bidirectional A→B→A→B",
+    "name": "D3 after B edit (R4-B) both engines agree",
+    "ok": true,
+    "detail": "A=eeac7bdce78bae31 B=eeac7bdce78bae31"
+  },
+  {
+    "group": "D3 — bidirectional A→B→A→B",
+    "name": "D3 no duplicate event ids in either log",
+    "ok": true,
+    "detail": "A=5 unique=5 | B=5 unique=5"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-1 different lines: both engines logged events",
+    "ok": true,
+    "detail": "A:edit | B:edit"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-1 different lines: engines converged",
+    "ok": false,
+    "detail": "A=df5c81fc880288b3 B=13ce4d6f87640ff3"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-2 same line: both engines recorded the attempt",
+    "ok": true,
+    "detail": "A:edit | B:edit"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-2 same line: engines reached one state",
+    "ok": false,
+    "detail": "A=71af5a07c27e40e4 B=126682f29c1235bb (divergent)"
+  },
+  {
+    "group": "Version history through the Desktop engine",
+    "name": "VH versions recorded in the local event log",
+    "ok": true,
+    "detail": "2 event(s): edit,edit"
+  },
+  {
+    "group": "Version history through the Desktop engine",
+    "name": "VH restoreVersion accepted by the engine",
+    "ok": true,
+    "detail": "eventId=daf83d8c"
+  },
+  {
+    "group": "Version history through the Desktop engine",
+    "name": "VH restore changed engine state / logged a restore event",
+    "ok": true,
+    "detail": "types: edit,edit,restore"
+  },
+  {
+    "group": "Duplicate event handling (real sync path)",
+    "name": "DUP replayed events did not create duplicate records",
+    "ok": true,
+    "detail": "before=5 after=5"
+  },
+  {
+    "group": "Duplicate event handling (real sync path)",
+    "name": "DUP all event ids remain unique after replay",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "offline pair prepared, no peer link established",
+    "ok": true,
+    "detail": "fileId=1790904526662"
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "OFF3 all offline edits persisted to local SQLite while unconnected",
+    "ok": true,
+    "detail": "5 event(s)"
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "OFF3 no duplicate events among the queued edits",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "OFF1 peer link established after the offline period",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "OFF4 missed events recovered by the peer that was behind",
+    "ok": true,
+    "detail": "5 event(s): merge,merge,merge,merge,merge"
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "OFF1 both engines converged after reconnection",
+    "ok": true,
+    "detail": "C=8cdbb4024b7d1228 D=8cdbb4024b7d1228"
+  },
+  {
+    "group": "Scope limits",
+    "name": "D5 three simultaneous Electron instances",
+    "ok": null,
+    "detail": "not attempted in this pass — four processes already run above; a third peer needs mesh connect calls not exercised here"
+  },
+  {
+    "group": "Scope limits",
+    "name": "WebRTC transport verification",
+    "ok": null,
+    "detail": "all peer traffic above used the WebSocket server on :9000/:9002; WebRTCManager is constructed only by ElectronSyncContext and no RTC connection was observed"
+  },
+  {
+    "group": "Scope limits",
+    "name": "Native Desktop download artefact",
+    "ok": null,
+    "detail": "no download bridge method exists; downloads are produced by renderer code, already verified in the browser campaign"
+  }
+]
