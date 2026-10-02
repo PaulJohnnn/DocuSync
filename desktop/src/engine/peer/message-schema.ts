@@ -145,6 +145,17 @@ export interface DeltaPushMessage {
   deltaBase64: string;
   /** Raw content used by Web App on restore */
   content?: string;
+  /**
+   * The content the delta was computed against — the sender's common
+   * ancestor for this edit.
+   *
+   * Optional, because a peer running an older build does not send it. When
+   * it is present and the delta fails to apply locally, the receiver has
+   * all three sides of a 3-way merge (its own content, this base, and the
+   * sender's result) and can merge line-by-line instead of choosing one
+   * whole document and discarding the other peer's untouched regions.
+   */
+  baseContent?: string;
   /** Classification of the sync event. */
   eventType?: 'edit' | 'restore' | 'delete' | 'merge';
   /** Logical timestamp from the sender's vector clock. */
