@@ -51,7 +51,7 @@
     "group": "O2 - offline edits on the SAME region",
     "name": "O2 both engines chose the same winner",
     "ok": true,
-    "detail": "4db2daff799bbf90"
+    "detail": "424a94a228549ae5"
   },
   {
     "group": "O3 - MIXED: two contest a region while a third edits another",
@@ -75,7 +75,7 @@
     "group": "O3 - MIXED: two contest a region while a third edits another",
     "name": "O3 all three engines agree",
     "ok": true,
-    "detail": "eddcf8d58f550804 / eddcf8d58f550804 / eddcf8d58f550804"
+    "detail": "bede15142b6c2d4a / bede15142b6c2d4a / bede15142b6c2d4a"
   },
   {
     "group": "V - version history immutability",
