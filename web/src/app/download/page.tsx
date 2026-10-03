@@ -47,8 +47,25 @@ export default function DownloadPage() {
           }}>
             <div style={{ fontSize: 56, marginBottom: 20 }}>💻</div>
             <h2 style={{ fontSize: 24, fontWeight: 700, color: 'var(--t1)', marginBottom: 8 }}>DocuSync for Windows</h2>
-            <p style={{ fontSize: 13, color: '#4f7df8', fontWeight: 600, marginBottom: 24 }}>2026</p>
-            
+            <p style={{ fontSize: 13, color: '#4f7df8', fontWeight: 600, marginBottom: 24 }}>v1.0.5</p>
+
+            {/* A real screenshot of the desktop editor. The card previously
+                had nothing between the requirements line and the button, so
+                it rendered as a tall empty panel beside the mobile card,
+                which carries its own two-step block. */}
+            <div style={{
+              border: '1px solid var(--b1)', borderRadius: 10, overflow: 'hidden',
+              marginBottom: 20, lineHeight: 0, background: 'var(--bg3)',
+            }}>
+              <img
+                src="/desktop-preview.png"
+                alt="The DocuSync desktop editor, showing a shared document open with the peer panel beside it"
+                width={1200}
+                height={675}
+                style={{ width: '100%', height: 'auto', display: 'block' }}
+              />
+            </div>
+
             <p style={{ fontSize: 14, color: 'var(--t2)', marginBottom: 16 }}>
               Full engine with SQLite database, native file system, and P2P WebSocket server.
             </p>
@@ -57,7 +74,7 @@ export default function DownloadPage() {
             </div>
             
             <div style={{ marginTop: 'auto' }}>
-              <Link href="https://github.com/PaulJohnnn/DocuSync/releases/download/v1.0.6/DocuSync-Setup-1.0.6.exe" target="_blank" rel="noopener noreferrer" className="btn-accent" style={{
+              <Link href="https://github.com/PaulJohnnn/DocuSync/releases/download/v1.0.5/DocuSync-Setup-1.0.5.exe" target="_blank" rel="noopener noreferrer" className="btn-accent" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 background: '#4f7df8', color: '#fff', borderRadius: 10, height: 48,
                 fontSize: 15, fontWeight: 600, textDecoration: 'none', transition: 'background 0.15s',
@@ -83,14 +100,14 @@ export default function DownloadPage() {
             <p style={{ fontSize: 13, color: '#22c55e', fontWeight: 600, marginBottom: 24 }}>No installation required</p>
             
             <p style={{ fontSize: 14, color: 'var(--t2)', marginBottom: 16 }}>
-              Access DocuSync directly from any browser. Uses localStorage backend.
+              Access DocuSync directly from any browser. Rooms and documents are kept on the server.
             </p>
             <div style={{ fontSize: 13, color: 'var(--t3)', background: 'var(--s1)', padding: '8px 12px', borderRadius: 8, marginBottom: 32 }}>
               <strong style={{ color: 'var(--t2)' }}>Requirements:</strong> Modern Web Browser
             </div>
             
             <div style={{ marginTop: 'auto' }}>
-              <Link href="https://docusync-dusky.vercel.app" target="_blank" rel="noopener noreferrer" className="btn-green" style={{
+              <Link href="/app/login" className="btn-green" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 background: '#22c55e', color: '#fff', borderRadius: 10, height: 48,
                 fontSize: 15, fontWeight: 600, textDecoration: 'none', transition: 'background 0.15s',

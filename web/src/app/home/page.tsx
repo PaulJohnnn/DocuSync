@@ -75,87 +75,6 @@ function HeroMeshBackdrop() {
   );
 }
 
-// ── Live demo mock ───────────────────────────────────────────
-// This used to be a live <iframe src="/app/files?demo=true">, which pulled
-// in whatever real room/account happened to be signed in on that browser —
-// a genuine privacy problem for a public marketing page, and also just a
-// login wall for anyone who wasn't already signed in. Everything below is
-// 100% fabricated markup: fictional room, fictional people, fictional
-// files, zero network calls, zero auth — animated with plain CSS so it
-// still reads as "alive" without touching the real app at all.
-const DEMO_FILES = [
-  { name: 'Quarterly_Report.docx', size: '24 KB', color: '#60a5fa', bg: 'rgba(59,130,246,0.15)', editing: true },
-  { name: 'Design_Notes.md', size: '4 KB', color: '#4f7df8', bg: 'rgba(79,125,248,0.15)', editing: false },
-  { name: 'Roadmap.xlsx', size: '58 KB', color: '#22c55e', bg: 'rgba(34,197,94,0.12)', editing: false },
-];
-const DEMO_PEOPLE = [
-  { initial: 'A', bg: '#dcfce7', fg: '#16a34a' },
-  { initial: 'M', bg: '#ffedd5', fg: '#ea580c' },
-];
-
-function LiveDemoMock() {
-  return (
-    <div style={{ background: '#fff', padding: '18px 24px', position: 'relative', minHeight: 460 }}>
-      {/* Room header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Design Team Workspace</span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 20, padding: '3px 10px', fontFamily: 'monospace' }}>9F3KXQ</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 4px 4px', borderRadius: 20, border: '1px solid #e2e8f0', background: '#f8fafc' }}>
-          <div style={{ display: 'flex' }}>
-            {DEMO_PEOPLE.map((p, i) => (
-              <div key={i} style={{ width: 22, height: 22, borderRadius: '50%', background: p.bg, color: p.fg, fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: i === 0 ? 0 : -8 }}>
-                {p.initial}
-              </div>
-            ))}
-          </div>
-          <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>2 connected</span>
-        </div>
-      </div>
-
-      {/* File rows */}
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }}>
-        {DEMO_FILES.map((f, i) => (
-          <div key={f.name} className="demo-file-row" style={{ display: 'flex', alignItems: 'center', padding: '14px 18px', borderBottom: i < DEMO_FILES.length - 1 ? '1px solid #eef2f7' : 'none' }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: f.bg, color: f.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 14, fontSize: 13, fontWeight: 700 }}>
-              {f.name.split('.').pop()?.slice(0, 2).toUpperCase()}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
-              <div style={{ fontSize: 11.5, color: '#94a3b8' }}>Shared by Ana &middot; {f.size}</div>
-            </div>
-            {f.editing && (
-              <div className="demo-sync-pulse demo-editing-badge" style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#e0e7ff', padding: '4px 10px', borderRadius: 16, border: '1px solid #c7d2fe', marginRight: 14 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: '#4338ca' }}>2 editing</span>
-              </div>
-            )}
-            <div className="demo-open-btn" style={{ background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: '#fff', borderRadius: 8, padding: '0 14px', height: 32, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-              Open &amp; edit
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Fabricated collaborative cursor drifting over the top file row —
-          purely decorative CSS animation, not tied to anything real. Hidden
-          on narrow screens (see globals below) rather than fought into
-          fitting — it's decoration, not content. */}
-      <div className="demo-cursor-drift" style={{ position: 'absolute', top: 78, left: 260, pointerEvents: 'none' }}>
-        <svg width="16" height="20" viewBox="0 0 16 20" fill="none"><path d="M1 1l6 16 2.5-6.5L16 8 1 1z" fill="#7c3aed" /></svg>
-        <span style={{ marginLeft: 12, marginTop: -4, display: 'inline-block', background: '#7c3aed', color: '#fff', fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 6, borderTopLeftRadius: 0, whiteSpace: 'nowrap' }}>
-          Marco is editing
-        </span>
-      </div>
-
-      <p style={{ position: 'absolute', bottom: 16, left: 24, fontSize: 11, color: '#cbd5e1' }}>
-        Illustrative preview &middot; not a live session
-      </p>
-    </div>
-  );
-}
-
 // ── Sub-components ────────────────────────────────────────────
 function SectionLabel({ children, color = '#4f7df8' }: { children: React.ReactNode; color?: string }) {
   return (
@@ -526,63 +445,7 @@ export default function HomePage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════
-          SECTION 4 — LIVE DEMO PREVIEW
-      ══════════════════════════════════════════════════════════ */}
-      <section style={{ background: 'var(--bg2)', padding: '100px clamp(20px,5vw,64px)' }}>
-        <div style={{ maxWidth: 1080, margin: '0 auto' }}>
-          <div className="scroll-hidden" style={{ textAlign: 'center', marginBottom: 48 }}>
-            <SectionLabel>LIVE DEMO</SectionLabel>
-            <h2 style={{ fontSize: 'clamp(26px,4vw,40px)', fontWeight: 700, color: 'var(--t1)', marginBottom: 14 }}>
-              See It In Action
-            </h2>
-            <p style={{ fontSize: 16, color: 'var(--t2)' }}>
-              Try the live web version right in your browser. No installation needed.
-            </p>
-          </div>
-
-          <div className="scroll-hidden" style={{ animation: 'float 6s ease-in-out infinite' }}>
-            {/* Browser chrome */}
-            <div style={{
-              border: '1px solid var(--b1)',
-              borderRadius: 16, overflow: 'hidden',
-              boxShadow: '0 24px 80px rgba(0,0,0,0.60)',
-            }}>
-              {/* Title bar */}
-              <div style={{
-                background: 'var(--bg3)', padding: '10px 16px',
-                display: 'flex', alignItems: 'center', gap: 10,
-                borderBottom: '1px solid var(--b1)',
-              }}>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {['#ef4444','#f59e0b','#22c55e'].map(c => (
-                    <div key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />
-                  ))}
-                </div>
-                <div style={{
-                  flex: 1, maxWidth: 340, margin: '0 auto',
-                  background: 'var(--s1)', borderRadius: 6,
-                  padding: '4px 12px', fontSize: 11, color: 'var(--t3)',
-                  textAlign: 'center', border: '1px solid var(--b1)',
-                }}>
-                  🔒 docusync.app/workspace
-                </div>
-              </div>
-              {/* Fabricated preview — see LiveDemoMock for why this isn't a
-                  live iframe into the real app anymore. */}
-              <LiveDemoMock />
-            </div>
-          </div>
-
-          <div className="scroll-hidden" style={{ textAlign: 'center', marginTop: 32 }}>
-            <Link href="/app/welcome" className="btn-hero-ghost" style={{ display: 'inline-flex', alignItems: 'center' }}>
-              Try the real thing — Open Web App →
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════
-          SECTION 5 — THREE PLATFORMS
+          SECTION 4 — THREE PLATFORMS
       ══════════════════════════════════════════════════════════ */}
       <section id="download" style={{ background: 'var(--bg)', padding: '100px clamp(20px,5vw,64px)' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
@@ -721,31 +584,6 @@ export default function HomePage() {
         .cta-ghost:hover         { background: rgba(255,255,255,0.06) !important; }
         .cta-text-link:hover     { color: var(--t1) !important; }
 
-        .demo-sync-pulse { animation: demo-pulse 2.2s ease-in-out infinite; }
-        @keyframes demo-pulse {
-          0%, 100% { opacity: 1; }
-          50%      { opacity: 0.45; }
-        }
-        .demo-cursor-drift { animation: demo-drift 5s ease-in-out infinite; }
-        @keyframes demo-drift {
-          0%, 100% { transform: translate(0, 0); }
-          25%      { transform: translate(30px, 46px); }
-          50%      { transform: translate(10px, 88px); }
-          75%      { transform: translate(-15px, 46px); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .demo-sync-pulse, .demo-cursor-drift { animation: none; }
-        }
-        /* The file mock row (icon + name + the N-editing badge + button) was
-           only ever laid out for a desktop-width browser-chrome frame —
-           on a real phone the badge pushed the button and filename off
-           the edge. Same fix as the real file list: drop the badge and
-           shrink the button rather than cram everything in. */
-        @media (max-width: 480px) {
-          .demo-file-row     { padding: 12px 14px !important; }
-          .demo-editing-badge { display: none !important; }
-          .demo-open-btn      { padding: 0 10px !important; font-size: 11px !important; }
-          .demo-cursor-drift  { display: none !important; }
         }
 
         @media (max-width: 900px) {

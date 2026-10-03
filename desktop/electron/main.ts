@@ -127,7 +127,12 @@ async function createWindow() {
     // Option 2: Unified WebView Shell Architecture. Live Vercel Deployment.
     // Note: this UI does not call the Electron bridge, so the local engine
     // runs but receives nothing. See DOCUSYNC_LOCAL_UI above.
-    win.loadURL('https://docusync-dusky.vercel.app');
+    //
+    // Open the application itself, not the public landing page. Loading the
+    // site root redirects to /home, which is marketing — a visitor's page,
+    // with a download button offering the very app the user already has
+    // open. Someone who has installed the desktop app wants to sign in.
+    win.loadURL('https://docusync-dusky.vercel.app/app/login');
   }
 }
 
