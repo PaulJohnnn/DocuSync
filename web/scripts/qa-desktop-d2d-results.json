@@ -1,0 +1,72 @@
+[
+  {
+    "name": "two independent Electron processes launched",
+    "ok": true,
+    "detail": "ports 9000 / 9001"
+  },
+  {
+    "name": "instance A loaded the local renderer from disk",
+    "ok": true,
+    "detail": "file:///C:/Users/Paul%20John%20Palamara/Downloads/ThesisSync/desktop/dist/index.html#/vault-login"
+  },
+  {
+    "name": "instance B loaded the local renderer from disk",
+    "ok": true,
+    "detail": "file:///C:/Users/Paul%20John%20Palamara/Downloads/ThesisSync/desktop/dist/index.html"
+  },
+  {
+    "name": "both renderers see window.docuSync",
+    "ok": true,
+    "detail": "A=object B=object"
+  },
+  {
+    "name": "both instances signed in",
+    "ok": true,
+    "detail": "qa-alpha / qa-bravo"
+  },
+  {
+    "name": "instance B connected to instance A over the engine port",
+    "ok": true,
+    "detail": "127.0.0.1:9000"
+  },
+  {
+    "name": "instance A reports a connected peer",
+    "ok": true,
+    "detail": "1 peer(s)"
+  },
+  {
+    "name": "D1 file imported into A’s local store",
+    "ok": true,
+    "detail": "fileId=1791017284189 "
+  },
+  {
+    "name": "D1 the same document is present on B under the same file id",
+    "ok": true,
+    "detail": "fileId=1791017284189 "
+  },
+  {
+    "name": "D1 file:save reached the local engine",
+    "ok": true,
+    "detail": "{\"fileId\":1791017284189,\"saved\":true,\"synced\":true,\"deltaSizeBytes\":232,\"compres"
+  },
+  {
+    "name": "D1 the call genuinely reached the engine (delta produced in the main process)",
+    "ok": true,
+    "detail": "deltaSizeBytes=232 synced=true"
+  },
+  {
+    "name": "D1 an event was written to A’s local SQLite event log",
+    "ok": true,
+    "detail": "2 event(s), types: restore,edit"
+  },
+  {
+    "name": "D1 the edit reached instance B’s local event log",
+    "ok": true,
+    "detail": "2 event(s), types: restore,merge"
+  },
+  {
+    "name": "D1 expected content hash",
+    "ok": true,
+    "detail": "895244dc90758632"
+  }
+]

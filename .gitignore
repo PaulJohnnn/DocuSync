@@ -63,3 +63,5 @@ desktop/release/
 /DocuSync-Defense-*.docx
 /DocuSync-Figures-*.docx
 ~$*
+web/scripts/ui-shots/
+web/scripts/ui-shots-prod/

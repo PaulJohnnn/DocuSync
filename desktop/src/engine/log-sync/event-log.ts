@@ -286,6 +286,24 @@ export class EventLogService {
   public async appendEvent(input: AppendEventInput): Promise<EventLogEntry> {
     assertValidEventType(input.eventType);
 
+    // `eventId` is unique in the schema, so re-appending one would throw a
+    // constraint violation rather than being ignored. That never mattered
+    // while every event was created locally with a fresh UUID, but catch-up
+    // replay deliberately re-sends events a peer may already hold: a peer that
+    // reconnects twice, or two peers answering the same SYNC_REQUEST, would
+    // otherwise raise errors on events that are simply already applied.
+    //
+    // An event is identified by its `eventId`, so seeing one again is a
+    // repeat, not new information. Return what is already stored and leave the
+    // log untouched — replay becomes idempotent and the append-only guarantee
+    // is preserved, because nothing is overwritten.
+    const existing = await this.prisma.eventLog.findUnique({
+      where: { eventId: input.eventId },
+    });
+    if (existing) {
+      return toEventLogEntry(existing);
+    }
+
     const row = await this.prisma.eventLog.create({
       data: {
         eventId: input.eventId,
@@ -335,10 +353,19 @@ export class EventLogService {
   public async getHistory(fileId: number): Promise<EventLogEntry[]> {
     const rows = await this.prisma.eventLog.findMany({
       where: { fileId: fileId.toString() },
-      orderBy: [
-        { logicalTimestamp: 'asc' },
-        { id: 'asc' },
-      ],
+      // Insertion order, which is the order these events were APPLIED on
+      // this node. Each delta was encoded against the result of the delta
+      // before it, so a replay is only valid in that order.
+      //
+      // Ordering by `logicalTimestamp` instead put events in a different
+      // order than they were applied, because a peer's event can carry a
+      // lower timestamp than something this node had already applied. Two
+      // instances editing different lines at the same time ended up with
+      // logs that each replayed to a different document — one of them not
+      // the document that instance was holding — so version history listed a
+      // version that never existed and restoring it would have recreated it.
+      // The live documents were identical; only the replay was wrong.
+      orderBy: [{ id: 'asc' }],
     });
 
     return rows.map(toEventLogEntry);

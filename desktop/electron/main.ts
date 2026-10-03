@@ -111,9 +111,28 @@ async function createWindow() {
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
+  } else if (process.env.DOCUSYNC_LOCAL_UI === '1') {
+    // Local renderer, which is the only UI that calls window.docuSync and so
+    // the only one that reaches the local engine: SQLite event log, vector
+    // clocks, delta encoding and the peer server. Verified working between two
+    // real Electron instances — an edit on one produced an `edit` event in its
+    // own log and a `merge` event in the other's, carried as a 232-byte delta
+    // over the peer socket.
+    //
+    // Off by default, so the shipped behaviour below is unchanged. Setting
+    // DOCUSYNC_LOCAL_UI=1 opts a build into the peer-to-peer architecture
+    // without a code change, and unsetting it reverts.
+    win.loadFile(path.join(process.env.DIST!, 'index.html'));
   } else {
     // Option 2: Unified WebView Shell Architecture. Live Vercel Deployment.
-    win.loadURL('https://docusync-dusky.vercel.app');
+    // Note: this UI does not call the Electron bridge, so the local engine
+    // runs but receives nothing. See DOCUSYNC_LOCAL_UI above.
+    //
+    // Open the application itself, not the public landing page. Loading the
+    // site root redirects to /home, which is marketing — a visitor's page,
+    // with a download button offering the very app the user already has
+    // open. Someone who has installed the desktop app wants to sign in.
+    win.loadURL('https://docusync-dusky.vercel.app/app/login');
   }
 }
 

@@ -1,0 +1,194 @@
+[
+  {
+    "group": "Setup — two real Electron instances",
+    "name": "two Electron processes signed in",
+    "ok": true,
+    "detail": "qa-alpha / qa-bravo, ports 9000/9001"
+  },
+  {
+    "group": "Setup — two real Electron instances",
+    "name": "both instances hold the same base document",
+    "ok": true,
+    "detail": "fileId=1791017198309"
+  },
+  {
+    "group": "Setup — two real Electron instances",
+    "name": "peer link established (B → A, WebSocket :9000)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "group": "D2 — Desktop B → Desktop A",
+    "name": "D2 file:save reached B’s local engine",
+    "ok": true,
+    "detail": "delta=252B synced=true"
+  },
+  {
+    "group": "D2 — Desktop B → Desktop A",
+    "name": "D2 B wrote an event to its own SQLite log",
+    "ok": true,
+    "detail": "2 event(s): restore,edit"
+  },
+  {
+    "group": "D2 — Desktop B → Desktop A",
+    "name": "D2 A received and logged the peer event",
+    "ok": true,
+    "detail": "2 event(s): restore,merge"
+  },
+  {
+    "group": "D2 — Desktop B → Desktop A",
+    "name": "D2 content converged (SHA-256 from each engine’s own log)",
+    "ok": true,
+    "detail": "A=a9e524479963179d B=a9e524479963179d"
+  },
+  {
+    "group": "D3 — bidirectional A→B→A→B",
+    "name": "D3 after A edit (R1-A) both engines agree",
+    "ok": true,
+    "detail": "A=0c71e2c8fbd6510d B=0c71e2c8fbd6510d"
+  },
+  {
+    "group": "D3 — bidirectional A→B→A→B",
+    "name": "D3 after B edit (R2-B) both engines agree",
+    "ok": true,
+    "detail": "A=5059bd4bb82ae218 B=5059bd4bb82ae218"
+  },
+  {
+    "group": "D3 — bidirectional A→B→A→B",
+    "name": "D3 after A edit (R3-A) both engines agree",
+    "ok": true,
+    "detail": "A=c9ac69cfe7cf0fc9 B=c9ac69cfe7cf0fc9"
+  },
+  {
+    "group": "D3 — bidirectional A→B→A→B",
+    "name": "D3 after B edit (R4-B) both engines agree",
+    "ok": true,
+    "detail": "A=5f1c198b1870edeb B=5f1c198b1870edeb"
+  },
+  {
+    "group": "D3 — bidirectional A→B→A→B",
+    "name": "D3 no duplicate event ids in either log",
+    "ok": true,
+    "detail": "A=6 unique=6 | B=6 unique=6"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-1 different lines: both engines logged events",
+    "ok": true,
+    "detail": "A:restore,edit,merge | B:restore,edit,merge"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-1 different lines: engines converged",
+    "ok": true,
+    "detail": "de5eb2b4cecfa28d"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-1 different lines: BOTH edits present on both engines",
+    "ok": true,
+    "detail": "A:true/true B:true/true"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-1 newest log entry also matches (informational)",
+    "ok": true,
+    "detail": "de5eb2b4cecfa28d"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-2 same line: both engines recorded the attempt",
+    "ok": true,
+    "detail": "A:restore,edit,merge | B:restore,edit,merge"
+  },
+  {
+    "group": "D4 — concurrent editing",
+    "name": "D4-2 same line: engines reached one state",
+    "ok": true,
+    "detail": "b33553ebc1f9b3fe"
+  },
+  {
+    "group": "Version history through the Desktop engine",
+    "name": "VH versions recorded in the local event log",
+    "ok": true,
+    "detail": "3 event(s): restore,edit,edit"
+  },
+  {
+    "group": "Version history through the Desktop engine",
+    "name": "VH restoreVersion accepted by the engine",
+    "ok": true,
+    "detail": "eventId=da21d4bd"
+  },
+  {
+    "group": "Version history through the Desktop engine",
+    "name": "VH restore changed engine state / logged a restore event",
+    "ok": true,
+    "detail": "types: restore,edit,edit,restore"
+  },
+  {
+    "group": "Duplicate event handling (real sync path)",
+    "name": "DUP replayed events did not create duplicate records",
+    "ok": true,
+    "detail": "before=6 after=6"
+  },
+  {
+    "group": "Duplicate event handling (real sync path)",
+    "name": "DUP all event ids remain unique after replay",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "offline pair prepared, no peer link established",
+    "ok": true,
+    "detail": "fileId=1791017264019"
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "OFF3 all offline edits persisted to local SQLite while unconnected",
+    "ok": true,
+    "detail": "6 event(s)"
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "OFF3 no duplicate events among the queued edits",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "OFF1 peer link established after the offline period",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "OFF4 missed events recovered by the peer that was behind",
+    "ok": true,
+    "detail": "6 event(s): restore,merge,merge,merge,merge,merge"
+  },
+  {
+    "group": "Native offline — edits with no peer connected, then catch-up",
+    "name": "OFF1 both engines converged after reconnection",
+    "ok": true,
+    "detail": "C=8d8e6567a1507ea5 D=8d8e6567a1507ea5"
+  },
+  {
+    "group": "Scope limits",
+    "name": "D5 three simultaneous Electron instances",
+    "ok": null,
+    "detail": "not attempted in this pass — four processes already run above; a third peer needs mesh connect calls not exercised here"
+  },
+  {
+    "group": "Scope limits",
+    "name": "WebRTC transport verification",
+    "ok": null,
+    "detail": "all peer traffic above used the WebSocket server on :9000/:9002; WebRTCManager is constructed only by ElectronSyncContext and no RTC connection was observed"
+  },
+  {
+    "group": "Scope limits",
+    "name": "Native Desktop download artefact",
+    "ok": null,
+    "detail": "no download bridge method exists; downloads are produced by renderer code, already verified in the browser campaign"
+  }
+]

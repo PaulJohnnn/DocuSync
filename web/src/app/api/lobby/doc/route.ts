@@ -368,6 +368,58 @@ export async function POST(request: Request) {
       );
       written = casResult.written;
       snapshot = casResult.snapshot;
+
+      // The divergence test above was made against a snapshot read BEFORE
+      // this write. When two clients post from the same base at the same
+      // moment, neither read sees the other, so both take this branch and
+      // neither merges — and `casSetIfNewer` then resolves them by
+      // timestamp, which is whole-document last-write-wins. The later edit
+      // replaces the earlier one outright. Measured: two clients editing
+      // different paragraphs from the same base, and one paragraph's edit
+      // was simply gone.
+      //
+      // Re-read after writing and check again. The writer that lost the
+      // race now sees content that is neither its own nor the base it
+      // started from, which is precisely the condition the merge exists
+      // for, so it merges and commits the result. The writer that won sees
+      // its own content and does nothing.
+      if (baseContent !== undefined && baseContent !== null) {
+        const after = (await redis.get(key)) as any;
+        const theirs = after?.content;
+        if (
+          typeof theirs === 'string' &&
+          theirs !== content &&
+          theirs !== baseContent
+        ) {
+          mergeAttempted = true;
+          let result;
+          try {
+            result = mergeConcurrentEdit(
+              theirs,
+              baseContent,
+              content,
+              after?.committedAt || 0,
+              incomingCommittedAt
+            );
+          } catch {
+            mergeErrored = true;
+            result = { merged: theirs, hadConflict: true, conflictHunks: 1, lostChars: content.length };
+          }
+          hadConflict = result.hadConflict;
+          conflictHunks = result.conflictHunks;
+          lostChars = result.lostChars;
+
+          snapshot = {
+            content: result.merged,
+            authorNodeId,
+            vectorClock: vectorClock || null,
+            seq,
+            committedAt: Date.now(),
+          };
+          await redis.set(key, snapshot, { ex: 60 * 60 * 24 });
+          written = true;
+        }
+      }
     }
 
     if (!written) {

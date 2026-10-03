@@ -1,0 +1,486 @@
+{
+  "results": [
+    {
+      "group": "P1 - links come up in order B-A then C-A then C-B",
+      "name": "P1 clocks (MIXED)",
+      "ok": null,
+      "detail": "A: ts=2 node=905a148d | B: ts=2 node=6f50d278 | C: ts=2 node=211446a3"
+    },
+    {
+      "group": "P1 - links come up in order B-A then C-A then C-B",
+      "name": "P1 clocks (SAME)",
+      "ok": null,
+      "detail": "A: ts=4 node=905a148d | B: ts=4 node=6f50d278 | C: ts=4 node=211446a3"
+    },
+    {
+      "group": "P1 - links come up in order B-A then C-A then C-B",
+      "name": "P1 MIXED every peer: region 1 contested, region 3 is C's, others unchanged",
+      "ok": true,
+      "detail": "A:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | B:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | C:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\""
+    },
+    {
+      "group": "P1 - links come up in order B-A then C-A then C-B",
+      "name": "P1 MIXED all three peers identical",
+      "ok": true,
+      "detail": "274578db4f40ad4d / 274578db4f40ad4d / 274578db4f40ad4d"
+    },
+    {
+      "group": "P1 - links come up in order B-A then C-A then C-B",
+      "name": "P1 SAME the surviving region 1 is one of the three edits",
+      "ok": true,
+      "detail": "\"S contested one. FROM-A.\""
+    },
+    {
+      "group": "P1 - links come up in order B-A then C-A then C-B",
+      "name": "P1 SAME no unrelated line changed on any peer",
+      "ok": true,
+      "detail": "A:\"S quiet two.\" | B:\"S quiet two.\" | C:\"S quiet two.\""
+    },
+    {
+      "group": "P1 - links come up in order B-A then C-A then C-B",
+      "name": "P1 SAME all three peers identical",
+      "ok": true,
+      "detail": "c6ff814de0f12137 / c6ff814de0f12137 / c6ff814de0f12137"
+    },
+    {
+      "group": "P1 - links come up in order B-A then C-A then C-B",
+      "name": "P1 SAME the winner is the highest (logicalTimestamp, nodeId)",
+      "ok": true,
+      "detail": "predicted=A actual=A (ts=4)"
+    },
+    {
+      "group": "P1 - links come up in order B-A then C-A then C-B",
+      "name": "P1 A event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P1 - links come up in order B-A then C-A then C-B",
+      "name": "P1 B event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P1 - links come up in order B-A then C-A then C-B",
+      "name": "P1 C event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P2 - links come up in order B-A then C-B then C-A",
+      "name": "P2 clocks (MIXED)",
+      "ok": null,
+      "detail": "A: ts=2 node=c8e4859b | B: ts=2 node=7eb97b3a | C: ts=2 node=ba9b0c1e"
+    },
+    {
+      "group": "P2 - links come up in order B-A then C-B then C-A",
+      "name": "P2 clocks (SAME)",
+      "ok": null,
+      "detail": "A: ts=4 node=c8e4859b | B: ts=4 node=7eb97b3a | C: ts=4 node=ba9b0c1e"
+    },
+    {
+      "group": "P2 - links come up in order B-A then C-B then C-A",
+      "name": "P2 MIXED every peer: region 1 contested, region 3 is C's, others unchanged",
+      "ok": true,
+      "detail": "A:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | B:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | C:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\""
+    },
+    {
+      "group": "P2 - links come up in order B-A then C-B then C-A",
+      "name": "P2 MIXED all three peers identical",
+      "ok": true,
+      "detail": "274578db4f40ad4d / 274578db4f40ad4d / 274578db4f40ad4d"
+    },
+    {
+      "group": "P2 - links come up in order B-A then C-B then C-A",
+      "name": "P2 SAME the surviving region 1 is one of the three edits",
+      "ok": true,
+      "detail": "\"S contested one. FROM-A.\""
+    },
+    {
+      "group": "P2 - links come up in order B-A then C-B then C-A",
+      "name": "P2 SAME no unrelated line changed on any peer",
+      "ok": true,
+      "detail": "A:\"S quiet two.\" | B:\"S quiet two.\" | C:\"S quiet two.\""
+    },
+    {
+      "group": "P2 - links come up in order B-A then C-B then C-A",
+      "name": "P2 SAME all three peers identical",
+      "ok": true,
+      "detail": "c6ff814de0f12137 / c6ff814de0f12137 / c6ff814de0f12137"
+    },
+    {
+      "group": "P2 - links come up in order B-A then C-B then C-A",
+      "name": "P2 SAME the winner is the highest (logicalTimestamp, nodeId)",
+      "ok": true,
+      "detail": "predicted=A actual=A (ts=4)"
+    },
+    {
+      "group": "P2 - links come up in order B-A then C-B then C-A",
+      "name": "P2 A event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P2 - links come up in order B-A then C-B then C-A",
+      "name": "P2 B event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P2 - links come up in order B-A then C-B then C-A",
+      "name": "P2 C event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P3 - links come up in order C-A then C-B then B-A",
+      "name": "P3 clocks (MIXED)",
+      "ok": null,
+      "detail": "A: ts=2 node=8b249b2f | B: ts=2 node=31f95a99 | C: ts=2 node=e95c468f"
+    },
+    {
+      "group": "P3 - links come up in order C-A then C-B then B-A",
+      "name": "P3 clocks (SAME)",
+      "ok": null,
+      "detail": "A: ts=4 node=8b249b2f | B: ts=4 node=31f95a99 | C: ts=4 node=e95c468f"
+    },
+    {
+      "group": "P3 - links come up in order C-A then C-B then B-A",
+      "name": "P3 MIXED every peer: region 1 contested, region 3 is C's, others unchanged",
+      "ok": true,
+      "detail": "A:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | B:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | C:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\""
+    },
+    {
+      "group": "P3 - links come up in order C-A then C-B then B-A",
+      "name": "P3 MIXED all three peers identical",
+      "ok": true,
+      "detail": "274578db4f40ad4d / 274578db4f40ad4d / 274578db4f40ad4d"
+    },
+    {
+      "group": "P3 - links come up in order C-A then C-B then B-A",
+      "name": "P3 SAME the surviving region 1 is one of the three edits",
+      "ok": true,
+      "detail": "\"S contested one. FROM-C.\""
+    },
+    {
+      "group": "P3 - links come up in order C-A then C-B then B-A",
+      "name": "P3 SAME no unrelated line changed on any peer",
+      "ok": true,
+      "detail": "A:\"S quiet two.\" | B:\"S quiet two.\" | C:\"S quiet two.\""
+    },
+    {
+      "group": "P3 - links come up in order C-A then C-B then B-A",
+      "name": "P3 SAME all three peers identical",
+      "ok": true,
+      "detail": "348c5fa8439a0cdc / 348c5fa8439a0cdc / 348c5fa8439a0cdc"
+    },
+    {
+      "group": "P3 - links come up in order C-A then C-B then B-A",
+      "name": "P3 SAME the winner is the highest (logicalTimestamp, nodeId)",
+      "ok": true,
+      "detail": "predicted=C actual=C (ts=4)"
+    },
+    {
+      "group": "P3 - links come up in order C-A then C-B then B-A",
+      "name": "P3 A event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P3 - links come up in order C-A then C-B then B-A",
+      "name": "P3 B event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P3 - links come up in order C-A then C-B then B-A",
+      "name": "P3 C event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P4 - links come up in order C-B then B-A then C-A",
+      "name": "P4 clocks (MIXED)",
+      "ok": null,
+      "detail": "A: ts=2 node=acbda9db | B: ts=2 node=9effb608 | C: ts=2 node=b93a3971"
+    },
+    {
+      "group": "P4 - links come up in order C-B then B-A then C-A",
+      "name": "P4 clocks (SAME)",
+      "ok": null,
+      "detail": "A: ts=4 node=acbda9db | B: ts=4 node=9effb608 | C: ts=4 node=b93a3971"
+    },
+    {
+      "group": "P4 - links come up in order C-B then B-A then C-A",
+      "name": "P4 MIXED every peer: region 1 contested, region 3 is C's, others unchanged",
+      "ok": true,
+      "detail": "A:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | B:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | C:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\""
+    },
+    {
+      "group": "P4 - links come up in order C-B then B-A then C-A",
+      "name": "P4 MIXED all three peers identical",
+      "ok": true,
+      "detail": "274578db4f40ad4d / 274578db4f40ad4d / 274578db4f40ad4d"
+    },
+    {
+      "group": "P4 - links come up in order C-B then B-A then C-A",
+      "name": "P4 SAME the surviving region 1 is one of the three edits",
+      "ok": true,
+      "detail": "\"S contested one. FROM-C.\""
+    },
+    {
+      "group": "P4 - links come up in order C-B then B-A then C-A",
+      "name": "P4 SAME no unrelated line changed on any peer",
+      "ok": true,
+      "detail": "A:\"S quiet two.\" | B:\"S quiet two.\" | C:\"S quiet two.\""
+    },
+    {
+      "group": "P4 - links come up in order C-B then B-A then C-A",
+      "name": "P4 SAME all three peers identical",
+      "ok": true,
+      "detail": "348c5fa8439a0cdc / 348c5fa8439a0cdc / 348c5fa8439a0cdc"
+    },
+    {
+      "group": "P4 - links come up in order C-B then B-A then C-A",
+      "name": "P4 SAME the winner is the highest (logicalTimestamp, nodeId)",
+      "ok": true,
+      "detail": "predicted=C actual=C (ts=4)"
+    },
+    {
+      "group": "P4 - links come up in order C-B then B-A then C-A",
+      "name": "P4 A event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P4 - links come up in order C-B then B-A then C-A",
+      "name": "P4 B event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P4 - links come up in order C-B then B-A then C-A",
+      "name": "P4 C event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P5 - links come up in order C-A then B-A then C-B",
+      "name": "P5 clocks (MIXED)",
+      "ok": null,
+      "detail": "A: ts=2 node=fcf01845 | B: ts=2 node=a0270074 | C: ts=2 node=72d4c774"
+    },
+    {
+      "group": "P5 - links come up in order C-A then B-A then C-B",
+      "name": "P5 clocks (SAME)",
+      "ok": null,
+      "detail": "A: ts=4 node=fcf01845 | B: ts=4 node=a0270074 | C: ts=4 node=72d4c774"
+    },
+    {
+      "group": "P5 - links come up in order C-A then B-A then C-B",
+      "name": "P5 MIXED every peer: region 1 contested, region 3 is C's, others unchanged",
+      "ok": true,
+      "detail": "A:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | B:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | C:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\""
+    },
+    {
+      "group": "P5 - links come up in order C-A then B-A then C-B",
+      "name": "P5 MIXED all three peers identical",
+      "ok": true,
+      "detail": "274578db4f40ad4d / 274578db4f40ad4d / 274578db4f40ad4d"
+    },
+    {
+      "group": "P5 - links come up in order C-A then B-A then C-B",
+      "name": "P5 SAME the surviving region 1 is one of the three edits",
+      "ok": true,
+      "detail": "\"S contested one. FROM-A.\""
+    },
+    {
+      "group": "P5 - links come up in order C-A then B-A then C-B",
+      "name": "P5 SAME no unrelated line changed on any peer",
+      "ok": true,
+      "detail": "A:\"S quiet two.\" | B:\"S quiet two.\" | C:\"S quiet two.\""
+    },
+    {
+      "group": "P5 - links come up in order C-A then B-A then C-B",
+      "name": "P5 SAME all three peers identical",
+      "ok": true,
+      "detail": "c6ff814de0f12137 / c6ff814de0f12137 / c6ff814de0f12137"
+    },
+    {
+      "group": "P5 - links come up in order C-A then B-A then C-B",
+      "name": "P5 SAME the winner is the highest (logicalTimestamp, nodeId)",
+      "ok": true,
+      "detail": "predicted=A actual=A (ts=4)"
+    },
+    {
+      "group": "P5 - links come up in order C-A then B-A then C-B",
+      "name": "P5 A event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P5 - links come up in order C-A then B-A then C-B",
+      "name": "P5 B event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P5 - links come up in order C-A then B-A then C-B",
+      "name": "P5 C event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P6 - links come up in order C-B then C-A then B-A",
+      "name": "P6 clocks (MIXED)",
+      "ok": null,
+      "detail": "A: ts=2 node=d84da614 | B: ts=2 node=81378b4c | C: ts=2 node=f51e12d1"
+    },
+    {
+      "group": "P6 - links come up in order C-B then C-A then B-A",
+      "name": "P6 clocks (SAME)",
+      "ok": null,
+      "detail": "A: ts=4 node=d84da614 | B: ts=4 node=81378b4c | C: ts=4 node=f51e12d1"
+    },
+    {
+      "group": "P6 - links come up in order C-B then C-A then B-A",
+      "name": "P6 MIXED every peer: region 1 contested, region 3 is C's, others unchanged",
+      "ok": true,
+      "detail": "A:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | B:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | C:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\""
+    },
+    {
+      "group": "P6 - links come up in order C-B then C-A then B-A",
+      "name": "P6 MIXED all three peers identical",
+      "ok": true,
+      "detail": "274578db4f40ad4d / 274578db4f40ad4d / 274578db4f40ad4d"
+    },
+    {
+      "group": "P6 - links come up in order C-B then C-A then B-A",
+      "name": "P6 SAME the surviving region 1 is one of the three edits",
+      "ok": true,
+      "detail": "\"S contested one. FROM-C.\""
+    },
+    {
+      "group": "P6 - links come up in order C-B then C-A then B-A",
+      "name": "P6 SAME no unrelated line changed on any peer",
+      "ok": true,
+      "detail": "A:\"S quiet two.\" | B:\"S quiet two.\" | C:\"S quiet two.\""
+    },
+    {
+      "group": "P6 - links come up in order C-B then C-A then B-A",
+      "name": "P6 SAME all three peers identical",
+      "ok": true,
+      "detail": "348c5fa8439a0cdc / 348c5fa8439a0cdc / 348c5fa8439a0cdc"
+    },
+    {
+      "group": "P6 - links come up in order C-B then C-A then B-A",
+      "name": "P6 SAME the winner is the highest (logicalTimestamp, nodeId)",
+      "ok": true,
+      "detail": "predicted=C actual=C (ts=4)"
+    },
+    {
+      "group": "P6 - links come up in order C-B then C-A then B-A",
+      "name": "P6 A event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P6 - links come up in order C-B then C-A then B-A",
+      "name": "P6 B event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "P6 - links come up in order C-B then C-A then B-A",
+      "name": "P6 C event log has no duplicates and rebuilds",
+      "ok": true,
+      "detail": "4 entries: restore,edit,merge,merge"
+    },
+    {
+      "group": "Determinism across orders",
+      "name": "every permutation produced a result",
+      "ok": true,
+      "detail": "6/6"
+    },
+    {
+      "group": "Determinism across orders",
+      "name": "every permutation reached a single agreed state on all three peers",
+      "ok": true,
+      "detail": "6/6"
+    },
+    {
+      "group": "Determinism across orders",
+      "name": "the contested region went to the highest (logicalTimestamp, nodeId) in EVERY link order",
+      "ok": true,
+      "detail": "6/6 — P1:A P2:A P3:C P4:C P5:A P6:C"
+    },
+    {
+      "group": "Determinism across orders",
+      "name": "final hashes differ between permutations by design",
+      "ok": null,
+      "detail": "fresh instances mean fresh node ids, and the node id is the documented tie-breaker"
+    }
+  ],
+  "summary": [
+    {
+      "permutation": "P1",
+      "order": "B-A > C-A > C-B",
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "c6ff814de0f12137/c6ff814de0f12137/c6ff814de0f12137",
+      "mixedAgreed": true,
+      "sameAgreed": true,
+      "sameWinner": "A",
+      "predicted": "A"
+    },
+    {
+      "permutation": "P2",
+      "order": "B-A > C-B > C-A",
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "c6ff814de0f12137/c6ff814de0f12137/c6ff814de0f12137",
+      "mixedAgreed": true,
+      "sameAgreed": true,
+      "sameWinner": "A",
+      "predicted": "A"
+    },
+    {
+      "permutation": "P3",
+      "order": "C-A > C-B > B-A",
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "348c5fa8439a0cdc/348c5fa8439a0cdc/348c5fa8439a0cdc",
+      "mixedAgreed": true,
+      "sameAgreed": true,
+      "sameWinner": "C",
+      "predicted": "C"
+    },
+    {
+      "permutation": "P4",
+      "order": "C-B > B-A > C-A",
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "348c5fa8439a0cdc/348c5fa8439a0cdc/348c5fa8439a0cdc",
+      "mixedAgreed": true,
+      "sameAgreed": true,
+      "sameWinner": "C",
+      "predicted": "C"
+    },
+    {
+      "permutation": "P5",
+      "order": "C-A > B-A > C-B",
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "c6ff814de0f12137/c6ff814de0f12137/c6ff814de0f12137",
+      "mixedAgreed": true,
+      "sameAgreed": true,
+      "sameWinner": "A",
+      "predicted": "A"
+    },
+    {
+      "permutation": "P6",
+      "order": "C-B > C-A > B-A",
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "348c5fa8439a0cdc/348c5fa8439a0cdc/348c5fa8439a0cdc",
+      "mixedAgreed": true,
+      "sameAgreed": true,
+      "sameWinner": "C",
+      "predicted": "C"
+    }
+  ]
+}

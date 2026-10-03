@@ -36,9 +36,16 @@ import {
 } from './message-schema';
 import type { SyncEvent } from '../lww/lww-resolver';
 import { mergeConcurrentEdit } from '../lww/line-merge';
+import {
+  mergeThreeWay,
+  attributeAgainstBase,
+  lineDiffers,
+  gapDiffers,
+} from '../lww/line-merge-3way';
 
 import { EventLogService } from '../log-sync/event-log';
 import { decode as decodeDelta } from '../delta/delta-decoder';
+import { encode as encodeDelta } from '../delta/delta-encoder';
 import { VectorClock } from '../vector-clock/vector-clock';
 import type { VectorClockJSON } from '../vector-clock/vector-clock';
 
@@ -143,7 +150,8 @@ export type OnMergeAccepted = (
 export type OnSyncRequested = (
   nodeId: string,
   fileId: number,
-  sinceTimestamp: number
+  sinceTimestamp: number,
+  knownPerNode?: Record<string, number>
 ) => void | Promise<void>;
 
 /**
@@ -1745,13 +1753,346 @@ export class PeerManager {
    *
    * @internal
    */
-  private async handleDeltaPush(
+  /**
+   * Serialises delta application per file.
+   *
+   * Applying a delta is read-modify-write: the handler reads the file's
+   * current content, decodes against it, then writes the result back. Nothing
+   * held those steps together, so deltas arriving close in time all read the
+   * same content before any of them had written, decoded against a base that
+   * was about to be superseded, and were rejected by the checksum guard.
+   *
+   * It showed up wherever deltas arrive in a burst — a reconnecting peer being
+   * sent five missed events applied one and failed four with "Delta checksum
+   * mismatch", and two peers saving at the same moment each dropped the
+   * other's edit. The deltas were never corrupted; they were simply applied
+   * against the wrong base.
+   *
+   * Chaining per file makes each delta see the result of the one before it.
+   * Different files remain independent, so this does not serialise unrelated
+   * work, and a failure is contained to its own link rather than stalling the
+   * chain.
+   */
+  private deltaChains: Map<number, Promise<void>> = new Map();
+
+  /**
+   * Event ids this node has already applied and relayed, newest last.
+   *
+   * `applyDeltaPush` forwards every delta on to its other peers so a hub can
+   * serve a star topology, excluding only the message's original author. With
+   * two peers there is nobody left to forward to and that is enough. With
+   * three peers connected to each other it is not: A forwards B's edit to C,
+   * C forwards the same message back to A — the author is still B, so neither
+   * exclusion applies — and the two keep handing it to each other. Measured
+   * on three real instances, one save produced an unbounded exchange of the
+   * same event id until the receive-rate limiter closed both links with code
+   * 4029, after which the third instance was left with no peers and took no
+   * further part in any sync.
+   *
+   * The duplicate was invisible in the event log because `appendEvent` is
+   * idempotent on `eventId`, so nothing was ever stored twice. Only the
+   * traffic multiplied. Remembering what has already been forwarded stops
+   * the loop after one extra message per edge.
+   */
+  private seenEvents: Set<string> = new Set();
+
+  /**
+   * Runs `task` on this file's serialisation chain: after any delta already
+   * being applied to it, and before the next one starts.
+   *
+   * A local save reads the file's current content, encodes a delta against
+   * it, and appends that delta to the log. Applying a peer's delta does the
+   * same three things. Interleaved, they produce a log whose newest entry
+   * does not describe the document: the save encodes against content the
+   * peer's merge then replaces, the merge's event is appended first, and
+   * replaying the log afterwards reconstructs the save's text with the
+   * peer's edit missing — so version history shows, and restore would
+   * recreate, a version that never existed. Measured on two instances with
+   * identical hashes on every run.
+   *
+   * Sharing one chain per file makes the two paths take turns instead.
+   */
+  public withFileLock<T>(fileId: number, task: () => Promise<T>): Promise<T> {
+    const previous = this.deltaChains.get(fileId) ?? Promise.resolve();
+    const next = previous.catch(() => { }).then(task);
+    this.deltaChains.set(
+      fileId,
+      next.then(
+        () => { },
+        () => { }
+      )
+    );
+    return next;
+  }
+
+  /** Caps `seenEvents`; a Set iterates in insertion order, so the oldest go. */
+  private trimSeenEvents(): void {
+    const MAX = 2000;
+    const DROP = 500;
+    if (this.seenEvents.size <= MAX) return;
+    let dropped = 0;
+    for (const id of this.seenEvents) {
+      this.seenEvents.delete(id);
+      if (++dropped >= DROP) break;
+    }
+  }
+
+  private handleDeltaPush(
+    socket: WebSocket,
+    msg: DeltaPushMessage
+  ): Promise<void> {
+    const previous = this.deltaChains.get(msg.fileId) ?? Promise.resolve();
+    const next = previous
+      .catch(() => { /* a failed predecessor must not block what follows */ })
+      .then(() => this.applyDeltaPush(socket, msg));
+    this.deltaChains.set(msg.fileId, next.catch(() => { }));
+    return next;
+  }
+
+  /**
+   * Decides whether a delta that failed its checksum is a concurrent edit
+   * rather than a corrupt one, and if so resolves it.
+   *
+   * Returns the content to adopt, or null to let the original failure stand.
+   *
+   * Three conditions must all hold before this is treated as a conflict, so
+   * that genuine corruption is never waved through:
+   *
+   *   - the clocks are available and compare as `concurrent`, meaning each
+   *     side holds an edit the other has not seen. A `dominant`, `dominated`
+   *     or `equal` relation is a sequencing problem, not a conflict, and the
+   *     original error is the right answer there.
+   *   - the message carries the sender's full content. `file:save` includes
+   *     it on every broadcast; without it there is nothing to resolve with,
+   *     because the delta cannot be decoded against a base we do not have.
+   *   - the payload decoded far enough to be structurally valid.
+   *
+   * The winner follows the engine's existing rule — the higher logical
+   * timestamp, with the originating node id breaking an exact tie so that
+   * both peers independently reach the same verdict and converge without
+   * another round trip.
+   */
+  /**
+   * Which edit last wrote each region of a file, measured against `base`.
+   *
+   * This is what a contested region must be decided by. Deciding it from the
+   * file's highest stamp instead made the verdict depend on what had arrived:
+   * a peer whose log did not yet hold both contesting edits compared the
+   * wrong pair, and three peers reconciling after all three edited offline
+   * ended up permanently disagreeing in about a third of orderings.
+   *
+   * The log makes this recoverable without storing anything new. A merge
+   * event records the ORIGINAL author's `nodeId` and `logicalTimestamp`, not
+   * the merging node's, so replaying the log and attributing each event's
+   * changes yields the same stamp for a region on every peer that holds that
+   * event. Every attribution is taken against the one base, so region
+   * indices stay aligned even across insertions and deletions.
+   *
+   * Returns null if the log cannot be read or replayed, so the caller can
+   * fall back to the document-wide comparison rather than guess.
+   */
+  private async regionStamps(
+    fileId: number,
+    baseContent: string
+  ): Promise<{
+    lines: Array<{ ts: number; nodeId: string } | null>;
+    gaps: Array<{ ts: number; nodeId: string } | null>;
+  } | null> {
+    let history: Awaited<ReturnType<EventLogService['getHistory']>>;
+    try {
+      history = await this.config.eventLog.getHistory(fileId);
+    } catch {
+      return null;
+    }
+
+    const baseAttribution = attributeAgainstBase(baseContent, baseContent);
+    const nLines = baseAttribution.replacement.length;
+    const lines: Array<{ ts: number; nodeId: string } | null> = new Array(nLines).fill(null);
+    const gaps: Array<{ ts: number; nodeId: string } | null> = new Array(nLines + 1).fill(null);
+
+    let previousContent = '';
+    let previous = attributeAgainstBase(baseContent, '');
+
+    for (const entry of history) {
+      if (entry.isCompacted) continue;
+
+      let nextContent: string;
+      try {
+        nextContent =
+          entry.eventType === 'edit' || entry.eventType === 'merge'
+            ? decodeDelta(previousContent, entry.payload).content
+            : entry.payload;
+      } catch {
+        // A gap in the chain. Skip this event rather than attribute its
+        // changes to the wrong regions.
+        continue;
+      }
+
+      const next = attributeAgainstBase(baseContent, nextContent);
+      const stamp = { ts: entry.logicalTimestamp, nodeId: entry.nodeId };
+
+      for (let i = 0; i < nLines; i++) {
+        if (lineDiffers(previous, next, i)) lines[i] = stamp;
+      }
+      for (let i = 0; i <= nLines; i++) {
+        if (gapDiffers(previous, next, i)) gaps[i] = stamp;
+      }
+
+      previousContent = nextContent;
+      previous = next;
+    }
+
+    return { lines, gaps };
+  }
+
+  private async resolveConcurrentDelta(
+    msg: DeltaPushMessage,
+    currentContent: string,
+    _decodeErr: Error
+  ): Promise<{ content: string; hadConflict: boolean; conflictHunks: number } | null> {
+    const remoteContent = msg.content;
+    const baseContent = msg.baseContent;
+
+    // Both the sender's result and the base it was taken against are needed.
+    // Without the base there is no common ancestor, so there is no way to
+    // tell which lines this peer changed from which lines we changed.
+    if (typeof remoteContent !== 'string') return null;
+    if (typeof baseContent !== 'string') return null;
+
+    // Integrity gate. Replaying the delta against the sender's OWN base must
+    // reproduce the sender's own content; the checksum inside the payload is
+    // FNV-1a of exactly that. If it does, the payload is provably intact and
+    // the only reason it failed here is that our base has moved on — a
+    // genuine concurrent edit. If it does not, the payload really is damaged
+    // and the original error stands.
+    //
+    // This replaces an earlier vector-clock test. The clock is per node and
+    // shared across every file, so unrelated saves on other files could make
+    // two genuinely concurrent edits compare as `dominant` or `dominated`,
+    // and the remote edit was then silently dropped. Verifying the payload
+    // against its own base is both local to this file and a stricter
+    // corruption check than the clock ever was.
+    try {
+      const roundTrip = decodeDelta(baseContent, msg.deltaBase64);
+      if (roundTrip.content !== remoteContent) return null;
+    } catch {
+      return null;
+    }
+
+    // Who wins a region BOTH sides changed. Resolved from the identity of the
+    // edit that last wrote this file locally rather than from the global
+    // clock, so the comparison is per file and so a third peer relaying this
+    // edit arbitrates the same pair the original two peers did.
+    let localTs = this.config.vectorClock?.counters?.[this.config.vectorClock.nodeIndex] ?? 0;
+    let localNode = this.config.localNodeId;
+    try {
+      const history = await this.config.eventLog.getHistory(msg.fileId);
+      // The HIGHEST (logicalTimestamp, nodeId) among this file's events, not
+      // the one most recently applied.
+      //
+      // Last-Write-Wins means the highest logical timestamp wins. Taking the
+      // last-applied event instead made the comparison depend on arrival
+      // order, and arrival order differs per peer: a bystander's edit to
+      // another region could be the newest arrival, so one peer compared the
+      // incoming edit against that bystander while the two peers actually
+      // contesting the region compared against each other. They then chose
+      // different winners for the same region and stayed divergent. Measured
+      // with three instances reconnecting after editing offline: all three
+      // held the right text in every region, but one disagreed on which of
+      // the two contesting versions the contested region should carry.
+      let best: { logicalTimestamp: number; nodeId: string } | null = null;
+      for (const e of history) {
+        if (
+          !best ||
+          e.logicalTimestamp > best.logicalTimestamp ||
+          (e.logicalTimestamp === best.logicalTimestamp && e.nodeId > best.nodeId)
+        ) {
+          best = { logicalTimestamp: e.logicalTimestamp, nodeId: e.nodeId };
+        }
+      }
+      if (best) {
+        localTs = best.logicalTimestamp;
+        localNode = best.nodeId;
+      }
+    } catch {
+      // Fall back to the clock values above.
+    }
+
+    const remoteTs = msg.logicalTimestamp ?? 0;
+    const remoteWins =
+      remoteTs > localTs || (remoteTs === localTs && msg.nodeId > localNode);
+
+    // Line-granular 3-way merge against the common ancestor. A line only one
+    // side changed keeps that side's text; only a region BOTH sides changed
+    // is contested, and only that region is decided by the winner above.
+    //
+    // `mergeThreeWay` rather than `mergeConcurrentEdit`: the latter replays
+    // one side's patches onto the other's document, and because it matches
+    // hunks at exact offsets, one peer inserting or deleting a line shifts
+    // every later line and the other peer's untouched-region edits stop
+    // matching and are discarded. Measured on three Electron instances, an
+    // insertion on line 2 destroyed an unrelated edit on line 3, a deletion
+    // did the same, and a contested line took an uncontested one with it.
+    // The base-anchored merge has no offsets to miss. See line-merge-3way.ts.
+    // Decide each contested region against the edit that wrote THAT region,
+    // not against the file as a whole. `remoteWins` above stays as the
+    // fallback for when provenance cannot be established.
+    const stamps = await this.regionStamps(msg.fileId, baseContent);
+    const incomingStamp = { ts: remoteTs, nodeId: msg.nodeId };
+    const decideRegion = stamps
+      ? (kind: 'line' | 'gap', index: number): boolean => {
+          const localStamp = kind === 'line' ? stamps.lines[index] : stamps.gaps[index];
+          if (!localStamp) return remoteWins;
+          return (
+            incomingStamp.ts > localStamp.ts ||
+            (incomingStamp.ts === localStamp.ts && incomingStamp.nodeId > localStamp.nodeId)
+          );
+        }
+      : undefined;
+
+    const merge = mergeThreeWay(
+      currentContent,
+      baseContent,
+      remoteContent,
+      remoteWins,
+      decideRegion
+    );
+
+    console.log(
+      `[PeerManager] Concurrent edit on file ${msg.fileId} merged line-wise ` +
+        `(local ts=${localTs}, remote ts=${remoteTs} → ` +
+        `${remoteWins ? 'remote' : 'local'} wins contested lines); ` +
+        `${merge.conflictHunks} contested region(s)`
+    );
+
+    return {
+      content: merge.merged,
+      hadConflict: merge.hadConflict,
+      conflictHunks: merge.conflictHunks,
+    };
+  }
+
+  private async applyDeltaPush(
     socket: WebSocket,
     msg: DeltaPushMessage
   ): Promise<void> {
     console.log(
       `[PeerManager] DELTA_PUSH from ${msg.nodeId} for file ${msg.fileId}`
     );
+
+    // A message that has already been applied and forwarded must not be
+    // forwarded again, or a mesh of three or more peers circulates it
+    // forever. Acknowledge it so the sender does not treat it as lost, and
+    // stop there.
+    if (this.seenEvents.has(msg.eventId)) {
+      console.log(
+        `[PeerManager] Ignoring already-seen event ${msg.eventId} for file ${msg.fileId}`
+      );
+      this.sendAck(socket, msg);
+      return;
+    }
+    this.seenEvents.add(msg.eventId);
+    this.trimSeenEvents();
 
     try {
       // Handle tombstone delete event
@@ -1776,15 +2117,107 @@ export class PeerManager {
             'delete'
           );
         }
+      } else if (
+        msg.eventType === 'restore' &&
+        typeof msg.content === 'string' &&
+        typeof msg.baseContent !== 'string'
+      ) {
+        // A LIVE restore: a snapshot of a whole past version, not a change
+        // relative to the receiver's content. `file:restore` broadcasts it
+        // with `deltaBase64` set to base64 of the content itself rather than
+        // to an encoded delta, so decoding it as a delta threw, the error was
+        // swallowed by the catch below, and the restore never reached any
+        // peer: one user rolled a document back and everyone else kept the
+        // newer text. Treated as the snapshot it is, it propagates.
+        //
+        // A restore replayed by CATCH-UP takes the other branch, because it
+        // arrives with `baseContent` and a real delta. Adopting a snapshot
+        // wholesale is right when the peers were in step, and wrong after a
+        // disconnection: it would overwrite whatever the receiver wrote while
+        // it was away. With an ancestor present the rollback is merged like
+        // any other change, so it propagates AND the receiver keeps its work.
+        await this.config.eventLog.appendEvent({
+          eventId: msg.eventId,
+          fileId: msg.fileId,
+          nodeId: msg.nodeId,
+          eventType: 'restore',
+          logicalTimestamp: msg.logicalTimestamp,
+          vectorClockJson: msg.vectorClockJson,
+          payload: msg.content,
+        });
+
+        if (this.config.onDeltaApplied) {
+          await this.config.onDeltaApplied(
+            msg.fileId,
+            msg.content,
+            msg.eventId,
+            msg.nodeId,
+            msg.vectorClockJson,
+            'restore'
+          );
+        }
+
+        console.log(
+          `[PeerManager] Applied restore for file ${msg.fileId} ` +
+            `(${msg.content.length} chars from ${msg.nodeId})`
+        );
       } else {
         // Step 1: Get current local content.
         const currentContent = await this.config.getFileContent(msg.fileId);
 
         // Step 2: Decode the delta.
-        const decodeResult = decodeDelta(currentContent, msg.deltaBase64);
-        const newContent = decodeResult.content;
+        //
+        // The checksum is FNV-1a of the content the SENDER ended up with, so a
+        // mismatch means "applying this to my content did not reproduce yours"
+        // — my base differs from theirs. That is true of a corrupted payload
+        // and equally true of a perfectly valid edit made concurrently, and
+        // the checksum alone cannot tell them apart. Treating both as
+        // corruption silently discarded the remote edit whenever two peers
+        // typed at the same time.
+        //
+        // The vector clocks can tell them apart, so they decide. Only a
+        // provably concurrent pair takes the alternate path; anything else
+        // still fails exactly as before, which keeps integrity checking
+        // intact rather than relaxing it.
+        let decodeResult: ReturnType<typeof decodeDelta>;
+        let newContent: string;
+        let merged: { hadConflict: boolean; conflictHunks: number } | null = null;
+        try {
+          decodeResult = decodeDelta(currentContent, msg.deltaBase64);
+          newContent = decodeResult.content;
+        } catch (decodeErr) {
+          const resolved = await this.resolveConcurrentDelta(
+            msg,
+            currentContent,
+            decodeErr as Error
+          );
+          if (!resolved) throw decodeErr;
+          newContent = resolved.content;
+          merged = { hadConflict: resolved.hadConflict, conflictHunks: resolved.conflictHunks };
+          decodeResult = { content: resolved.content, opsApplied: 0, checksumValid: true } as any;
+        }
 
         // Step 3: Append to EventLog.
+        //
+        // On a clean apply the sender's delta is also a valid delta against
+        // our content, so it is stored as-is. After a merge it is not: it
+        // describes the sender's base, not ours, and replaying it would not
+        // reproduce what we actually hold. Re-encoding keeps the log a valid
+        // chain for this node, which is what version history and restore
+        // replay through.
+        let logPayload = msg.deltaBase64;
+        if (merged) {
+          try {
+            const reEncoded = encodeDelta(currentContent, newContent, 'merge.txt');
+            if (reEncoded.deltaBase64) logPayload = reEncoded.deltaBase64;
+          } catch (encErr) {
+            console.warn(
+              `[PeerManager] Could not re-encode merged delta for file ${msg.fileId}; ` +
+                `storing the sender's payload: ${encErr instanceof Error ? encErr.message : String(encErr)}`
+            );
+          }
+        }
+
         await this.config.eventLog.appendEvent({
           eventId: msg.eventId,
           fileId: msg.fileId,
@@ -1792,7 +2225,7 @@ export class PeerManager {
           eventType: 'merge',
           logicalTimestamp: msg.logicalTimestamp,
           vectorClockJson: msg.vectorClockJson,
-          payload: msg.deltaBase64,
+          payload: logPayload,
         });
 
         // Step 4: Notify the application layer.
@@ -1807,9 +2240,57 @@ export class PeerManager {
           );
         }
 
+        // Step 4b: Record a conflict only for a region both sides changed.
+        // A merge where every hunk applied cleanly is not a conflict — the
+        // peers edited different parts of the document and both edits are
+        // present — so recording one there would report data loss that did
+        // not happen.
+        if (merged?.hadConflict) {
+          try {
+            // `escalateToOwner`, not `recordConflict`: the latter is not a
+            // method on LWWResolver and never has been, so every call site
+            // threw `recordConflict is not a function` into a catch block and
+            // no conflict was ever written. The record is what preserves the
+            // losing text — both payloads are stored — so without it a
+            // contested line was decided with nothing kept to recover from.
+            const conflictId = await this.config.lwwResolver.escalateToOwner(
+              {
+                eventId: crypto.randomUUID(),
+                fileId: msg.fileId,
+                nodeId: this.config.localNodeId,
+                payload: currentContent,
+                logicalTimestamp:
+                  this.config.vectorClock.counters[this.config.vectorClock.nodeIndex] || 1,
+                vectorClockJson: this.config.vectorClock.toJSON(),
+              },
+              {
+                eventId: msg.eventId,
+                fileId: msg.fileId,
+                nodeId: msg.nodeId,
+                payload: msg.content ?? '',
+                logicalTimestamp: msg.logicalTimestamp,
+                vectorClockJson: msg.vectorClockJson,
+              }
+            );
+            if (this.config.onConflictNotified) {
+              await this.config.onConflictNotified(
+                conflictId,
+                msg.fileId,
+                `${merged.conflictHunks} concurrently-edited line(s) auto-resolved by ` +
+                  `Last-Write-Wins between ${msg.nodeId} and ${this.config.localNodeId}`
+              );
+            }
+          } catch (cErr) {
+            console.warn(
+              `[PeerManager] Could not record conflict for file ${msg.fileId}: ` +
+                `${cErr instanceof Error ? cErr.message : String(cErr)}`
+            );
+          }
+        }
+
         console.log(
           `[PeerManager] Applied delta for file ${msg.fileId} ` +
-            `(${decodeResult.opsApplied} ops)`
+            `(${decodeResult.opsApplied} ops${merged ? `, merged ${merged.conflictHunks} contested region(s)` : ''})`
         );
       }
 
@@ -1817,24 +2298,33 @@ export class PeerManager {
       this.broadcast(msg, msg.nodeId);
 
       // Step 5: Send DELTA_ACK.
-      const ack: PeerMessage = {
-        type: 'DELTA_ACK',
-        eventId: msg.eventId,
-        nodeId: this.config.localNodeId,
-        fileId: msg.fileId,
-        timestamp: new Date().toISOString(),
-      };
-
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(serialiseMessage(ack));
-      }
+      this.sendAck(socket, msg);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
+      // Applying failed, so this event has NOT been handled — forget it, or a
+      // later retry of the same event id would be dismissed as a duplicate
+      // and the edit would be lost for good.
+      this.seenEvents.delete(msg.eventId);
       console.error(
         `[PeerManager] Failed to apply DELTA_PUSH for file ${msg.fileId}: ${errMsg}`
       );
       // Don't disconnect — the next delta might work if the local file
       // state catches up.
+    }
+  }
+
+  /** Confirms receipt of a delta to the peer that sent it. */
+  private sendAck(socket: WebSocket, msg: DeltaPushMessage): void {
+    const ack: PeerMessage = {
+      type: 'DELTA_ACK',
+      eventId: msg.eventId,
+      nodeId: this.config.localNodeId,
+      fileId: msg.fileId,
+      timestamp: new Date().toISOString(),
+    };
+
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(serialiseMessage(ack));
     }
   }
 
@@ -1863,7 +2353,8 @@ export class PeerManager {
       await this.config.onSyncRequested(
         msg.nodeId,
         msg.fileId,
-        msg.sinceTimestamp
+        msg.sinceTimestamp,
+        msg.knownPerNode
       );
     }
   }

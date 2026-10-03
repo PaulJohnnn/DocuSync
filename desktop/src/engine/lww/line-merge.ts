@@ -126,6 +126,22 @@ export function mergeConcurrentEdit(
   // line here, so no extra anchor context is needed at all.
   dmp.Patch_Margin = 0;
 
+  // `patch_addContext_` grows a hunk's context by `Patch_Margin` until the
+  // pattern occurs only once in the document. With `Patch_Margin = 0` the
+  // padding never grows, and a pure-insertion hunk's pattern is the empty
+  // string, whose `indexOf` and `lastIndexOf` never agree in a non-empty
+  // document — so the loop never exits. It is a synchronous spin, so the
+  // process stops answering anything at all: measured on a real Electron
+  // instance, one peer inserting a line while another edited a different
+  // line left that peer's main process unresponsive to every later IPC call.
+  //
+  // At margin 0 this function is a no-op by construction — empty prefix and
+  // suffix, zero adjustment to start1/start2/length1/length2 — so skipping it
+  // is equivalent to what margin 0 was asking for, and it terminates.
+  (dmp as unknown as { patch_addContext_: () => void }).patch_addContext_ = function () {
+    /* zero context by design; see above */
+  };
+
   const patches = dmp.patch_make(baseEnc, incomingEnc) as unknown as PatchLike[];
 
   if (patches.length === 0) {
