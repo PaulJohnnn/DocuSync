@@ -376,10 +376,17 @@ export async function rejectRequest(reqId: string): Promise<void> {
 }
 
 export async function cancelRequest(email: string): Promise<void> {
+  // Send the device id too, so the server can give this device back the
+  // request slot the cancelled request consumed. The server also stores the
+  // id on the pending record, so an older client that omits it still gets
+  // the refund; this just covers a request made before that was stored.
+  const deviceId = typeof localStorage !== 'undefined'
+    ? localStorage.getItem('docusync_device_id')
+    : null;
   await fetch(API_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'cancel_request', email })
+    body: JSON.stringify({ action: 'cancel_request', email, deviceId })
   });
   pollDatabase();
 }

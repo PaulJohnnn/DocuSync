@@ -236,6 +236,9 @@ export async function POST(req: Request) {
           id: reqId,
           email,
           requestedAt: new Date().toISOString(),
+          // Kept so cancelling can give this device its slot back. Without
+          // it a cancel has no way to find whose quota to refund.
+          deviceId: deviceId || null,
         });
         
         if (deviceId) {
@@ -341,10 +344,26 @@ export async function POST(req: Request) {
     // `pending` — reproduced locally as a cancel_request that "succeeded"
     // and left the request in place.
     if (action === 'cancel_request') {
-      const { email } = body;
+      const { email, deviceId } = body;
       const idx = db.pending.findIndex((p: any) => p.email.toLowerCase() === email.toLowerCase());
       if (idx !== -1) {
+        const cancelled = db.pending[idx];
         db.pending.splice(idx, 1);
+
+        // Give the device its request slot back.
+        //
+        // A device may make three requests per fortnight, and that counter
+        // was only ever appended to. Cancelling removed the pending entry but
+        // kept the tally, so someone who withdrew a request and tried again
+        // was refused after a couple of attempts — which reads as "that name
+        // is not available", even though the name is free and no account was
+        // ever created. The limit exists to stop bulk registration; a
+        // withdrawn request created nothing, so it should not count.
+        const owner = cancelled?.deviceId || deviceId;
+        if (owner && db.deviceLimits?.[owner]?.requests?.length) {
+          db.deviceLimits[owner].requests.pop();
+        }
+
         await saveDb(db);
       }
       return NextResponse.json({ success: true }, { headers: corsHeaders });

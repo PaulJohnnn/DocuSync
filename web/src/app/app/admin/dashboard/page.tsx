@@ -90,14 +90,42 @@ export default function AdminDashboardPage() {
       `Are you sure you want to completely revoke ${selectedUserIds.size} selected user(s)?`,
       async () => {
         try {
-          await Promise.all(Array.from(selectedUserIds).map(id => 
-            fetch('/api/auth', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'revoke', userId: id })
-            })
-          ));
-          toast.success(`${selectedUserIds.size} users revoked`);
+          // One at a time, deliberately.
+          //
+          // These were sent together with Promise.all, and every revoke on
+          // the server reads the whole account database, changes one user and
+          // writes the whole thing back. Sent in parallel they all read the
+          // same copy, so each one's write erased the previous one's change
+          // and only a single user ended up revoked — selecting five and
+          // confirming appeared to do nothing to four of them. Sequential
+          // calls each see the write before them.
+          const ids = Array.from(selectedUserIds);
+          const failed: string[] = [];
+          for (const id of ids) {
+            try {
+              const res = await fetch('/api/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'revoke', userId: id })
+              });
+              const data = await res.json().catch(() => null);
+              if (!res.ok || data?.success === false) failed.push(id);
+            } catch {
+              failed.push(id);
+            }
+          }
+
+          const done = ids.length - failed.length;
+          // Report what actually happened. This said "N users revoked"
+          // regardless of the outcome, because nothing checked the replies.
+          if (failed.length === 0) {
+            toast.success(`${done} user${done === 1 ? '' : 's'} revoked`);
+          } else if (done === 0) {
+            toast.error('No users could be revoked');
+          } else {
+            toast.error(`${done} of ${ids.length} revoked — ${failed.length} failed`);
+          }
+
           setSelectedUserIds(new Set());
           await loadData();
           closeConfirm();
