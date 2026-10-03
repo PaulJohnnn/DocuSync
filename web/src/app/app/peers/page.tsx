@@ -357,7 +357,21 @@ export default function RoomsPage() {
   useEffect(() => {
     loadRooms();
     const unsubscribe = mockRoomService.subscribeToRoomChanges(() => loadRooms());
-    return unsubscribe;
+
+    // Poll, because the only other triggers are this device's own actions.
+    // `subscribeToRoomChanges` fires on local changes, so a device that sat
+    // on this page while two others joined kept showing the count from the
+    // moment it arrived — the member count looked broken when it was simply
+    // never asked again. Refresh quietly, without the loading state, so the
+    // list does not flicker every few seconds.
+    const timer = setInterval(() => {
+      mockRoomService.listRooms().then(setRooms).catch(() => { /* offline */ });
+    }, 5000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(timer);
+    };
   }, [loadRooms]);
 
   // ── Create flow ──────────────────────────────────────────────────────────
