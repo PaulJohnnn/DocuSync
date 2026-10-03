@@ -99,7 +99,7 @@
     "group": "R - restore after offline divergence",
     "name": "R1 A can identify its version one in history",
     "ok": true,
-    "detail": "restore/e4b51b86"
+    "detail": "restore/b1c3b92a"
   },
   {
     "group": "R - restore after offline divergence",
@@ -123,13 +123,13 @@
     "group": "R - restore after offline divergence",
     "name": "R5 state after reconnection",
     "ok": null,
-    "detail": "A=\"R version one.\"/\"R steady line. FROM-B.\" (3bf2fc0ac600264e) | B=\"R version two.\"/\"R steady line. FROM-B.\" (df7559972c318d87)"
+    "detail": "A=\"R version one.\"/\"R steady line. FROM-B.\" (3bf2fc0ac600264e) | B=\"R version one.\"/\"R steady line. FROM-B.\" (3bf2fc0ac600264e)"
   },
   {
     "group": "R - restore after offline divergence",
     "name": "R6 the two peers converged after an offline restore",
-    "ok": false,
-    "detail": "A=3bf2fc0ac600264e B=df7559972c318d87 (divergent)"
+    "ok": true,
+    "detail": "3bf2fc0ac600264e"
   },
   {
     "group": "R - restore after offline divergence",
@@ -140,19 +140,19 @@
   {
     "group": "R - restore after offline divergence",
     "name": "R8 the restore reached the other peer",
-    "ok": false,
-    "detail": "B line 1 = \"R version two.\" (expected \"R version one.\")"
+    "ok": true,
+    "detail": "B line 1 = \"R version one.\" (expected \"R version one.\")"
   },
   {
     "group": "R - restore after offline divergence",
     "name": "R9 both event logs still rebuild from the log",
     "ok": true,
-    "detail": "A: restore,edit,restore,merge | B: restore,edit,merge"
+    "detail": "A: restore,edit,restore,merge | B: restore,edit,merge,merge"
   },
   {
     "group": "R - restore after offline divergence",
     "name": "R10 event logs after the offline restore",
     "ok": null,
-    "detail": "A(4): restore,edit,restore,merge | B(3): restore,edit,merge"
+    "detail": "A(4): restore,edit,restore,merge | B(4): restore,edit,merge,merge"
   }
 ]

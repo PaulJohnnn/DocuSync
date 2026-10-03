@@ -4,13 +4,13 @@
       "group": "P1 - links come up in order B-A then C-A then C-B",
       "name": "P1 clocks (MIXED)",
       "ok": null,
-      "detail": "A: ts=2 node=90cf2d1d | B: ts=2 node=75bbbeec | C: ts=2 node=35336cb0"
+      "detail": "A: ts=2 node=905a148d | B: ts=2 node=6f50d278 | C: ts=2 node=211446a3"
     },
     {
       "group": "P1 - links come up in order B-A then C-A then C-B",
       "name": "P1 clocks (SAME)",
       "ok": null,
-      "detail": "A: ts=4 node=90cf2d1d | B: ts=4 node=75bbbeec | C: ts=4 node=35336cb0"
+      "detail": "A: ts=4 node=905a148d | B: ts=4 node=6f50d278 | C: ts=4 node=211446a3"
     },
     {
       "group": "P1 - links come up in order B-A then C-A then C-B",
@@ -70,13 +70,13 @@
       "group": "P2 - links come up in order B-A then C-B then C-A",
       "name": "P2 clocks (MIXED)",
       "ok": null,
-      "detail": "A: ts=2 node=a4770512 | B: ts=2 node=7109ea4b | C: ts=2 node=b5b57896"
+      "detail": "A: ts=2 node=c8e4859b | B: ts=2 node=7eb97b3a | C: ts=2 node=ba9b0c1e"
     },
     {
       "group": "P2 - links come up in order B-A then C-B then C-A",
       "name": "P2 clocks (SAME)",
       "ok": null,
-      "detail": "A: ts=4 node=a4770512 | B: ts=4 node=7109ea4b | C: ts=4 node=b5b57896"
+      "detail": "A: ts=4 node=c8e4859b | B: ts=4 node=7eb97b3a | C: ts=4 node=ba9b0c1e"
     },
     {
       "group": "P2 - links come up in order B-A then C-B then C-A",
@@ -94,7 +94,7 @@
       "group": "P2 - links come up in order B-A then C-B then C-A",
       "name": "P2 SAME the surviving region 1 is one of the three edits",
       "ok": true,
-      "detail": "\"S contested one. FROM-C.\""
+      "detail": "\"S contested one. FROM-A.\""
     },
     {
       "group": "P2 - links come up in order B-A then C-B then C-A",
@@ -105,20 +105,14 @@
     {
       "group": "P2 - links come up in order B-A then C-B then C-A",
       "name": "P2 SAME all three peers identical",
-      "ok": false,
-      "detail": "348c5fa8439a0cdc / 348c5fa8439a0cdc / c6ff814de0f12137"
-    },
-    {
-      "group": "P2 - links come up in order B-A then C-B then C-A",
-      "name": "P2 SAME disagreement resolved after a further 30s",
-      "ok": false,
-      "detail": "still divergent: 348c5fa8439a0cdc / 348c5fa8439a0cdc / c6ff814de0f12137"
+      "ok": true,
+      "detail": "c6ff814de0f12137 / c6ff814de0f12137 / c6ff814de0f12137"
     },
     {
       "group": "P2 - links come up in order B-A then C-B then C-A",
       "name": "P2 SAME the winner is the highest (logicalTimestamp, nodeId)",
       "ok": true,
-      "detail": "predicted=C actual=C (ts=4)"
+      "detail": "predicted=A actual=A (ts=4)"
     },
     {
       "group": "P2 - links come up in order B-A then C-B then C-A",
@@ -142,13 +136,13 @@
       "group": "P3 - links come up in order C-A then C-B then B-A",
       "name": "P3 clocks (MIXED)",
       "ok": null,
-      "detail": "A: ts=2 node=ebd30970 | B: ts=2 node=3e92ffd8 | C: ts=2 node=d0e86aa3"
+      "detail": "A: ts=2 node=8b249b2f | B: ts=2 node=31f95a99 | C: ts=2 node=e95c468f"
     },
     {
       "group": "P3 - links come up in order C-A then C-B then B-A",
       "name": "P3 clocks (SAME)",
       "ok": null,
-      "detail": "A: ts=4 node=ebd30970 | B: ts=4 node=3e92ffd8 | C: ts=4 node=d0e86aa3"
+      "detail": "A: ts=4 node=8b249b2f | B: ts=4 node=31f95a99 | C: ts=4 node=e95c468f"
     },
     {
       "group": "P3 - links come up in order C-A then C-B then B-A",
@@ -166,7 +160,7 @@
       "group": "P3 - links come up in order C-A then C-B then B-A",
       "name": "P3 SAME the surviving region 1 is one of the three edits",
       "ok": true,
-      "detail": "\"S contested one. FROM-A.\""
+      "detail": "\"S contested one. FROM-C.\""
     },
     {
       "group": "P3 - links come up in order C-A then C-B then B-A",
@@ -178,13 +172,13 @@
       "group": "P3 - links come up in order C-A then C-B then B-A",
       "name": "P3 SAME all three peers identical",
       "ok": true,
-      "detail": "c6ff814de0f12137 / c6ff814de0f12137 / c6ff814de0f12137"
+      "detail": "348c5fa8439a0cdc / 348c5fa8439a0cdc / 348c5fa8439a0cdc"
     },
     {
       "group": "P3 - links come up in order C-A then C-B then B-A",
       "name": "P3 SAME the winner is the highest (logicalTimestamp, nodeId)",
       "ok": true,
-      "detail": "predicted=A actual=A (ts=4)"
+      "detail": "predicted=C actual=C (ts=4)"
     },
     {
       "group": "P3 - links come up in order C-A then C-B then B-A",
@@ -208,31 +202,25 @@
       "group": "P4 - links come up in order C-B then B-A then C-A",
       "name": "P4 clocks (MIXED)",
       "ok": null,
-      "detail": "A: ts=2 node=752c31c3 | B: ts=2 node=51787291 | C: ts=2 node=df066156"
+      "detail": "A: ts=2 node=acbda9db | B: ts=2 node=9effb608 | C: ts=2 node=b93a3971"
     },
     {
       "group": "P4 - links come up in order C-B then B-A then C-A",
       "name": "P4 clocks (SAME)",
       "ok": null,
-      "detail": "A: ts=4 node=752c31c3 | B: ts=4 node=51787291 | C: ts=4 node=df066156"
+      "detail": "A: ts=4 node=acbda9db | B: ts=4 node=9effb608 | C: ts=4 node=b93a3971"
     },
     {
       "group": "P4 - links come up in order C-B then B-A then C-A",
       "name": "P4 MIXED every peer: region 1 contested, region 3 is C's, others unchanged",
       "ok": true,
-      "detail": "A:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | B:\"M contested one. FROM-B.\"/\"M c-region three. FROM-C.\" | C:\"M contested one. FROM-B.\"/\"M c-region three. FROM-C.\""
+      "detail": "A:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | B:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\" | C:\"M contested one. FROM-A.\"/\"M c-region three. FROM-C.\""
     },
     {
       "group": "P4 - links come up in order C-B then B-A then C-A",
       "name": "P4 MIXED all three peers identical",
-      "ok": false,
-      "detail": "274578db4f40ad4d / d001252dc022faac / d001252dc022faac"
-    },
-    {
-      "group": "P4 - links come up in order C-B then B-A then C-A",
-      "name": "P4 MIXED disagreement resolved after a further 30s",
-      "ok": false,
-      "detail": "still divergent: 274578db4f40ad4d / d001252dc022faac / d001252dc022faac"
+      "ok": true,
+      "detail": "274578db4f40ad4d / 274578db4f40ad4d / 274578db4f40ad4d"
     },
     {
       "group": "P4 - links come up in order C-B then B-A then C-A",
@@ -280,13 +268,13 @@
       "group": "P5 - links come up in order C-A then B-A then C-B",
       "name": "P5 clocks (MIXED)",
       "ok": null,
-      "detail": "A: ts=2 node=f195b842 | B: ts=2 node=131a2711 | C: ts=2 node=bc2fd05c"
+      "detail": "A: ts=2 node=fcf01845 | B: ts=2 node=a0270074 | C: ts=2 node=72d4c774"
     },
     {
       "group": "P5 - links come up in order C-A then B-A then C-B",
       "name": "P5 clocks (SAME)",
       "ok": null,
-      "detail": "A: ts=4 node=f195b842 | B: ts=4 node=131a2711 | C: ts=4 node=bc2fd05c"
+      "detail": "A: ts=4 node=fcf01845 | B: ts=4 node=a0270074 | C: ts=4 node=72d4c774"
     },
     {
       "group": "P5 - links come up in order C-A then B-A then C-B",
@@ -346,13 +334,13 @@
       "group": "P6 - links come up in order C-B then C-A then B-A",
       "name": "P6 clocks (MIXED)",
       "ok": null,
-      "detail": "A: ts=2 node=b6af1ed2 | B: ts=2 node=48cc481d | C: ts=2 node=9c540334"
+      "detail": "A: ts=2 node=d84da614 | B: ts=2 node=81378b4c | C: ts=2 node=f51e12d1"
     },
     {
       "group": "P6 - links come up in order C-B then C-A then B-A",
       "name": "P6 clocks (SAME)",
       "ok": null,
-      "detail": "A: ts=4 node=b6af1ed2 | B: ts=4 node=48cc481d | C: ts=4 node=9c540334"
+      "detail": "A: ts=4 node=d84da614 | B: ts=4 node=81378b4c | C: ts=4 node=f51e12d1"
     },
     {
       "group": "P6 - links come up in order C-B then C-A then B-A",
@@ -370,7 +358,7 @@
       "group": "P6 - links come up in order C-B then C-A then B-A",
       "name": "P6 SAME the surviving region 1 is one of the three edits",
       "ok": true,
-      "detail": "\"S contested one. FROM-A.\""
+      "detail": "\"S contested one. FROM-C.\""
     },
     {
       "group": "P6 - links come up in order C-B then C-A then B-A",
@@ -382,13 +370,13 @@
       "group": "P6 - links come up in order C-B then C-A then B-A",
       "name": "P6 SAME all three peers identical",
       "ok": true,
-      "detail": "c6ff814de0f12137 / c6ff814de0f12137 / c6ff814de0f12137"
+      "detail": "348c5fa8439a0cdc / 348c5fa8439a0cdc / 348c5fa8439a0cdc"
     },
     {
       "group": "P6 - links come up in order C-B then C-A then B-A",
       "name": "P6 SAME the winner is the highest (logicalTimestamp, nodeId)",
       "ok": true,
-      "detail": "predicted=A actual=A (ts=4)"
+      "detail": "predicted=C actual=C (ts=4)"
     },
     {
       "group": "P6 - links come up in order C-B then C-A then B-A",
@@ -424,7 +412,7 @@
       "group": "Determinism across orders",
       "name": "the contested region went to the highest (logicalTimestamp, nodeId) in EVERY link order",
       "ok": true,
-      "detail": "6/6 — P1:A P2:C P3:A P4:C P5:A P6:A"
+      "detail": "6/6 — P1:A P2:A P3:C P4:C P5:A P6:C"
     },
     {
       "group": "Determinism across orders",
@@ -437,50 +425,62 @@
     {
       "permutation": "P1",
       "order": "B-A > C-A > C-B",
-      "mixedSha": "274578db4f40ad4d",
-      "sameSha": "c6ff814de0f12137",
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "c6ff814de0f12137/c6ff814de0f12137/c6ff814de0f12137",
+      "mixedAgreed": true,
+      "sameAgreed": true,
       "sameWinner": "A",
       "predicted": "A"
     },
     {
       "permutation": "P2",
       "order": "B-A > C-B > C-A",
-      "mixedSha": "274578db4f40ad4d",
-      "sameSha": "348c5fa8439a0cdc",
-      "sameWinner": "C",
-      "predicted": "C"
-    },
-    {
-      "permutation": "P3",
-      "order": "C-A > C-B > B-A",
-      "mixedSha": "274578db4f40ad4d",
-      "sameSha": "c6ff814de0f12137",
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "c6ff814de0f12137/c6ff814de0f12137/c6ff814de0f12137",
+      "mixedAgreed": true,
+      "sameAgreed": true,
       "sameWinner": "A",
       "predicted": "A"
     },
     {
+      "permutation": "P3",
+      "order": "C-A > C-B > B-A",
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "348c5fa8439a0cdc/348c5fa8439a0cdc/348c5fa8439a0cdc",
+      "mixedAgreed": true,
+      "sameAgreed": true,
+      "sameWinner": "C",
+      "predicted": "C"
+    },
+    {
       "permutation": "P4",
       "order": "C-B > B-A > C-A",
-      "mixedSha": "274578db4f40ad4d",
-      "sameSha": "348c5fa8439a0cdc",
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "348c5fa8439a0cdc/348c5fa8439a0cdc/348c5fa8439a0cdc",
+      "mixedAgreed": true,
+      "sameAgreed": true,
       "sameWinner": "C",
       "predicted": "C"
     },
     {
       "permutation": "P5",
       "order": "C-A > B-A > C-B",
-      "mixedSha": "274578db4f40ad4d",
-      "sameSha": "c6ff814de0f12137",
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "c6ff814de0f12137/c6ff814de0f12137/c6ff814de0f12137",
+      "mixedAgreed": true,
+      "sameAgreed": true,
       "sameWinner": "A",
       "predicted": "A"
     },
     {
       "permutation": "P6",
       "order": "C-B > C-A > B-A",
-      "mixedSha": "274578db4f40ad4d",
-      "sameSha": "c6ff814de0f12137",
-      "sameWinner": "A",
-      "predicted": "A"
+      "mixedSha": "274578db4f40ad4d/274578db4f40ad4d/274578db4f40ad4d",
+      "sameSha": "348c5fa8439a0cdc/348c5fa8439a0cdc/348c5fa8439a0cdc",
+      "mixedAgreed": true,
+      "sameAgreed": true,
+      "sameWinner": "C",
+      "predicted": "C"
     }
   ]
 }
