@@ -36,7 +36,12 @@ import {
 } from './message-schema';
 import type { SyncEvent } from '../lww/lww-resolver';
 import { mergeConcurrentEdit } from '../lww/line-merge';
-import { mergeThreeWay } from '../lww/line-merge-3way';
+import {
+  mergeThreeWay,
+  attributeAgainstBase,
+  lineDiffers,
+  gapDiffers,
+} from '../lww/line-merge-3way';
 
 import { EventLogService } from '../log-sync/event-log';
 import { decode as decodeDelta } from '../delta/delta-decoder';
@@ -1867,6 +1872,79 @@ export class PeerManager {
    * both peers independently reach the same verdict and converge without
    * another round trip.
    */
+  /**
+   * Which edit last wrote each region of a file, measured against `base`.
+   *
+   * This is what a contested region must be decided by. Deciding it from the
+   * file's highest stamp instead made the verdict depend on what had arrived:
+   * a peer whose log did not yet hold both contesting edits compared the
+   * wrong pair, and three peers reconciling after all three edited offline
+   * ended up permanently disagreeing in about a third of orderings.
+   *
+   * The log makes this recoverable without storing anything new. A merge
+   * event records the ORIGINAL author's `nodeId` and `logicalTimestamp`, not
+   * the merging node's, so replaying the log and attributing each event's
+   * changes yields the same stamp for a region on every peer that holds that
+   * event. Every attribution is taken against the one base, so region
+   * indices stay aligned even across insertions and deletions.
+   *
+   * Returns null if the log cannot be read or replayed, so the caller can
+   * fall back to the document-wide comparison rather than guess.
+   */
+  private async regionStamps(
+    fileId: number,
+    baseContent: string
+  ): Promise<{
+    lines: Array<{ ts: number; nodeId: string } | null>;
+    gaps: Array<{ ts: number; nodeId: string } | null>;
+  } | null> {
+    let history: Awaited<ReturnType<EventLogService['getHistory']>>;
+    try {
+      history = await this.config.eventLog.getHistory(fileId);
+    } catch {
+      return null;
+    }
+
+    const baseAttribution = attributeAgainstBase(baseContent, baseContent);
+    const nLines = baseAttribution.replacement.length;
+    const lines: Array<{ ts: number; nodeId: string } | null> = new Array(nLines).fill(null);
+    const gaps: Array<{ ts: number; nodeId: string } | null> = new Array(nLines + 1).fill(null);
+
+    let previousContent = '';
+    let previous = attributeAgainstBase(baseContent, '');
+
+    for (const entry of history) {
+      if (entry.isCompacted) continue;
+
+      let nextContent: string;
+      try {
+        nextContent =
+          entry.eventType === 'edit' || entry.eventType === 'merge'
+            ? decodeDelta(previousContent, entry.payload).content
+            : entry.payload;
+      } catch {
+        // A gap in the chain. Skip this event rather than attribute its
+        // changes to the wrong regions.
+        continue;
+      }
+
+      const next = attributeAgainstBase(baseContent, nextContent);
+      const stamp = { ts: entry.logicalTimestamp, nodeId: entry.nodeId };
+
+      for (let i = 0; i < nLines; i++) {
+        if (lineDiffers(previous, next, i)) lines[i] = stamp;
+      }
+      for (let i = 0; i <= nLines; i++) {
+        if (gapDiffers(previous, next, i)) gaps[i] = stamp;
+      }
+
+      previousContent = nextContent;
+      previous = next;
+    }
+
+    return { lines, gaps };
+  }
+
   private async resolveConcurrentDelta(
     msg: DeltaPushMessage,
     currentContent: string,
@@ -1956,7 +2034,29 @@ export class PeerManager {
     // insertion on line 2 destroyed an unrelated edit on line 3, a deletion
     // did the same, and a contested line took an uncontested one with it.
     // The base-anchored merge has no offsets to miss. See line-merge-3way.ts.
-    const merge = mergeThreeWay(currentContent, baseContent, remoteContent, remoteWins);
+    // Decide each contested region against the edit that wrote THAT region,
+    // not against the file as a whole. `remoteWins` above stays as the
+    // fallback for when provenance cannot be established.
+    const stamps = await this.regionStamps(msg.fileId, baseContent);
+    const incomingStamp = { ts: remoteTs, nodeId: msg.nodeId };
+    const decideRegion = stamps
+      ? (kind: 'line' | 'gap', index: number): boolean => {
+          const localStamp = kind === 'line' ? stamps.lines[index] : stamps.gaps[index];
+          if (!localStamp) return remoteWins;
+          return (
+            incomingStamp.ts > localStamp.ts ||
+            (incomingStamp.ts === localStamp.ts && incomingStamp.nodeId > localStamp.nodeId)
+          );
+        }
+      : undefined;
+
+    const merge = mergeThreeWay(
+      currentContent,
+      baseContent,
+      remoteContent,
+      remoteWins,
+      decideRegion
+    );
 
     console.log(
       `[PeerManager] Concurrent edit on file ${msg.fileId} merged line-wise ` +
@@ -2017,14 +2117,25 @@ export class PeerManager {
             'delete'
           );
         }
-      } else if (msg.eventType === 'restore' && typeof msg.content === 'string') {
-        // A restore is a snapshot of a whole past version, not a change
+      } else if (
+        msg.eventType === 'restore' &&
+        typeof msg.content === 'string' &&
+        typeof msg.baseContent !== 'string'
+      ) {
+        // A LIVE restore: a snapshot of a whole past version, not a change
         // relative to the receiver's content. `file:restore` broadcasts it
         // with `deltaBase64` set to base64 of the content itself rather than
         // to an encoded delta, so decoding it as a delta threw, the error was
         // swallowed by the catch below, and the restore never reached any
         // peer: one user rolled a document back and everyone else kept the
         // newer text. Treated as the snapshot it is, it propagates.
+        //
+        // A restore replayed by CATCH-UP takes the other branch, because it
+        // arrives with `baseContent` and a real delta. Adopting a snapshot
+        // wholesale is right when the peers were in step, and wrong after a
+        // disconnection: it would overwrite whatever the receiver wrote while
+        // it was away. With an ancestor present the rollback is merged like
+        // any other change, so it propagates AND the receiver keeps its work.
         await this.config.eventLog.appendEvent({
           eventId: msg.eventId,
           fileId: msg.fileId,

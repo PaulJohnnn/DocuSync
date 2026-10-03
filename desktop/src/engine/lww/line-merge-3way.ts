@@ -183,6 +183,46 @@ function attribute(baseEnc: string, sideEnc: string, baseLines: string[], lineAr
 
 const same = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
+/** What one side did to a base document, region by region. */
+export interface SideAttribution {
+  /** What replaced base line `i`: the line itself, `[]`, or new lines. */
+  replacement: string[][];
+  /** Lines added in the gap before base line `i`; index `n` is the tail. */
+  insertBefore: string[][];
+  changedLine: boolean[];
+  changedGap: boolean[];
+}
+
+/**
+ * Attributes `sideContent`'s differences from `baseContent` to base regions.
+ *
+ * Exposed so a caller can work out WHICH regions a particular event touched,
+ * which is what per-region provenance needs. Every attribution is taken
+ * against the same base, so region indices are stable across events even
+ * when lines are inserted or deleted.
+ */
+export function attributeAgainstBase(baseContent: string, sideContent: string): SideAttribution {
+  const { encoded, lineArray } = encodeLines([baseContent, sideContent]);
+  const [baseEnc, sideEnc] = encoded;
+  return attribute(baseEnc, sideEnc, splitIntoLines(baseContent), lineArray);
+}
+
+/** True when two attributions disagree about a base line. */
+export function lineDiffers(a: SideAttribution, b: SideAttribution, i: number): boolean {
+  return !same(a.replacement[i] ?? [], b.replacement[i] ?? []);
+}
+
+/** True when two attributions disagree about a gap between base lines. */
+export function gapDiffers(a: SideAttribution, b: SideAttribution, i: number): boolean {
+  return !same(a.insertBefore[i] ?? [], b.insertBefore[i] ?? []);
+}
+
+/**
+ * Decides a region that both sides changed. `kind`/`index` identify the
+ * region; returning true gives it to the incoming side.
+ */
+export type RegionDecider = (kind: 'line' | 'gap', index: number) => boolean;
+
 /**
  * Merges two concurrent edits of one common ancestor, line by line.
  *
@@ -199,7 +239,8 @@ export function mergeThreeWay(
   existingContent: string,
   baseContent: string,
   incomingContent: string,
-  remoteWins: boolean
+  remoteWins: boolean,
+  decideRegion?: RegionDecider
 ): ThreeWayMergeResult {
   // Fast paths: a side that made no change contributes nothing to merge.
   if (baseContent === existingContent) {
@@ -223,6 +264,8 @@ export function mergeThreeWay(
   let conflicts = 0;
 
   const mergeRegion = (
+    kind: 'line' | 'gap',
+    index: number,
     changedMine: boolean,
     changedTheirs: boolean,
     valueMine: string[],
@@ -232,7 +275,12 @@ export function mergeThreeWay(
     if (changedMine && changedTheirs) {
       if (same(valueMine, valueTheirs)) return valueMine; // same edit, no contest
       conflicts++;
-      return remoteWins ? valueTheirs : valueMine;
+      // `decideRegion` resolves the region against the identity of the edit
+      // that actually wrote THIS region, which is the only comparison that
+      // every peer agrees on. `remoteWins` is a document-wide fallback for
+      // when that identity cannot be established.
+      const takeTheirs = decideRegion ? decideRegion(kind, index) : remoteWins;
+      return takeTheirs ? valueTheirs : valueMine;
     }
     if (changedMine) return valueMine;
     if (changedTheirs) return valueTheirs;
@@ -242,6 +290,7 @@ export function mergeThreeWay(
   for (let i = 0; i < baseLines.length; i++) {
     out.push(
       ...mergeRegion(
+        'gap', i,
         mine.changedGap[i],
         theirs.changedGap[i],
         mine.insertBefore[i],
@@ -251,6 +300,7 @@ export function mergeThreeWay(
     );
     out.push(
       ...mergeRegion(
+        'line', i,
         mine.changedLine[i],
         theirs.changedLine[i],
         mine.replacement[i],
@@ -263,6 +313,7 @@ export function mergeThreeWay(
   const tail = baseLines.length;
   out.push(
     ...mergeRegion(
+      'gap', tail,
       mine.changedGap[tail],
       theirs.changedGap[tail],
       mine.insertBefore[tail],
