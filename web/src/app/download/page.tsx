@@ -102,10 +102,27 @@ export default function DownloadPage() {
             <p style={{ fontSize: 14, color: 'var(--t2)', marginBottom: 16 }}>
               Access DocuSync directly from any browser. Rooms and documents are kept on the server.
             </p>
-            <div style={{ fontSize: 13, color: 'var(--t3)', background: 'var(--s1)', padding: '8px 12px', borderRadius: 8, marginBottom: 32 }}>
+            <div style={{ fontSize: 13, color: 'var(--t3)', background: 'var(--s1)', padding: '8px 12px', borderRadius: 8, marginBottom: 20 }}>
               <strong style={{ color: 'var(--t2)' }}>Requirements:</strong> Modern Web Browser
             </div>
-            
+
+            {/* The web card had nothing between its requirements line and its
+                button, so it read as a gap beside the two cards that carry a
+                screenshot and a two-step block. */}
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'grid', gap: 10 }}>
+              {[
+                'Nothing to install — open it and sign in',
+                'Always running the latest version',
+                'Share a room by sending the six-character code',
+                'Works alongside the desktop app in the same room',
+              ].map((line) => (
+                <li key={line} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13.5, color: 'var(--t2)' }}>
+                  <span aria-hidden="true" style={{ color: '#22c55e', fontWeight: 700, lineHeight: 1.5 }}>✓</span>
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+
             <div style={{ marginTop: 'auto' }}>
               <Link href="/app/login" className="btn-green" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
