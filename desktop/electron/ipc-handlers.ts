@@ -568,14 +568,68 @@ export async function initEngine(
         let sent = 0;
         let skipped = 0;
         for (const entry of missed) {
-          // Only deltas replay. See the note above on snapshots.
-          if (entry.eventType !== 'edit' && entry.eventType !== 'merge') {
+          const isDelta = entry.eventType === 'edit' || entry.eventType === 'merge';
+          // A `restore` replays too, re-expressed as the change it made to
+          // this file rather than as the snapshot it is stored as. Sent as a
+          // snapshot it would overwrite whatever the receiver wrote while it
+          // was disconnected; sent as a change against its own ancestor, the
+          // receiver merges it region by region, so the rollback arrives and
+          // the receiver's concurrent work survives. Anything else is local
+          // bookkeeping -- the import baseline, which the receiver has its
+          // own copy of -- and is not replayed.
+          if (!isDelta && entry.eventType !== 'restore') {
             skipped++;
             continue;
           }
 
           const baseContent = before.get(entry.eventId);
           const resultContent = after.get(entry.eventId);
+
+          if (!isDelta) {
+            // Re-express the snapshot as a delta against the content that
+            // preceded it, which is what the merge path needs.
+            //
+            // An empty predecessor means this snapshot IS the chain's origin
+            // -- the baseline an import logs, which is stored as a `restore`
+            // so that history and restore can read it. It must never be
+            // replayed: the receiver has its own baseline, and applying this
+            // one reverts the receiver to the document's original text.
+            // Measured: replaying it cost a peer all six of its own edits.
+            if (
+              typeof baseContent !== 'string' ||
+              typeof resultContent !== 'string' ||
+              baseContent.length === 0
+            ) {
+              skipped++;
+              continue;
+            }
+            let restoreDelta: string | undefined;
+            try {
+              restoreDelta = encode(baseContent, resultContent, 'restore.txt').deltaBase64 ?? undefined;
+            } catch {
+              restoreDelta = undefined;
+            }
+            if (!restoreDelta) {
+              skipped++;
+              continue;
+            }
+            const ok = peerManager.sendTo(requesterNodeId, {
+              type: 'DELTA_PUSH',
+              eventId: entry.eventId,
+              nodeId: entry.nodeId,
+              fileId,
+              deltaBase64: restoreDelta,
+              baseContent,
+              content: resultContent,
+              eventType: 'restore',
+              logicalTimestamp: entry.logicalTimestamp,
+              vectorClockJson: entry.vectorClockJson,
+              timestamp: new Date().toISOString(),
+            } as PeerMessage);
+            if (ok) sent++;
+            else break;
+            continue;
+          }
 
           // Send the ancestor only when it provably reproduces the event, so a
           // gap in this node's chain cannot hand the receiver a base that
