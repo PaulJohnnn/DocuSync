@@ -72,7 +72,7 @@
         }
       ],
       "icon": "build/icon.ico",
-      "artifactName": "DocuSync-Setup-${version}.exe"
+      "artifactName": "DocuSync.exe"
     },
     "nsis": {
       "oneClick": false,
