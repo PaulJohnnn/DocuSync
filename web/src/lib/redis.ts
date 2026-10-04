@@ -168,10 +168,19 @@ local vectorClock = cjson.decode(ARGV[4])
 local snapshot = {
   content = ARGV[2],
   authorNodeId = ARGV[3],
-  vectorClock = vectorClock,
   seq = seq,
   committedAt = incomingCommittedAt,
+  storedAt = tonumber(ARGV[7]),
 }
+-- Attached only when there is one. A null clock decodes to nil, and a nil
+-- field is dropped by cjson — so the snapshot this path wrote came back with
+-- no vectorClock at all. The causal comparison on the next push then had
+-- nothing to compare against, answered "cannot tell", and fell through to the
+-- content heuristic for every document whose last write took this path,
+-- which is most of them.
+if vectorClock ~= nil and type(vectorClock) == 'table' then
+  snapshot.vectorClock = vectorClock
+end
 local snapshotJson = cjson.encode(snapshot)
 redis.call('SET', KEYS[1], snapshotJson, 'EX', ARGV[6])
 return snapshotJson
@@ -212,6 +221,7 @@ export async function casSetIfNewer(
       JSON.stringify(snapshot.vectorClock ?? null),
       snapshot.seq === undefined ? '' : String(snapshot.seq),
       String(ttlSeconds),
+      String(snapshot.storedAt ?? Date.now()),
     ]
   );
 
