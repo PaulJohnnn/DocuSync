@@ -67,6 +67,40 @@ export function documentSignature(html: string | null | undefined): string {
     .trim();
 }
 
+/**
+ * What the reader would see, with the spacing they would see it with.
+ *
+ * {@link documentSignature} deliberately collapses runs of whitespace, which
+ * is right for deciding whether two SAVED VERSIONS are the same version — but
+ * wrong for deciding whether to show someone the document that just arrived.
+ * Used there, an edit that only changed spacing compared equal to what was
+ * already on screen and was never applied: the person typing saw their spaces,
+ * everyone else saw one, and the real spacing only appeared later when some
+ * unrelated edit finally made the two differ.
+ *
+ * This keeps every space in the text and ignores only what no reader can see:
+ * whitespace BETWEEN tags, empty blocks, and the difference between a
+ * non-breaking space and an ordinary one.
+ */
+export function visibleContentKey(html: string | null | undefined): string {
+  if (typeof html !== 'string') return '';
+
+  let s = html;
+  for (let pass = 0; pass < 8; pass++) {
+    const next = s.replace(EMPTY_BLOCK, '');
+    if (next === s) break;
+    s = next;
+  }
+
+  return s
+    // One entity becomes one space, so the count is preserved.
+    .replace(/&nbsp;|&#160;| /gi, ' ')
+    // Between tags only — this cannot touch the text itself.
+    .replace(/>[\t\n\r ]+</g, '><')
+    .replace(/(<br\s*\/?>)+(?=<\/)/gi, '')
+    .trim();
+}
+
 /** Do these two documents render the same? */
 export function rendersIdentically(
   a: string | null | undefined,

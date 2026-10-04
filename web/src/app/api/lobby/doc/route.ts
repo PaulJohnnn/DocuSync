@@ -172,7 +172,13 @@ function mergeConcurrentEdit(
   baseContent: string,
   incomingContent: string,
   existingCommittedAt: number,
-  incomingCommittedAt: number
+  incomingCommittedAt: number,
+  /**
+   * When the server stored the existing snapshot. Present for anything
+   * written since snapshots began carrying a server clock; absent for older
+   * ones, which fall back to comparing the authors' own clocks.
+   */
+  existingStoredAt?: number
 ): { merged: string; hadConflict: boolean; conflictHunks: number; lostChars: number } {
   const { encoded: [baseEnc, incomingEnc, existingEnc], lineArray } = encodeLines(
     baseContent, incomingContent, existingContent
@@ -249,7 +255,27 @@ function mergeConcurrentEdit(
   // (that never triggers this branch at all, since it isn't a conflict).
   let finalEnc = mergedEnc;
   let lostChars = 0;
-  const incomingWins = incomingCommittedAt >= existingCommittedAt;
+  // Which side of a contested line survives.
+  //
+  // This compared two AUTHOR clocks — the time each device stamped on its own
+  // push. Across two laptops those clocks disagree, so the winner was decided
+  // by whose system clock happened to be further ahead, not by who typed
+  // last. Reported from the demo machine: one person finishes a sentence,
+  // the other adds a single letter to the same line, and the single letter
+  // wins because that machine's clock was fast.
+  //
+  // The server sees both writes arrive, on one clock, in a definite order.
+  // The write being processed now is by definition the later arrival, so it
+  // is the last write. That is the rule a user means by last-write-wins, and
+  // it does not depend on anybody's clock being right.
+  //
+  // `storedAt` is written by the server on every snapshot. Where it is
+  // missing — a snapshot stored before that field existed — there is nothing
+  // to order by except the author clocks, so those are used as before.
+  const canOrderByArrival = typeof existingStoredAt === 'number';
+  const incomingWins = canOrderByArrival
+    ? true
+    : incomingCommittedAt >= existingCommittedAt;
   if (incomingWins) {
     // A failed hunk's `start1`/`length1` are positions in the BASE text.
     // The merged document is not the base: the other peer may have added
@@ -494,7 +520,8 @@ export async function POST(request: Request) {
           effectiveBase,
           content,
           existing.committedAt || 0,
-          incomingCommittedAt
+          incomingCommittedAt,
+          existing.storedAt
         );
       } catch (mergeErr) {
         // Fall back to keeping the server's current content rather than
@@ -566,7 +593,8 @@ export async function POST(request: Request) {
               baseContent,
               content,
               after?.committedAt || 0,
-              incomingCommittedAt
+              incomingCommittedAt,
+              after?.storedAt
             );
           } catch {
             mergeErrored = true;

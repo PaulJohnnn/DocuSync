@@ -19,7 +19,7 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { documentSignature } from '@/lib/documentSignature';
+import { visibleContentKey } from '@/lib/documentSignature';
 
 export interface RemoteCursor {
   nodeId: string;
@@ -391,7 +391,13 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
     // spelled `<p></p>` on one side and `<p><br></p>` on the other. Every one
     // of those compared as "different" and triggered a full rebuild, up to
     // once per poll.
-    if (documentSignature(content) !== documentSignature(editor.getHTML())) {
+    // `visibleContentKey`, not `documentSignature`. The signature collapses
+    // runs of whitespace — right for deciding whether two saved versions are
+    // the same version, wrong here: an edit that only changed spacing then
+    // compared equal to what was on screen and was never applied, so the
+    // person typing saw their spaces and nobody else did until some
+    // unrelated edit finally made the two differ.
+    if (visibleContentKey(content) !== visibleContentKey(editor.getHTML())) {
       const { from, to } = editor.state.selection;
       editor.commands.setContent(content, PARSE_KEEPING_SPACES);
       const newDocSize = editor.state.doc.content.size;

@@ -112,11 +112,16 @@ const check = (ok, name, detail = '') => {
     const h = await hist(otp, f);
     const txt = (e) => (e.fullContent || '').replace(/<[^>]+>/g, ' ');
     const current = [...h].sort((a, b) => (b.seqNo ?? 0) - (a.seqNo ?? 0))[0];
-    check(/PAUL/.test(txt(current)) && !/ZYRA/.test(txt(current)),
-      'Last-Write-Wins decides the current version', txt(current).trim());
+    // Zyra writes second and so wins the contested line, even though her
+    // clock reads earlier. The tie-break is the order the server received
+    // the two writes, not whose device clock is further ahead — otherwise
+    // the winner is decided by whichever laptop is running fast, which is
+    // what it used to be.
+    check(/ZYRA/.test(txt(current)),
+      'the last write the server received decides the contested line', txt(current).trim());
     check(h.some((e) => e.eventType === 'conflict-resolve'),
       'the arbitration is logged as a conflict, not applied silently');
-    check(h.some((e) => /ZYRA/.test(txt(e))),
+    check(h.some((e) => /PAUL/.test(txt(e))),
       'the version that lost the arbitration is still in the log, restorable');
   }
 
