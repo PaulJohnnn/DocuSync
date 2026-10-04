@@ -62,8 +62,15 @@ const InteractiveConflictEditor: React.FC<{
     color, background: bg, borderBottom: '1px solid var(--border)',
     display: 'flex', flexDirection: 'column', gap: 2,
   });
+  // Sized to the text it holds. A flat 320px floor meant a two-line
+  // disagreement rendered as two panels of mostly blank paper, pushing the
+  // version list it sits above off the bottom of the screen — the card was
+  // taller than the history it was reporting on. Expanding the card to
+  // fullscreen still gets the taller panels, where there is room for them.
   const bodyStyle: React.CSSProperties = {
-    padding: '16px 20px', flex: 1, overflowY: 'auto', minHeight: 320,
+    padding: '16px 20px', flex: 1, overflowY: 'auto',
+    minHeight: isExpanded ? 320 : 90,
+    maxHeight: isExpanded ? undefined : 340,
     fontSize: 14, lineHeight: 1.8, color: 'var(--text-primary)', background: 'var(--bg-card)',
   };
 
@@ -89,15 +96,24 @@ const InteractiveConflictEditor: React.FC<{
         </div>
       </div>
 
+      {/*
+        The left panel renders payloadA — this peer's own edit — and the
+        right renders payloadB, the state the room had. The headings used to
+        read the other way round ("Current Online Version" over the local
+        draft), which also contradicted the buttons underneath: "Restore
+        Local Edit" restores the left panel and "Keep Online Version" keeps
+        the right. Each heading now names the side it is actually above.
+      */}
       <div style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
-        This conflict log was recorded automatically favoring the most recent offline changes. 
-        The online version prior to the merge is highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 6px', borderRadius: 4}}>yellow</strong> on the left.
+        Both sides changed this document at the same time. Your own edit is on the left,
+        with the words that differ from the room&apos;s copy highlighted in <strong style={{color: '#ca8a04', background: 'rgba(234,179,8,0.2)', padding: '2px 6px', borderRadius: 4}}>yellow</strong>;
+        the room&apos;s copy is on the right. Keep either one.
       </div>
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'stretch' }}>
         <div style={panelStyle}>
           <div style={headerStyle('#ca8a04', 'rgba(234,179,8,0.06)')}>
-            <span style={{ fontSize: 13 }}>Current Online Version</span>
+            <span style={{ fontSize: 13 }}>Your Edit (This Device)</span>
             <span style={{ fontWeight: 400, opacity: 0.8, fontSize: 11 }}>Read-Only Reference</span>
           </div>
           <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: highlightedA }} />
@@ -105,7 +121,7 @@ const InteractiveConflictEditor: React.FC<{
 
         <div style={{...panelStyle, border: '1px solid var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }}>
           <div style={headerStyle('var(--accent)', 'rgba(16,185,129,0.06)')}>
-            <span style={{ fontSize: 13 }}>Auto-Resolved State</span>
+            <span style={{ fontSize: 13 }}>Online Version (The Room)</span>
             <span style={{ fontWeight: 400, opacity: 0.8, fontSize: 11 }}>Read-Only Reference</span>
           </div>
           <div style={{...bodyStyle, background: '#fff', cursor: 'default'}} dangerouslySetInnerHTML={{ __html: payloadB }} />

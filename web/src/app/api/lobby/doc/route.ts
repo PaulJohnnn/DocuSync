@@ -5,6 +5,22 @@ import { redis, casSetIfNewer } from '@/lib/redis';
 export const dynamic = 'force-dynamic';
 
 /**
+ * How far back the history log is checked before a state is accepted as a
+ * new version. Two people editing the same document hand it back and forth,
+ * so the state about to be logged is very often one that is already a few
+ * rows down rather than the one directly above.
+ */
+const RECENT_HISTORY_WINDOW = 12;
+
+/**
+ * How long one author's consecutive saves keep collapsing into a single
+ * version entry. Long enough to absorb a burst of autosaves while someone
+ * types a sentence, short enough that pausing and coming back is recorded
+ * as the separate revision it is.
+ */
+const HISTORY_FOLD_WINDOW_MS = 45_000;
+
+/**
  * `@types/diff-match-patch` types `patch_make`/`patch_apply` as returning
  * `Array<typeof diff_match_patch.patch_obj>` — `typeof` there resolves to
  * the STATIC constructor type (`{ new(): patch_obj }`), not the instance
@@ -433,22 +449,48 @@ export async function POST(request: Request) {
     // exists to make auditable.
     if (isSessionEnd || isDone || hadConflict) {
       const historyKey = `doc_history:${otp}:${fileId}`;
-      let skipLog = false;
-      const latestRaw = await redis.lindex(historyKey, 0);
-      if (latestRaw) {
+      const parseEntry = (raw: any) => {
+        // The Redis client sometimes auto-deserializes list entries back
+        // into objects instead of returning the raw JSON string — handle
+        // both, otherwise JSON.parse throws on an object, is silently
+        // swallowed below, and the dedup checks never actually fire.
         try {
-          // The Redis client sometimes auto-deserializes list entries back
-          // into objects instead of returning the raw JSON string — handle
-          // both, otherwise JSON.parse throws on an object, is silently
-          // swallowed below, and this dedup check never actually fires.
-          const latest = typeof latestRaw === 'string' ? JSON.parse(latestRaw) : latestRaw;
-          if (latest.fullContent === finalContent) {
-            skipLog = true;
-          }
-        } catch (e) {}
-      }
+          return typeof raw === 'string' ? JSON.parse(raw) : raw;
+        } catch {
+          return null;
+        }
+      };
 
-      if (!skipLog) {
+      // Only the head of the list used to be checked, so a document two
+      // people were both editing logged a new version on every single
+      // exchange: A's state, B's state, A's state again — each one "not
+      // equal to the one before it", none of them new. A minute of normal
+      // two-person editing produced the wall of near-identical versions
+      // this timeline is supposed to summarise. A state that is already
+      // in the recent history is not a new version, wherever it sits.
+      const recentRaw = await redis.lrange(historyKey, 0, RECENT_HISTORY_WINDOW - 1);
+      const recent = recentRaw.map(parseEntry).filter(Boolean);
+      // Whitespace-insensitive, because the merge re-serialises the document
+      // and can return the same words with a newline added between two tags.
+      // Compared literally, that counts as a new version and the page shows
+      // two rows a reader cannot tell apart.
+      // Whitespace BETWEEN tags is dropped outright, not just collapsed: the
+      // merge puts a line break between two block tags where the editor puts
+      // none, so merely collapsing runs of space leaves one side with a space
+      // between the tags and the other without, and the two still compare as
+      // different documents.
+      const normalise = (s: string) => s.replace(/>\s+</g, '><').replace(/\s+/g, ' ').trim();
+      const finalNorm = normalise(finalContent);
+      // A conflict is always recorded, even when the text it settles on
+      // happens to match a version already in the log. The entry is not
+      // there to describe the resulting words — it is there to say that two
+      // people disagreed and how it was decided, which is the one thing a
+      // reader cannot reconstruct from the versions themselves.
+      const alreadyLogged = !hadConflict && recent.some(
+        (e: any) => typeof e.fullContent === 'string' && normalise(e.fullContent) === finalNorm
+      );
+
+      if (!alreadyLogged) {
         // 'offline-replay': a peer reconnecting after editing offline had a
         // genuine overlap with what happened on the server meanwhile —
         // surfaced distinctly from an ordinary online concurrent-edit
@@ -457,21 +499,86 @@ export async function POST(request: Request) {
         const eventType = hadConflict
           ? (isOfflineReconnect ? 'offline-replay' : 'conflict-resolve')
           : (isSessionEnd ? 'session-snapshot' : 'edit');
+
+        // Ordering and display both run off server time, never off
+        // `logicalTimestamp`. That field carries the AUTHOR's clock,
+        // because Last-Write-Wins arbitration above is defined on it — but
+        // two devices whose clocks differ by a few minutes then disagree
+        // about which version is newer, and each shows the shared log in
+        // its own order with its own times. `seqNo` is assigned by the one
+        // machine every peer talks to, so every device sorts identically.
+        const seqNo = await redis.incr(`doc_history_seq:${otp}:${fileId}`);
+        const recordedAt = Date.now();
         const historyEvent = {
-          eventId: Date.now().toString(),
+          // Date.now() alone collides whenever two peers commit inside the
+          // same millisecond, and the page keys and de-duplicates on this.
+          eventId: `${recordedAt}-${seqNo}`,
+          seqNo,
           fileId,
           nodeId: authorNodeId,
           eventType,
           logicalTimestamp: incomingCommittedAt,
+          recordedAt,
           payloadPreview: finalContent.substring(0, 100), // Preview only to save space
           fullContent: finalContent, // Keep full content for conflict diff viewing
           conflictHunks: hadConflict ? conflictHunks : undefined,
-          createdAt: new Date().toISOString(),
+          createdAt: new Date(recordedAt).toISOString(),
           isCompacted: false,
         };
-        await redis.lpush(historyKey, JSON.stringify(historyEvent));
-        // Trim history to 50 items
-        await redis.ltrim(historyKey, 0, 49);
+
+        // One person typing is one version, not one per autosave. If the
+        // newest entry is the same author continuing the same kind of edit
+        // moments ago, this supersedes it in place rather than stacking
+        // another row — the same reason a word processor shows "edited by
+        // Zyra, 10:42" once instead of forty times. A conflict is never
+        // folded away: that is the event the log exists to show.
+        const head = recent[0];
+        const canFold =
+          head &&
+          !hadConflict &&
+          head.eventType === eventType &&
+          head.nodeId === authorNodeId &&
+          typeof head.recordedAt === 'number' &&
+          recordedAt - head.recordedAt < HISTORY_FOLD_WINDOW_MS;
+
+        if (canFold) {
+          await redis.lset(historyKey, 0, JSON.stringify({ ...historyEvent, seqNo: head.seqNo ?? seqNo }));
+        } else {
+          // When Last-Write-Wins settles a same-line disagreement, the text
+          // that lost is not in the merged result and was not in the log
+          // either — only the winning version was ever written. The author
+          // who lost had no way back to their own words, from a page whose
+          // whole purpose is restoring earlier versions. Their submission is
+          // kept as its own version, directly beneath the resolution, so the
+          // arbitration is visible AND reversible.
+          // Compared with whitespace collapsed: the merge re-serialises the
+          // document and can hand back the author's own text differing only
+          // by a newline between tags. Logged as-is that reads on screen as
+          // two versions with identical words, which is the duplication this
+          // page is meant to be free of.
+          const sameWords = (x: string, y: string) => normalise(x) === normalise(y);
+          if (hadConflict && typeof content === 'string' && content && !sameWords(content, finalContent)
+              && !recent.some((e: any) => typeof e.fullContent === 'string' && sameWords(e.fullContent, content))) {
+            const losingSeq = await redis.incr(`doc_history_seq:${otp}:${fileId}`);
+            await redis.lpush(historyKey, JSON.stringify({
+              ...historyEvent,
+              eventId: `${recordedAt}-${losingSeq}`,
+              seqNo: losingSeq,
+              eventType: 'edit',
+              payloadPreview: content.substring(0, 100),
+              fullContent: content,
+              conflictHunks: undefined,
+            }));
+            // The resolution is written after, so it takes the higher
+            // sequence number and sits above this on every device.
+            const resolvedSeq = await redis.incr(`doc_history_seq:${otp}:${fileId}`);
+            historyEvent.seqNo = resolvedSeq;
+            historyEvent.eventId = `${recordedAt}-${resolvedSeq}`;
+          }
+          await redis.lpush(historyKey, JSON.stringify(historyEvent));
+          // Trim history to 50 items
+          await redis.ltrim(historyKey, 0, 49);
+        }
       }
     }
 

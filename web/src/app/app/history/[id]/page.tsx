@@ -91,16 +91,90 @@ interface HistoryEntry {
   fullContent?: string;
   createdAt: string;
   isCompacted: boolean;
+  /** Server-assigned position in the log. Absent on older entries. */
+  seqNo?: number;
+  /** Server wall-clock time of the record, in ms. Absent on older entries. */
+  recordedAt?: number;
+  /** Row id, the desktop host's equivalent of `seqNo`. */
+  id?: number;
 }
 
+/**
+ * When this version was recorded, as every device should agree it happened.
+ *
+ * `logicalTimestamp` is the AUTHOR's clock — the field Last-Write-Wins
+ * arbitrates on, and correctly so — but two laptops whose clocks differ by
+ * a few minutes then print different times for the same shared version and
+ * disagree about which one is newest. Whatever the server stamped is used
+ * for display instead, and the author's clock only as a last resort for
+ * entries written before that field existed.
+ */
+const versionTime = (ev: HistoryEntry): number => {
+  if (typeof ev.recordedAt === 'number') return ev.recordedAt;
+  const parsed = ev.createdAt ? Date.parse(ev.createdAt) : NaN;
+  return Number.isNaN(parsed) ? ev.logicalTimestamp : parsed;
+};
+
+/**
+ * Newest first, by the order the server actually wrote the entries.
+ *
+ * Sorting on the author's clock put a device running five minutes slow
+ * underneath versions it was written after, so the list showed the wrong
+ * version as "latest". `seqNo` (cloud) and `id` (desktop host) are both
+ * assigned by the one machine all peers talk to, so they always reflect
+ * real order; time is the tie-break for entries that predate them.
+ */
+function orderVersions(list: HistoryEntry[]): HistoryEntry[] {
+  const sorted = [...list].sort((a, b) => {
+    const sa = a.seqNo ?? a.id;
+    const sb = b.seqNo ?? b.id;
+    if (typeof sa === 'number' && typeof sb === 'number' && sa !== sb) return sb - sa;
+    return versionTime(b) - versionTime(a);
+  });
+
+  // Identical content logged twice is one version, however it got there —
+  // a room edited before the server-side de-duplication landed still has
+  // runs of repeats sitting in Redis, and they should not be shown. Done
+  // after sorting so the copy that survives is the most recent one, which
+  // is the one "Restore" should bring back.
+  // Rows are kept by their document text, not by what the log calls them:
+  // a resolution and the save that produced it carry the same words, and to
+  // a reader that is one version listed twice. The newest copy wins, and
+  // since a resolution is written after the save it settles, the row that
+  // survives is the one that says a conflict happened.
+  //
+  // A conflict row is never dropped — it carries the one thing no other row
+  // does, that two people disagreed — but it still claims its text, so the
+  // ordinary save holding the same words below it goes.
+  //
+  // Whitespace between tags is ignored in the comparison: the server's merge
+  // emits a line break between block tags where the editor emits none, which
+  // is not a difference anyone can see on the page.
+  const seen = new Set<string>();
+  const alwaysKeep = new Set(['conflict-resolve', 'offline-replay', 'merge', 'restore', 'delete']);
+  return sorted.filter((ev) => {
+    const body = (ev.fullContent ?? ev.payloadPreview ?? '')
+      .replace(/>\s+</g, '><').replace(/\s+/g, ' ').trim();
+    if (!body) return true;
+    const keep = alwaysKeep.has(ev.eventType) || !seen.has(body);
+    seen.add(body);
+    return keep;
+  });
+}
+
+// Each label says what happened to the document, in the order a reader
+// scans: what kind of change, then who, then when. The old set described
+// where the row sat in the list instead of what it was ("Previous Edit"
+// was printed over the newest version, and every conflict read "Edit
+// History (Manual)" whether or not anyone had resolved anything by hand).
 const EVENT_ICONS: Record<string, { icon: React.ElementType; color: string; bg: string; label: string }> = {
-  'edit': { icon: FileEdit, color: 'var(--acc)', bg: 'var(--acb)', label: 'Previous Edit' },
-  'session-snapshot': { icon: RefreshCw, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', label: 'Previous Edit (Session Save)' },
-  'merge': { icon: GitMerge, color: 'var(--pur)', bg: 'rgba(168, 85, 247, 0.15)', label: 'Edit History (LWW Collision)' },
-  'conflict-resolve': { icon: Scale, color: 'var(--amb)', bg: 'var(--amb-bg)', label: 'Edit History (Manual)' },
-  'restore': { icon: FilePlus, color: 'var(--grn)', bg: 'rgba(16, 185, 129, 0.15)', label: 'Restore' },
+  'edit': { icon: FileEdit, color: 'var(--acc)', bg: 'var(--acb)', label: 'Edited' },
+  'session-snapshot': { icon: RefreshCw, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', label: 'Saved' },
+  'merge': { icon: GitMerge, color: 'var(--pur)', bg: 'rgba(168, 85, 247, 0.15)', label: 'Merged automatically (Last-Write-Wins)' },
+  'conflict-resolve': { icon: Scale, color: 'var(--amb)', bg: 'var(--amb-bg)', label: 'Conflict resolved' },
+  'restore': { icon: FilePlus, color: 'var(--grn)', bg: 'rgba(16, 185, 129, 0.15)', label: 'Restored an earlier version' },
   'delete': { icon: Trash2, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', label: 'File Deleted' },
-  'offline-replay': { icon: Activity, color: 'var(--tel)', bg: 'rgba(20, 184, 166, 0.15)', label: 'Conflict Edit (Offline Append)' },
+  'offline-replay': { icon: Activity, color: 'var(--tel)', bg: 'rgba(20, 184, 166, 0.15)', label: 'Offline edit merged on reconnect' },
 };
 
 export default function HistoryPage() {
@@ -113,6 +187,7 @@ export default function HistoryPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [restoring, setRestoring] = useState<Record<string, boolean>>({});
   const [activeConflicts, setActiveConflicts] = useState<any[]>([]);
+  const [showAllConflicts, setShowAllConflicts] = useState(false);
   const [viewFullEvent, setViewFullEvent] = useState<HistoryEntry | null>(null);
   const [offlineWarning, setOfflineWarning] = useState('');
 
@@ -173,8 +248,7 @@ export default function HistoryPage() {
       if (fetchedData) {
         const uniqueMap = new Map();
         fetchedData.forEach((ev: any) => uniqueMap.set(ev.eventId, ev));
-        const uniqueData = Array.from(uniqueMap.values());
-        const sorted = uniqueData.sort((a: any, b: any) => b.logicalTimestamp - a.logicalTimestamp);
+        const sorted = orderVersions(Array.from(uniqueMap.values()));
         setEvents(sorted);
         setErrorMsg('');
         setOfflineWarning('');
@@ -208,7 +282,7 @@ export default function HistoryPage() {
         } catch (_e) {}
         
         if (localConflicts.length > 0) {
-          const sorted = localConflicts.sort((a, b) => b.logicalTimestamp - a.logicalTimestamp);
+          const sorted = orderVersions(localConflicts);
           setEvents(sorted);
           setErrorMsg('');
           setOfflineWarning('Offline mode: Showing locally queued edits only.');
@@ -232,7 +306,24 @@ export default function HistoryPage() {
         if (stored) {
           const arr = JSON.parse(stored);
           const active = arr.filter((c: any) => String(c.fileId) === String(fileId));
-          setActiveConflicts(active);
+          // One divergence is one card. Rooms edited before the server-side
+          // de-duplication landed still hold a run of records filed by the
+          // poll loop for the same divergence, each with the local draft a
+          // keystroke further along — which is why this page showed a column
+          // of merge notifications that all looked alike. Collapse them on
+          // the way in, keeping the newest view of each.
+          const seen = new Set<string>();
+          const unique = active.filter((c: any) => {
+            // Keyed on the server state alone, matching how the API now
+            // identifies a conflict: this device has one local draft, so
+            // one divergence point is one card however much that draft has
+            // moved since.
+            const key = String(c.serverContent ?? '');
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          setActiveConflicts(unique);
         } else {
           setActiveConflicts([]);
         }
@@ -366,21 +457,60 @@ export default function HistoryPage() {
         </div>
       </div>
 
+      {/*
+        Conflicts awaiting a decision sit above the version list, because
+        they are the thing to act on — but only the first is expanded. They
+        used to render as a full-height stack, so on a document with a few
+        of them the version timeline started somewhere below the bottom of
+        the screen and looked, reasonably enough, like it was missing.
+      */}
       {activeConflicts.length > 0 && (
-        <div style={{ marginBottom: 40, display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          {activeConflicts.map((conflict, idx) => (
-            <div key={conflict.conflictId || conflict.id || idx}>
-              <InteractiveConflictEditor
-                fileId={conflict.fileId}
-                fileName={fileName}
-                payloadA={conflict.localContent}
-                payloadB={conflict.serverContent}
-                timestamp={new Date(conflict.timestamp)}
-                onRestore={() => resolveAndReturn(conflict.localContent, conflict.conflictId || conflict.id)}
-                onReject={() => rejectConflict(conflict.conflictId || conflict.id)}
-              />
+        <div style={{ marginBottom: 32 }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 12, flexWrap: 'wrap', marginBottom: 12,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--amb)' }}>
+              <AlertTriangle size={16} />
+              <span style={{ fontSize: 14, fontWeight: 700 }}>
+                Needs your review
+              </span>
+              <span style={{
+                fontSize: 11, fontWeight: 600, color: 'var(--amb)', background: 'var(--amb-bg)',
+                border: '1px solid var(--amb)', padding: '2px 8px', borderRadius: 12,
+              }}>
+                {activeConflicts.length} conflict{activeConflicts.length !== 1 ? 's' : ''}
+              </span>
             </div>
-          ))}
+            {activeConflicts.length > 1 && (
+              <button className="ds-btn ds-btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }}
+                onClick={() => setShowAllConflicts((v) => !v)}>
+                {showAllConflicts ? 'Show only the first' : `Show all ${activeConflicts.length}`}
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {(showAllConflicts ? activeConflicts : activeConflicts.slice(0, 1)).map((conflict, idx) => (
+              <div key={conflict.conflictId || conflict.id || idx}>
+                <InteractiveConflictEditor
+                  fileId={conflict.fileId}
+                  fileName={fileName}
+                  payloadA={conflict.localContent}
+                  payloadB={conflict.serverContent}
+                  timestamp={new Date(conflict.timestamp)}
+                  onRestore={() => resolveAndReturn(conflict.localContent, conflict.conflictId || conflict.id)}
+                  onReject={() => rejectConflict(conflict.conflictId || conflict.id)}
+                />
+              </div>
+            ))}
+          </div>
+
+          {!showAllConflicts && activeConflicts.length > 1 && (
+            <p style={{ fontSize: 12, color: 'var(--t3)', margin: '10px 2px 0' }}>
+              {activeConflicts.length - 1} more below the version list once this one is resolved.
+            </p>
+          )}
         </div>
       )}
 
@@ -439,8 +569,21 @@ export default function HistoryPage() {
                         <span style={{ fontSize: 14, fontWeight: 600, color: evInfo.color }}>
                           {evInfo.label || ev.eventType}
                         </span>
-                        <span style={{ fontSize: 11, color: 'var(--t2)', background: 'var(--b2)', padding: '2px 6px', borderRadius: 12, fontFamily: 'monospace' }}>
-                          ts={ev.logicalTimestamp}
+                        {/*
+                          The author's own clock, which is what Last-Write-
+                          Wins arbitrates on. Shown as a labelled chip rather
+                          than a bare `ts=1791070797258`: the raw number sat
+                          next to the version number looking like the time of
+                          the edit, and since it comes from whichever laptop
+                          made it, two devices print different numbers for
+                          the same version. The time on the right is the
+                          server's, and is the same everywhere.
+                        */}
+                        <span
+                          title={`Last-Write-Wins clock from ${ev.nodeId}: ${new Date(ev.logicalTimestamp).toLocaleString()}`}
+                          style={{ fontSize: 10, color: 'var(--t3)', background: 'var(--b2)', padding: '2px 6px', borderRadius: 12, fontFamily: 'monospace', letterSpacing: 0.3 }}
+                        >
+                          LWW {ev.logicalTimestamp}
                         </span>
                         {isLatest && <span style={{ fontSize: 11, color: 'var(--grn)', background: 'rgba(16, 185, 129, 0.1)', padding: '2px 6px', borderRadius: 12, fontWeight: 600 }}>latest</span>}
                         {ev.isCompacted && <span style={{ fontSize: 11, color: 'var(--t3)', background: 'var(--b1)', padding: '2px 6px', borderRadius: 12 }}>compacted</span>}
@@ -453,9 +596,9 @@ export default function HistoryPage() {
                     
                     <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                       <div style={{ fontSize: 11, color: 'var(--t3)', fontWeight: 500, textAlign: 'right' }}>
-                        {new Date(ev.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(versionTime(ev)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         <br />
-                        <span style={{ fontSize: 9 }}>{new Date(ev.createdAt).toLocaleDateString()}</span>
+                        <span style={{ fontSize: 9 }}>{new Date(versionTime(ev)).toLocaleDateString()}</span>
                       </div>
                       <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                         <button

@@ -853,12 +853,26 @@ export class PeerManager {
             
             return {
               id: entry.id,
+              // The viewer orders and dates every version by what the one
+              // machine all peers talk to recorded, never by the author's
+              // own clock — otherwise two laptops a few minutes apart print
+              // different times for the same version and disagree about
+              // which is newest. `seqNo`/`recordedAt` are the names the
+              // cloud relay uses for exactly that; the row id and row
+              // timestamp are this host's equivalents.
+              seqNo: entry.id,
+              recordedAt: entry.createdAt.getTime(),
               eventId: entry.eventId,
               nodeId: entry.nodeId,
               eventType: entry.eventType,
               logicalTimestamp: entry.logicalTimestamp,
               createdAt: entry.createdAt.toISOString(),
               isCompacted: entry.isCompacted,
+              // The reconstructed document at this point in the log. Without
+              // it the viewer had only a 200-character stripped preview to
+              // diff and to restore from, so a desktop-hosted room showed a
+              // truncated, tagless version of every revision.
+              fullContent: currentContent,
               payloadPreview: currentContent.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').slice(0, 200),
             };
           });

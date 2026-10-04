@@ -344,26 +344,24 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
             const resolvedBy = msg.resolvedBy || msg.rejectedBy || 'Owner';
             const action = msg.type === 'MERGE_REJECT' || msg.winner === 'A' ? 'rejected' : 'resolved';
             toast.success(`Conflict ${action} by ${resolvedBy.slice(0, 8)}. File synced.`, { icon: '✅' });
-            
-            // Instead of deleting it, we prepend a new log entry
+
+            // A conflict the host has just resolved is closed, so it comes
+            // off this device's open list. The previous code did the
+            // opposite: every resolution PREPENDED another entry, built from
+            // two hardcoded placeholder paragraphs ("LWW Auto-Merge Node A")
+            // that were never anyone's document. So resolving conflicts grew
+            // the list instead of shrinking it, and the history page filled
+            // with cards describing text that did not exist.
             try {
               const stored = uGet('docusync_web_conflicts');
-              let conflicts = stored ? JSON.parse(stored) : [];
-              
-              // We simulate the LWW L-R references since the WS payload is lightweight
-              conflicts.unshift({
-                conflictId: msg.conflictId || crypto.randomUUID(),
-                fileId: msg.fileId,
-                status: 'resolved',
-                nodeIdA: 'SyncEngine',
-                nodeIdB: msg.resolvedBy || 'Local',
-                payloadA: '<h3>LWW Auto-Merge Node A</h3><p>Online base version reference point before merge.</p>',
-                payloadB: '<h3>LWW Auto-Merge Node B</h3><p>Changes pushed and deterministically accepted by the mesh.</p>',
-                detectedAt: new Date().toISOString()
-              });
-              
-              conflicts = conflicts.slice(0, 50); // limit local storage footprint
-              uSet('docusync_web_conflicts', JSON.stringify(conflicts));
+              if (stored) {
+                const conflicts = JSON.parse(stored).filter(
+                  (c: any) => !(msg.conflictId && c.conflictId === msg.conflictId)
+                    && !(msg.fileId !== undefined && String(c.fileId) === String(msg.fileId))
+                );
+                uSet('docusync_web_conflicts', JSON.stringify(conflicts));
+                window.dispatchEvent(new CustomEvent('docusync_conflicts_update'));
+              }
             } catch (err) {}
 
             window.dispatchEvent(new CustomEvent('docusync_ws_merge_accept', { detail: msg }));

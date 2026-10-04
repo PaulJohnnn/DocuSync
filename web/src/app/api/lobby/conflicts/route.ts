@@ -87,7 +87,7 @@ export async function DELETE(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { otp, fileId, localContent, serverContent, mergedContent, timestamp, conflictId } = body;
+    const { otp, fileId, localContent, serverContent, mergedContent, conflictId } = body;
 
     if (!otp || !fileId || !conflictId) {
       return NextResponse.json(
@@ -97,36 +97,49 @@ export async function POST(request: Request) {
     }
 
     const key = `conflicts:${otp}`;
+    const rawConflicts = await redis.get(key) as any[];
+    let conflicts = Array.isArray(rawConflicts) ? rawConflicts : [];
+
+    // The client mints a fresh conflictId on every call, so a conflictId
+    // check never catches a repeat. Matching on BOTH sides' content doesn't
+    // either: the editor re-detects the same unresolved divergence on every
+    // poll tick, and the local side has drifted by whatever the user typed
+    // in between, so one divergence against one server state was filed as a
+    // new conflict per keystroke — the stack of identical-looking merge
+    // notifications a reviewer actually sees.
+    //
+    // What identifies a conflict is the point the document diverged from:
+    // the same file, still unresolved against the same server state, is the
+    // same conflict no matter how far the local draft has moved since. The
+    // open record is refreshed in place so it shows the latest local text.
+    const existingIdx = conflicts.findIndex(c =>
+      String(c.fileId) === String(fileId) &&
+      c.serverContent === serverContent
+    );
+
     const newConflict = {
-      conflictId,
+      conflictId: existingIdx >= 0 ? conflicts[existingIdx].conflictId : conflictId,
       fileId,
       localContent,
       serverContent,
       mergedContent,
-      timestamp: timestamp || Date.now()
+      // Server time, so every device shows one divergence at one moment
+      // rather than at whatever each peer's clock happened to read. The
+      // first sighting is what's kept — a conflict is dated from when it
+      // arose, not from the last time someone's editor noticed it again.
+      timestamp: existingIdx >= 0
+        ? conflicts[existingIdx].timestamp
+        : Date.now(),
     };
 
-    const rawConflicts = await redis.get(key) as any[];
-    let conflicts = Array.isArray(rawConflicts) ? rawConflicts : [];
-
-    // The client mints a fresh crypto.randomUUID() on every call (e.g. the
-    // editor's poll loop can re-detect the same unresolved divergence on
-    // every tick while the user keeps typing), so a conflictId-only check
-    // never actually catches a duplicate — every call gets a new ID. Dedup
-    // by the actual content of the conflict instead: same file, same two
-    // sides, is the same conflict regardless of what ID it was minted with.
-    const isDuplicate = conflicts.some(c =>
-      String(c.fileId) === String(fileId) &&
-      c.localContent === localContent &&
-      c.serverContent === serverContent
-    );
-
-    if (!isDuplicate) {
+    if (existingIdx >= 0) {
+      conflicts[existingIdx] = newConflict;
+    } else {
       conflicts.unshift(newConflict);
       // Keep only latest 50 conflicts
       conflicts = conflicts.slice(0, 50);
-      await redis.set(key, conflicts, { ex: 86400 });
     }
+    await redis.set(key, conflicts, { ex: 86400 });
 
     return NextResponse.json({ success: true, conflict: newConflict }, { headers: corsHeaders });
   } catch (err: any) {

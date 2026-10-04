@@ -155,7 +155,15 @@ export default function EditorPage() {
   const isPushingRef = useRef(false);
   const pollDocInFlightRef = useRef(false);
   const queuedContentRef = useRef<string | null>(null);
-  
+
+  // The server state the last conflict was filed against. The poll below
+  // runs sub-second and re-detects an unresolved divergence on every tick,
+  // so without this one divergence was reported over and over — each report
+  // carrying whatever the user had typed by then, which is why the history
+  // page showed a stack of merge notifications that all looked the same.
+  // One divergence from one server state is one conflict.
+  const lastConflictAgainstRef = useRef<string>('');
+
   // Track offline baseline for signature merge
   const offlineBaselineRef = useRef<string>('');
   
@@ -879,10 +887,15 @@ export default function EditorPage() {
                   // data-loss path and existing ones are safe without
                   // migration.
                   const original = offlineBaselineRef.current || lastSave.current;
-                  const merged = computeSignatureMerge(original, data.content, currentContentRef.current, myName);
-                  if (merged !== currentContentRef.current) {
+                  const localBefore = currentContentRef.current;
+                  const merged = computeSignatureMerge(original, data.content, localBefore, myName);
+                  if (merged !== localBefore) {
                     setContentAndRef(merged);
                     setSyncStatusMsg('Merged Signature Edit ✓');
+                  }
+                  // Report the divergence once, not once per poll tick.
+                  if (merged !== localBefore && lastConflictAgainstRef.current !== data.content) {
+                    lastConflictAgainstRef.current = data.content;
                     toast.success('Offline edits merged automatically');
                     // Push conflict to Redis so all peers receive it
                     const conflictId = crypto.randomUUID();
@@ -893,7 +906,12 @@ export default function EditorPage() {
                         otp,
                         conflictId,
                         fileId,
-                        localContent: currentContentRef.current,
+                        // What this peer actually had before the merge —
+                        // this is the side "Restore Local Edit" brings back.
+                        // Reading the live ref here returned the MERGED text
+                        // instead, so both panels of the conflict card showed
+                        // the same thing and the card looked like a no-op.
+                        localContent: localBefore,
                         serverContent: data.content,
                         mergedContent: merged,
                         timestamp: Date.now()
@@ -942,10 +960,16 @@ export default function EditorPage() {
                 // special case overwrote unsaved local work instead of merging
                 // it, so both algorithm settings now take the merge path.
                 const original = offlineBaselineRef.current || lastSave.current;
-                const merged = computeSignatureMerge(original, data.content, currentContentRef.current, myName);
-                if (merged !== currentContentRef.current) {
+                const localBefore = currentContentRef.current;
+                const merged = computeSignatureMerge(original, data.content, localBefore, myName);
+                if (merged !== localBefore) {
                   setContentAndRef(merged);
                   setSyncStatusMsg('Merged Signature Edit ☁');
+                }
+                // Same divergence, same server state: file it once. The poll
+                // below runs every tick and used to re-file it on each one.
+                if (merged !== localBefore && lastConflictAgainstRef.current !== data.content) {
+                  lastConflictAgainstRef.current = data.content;
                   toast.success('Offline edits merged via cloud');
                   // Push conflict event to Redis via Matchmaker History API
                   const conflictId = crypto.randomUUID();
@@ -956,7 +980,7 @@ export default function EditorPage() {
                       otp,
                       conflictId,
                       fileId,
-                      localContent: currentContentRef.current,
+                      localContent: localBefore,
                       serverContent: data.content,
                       mergedContent: merged,
                       timestamp: Date.now()
