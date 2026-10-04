@@ -71,7 +71,7 @@
           ]
         }
       ],
-      "icon": "public/icon.png",
+      "icon": "build/icon.ico",
       "artifactName": "DocuSync-Setup-${version}.exe"
     },
     "nsis": {
@@ -90,7 +90,8 @@
       "target": "AppImage",
       "icon": "public/icon.png",
       "artifactName": "DocuSync-${version}.AppImage"
-    }
+    },
+    "icon": "build/icon.ico"
   },
   "dependencies": {
     "@docusync/shared": "*",
