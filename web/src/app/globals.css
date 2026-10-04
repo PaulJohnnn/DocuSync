@@ -212,6 +212,15 @@ body {
   color: var(--t1);
   font-size: 14px;
   line-height: 1.7;
+  /*
+    Runs of spaces are kept, and lines still wrap at the page edge. Without
+    this the browser collapses "a   b" to "a b" when it renders, so spacing a
+    writer put in deliberately — lining up a heading, indenting a line —
+    disappeared, and two peers holding identical documents showed different
+    text. `pre-wrap` preserves the spaces without turning wrapping off.
+  */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 .tiptap h1 { font-size: 28px; font-weight: 700; margin-bottom: 12px; margin-top: 0; }
 .tiptap h2 { font-size: 22px; font-weight: 600; margin-bottom: 10px; margin-top: 0; }
@@ -376,6 +385,15 @@ body {
   color: var(--t1);
   font-size: 14px;
   line-height: 1.7;
+  /*
+    Runs of spaces are kept, and lines still wrap at the page edge. Without
+    this the browser collapses "a   b" to "a b" when it renders, so spacing a
+    writer put in deliberately — lining up a heading, indenting a line —
+    disappeared, and two peers holding identical documents showed different
+    text. `pre-wrap` preserves the spaces without turning wrapping off.
+  */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 .tiptap h1 { font-size: 28px; font-weight: 700; margin-bottom: 12px; margin-top: 0; }
 .tiptap h2 { font-size: 22px; font-weight: 600; margin-bottom: 10px; margin-top: 0; }

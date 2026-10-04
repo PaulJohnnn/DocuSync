@@ -19,6 +19,7 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { documentSignature } from '@/lib/documentSignature';
 
 export interface RemoteCursor {
   nodeId: string;
@@ -175,6 +176,23 @@ const RemoteCursorsExtension = Extension.create({
     ];
   },
 });
+
+/**
+ * How content from anyone else is parsed back into the document.
+ *
+ * ProseMirror's HTML parser collapses runs of whitespace by default, the way
+ * a browser renders HTML. So a sentence someone typed with three spaces in it
+ * arrived at every other peer with one, and the two screens disagreed about a
+ * document neither had changed. `preserveWhitespace: 'full'` keeps the spaces
+ * and the newlines exactly as they were written.
+ *
+ * `emitUpdate: false` is unchanged and still essential: it stops a remote
+ * edit being echoed straight back out as if this user had typed it.
+ */
+const PARSE_KEEPING_SPACES = {
+  emitUpdate: false,
+  parseOptions: { preserveWhitespace: 'full' as const },
+};
 
 const PaginationPluginKey = new PluginKey('pagination');
 
@@ -355,15 +373,27 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
     if (!editor || !content) return;
     
     if (!initialized.current) {
-      editor.commands.setContent(content, { emitUpdate: false });
+      editor.commands.setContent(content, PARSE_KEEPING_SPACES);
       initialized.current = true;
       markDirtyRef.current();
       return;
     }
 
-    if (content !== editor.getHTML()) {
+    // Compared on what the document renders, not on the exact markup string.
+    //
+    // `setContent` replaces the WHOLE document: every node is rebuilt, the
+    // caret is put back by offset, and the page breaks are measured again.
+    // Doing that when nothing actually changed is what makes the page jump
+    // while someone is typing — and it was happening constantly, because the
+    // stored copy and `editor.getHTML()` differ in ways no reader can see.
+    // The editor re-serialises what it was given: a line break between two
+    // block tags, an attribute in a different order, an empty paragraph
+    // spelled `<p></p>` on one side and `<p><br></p>` on the other. Every one
+    // of those compared as "different" and triggered a full rebuild, up to
+    // once per poll.
+    if (documentSignature(content) !== documentSignature(editor.getHTML())) {
       const { from, to } = editor.state.selection;
-      editor.commands.setContent(content, { emitUpdate: false });
+      editor.commands.setContent(content, PARSE_KEEPING_SPACES);
       const newDocSize = editor.state.doc.content.size;
       const safeFrom = Math.min(from, newDocSize > 0 ? newDocSize - 1 : 0);
       const safeTo = Math.min(to, newDocSize > 0 ? newDocSize - 1 : 0);
