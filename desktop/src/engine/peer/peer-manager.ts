@@ -233,16 +233,152 @@ export class PeerManager {
     conflictsDetectedThisSession: 0,
     conflictsResolvedThisSession: 0,
     conflictTotalResolveMs: 0,
-    /** Timestamp (ms) when a conflict was first escalated, keyed by conflictId. */
+    /**
+     * When each still-open conflict was escalated, keyed by conflictId.
+     *
+     * Entries were only ever added. Nothing read the map and nothing removed
+     * from it, so it grew for the lifetime of the host process — and the
+     * resolution-time metric it exists to feed was never computed, leaving
+     * `avgConflictResolveMs` reporting nothing however many conflicts had
+     * been resolved. {@link recordConflictResolved} now closes both: it
+     * measures the interval and removes the entry.
+     */
     conflictEscalatedAt: new Map<string, number>(),
+    /**
+     * Characters discarded because Last-Write-Wins dropped one side outright,
+     * and the number of such resolutions. This is the Data Loss Rate the
+     * thesis reports; the endpoint previously returned a hardcoded zero.
+     */
+    charsDiscardedByLww: 0,
+    charsAccepted: 0,
     sessionStartMs: Date.now(),
   };
+
+  /**
+   * How many unresolved escalations are tracked before the oldest are
+   * dropped. A conflict nobody ever resolves would otherwise keep its entry
+   * forever; the cap turns an unbounded leak into a fixed ceiling, and the
+   * dropped entries are the ones least likely to still be resolved.
+   */
+  private static readonly MAX_OPEN_CONFLICTS = 512;
+
+  /**
+   * An escalation older than this is assumed abandoned — the peer that
+   * raised it has long since disconnected — and stops being counted as
+   * pending.
+   */
+  private static readonly OPEN_CONFLICT_TTL_MS = 24 * 60 * 60 * 1000;
 
   /**
    * @param config - The peer manager configuration.
    */
   constructor(config: PeerManagerConfig) {
     this.config = config;
+  }
+
+  // ── Conflict lifecycle accounting ────────────────────────────────────
+  //
+  // A conflict here has three observable moments: it is escalated, it is
+  // resolved, or it is abandoned. Each one is recorded, so the resolution
+  // time reported to the thesis is an interval actually measured between
+  // two of them rather than a counter that never moved.
+
+  /**
+   * Records that a conflict has been escalated and is awaiting a decision.
+   *
+   * Also evicts abandoned entries, so an escalation nobody ever answers
+   * cannot accumulate indefinitely.
+   *
+   * @param conflictId - The escalated conflict.
+   */
+  noteConflictEscalated(conflictId: string): void {
+    const open = this._metrics.conflictEscalatedAt;
+    const now = Date.now();
+
+    for (const [id, at] of open) {
+      if (now - at > PeerManager.OPEN_CONFLICT_TTL_MS) open.delete(id);
+    }
+    // Map iteration is insertion-ordered, so this drops the oldest first.
+    while (open.size >= PeerManager.MAX_OPEN_CONFLICTS) {
+      const oldest = open.keys().next();
+      if (oldest.done) break;
+      open.delete(oldest.value);
+    }
+
+    open.set(conflictId, now);
+  }
+
+  /**
+   * Records that an escalated conflict has been decided.
+   *
+   * The interval from escalation to this call is the Conflict Resolution
+   * Time the thesis reports. It is measured only for conflicts this host
+   * actually escalated: a resolution arriving for an unknown conflict is
+   * counted as resolved but contributes no timing, rather than contributing
+   * a fabricated one.
+   *
+   * @param conflictId - The conflict that was decided.
+   * @returns The measured duration in ms, or `null` if it was not timed here.
+   */
+  recordConflictResolved(conflictId: string): number | null {
+    this._metrics.conflictsResolvedThisSession++;
+
+    const escalatedAt = this._metrics.conflictEscalatedAt.get(conflictId);
+    if (escalatedAt === undefined) return null;
+
+    this._metrics.conflictEscalatedAt.delete(conflictId);
+    const elapsed = Date.now() - escalatedAt;
+    this._metrics.conflictTotalResolveMs += elapsed;
+    return elapsed;
+  }
+
+  /**
+   * Records how much text a Last-Write-Wins decision kept and how much it
+   * discarded, which is what Data Loss Rate is computed from.
+   *
+   * @param acceptedChars - Characters that reached the final document.
+   * @param discardedChars - Characters dropped because one side lost.
+   */
+  recordLwwOutcome(acceptedChars: number, discardedChars: number): void {
+    this._metrics.charsAccepted += Math.max(0, acceptedChars);
+    this._metrics.charsDiscardedByLww += Math.max(0, discardedChars);
+  }
+
+  /**
+   * Conflicts escalated here and not yet decided, excluding abandoned ones.
+   */
+  private pendingConflictCount(): number {
+    const now = Date.now();
+    let n = 0;
+    for (const at of this._metrics.conflictEscalatedAt.values()) {
+      if (now - at <= PeerManager.OPEN_CONFLICT_TTL_MS) n++;
+    }
+    return n;
+  }
+
+  /**
+   * Session metrics, for tests and for the `/metrics` endpoint.
+   * @internal
+   */
+  getMetricsSnapshot(): {
+    conflictsDetectedThisSession: number;
+    conflictsResolvedThisSession: number;
+    conflictTotalResolveMs: number;
+    openConflictCount: number;
+    pendingConflicts: number;
+    charsAccepted: number;
+    charsDiscardedByLww: number;
+  } {
+    const m = this._metrics;
+    return {
+      conflictsDetectedThisSession: m.conflictsDetectedThisSession,
+      conflictsResolvedThisSession: m.conflictsResolvedThisSession,
+      conflictTotalResolveMs: m.conflictTotalResolveMs,
+      openConflictCount: m.conflictEscalatedAt.size,
+      pendingConflicts: this.pendingConflictCount(),
+      charsAccepted: m.charsAccepted,
+      charsDiscardedByLww: m.charsDiscardedByLww,
+    };
   }
 
   // ── Token Management ──────────────────────────────────────────────
@@ -757,8 +893,8 @@ export class PeerManager {
                 this._metrics.conflictsDetectedThisSession++;
                 
                 if (resolveResult.conflictId) {
-                  this._metrics.conflictEscalatedAt.set(resolveResult.conflictId, Date.now());
-                  
+                  this.noteConflictEscalated(resolveResult.conflictId);
+
                   console.log(`[PeerManager] Escalate conflict ${resolveResult.conflictId} - awaiting manual user resolution in UI`);
                   
                   if (this.config.onConflictNotified) {
@@ -1045,8 +1181,21 @@ export class PeerManager {
             eventLogRows,
             // Live state
             connectedPeerCount: this.peers.size,
-            pendingConflicts: this.config.vectorClock ? 0 : 0, // derived from host state
-            dataLossRate: 0,
+            // Counted from the escalations this host is still holding. The
+            // previous expression was `this.config.vectorClock ? 0 : 0`,
+            // which is zero either way — the figure was never derived from
+            // anything.
+            pendingConflicts: this.pendingConflictCount(),
+            // Characters discarded by a Last-Write-Wins decision, over all
+            // characters that went through one. Reported as null until at
+            // least one such decision has been made, because with nothing
+            // measured there is no rate — the hardcoded 0 that used to sit
+            // here read as "no data was lost" when nothing had been counted.
+            dataLossRate: (m.charsAccepted + m.charsDiscardedByLww) > 0
+              ? Math.round((m.charsDiscardedByLww / (m.charsAccepted + m.charsDiscardedByLww)) * 10000) / 10000
+              : null,
+            charsDiscardedByLww: m.charsDiscardedByLww,
+            charsAccepted: m.charsAccepted,
             sessionDurationMs,
           };
           res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
@@ -1988,8 +2137,33 @@ export class PeerManager {
     // corruption check than the clock ever was.
     try {
       const roundTrip = decodeDelta(baseContent, msg.deltaBase64);
-      if (roundTrip.content !== remoteContent) return null;
-    } catch {
+      if (roundTrip.content !== remoteContent) {
+        console.warn(
+          '[PeerManager] resolveConcurrentDelta: integrity check failed — delta did not reproduce remote content.',
+          {
+            operation: 'resolveConcurrentDelta',
+            fileId: msg.fileId,
+            nodeId: msg.nodeId,
+            eventId: msg.eventId,
+            fallback: 'null (skipping concurrent resolution)',
+          }
+        );
+        return null;
+      }
+    } catch (decodeErr) {
+      // OBSERVABILITY (Fix 1): Log structured metadata when the delta itself
+      // cannot be decoded. Do NOT log payload content — may contain user data.
+      console.warn(
+        '[PeerManager] resolveConcurrentDelta: failed to decode delta for integrity check.',
+        {
+          operation: 'resolveConcurrentDelta',
+          fileId: msg.fileId,
+          nodeId: msg.nodeId,
+          eventId: msg.eventId,
+          errorType: decodeErr instanceof Error ? decodeErr.constructor.name : typeof decodeErr,
+          fallback: 'null (skipping concurrent resolution)',
+        }
+      );
       return null;
     }
 
