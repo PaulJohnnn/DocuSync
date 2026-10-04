@@ -15,7 +15,13 @@
 /** One block of the document, flattened out of the editor's HTML. */
 interface Block {
   kind: 'p' | 'h1' | 'h2' | 'h3' | 'h4' | 'li' | 'oli' | 'quote' | 'code';
-  runs: { text: string; bold?: boolean; italic?: boolean }[];
+  /**
+   * Paragraph alignment, where the author set one. Dropped entirely before,
+   * so a centred title came back left-aligned in every download — the
+   * document looked rearranged rather than exported.
+   */
+  align?: 'left' | 'center' | 'right' | 'justify';
+  runs: { text: string; bold?: boolean; italic?: boolean; underline?: boolean }[];
 }
 
 const BLOCK_TAGS = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,div,tr';
@@ -32,21 +38,38 @@ export function parseBlocks(html: string): Block[] {
 
   const runsOf = (el: Element): Block['runs'] => {
     const runs: Block['runs'] = [];
-    const walk = (node: Node, bold: boolean, italic: boolean) => {
+    const walk = (node: Node, bold: boolean, italic: boolean, underline: boolean) => {
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent || '';
-        if (text) runs.push({ text, bold, italic });
+        if (text) runs.push({ text, bold, italic, underline });
         return;
       }
       if (node.nodeType !== Node.ELEMENT_NODE) return;
-      const tag = (node as Element).tagName.toLowerCase();
-      if (tag === 'br') { runs.push({ text: '\n', bold, italic }); return; }
+      const element = node as Element;
+      const tag = element.tagName.toLowerCase();
+      if (tag === 'br') { runs.push({ text: '\n', bold, italic, underline }); return; }
       const b = bold || tag === 'strong' || tag === 'b';
       const i = italic || tag === 'em' || tag === 'i';
-      node.childNodes.forEach(c => walk(c, b, i));
+      // Underline was not read at all, so an underlined heading or term came
+      // back plain. The editor writes it as <u>, and pasted content often
+      // carries it as an inline style instead.
+      const u = underline || tag === 'u'
+        || /underline/i.test(element.getAttribute('style') || '');
+      element.childNodes.forEach(c => walk(c, b, i, u));
     };
-    el.childNodes.forEach(c => walk(c, false, false));
+    el.childNodes.forEach(c => walk(c, false, false, false));
     return runs.filter(r => r.text.length > 0);
+  };
+
+  /** The alignment the author set on a block, if any. */
+  const alignOf = (el: Element): Block['align'] => {
+    const style = el.getAttribute('style') || '';
+    const match = /text-align\s*:\s*(left|center|right|justify)/i.exec(style);
+    if (match) return match[1].toLowerCase() as Block['align'];
+    // TipTap can also carry it as a class.
+    const cls = el.getAttribute('class') || '';
+    const viaClass = /\b(?:text|align)-(left|center|right|justify)\b/i.exec(cls);
+    return viaClass ? (viaClass[1].toLowerCase() as Block['align']) : undefined;
   };
 
   doc.body.querySelectorAll(BLOCK_TAGS).forEach(el => {
@@ -54,7 +77,14 @@ export function parseBlocks(html: string): Block[] {
     if (el.querySelector(BLOCK_TAGS)) return;
     const tag = el.tagName.toLowerCase();
     const runs = runsOf(el);
-    if (runs.length === 0) return;
+    if (runs.length === 0) {
+      // An empty paragraph is spacing the author put there on purpose.
+      // Skipping it closed up the gaps, so a downloaded document came back
+      // more tightly set than the one on screen. Only paragraphs are kept
+      // this way; an empty heading or list item is a leftover, not spacing.
+      if (tag === 'p') out.push({ kind: 'p', align: alignOf(el), runs: [] });
+      return;
+    }
     let kind: Block['kind'] = 'p';
     if (tag === 'h1') kind = 'h1';
     else if (tag === 'h2') kind = 'h2';
@@ -63,7 +93,7 @@ export function parseBlocks(html: string): Block[] {
     else if (tag === 'li') kind = el.closest('ol') ? 'oli' : 'li';
     else if (tag === 'blockquote') kind = 'quote';
     else if (tag === 'pre') kind = 'code';
-    out.push({ kind, runs });
+    out.push({ kind, align: alignOf(el), runs });
   });
 
   // A document with no block tags at all is already plain text.
@@ -117,17 +147,21 @@ export function toHtmlDocument(html: string, title: string): string {
       let t = xmlEscape(r.text).replace(/\n/g, '<br>');
       if (r.bold) t = `<strong>${t}</strong>`;
       if (r.italic) t = `<em>${t}</em>`;
+      if (r.underline) t = `<u>${t}</u>`;
       return t;
     }).join('');
+    // Carried on the element, so the saved page is laid out the way the
+    // editor showed it rather than everything flush left.
+    const a = b.align && b.align !== 'left' ? ` style="text-align:${b.align}"` : '';
     switch (b.kind) {
-      case 'h1': return `  <h1>${inner}</h1>`;
-      case 'h2': return `  <h2>${inner}</h2>`;
-      case 'h3': return `  <h3>${inner}</h3>`;
-      case 'h4': return `  <h4>${inner}</h4>`;
-      case 'li': case 'oli': return `  <li>${inner}</li>`;
-      case 'quote': return `  <blockquote>${inner}</blockquote>`;
+      case 'h1': return `  <h1${a}>${inner}</h1>`;
+      case 'h2': return `  <h2${a}>${inner}</h2>`;
+      case 'h3': return `  <h3${a}>${inner}</h3>`;
+      case 'h4': return `  <h4${a}>${inner}</h4>`;
+      case 'li': case 'oli': return `  <li${a}>${inner}</li>`;
+      case 'quote': return `  <blockquote${a}>${inner}</blockquote>`;
       case 'code': return `  <pre>${xmlEscape(plainOf(b))}</pre>`;
-      default: return `  <p>${inner}</p>`;
+      default: return `  <p${a}>${inner}</p>`;
     }
   }).join('\n');
 
@@ -230,12 +264,18 @@ export function toDocx(html: string): Blob {
       b.kind === 'h1' ? 'Heading1' : b.kind === 'h2' ? 'Heading2' :
       b.kind === 'h3' ? 'Heading3' : b.kind === 'h4' ? 'Heading4' :
       b.kind === 'quote' ? 'Quote' : b.kind === 'li' || b.kind === 'oli' ? 'ListParagraph' : '';
-    const pPr = style ? `<w:pPr><w:pStyle w:val="${style}"/></w:pPr>` : '';
+    // Alignment and style are both paragraph properties and have to go in
+    // the same <w:pPr>; Word ignores a second one. Writing only the style
+    // meant every centred or right-aligned paragraph came back flush left.
+    const jc = b.align && b.align !== 'left'
+      ? `<w:jc w:val="${b.align === 'justify' ? 'both' : b.align}"/>` : '';
+    const pPr = (style || jc)
+      ? `<w:pPr>${style ? `<w:pStyle w:val="${style}"/>` : ''}${jc}</w:pPr>` : '';
     const bullet = b.kind === 'li' ? '• ' : b.kind === 'oli' ? '1. ' : '';
 
     const runs = b.runs.map((r, i) => {
-      const rPr = (r.bold || r.italic)
-        ? `<w:rPr>${r.bold ? '<w:b/>' : ''}${r.italic ? '<w:i/>' : ''}</w:rPr>` : '';
+      const rPr = (r.bold || r.italic || r.underline)
+        ? `<w:rPr>${r.bold ? '<w:b/>' : ''}${r.italic ? '<w:i/>' : ''}${r.underline ? '<w:u w:val="single"/>' : ''}</w:rPr>` : '';
       // A newline inside a run is a <w:br/> in OOXML, not a literal character.
       const text = (i === 0 ? bullet : '') + r.text;
       const parts = text.split('\n');

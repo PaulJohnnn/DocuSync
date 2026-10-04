@@ -420,12 +420,29 @@ export async function POST(request: Request) {
     // through to the content comparison that has always been here.
     const relation = compareCausally(vectorClock, existing?.vectorClock);
 
+    // Whether this push can be dropped on the strength of the clock alone.
+    //
+    // The web client's clock has three slots — one host, two peers — so a
+    // third device in the room shares a slot with one of the others and the
+    // two become causally indistinguishable. Under a shared slot, "equal"
+    // and "dominated" stop meaning what they say: a genuine new edit from
+    // one device can read as a duplicate of, or as older than, an unrelated
+    // edit from the device it collides with. Dropping it would delete
+    // somebody's work with nothing to show for it.
+    //
+    // So a push is only ever dropped when it came from the SAME author the
+    // stored state came from. That is where duplicates actually originate —
+    // a retry, a reconnect replay, an editor pushing twice — and one author
+    // cannot collide with themselves. Anything from a different peer goes to
+    // the merge below, which keeps both sides, however the clocks compare.
+    const sameAuthor = !!authorNodeId && existing?.authorNodeId === authorNodeId;
+
     // The server has already incorporated this exact state. Re-applying it
     // is at best wasted work and at worst a second history entry for one
     // edit, so it is acknowledged and dropped. This is what makes a
     // duplicate delivery — a retry, a reconnect replay, a message arriving
     // twice — harmless rather than visible.
-    if (relation === 'equal') {
+    if (relation === 'equal' && sameAuthor) {
       return NextResponse.json(
         { success: true, ignored: true, reason: 'duplicate', snapshot: existing },
         { headers: corsHeaders }
@@ -433,13 +450,15 @@ export async function POST(request: Request) {
     }
 
     // The stored state strictly dominates this push: the server already has
-    // everything the client knew, plus more the client has not seen. The
-    // push is stale, not concurrent. Writing it would roll the document
-    // back to a state someone has already moved past — and under the old
-    // wall-clock comparison it did exactly that whenever the stale client's
-    // clock happened to read later. The client is handed the current state
-    // instead, and will push again from it.
-    if (relation === 'dominated') {
+    // everything the client knew, plus more the client has not seen. From
+    // the same author, that is an out-of-order retry of their own earlier
+    // state, and writing it would roll the document back to a point they
+    // have already moved past — which is exactly what the old wall-clock
+    // comparison did whenever the stale push carried the later timestamp.
+    // The client is handed the current state instead and pushes again from
+    // it. From a different author the same reading may only be a shared
+    // clock slot, so it is merged rather than refused.
+    if (relation === 'dominated' && sameAuthor) {
       return NextResponse.json(
         { success: true, ignored: true, reason: 'stale', snapshot: existing },
         { headers: corsHeaders }

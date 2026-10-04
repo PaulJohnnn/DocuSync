@@ -824,15 +824,13 @@ export default function FilesPage() {
                         <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Shared by {f.sharedBy === 'Web Node' || !f.sharedBy ? myName : (f.sharedBy || 'Peer')}</div>
                       </div>
 
-                      {/* "1 editing" Mock Badge if desired, let's keep it minimal if connected peers exist.
-                          Hidden below 560px (see globals.css) — secondary metadata that, combined with
-                          the size column, left negative room for the filename on a phone-width row. */}
-                      {connectedPeers.length > 0 && (
-                        <div className="ds-file-row-badge" style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#e0e7ff', padding: '4px 10px', borderRadius: 16, border: '1px solid #c7d2fe', marginRight: 40 }}>
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
-                          <span style={{ fontSize: 11, fontWeight: 600, color: '#4338ca' }}>{connectedPeers.length} editing</span>
-                        </div>
-                      )}
+                      {/* There used to be an "N editing" badge here. It
+                          counted everyone connected to the ROOM, not everyone
+                          in this file, so a row for a document nobody had
+                          open still claimed three people were editing it. The
+                          editor itself shows who is actually present, by
+                          name and with their cursor, which is both accurate
+                          and the place a reader needs it. */}
 
                       <div className="ds-file-row-size" style={{ width: 60, fontSize: 13, color: '#94a3b8', textAlign: 'right', marginRight: 24, fontWeight: 500 }}>
                         {formatBytes(f.contentLength || f.content?.length || 0)}

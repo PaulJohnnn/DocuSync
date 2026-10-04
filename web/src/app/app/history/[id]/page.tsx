@@ -296,13 +296,19 @@ function orderVersions(list: HistoryEntry[]): HistoryEntry[] {
   // different as strings — and the list filled with rows nobody could tell
   // apart. Same rule the server uses when deciding whether to log a version.
   const seen = new Set<string>();
-  const alwaysKeep = new Set(['conflict-resolve', 'offline-replay', 'merge', 'restore', 'delete']);
   return sorted.filter((ev) => {
     const body = documentSignature(ev.fullContent ?? ev.payloadPreview ?? '');
     if (!body) return true;
-    const keep = alwaysKeep.has(ev.eventType) || !seen.has(body);
+    // Conflicts used to be exempt from this check, on the reasoning that a
+    // conflict row carries something no other row does. It does — but a run
+    // of conflict rows all holding the SAME page carries it nine times, and
+    // opening any of them showed two identical panels, which is the opposite
+    // of informative. The rows are sorted newest first and a resolution is
+    // written after the save it settles, so the copy that survives is
+    // already the one that says a conflict happened.
+    if (seen.has(body)) return false;
     seen.add(body);
-    return keep;
+    return true;
   });
 }
 

@@ -117,38 +117,57 @@ function peer(nodeIndex, nodeId) {
       'the duplicate leaves no second version behind', `${entries.length} versions`);
   }
 
-  // ── 3. Stale: an old client pushes a state the server moved past ──────
+  // ── 3. Stale: a client re-pushes a state it has already moved past ────
   {
     const otp = room(), f = 'causal-stale';
     const A = peer(0, 'web-A'), B = peer(1, 'web-B');
     const base = doc(['ONE.']);
     await push({ otp, fileId: f, content: base, authorNodeId: A.nodeId, vectorClock: A.tick(), seq: 1, committedAt: Date.now(), isSessionEnd: true });
 
-    // B catches up, then edits twice. A never sees either.
+    // A catches up, then edits twice, so the server is ahead of where A was.
     const seen = await read(otp, f);
-    B.observe(seen?.snapshot?.vectorClock ?? seen?.vectorClock);
+    A.observe(seen?.snapshot?.vectorClock ?? seen?.vectorClock);
+    const behind = A.snapshot();
     let prev = base;
-    for (const text of ['ONE. B1', 'ONE. B1 B2']) {
+    for (const text of ['ONE. A1', 'ONE. A1 A2']) {
       const next = doc([text]);
-      await push({ otp, fileId: f, content: next, authorNodeId: B.nodeId, vectorClock: B.tick(), seq: 9, committedAt: Date.now(), isSessionEnd: true, baseContent: prev });
+      await push({ otp, fileId: f, content: next, authorNodeId: A.nodeId, vectorClock: A.tick(), seq: 9, committedAt: Date.now(), isSessionEnd: true, baseContent: prev });
       prev = next;
     }
 
-    // A re-pushes its old state, with a wall clock that reads LATER than
-    // everything B sent — the precise case a timestamp comparison gets
-    // wrong, and the one that used to roll the document back.
+    // A's own earlier state arrives late — a retry, a reconnect replay —
+    // carrying a wall clock ten minutes ahead of everything it has already
+    // sent. A timestamp comparison calls that the newest write and rolls the
+    // document back over two edits already in it.
     const stale = await push({
       otp, fileId: f, content: doc(['ONE. A-OLD']), authorNodeId: A.nodeId,
-      vectorClock: A.snapshot(), seq: 2, committedAt: Date.now() + 600000,
+      vectorClock: behind, seq: 2, committedAt: Date.now() + 600000,
       isSessionEnd: true, baseContent: base,
     });
     const after = await read(otp, f);
-    check(/B1/.test(plain(after?.content)) && /B2/.test(plain(after?.content)),
+    check(/A1/.test(plain(after?.content)) && /A2/.test(plain(after?.content)),
       'a stale push with a fast clock does not roll the document back',
       plain(after?.content));
-    check(stale.body?.reason === 'stale' || !/A-OLD/.test(plain(after?.content)),
+    check(stale.body?.reason === 'stale',
       'the stale push is recognised as stale rather than as the newest write',
       stale.body?.reason || 'applied');
+
+    // The same clock reading from a DIFFERENT peer must never drop the push.
+    // The web clock has three slots, so a third device in a room shares one
+    // and becomes causally indistinguishable from whoever it collides with —
+    // "dominated" can mean a shared slot rather than an old edit, and
+    // refusing it would delete that person's work.
+    const fromB = await push({
+      otp, fileId: f, content: doc(['ONE. A1 A2 PLUS B']), authorNodeId: B.nodeId,
+      vectorClock: behind, seq: 3, committedAt: Date.now(), isSessionEnd: true,
+      baseContent: prev,
+    });
+    const afterB = await read(otp, f);
+    check(!fromB.body?.ignored,
+      'another peer’s edit is never dropped on the clock alone',
+      fromB.body?.reason || 'applied');
+    check(/PLUS B/.test(plain(afterB?.content)),
+      'that peer’s text is in the document', plain(afterB?.content));
   }
 
   // ── 4. Concurrent: neither side saw the other ─────────────────────────

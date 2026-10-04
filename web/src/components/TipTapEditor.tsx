@@ -4,7 +4,6 @@ import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
 import Placeholder from '@tiptap/extension-placeholder';
 import TextAlign from '@tiptap/extension-text-align';
-import Underline from '@tiptap/extension-underline';
 import { useEffect, useRef, useState } from 'react';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
@@ -19,6 +18,7 @@ import {
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 
 export interface RemoteCursor {
   nodeId: string;
@@ -26,6 +26,54 @@ export interface RemoteCursor {
   color: string;
   from: number;
   to: number;
+}
+
+/** A remote caret as this editor currently believes it to be placed. */
+interface TrackedCursor extends RemoteCursor {
+  /** The exact position its owner last reported, used to spot a real move. */
+  reportedFrom: number;
+  reportedTo: number;
+}
+
+interface RemoteCursorsState {
+  byNode: Map<string, TrackedCursor>;
+  decorations: DecorationSet;
+}
+
+function buildCursorDecorations(
+  cursors: TrackedCursor[],
+  doc: ProseMirrorNode
+): DecorationSet {
+  const decorations: Decoration[] = [];
+  const maxPos = Math.max(0, doc.nodeSize - 2);
+
+  cursors.forEach((c) => {
+    const from = Math.max(0, Math.min(c.from, maxPos));
+    const to = Math.max(0, Math.min(c.to, maxPos));
+
+    if (from === to) {
+      const cursorElement = document.createElement('span');
+      cursorElement.classList.add('collaboration-cursor__caret');
+      cursorElement.style.borderLeftColor = c.color;
+
+      const labelElement = document.createElement('div');
+      labelElement.classList.add('collaboration-cursor__label');
+      labelElement.style.backgroundColor = c.color;
+      labelElement.textContent = c.displayName;
+      cursorElement.appendChild(labelElement);
+
+      decorations.push(Decoration.widget(from, cursorElement, { side: 1 }));
+    } else {
+      decorations.push(
+        Decoration.inline(Math.min(from, to), Math.max(from, to), {
+          class: 'collaboration-cursor__selection',
+          style: `background-color: ${c.color}33`,
+        })
+      );
+    }
+  });
+
+  return DecorationSet.create(doc, decorations);
 }
 
 const RemoteCursorsExtension = Extension.create({
@@ -37,63 +85,81 @@ const RemoteCursorsExtension = Extension.create({
   },
   addProseMirrorPlugins() {
     return [
-      new Plugin({
+      new Plugin<RemoteCursorsState>({
         key: new PluginKey('remoteCursors'),
         state: {
-          init: () => DecorationSet.empty,
-          apply: (tr, oldDecorationSet) => {
+          init: () => ({ byNode: new Map(), decorations: DecorationSet.empty }),
+          apply: (tr, prev) => {
+            // Each peer reports an ABSOLUTE position, measured in ITS OWN
+            // copy of the document. The moment anyone types, those numbers
+            // stop describing this copy: insert a word above someone's caret
+            // and their reported position now points several characters
+            // earlier than where they actually are.
+            //
+            // The decorations were rebuilt from the reported numbers on every
+            // poll, so a peer who was sitting perfectly still had their caret
+            // jump around the page as soon as somebody else typed — the thing
+            // this is meant to show (where that person is) was the one thing
+            // it got wrong.
+            //
+            // Each caret is now carried forward through every local edit by
+            // the same position mapping ProseMirror uses for its own
+            // selection, and a peer's stored position is only replaced when
+            // THAT PEER reports a different one from the last we heard. An
+            // unchanged report is a peer who has not moved, so their caret is
+            // left exactly where this document says it now is.
+            const byNode = new Map<string, TrackedCursor>();
+            let moved = false;
+
+            // Carry every known caret through this transaction's changes.
+            prev.byNode.forEach((c, nodeId) => {
+              const from = tr.mapping.map(c.from, 1);
+              const to = tr.mapping.map(c.to, 1);
+              if (from !== c.from || to !== c.to) moved = true;
+              byNode.set(nodeId, { ...c, from, to });
+            });
+
             // `this.options` on a Tiptap Extension is a computed getter that
             // merges configure()-time defaults, not a stable mutable object —
             // assigning `ext.options.cursors = ...` from outside silently
-            // never persists (reads back as the original default on the
-            // very next access). Passing the live cursor list through the
-            // transaction's own meta is the reliable way to get fresh data
-            // into a ProseMirror plugin's `apply`.
-            const meta = tr.getMeta('remoteCursorsUpdate');
-            if (!meta) {
-              // No new cursor data on this transaction (e.g. the user just
-              // typed) — keep showing the existing decorations, remapped
-              // onto the new document positions.
-              return oldDecorationSet.map(tr.mapping, tr.doc);
+            // never persists. Passing the live list through the transaction's
+            // own meta is the reliable way to get fresh data in here.
+            const meta = tr.getMeta('remoteCursorsUpdate') as RemoteCursor[] | undefined;
+            if (meta) {
+              const seen = new Set<string>();
+              meta.forEach((c) => {
+                seen.add(c.nodeId);
+                const known = byNode.get(c.nodeId);
+                // A report identical to the last one from this peer means
+                // they have not moved; keep the position already carried
+                // through our edits rather than snapping back to a number
+                // that was true before we typed.
+                if (known && known.reportedFrom === c.from && known.reportedTo === c.to) {
+                  byNode.set(c.nodeId, { ...known, color: c.color, displayName: c.displayName });
+                  return;
+                }
+                byNode.set(c.nodeId, {
+                  ...c,
+                  reportedFrom: c.from,
+                  reportedTo: c.to,
+                });
+                moved = true;
+              });
+              // Anyone who has gone away stops being drawn.
+              const stale: string[] = [];
+              byNode.forEach((_c, nodeId) => { if (!seen.has(nodeId)) stale.push(nodeId); });
+              stale.forEach((nodeId) => { byNode.delete(nodeId); moved = true; });
             }
-            const cursors: RemoteCursor[] = meta;
-            const decorations: Decoration[] = [];
-            const docSize = tr.doc.nodeSize;
 
-            cursors.forEach((c: RemoteCursor) => {
-              const from = Math.max(0, Math.min(c.from, docSize - 2));
-              const to = Math.max(0, Math.min(c.to, docSize - 2));
-
-              if (from === to) {
-                const cursorElement = document.createElement('span');
-                cursorElement.classList.add('collaboration-cursor__caret');
-                cursorElement.style.borderLeftColor = c.color;
-
-                const labelElement = document.createElement('div');
-                labelElement.classList.add('collaboration-cursor__label');
-                labelElement.style.backgroundColor = c.color;
-                labelElement.textContent = c.displayName;
-                cursorElement.appendChild(labelElement);
-
-                decorations.push(
-                  Decoration.widget(from, cursorElement, { side: 1 })
-                );
-              } else {
-                decorations.push(
-                  Decoration.inline(Math.min(from, to), Math.max(from, to), {
-                    class: 'collaboration-cursor__selection',
-                    style: `background-color: ${c.color}33`,
-                  })
-                );
-              }
-            });
-
-            return DecorationSet.create(tr.doc, decorations);
+            if (!moved && !tr.docChanged) {
+              return { byNode, decorations: prev.decorations };
+            }
+            return { byNode, decorations: buildCursorDecorations(Array.from(byNode.values()), tr.doc) };
           },
         },
         props: {
           decorations(state) {
-            return this.getState(state);
+            return this.getState(state)?.decorations ?? DecorationSet.empty;
           },
         },
       }),
@@ -200,9 +266,12 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
 
   const editor = useEditor({
     extensions: [
+      // This build of StarterKit already brings Underline. Registering it a
+      // second time made Tiptap warn about a duplicate extension name, and
+      // two marks answering to one name is not a state worth shipping when
+      // the toolbar button toggles it and the exporter reads it back.
       StarterKit,
       Highlight,
-      Underline,
       Placeholder.configure({ placeholder: 'Start writing, or wait for teammates to join this room.' }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       RemoteCursorsExtension.configure({ cursors: [] }),

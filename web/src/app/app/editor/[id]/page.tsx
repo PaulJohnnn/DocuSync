@@ -975,7 +975,22 @@ export default function EditorPage() {
             // stayed invisible here until some third write changed the
             // author. The content comparisons below already make a true echo
             // of our own edit a no-op.
-            if (!data.upToDate && data.content) {
+            // A snapshot committed BEFORE this client's own last accepted
+            // write predates our work, and applying it undoes it.
+            //
+            // The server cannot tell: it compares a fingerprint, so its only
+            // answer is "your copy differs from mine, here is mine" — it has
+            // no idea which of the two is newer. Clearing a paragraph and
+            // then receiving the pre-clear snapshot a moment later put every
+            // deleted word back on the page, which is what "I delete the text
+            // and it comes back" is. Same window, less visibly, for ordinary
+            // typing that briefly reverted.
+            const snapshotAt = typeof data.snapshot?.committedAt === 'number'
+              ? data.snapshot.committedAt
+              : 0;
+            const predatesOurWork = snapshotAt > 0 && snapshotAt < _lastAcceptedSeq.current;
+
+            if (!data.upToDate && data.content && !predatesOurWork) {
               if (!(isTypingRef.current || hasPendingChangesRef.current) && data.content !== currentContentRef.current) {
                 setContentAndRef(data.content);
                 lastSave.current = data.content;
