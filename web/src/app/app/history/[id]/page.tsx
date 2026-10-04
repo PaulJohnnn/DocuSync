@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { uGet, uSet } from '@/lib/userStorage';
 import { idbGetFile, idbSaveFile } from '@/lib/idb';
-import InteractiveConflictEditor from '@/components/InteractiveConflictEditor';
 import { diffWords } from 'diff';
 import { documentSignature } from '@/lib/documentSignature';
 
@@ -337,7 +336,6 @@ export default function HistoryPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [restoring, setRestoring] = useState<Record<string, boolean>>({});
   const [activeConflicts, setActiveConflicts] = useState<any[]>([]);
-  const [showAllConflicts, setShowAllConflicts] = useState(false);
   const [viewFullEvent, setViewFullEvent] = useState<HistoryEntry | null>(null);
   const [offlineWarning, setOfflineWarning] = useState('');
 
@@ -608,62 +606,23 @@ export default function HistoryPage() {
       </div>
 
       {/*
-        Conflicts awaiting a decision sit above the version list, because
-        they are the thing to act on — but only the first is expanded. They
-        used to render as a full-height stack, so on a document with a few
-        of them the version timeline started somewhere below the bottom of
-        the screen and looked, reasonably enough, like it was missing.
+        The "Needs your review" panel used to live here: a stack of
+        AUTOMATIC MERGE NOTIFICATION cards, one per divergence the editor
+        had already resolved by itself.
+
+        It is gone because it reported the same events twice. Every one of
+        those cards describes a merge that has already happened, and the
+        version list below records that merge as a "Conflict resolved"
+        row — with the resulting document, the author, the time, and a
+        Restore button that brings any of it back. The cards added a second,
+        louder account of the same thing above it, and because an automatic
+        merge needs no decision, "Needs your review" was asking for one that
+        was not required.
+
+        Nothing is lost by removing them: the merge is still recorded, the
+        losing side is still kept as its own version, and both are still
+        restorable from the list.
       */}
-      {activeConflicts.length > 0 && (
-        <div style={{ marginBottom: 32 }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            gap: 12, flexWrap: 'wrap', marginBottom: 12,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--amb)' }}>
-              <AlertTriangle size={16} />
-              <span style={{ fontSize: 14, fontWeight: 700 }}>
-                Needs your review
-              </span>
-              <span style={{
-                fontSize: 11, fontWeight: 600, color: 'var(--amb)', background: 'var(--amb-bg)',
-                border: '1px solid var(--amb)', padding: '2px 8px', borderRadius: 12,
-              }}>
-                {activeConflicts.length} conflict{activeConflicts.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-            {activeConflicts.length > 1 && (
-              <button className="ds-btn ds-btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }}
-                onClick={() => setShowAllConflicts((v) => !v)}>
-                {showAllConflicts ? 'Show only the first' : `Show all ${activeConflicts.length}`}
-              </button>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {(showAllConflicts ? activeConflicts : activeConflicts.slice(0, 1)).map((conflict, idx) => (
-              <div key={conflict.conflictId || conflict.id || idx}>
-                <InteractiveConflictEditor
-                  fileId={conflict.fileId}
-                  fileName={fileName}
-                  payloadA={conflict.localContent}
-                  payloadB={conflict.serverContent}
-                  timestamp={new Date(conflict.timestamp)}
-                  onRestore={() => resolveAndReturn(conflict.localContent, conflict.conflictId || conflict.id)}
-                  onReject={() => rejectConflict(conflict.conflictId || conflict.id)}
-                />
-              </div>
-            ))}
-          </div>
-
-          {!showAllConflicts && activeConflicts.length > 1 && (
-            <p style={{ fontSize: 12, color: 'var(--t3)', margin: '10px 2px 0' }}>
-              {activeConflicts.length - 1} more below the version list once this one is resolved.
-            </p>
-          )}
-        </div>
-      )}
-
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: 'var(--t3)' }}>

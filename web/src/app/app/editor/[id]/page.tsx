@@ -70,6 +70,34 @@ interface FileRecord {
   content: string; status: string; createdAt: string; updatedAt: string;
 }
 
+/**
+ * How many pushes must fail in a row before the editor says it is offline.
+ *
+ * One dropped request on congested wifi is not a lost network, and treating
+ * it as one put up the offline banner and started the offline reconciliation
+ * path — which appends a whole marked-up page to the document — while the
+ * connection was still working. Edits are queued locally from the first
+ * failure regardless, so nothing is at risk while this waits for evidence.
+ */
+const OFFLINE_AFTER_CONSECUTIVE_FAILURES = 3;
+
+/*
+ * A fixed-interval flush used to live here, to send what the user had typed
+ * without waiting for them to pause. It is gone, and the reason is worth
+ * keeping: `saveFile` advances `lastSave` to the content it is about to send
+ * BEFORE awaiting the push, and the three-way merge base is read from
+ * `lastSave`. A second flush firing while the first was still in flight
+ * therefore sent a base the server had never confirmed, the server merged
+ * against the wrong text, and the result spliced one person's sentence into
+ * the middle of another's line — measured: "LINE FOR PAUL:" came back as
+ * "LINwithout sE FOR ZYRA:".
+ *
+ * Removing it restored correct text and cost nothing measurable: with the
+ * ordinary 300ms idle debounce, two people typing continuously see each
+ * other 840ms after either of them pauses (scripts/probe-simultaneous-typing.js).
+ * Pushing mid-burst needs the push pipeline to track in-flight bases first.
+ */
+
 export default function EditorPage() {
   const params = useParams();
   const router = useRouter();
@@ -154,6 +182,13 @@ export default function EditorPage() {
   const hasPendingChangesRef = useRef(false);
   const isPushingRef = useRef(false);
   const pollDocInFlightRef = useRef(false);
+  /**
+   * Consecutive failed pushes. A congested connection loses a request now
+   * and then without being offline, so the offline banner — and the offline
+   * reconciliation that appends a whole marked-up page — waits for a run of
+   * them rather than firing on the first.
+   */
+  const pushFailureStreakRef = useRef(0);
   const queuedContentRef = useRef<string | null>(null);
 
   // The server state the last conflict was filed against. The poll below
@@ -689,6 +724,7 @@ export default function EditorPage() {
               if (explicit) {
                 toast.error('Offline Conflict Detected! Check menu.', { duration: 6000 });
               }
+              pushFailureStreakRef.current = 0;
               setOfflineQueue(false);
               hasPendingChangesRef.current = false;
               return;
@@ -721,6 +757,7 @@ export default function EditorPage() {
               const prevCount = parseInt(localStorage.getItem('web_session_push_count') || '0', 10);
               localStorage.setItem('web_session_push_count', String(prevCount + 1));
               setSyncStatusMsg(`Synced ✓`);
+              pushFailureStreakRef.current = 0;
               setOfflineQueue(false);
               uSet('docusync_offline_base', typeof mergedContent === 'string' ? mergedContent : contentToSave);
               uSet(`docusync_offline_history_${fileId}`, '[]');
@@ -808,6 +845,7 @@ export default function EditorPage() {
               }
 
               setSyncStatusMsg(`Cloud Synced ✓`);
+              pushFailureStreakRef.current = 0;
               setOfflineQueue(false);
               uSet(`docusync_offline_history_${fileId}`, '[]');
               hasPendingChangesRef.current = false;
@@ -822,8 +860,23 @@ export default function EditorPage() {
         }
         
         if (!directSuccess) {
-          setSyncStatusMsg('Sync failed — queued for retry');
-          setOfflineQueue(true);
+          // One failed request is not being offline. A slow or congested
+          // connection drops a request now and then, and declaring offline on
+          // the first one put the banner up — and with it the offline
+          // reconciliation path, which appends the big "[Offline Edit
+          // appended by …]" page — while the network was working fine. On
+          // poor wifi that fired over and over.
+          //
+          // The edit is still queued locally either way, so nothing is at
+          // risk while this waits; only the claim that the network is gone
+          // waits for evidence.
+          pushFailureStreakRef.current += 1;
+          const reallyOffline = !navigator.onLine
+            || pushFailureStreakRef.current >= OFFLINE_AFTER_CONSECUTIVE_FAILURES;
+          setSyncStatusMsg(reallyOffline
+            ? 'Offline — your edits are saved here and will sync'
+            : 'Slow connection — retrying');
+          if (reallyOffline) setOfflineQueue(true);
           try {
             const histKey = `docusync_offline_history_${fileId}`;
             const existing = JSON.parse(uGet(histKey) || '[]');
@@ -843,8 +896,11 @@ export default function EditorPage() {
         }
       }
     } catch (_e) {
-      setSyncStatusMsg('Host unavailable');
-      setOfflineQueue(true);
+      pushFailureStreakRef.current += 1;
+      const reallyOffline = !navigator.onLine
+        || pushFailureStreakRef.current >= OFFLINE_AFTER_CONSECUTIVE_FAILURES;
+      setSyncStatusMsg(reallyOffline ? 'Host unavailable' : 'Slow connection — retrying');
+      if (reallyOffline) setOfflineQueue(true);
     } finally {
       setSyncing(false);
     }
@@ -879,7 +935,15 @@ export default function EditorPage() {
   useEffect(() => {
     const pollDoc = async () => {
       if (!navigator.onLine) return;
-      if (isTypingRef.current || hasPendingChangesRef.current) return; // Don't interrupt active typing or pending saves
+      // Not while the user is mid-keystroke. Applying a remote update means
+      // replacing the whole document and putting the caret back by offset,
+      // and doing that between two keystrokes lands the next characters in
+      // the wrong place: measured, two people typing at once produced
+      // "LINithout stE FOR ZYRA" — their letters shuffled into each other.
+      // The 300ms idle window is short enough that a natural pause releases
+      // it, and the fixed-interval flush above means our own text is already
+      // on the server by then, so the pause is all it costs.
+      if (isTypingRef.current || hasPendingChangesRef.current) return;
       // A round trip that runs past the poll interval would otherwise let
       // the next tick fire on top of it, stacking calls against the same
       // backend (same class of issue fixed elsewhere this session).

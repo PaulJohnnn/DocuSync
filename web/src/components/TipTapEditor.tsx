@@ -113,8 +113,17 @@ const RemoteCursorsExtension = Extension.create({
 
             // Carry every known caret through this transaction's changes.
             prev.byNode.forEach((c, nodeId) => {
-              const from = tr.mapping.map(c.from, 1);
-              const to = tr.mapping.map(c.to, 1);
+              // Biased LEFT (assoc -1), which decides what happens when text
+              // is inserted at EXACTLY the spot a remote caret sits. Biased
+              // right, the caret is pushed along in front of every character
+              // typed — so when two people have their carets in the same
+              // place, the other person's name tag ran across the page as
+              // this one typed, which is the "their cursor moves when I type"
+              // report. Biased left, the typing flows past them and their
+              // caret stays where they put it, which is what a word processor
+              // does and what the owner of that caret expects to see.
+              const from = tr.mapping.map(c.from, -1);
+              const to = tr.mapping.map(c.to, -1);
               if (from !== c.from || to !== c.to) moved = true;
               byNode.set(nodeId, { ...c, from, to });
             });
