@@ -179,7 +179,21 @@ return snapshotJson
 
 export async function casSetIfNewer(
   key: string,
-  snapshot: { content: string; authorNodeId: string; vectorClock: any; seq?: number; committedAt: number },
+  snapshot: {
+    content: string;
+    authorNodeId: string;
+    vectorClock: any;
+    seq?: number;
+    /** The AUTHOR's clock. Last-Write-Wins arbitrates on this. */
+    committedAt: number;
+    /**
+     * The SERVER's clock, stamped when the snapshot is written. Only ever
+     * increases, so a client can tell a snapshot older than its own work
+     * from a newer one — which `committedAt` cannot do, since two authors'
+     * clocks can disagree.
+     */
+    storedAt?: number;
+  },
   ttlSeconds: number
 ): Promise<{ written: boolean; snapshot: any }> {
   const client = getRedis();

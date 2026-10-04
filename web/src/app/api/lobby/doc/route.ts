@@ -514,6 +514,13 @@ export async function POST(request: Request) {
         vectorClock: mergedClock(vectorClock, existing?.vectorClock),
         seq,
         committedAt: Date.now(),
+        // The server's own clock, written on every snapshot. `committedAt`
+        // is the AUTHOR's, because Last-Write-Wins arbitrates on it, so it
+        // can move backwards between two snapshots when two authors' clocks
+        // differ — and a client using it to tell new state from old would
+        // sit frozen, ignoring real updates stamped by a slower machine.
+        // This one only ever increases.
+        storedAt: Date.now(),
       };
       await redis.set(key, snapshot, { ex: 60 * 60 * 24 });
     } else {
@@ -523,7 +530,7 @@ export async function POST(request: Request) {
       // a genuinely simultaneous first-write race.
       const casResult = await casSetIfNewer(
         key,
-        { content, authorNodeId, vectorClock: vectorClock || null, seq, committedAt: incomingCommittedAt },
+        { content, authorNodeId, vectorClock: vectorClock || null, seq, committedAt: incomingCommittedAt, storedAt: Date.now() },
         60 * 60 * 24
       );
       written = casResult.written;
@@ -575,6 +582,7 @@ export async function POST(request: Request) {
             vectorClock: mergedClock(vectorClock, after?.vectorClock),
             seq,
             committedAt: Date.now(),
+            storedAt: Date.now(),
           };
           await redis.set(key, snapshot, { ex: 60 * 60 * 24 });
           written = true;

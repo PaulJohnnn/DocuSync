@@ -801,6 +801,11 @@ export default function EditorPage() {
               if (typeof mmData?.snapshot?.committedAt === 'number') {
                 _lastAcceptedSeq.current = mmData.snapshot.committedAt;
               }
+              // What the server recorded for OUR push. Anything it hands back
+              // later that was stored before this is older than our own work.
+              if (typeof mmData?.snapshot?.storedAt === 'number') {
+                _lastStoredAtRef.current = mmData.snapshot.storedAt;
+              }
 
               setSyncStatusMsg(`Cloud Synced ✓`);
               setOfflineQueue(false);
@@ -848,6 +853,13 @@ export default function EditorPage() {
 
   // ── Track last accepted seq to avoid re-applying same snapshot ───────────
   const _lastAcceptedSeq = useRef<number>(0);
+  /**
+   * The server's own clock on the newest snapshot this client has accepted,
+   * used to recognise a snapshot that predates our work. Separate from
+   * `_lastAcceptedSeq`, which tracks the author clock the poll cursor is
+   * expressed in and can move backwards between peers.
+   */
+  const _lastStoredAtRef = useRef<number>(0);
 
   /**
    * Fingerprint of the document this client currently holds, sent with each
@@ -985,10 +997,18 @@ export default function EditorPage() {
             // deleted word back on the page, which is what "I delete the text
             // and it comes back" is. Same window, less visibly, for ordinary
             // typing that briefly reverted.
-            const snapshotAt = typeof data.snapshot?.committedAt === 'number'
-              ? data.snapshot.committedAt
+            // Compared on `storedAt`, the SERVER's clock, never on
+            // `committedAt`. That one is the author's, because Last-Write-
+            // Wins arbitrates on it, so it can move backwards between two
+            // snapshots written by machines whose clocks differ — and a
+            // client gating on it would ignore real updates from a peer
+            // running slow and sit there frozen.
+            const snapshotAt = typeof data.snapshot?.storedAt === 'number'
+              ? data.snapshot.storedAt
               : 0;
-            const predatesOurWork = snapshotAt > 0 && snapshotAt < _lastAcceptedSeq.current;
+            const predatesOurWork = snapshotAt > 0
+              && _lastStoredAtRef.current > 0
+              && snapshotAt < _lastStoredAtRef.current;
 
             if (!data.upToDate && data.content && !predatesOurWork) {
               if (!(isTypingRef.current || hasPendingChangesRef.current) && data.content !== currentContentRef.current) {
@@ -1004,6 +1024,9 @@ export default function EditorPage() {
                 // edit lost a Last-Write-Wins arbitration would sit there
                 // permanently stale, showing text nobody else had.
                 _lastAcceptedSeq.current = data.snapshot?.committedAt ?? _lastAcceptedSeq.current;
+                if (typeof data.snapshot?.storedAt === 'number') {
+                  _lastStoredAtRef.current = data.snapshot.storedAt;
+                }
                 lastSyncedAt.current = Date.now();
               } else if ((isTypingRef.current || hasPendingChangesRef.current) && currentContentRef.current !== data.content) {
                 // Same reasoning as the direct-host branch above: the 'ot'
