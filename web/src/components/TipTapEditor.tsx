@@ -342,12 +342,22 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
     },
   });
 
+  /**
+   * Tells the pagination loop that the layout has changed.
+   *
+   * Lives in a ref because the loop and the content writer are separate
+   * effects, and content applied with `emitUpdate: false` raises no editor
+   * event for the loop to hear.
+   */
+  const markDirtyRef = useRef<() => void>(() => { });
+
   useEffect(() => {
     if (!editor || !content) return;
     
     if (!initialized.current) {
       editor.commands.setContent(content, { emitUpdate: false });
       initialized.current = true;
+      markDirtyRef.current();
       return;
     }
 
@@ -358,6 +368,9 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       const safeFrom = Math.min(from, newDocSize > 0 ? newDocSize - 1 : 0);
       const safeTo = Math.min(to, newDocSize > 0 ? newDocSize - 1 : 0);
       editor.commands.setTextSelection({ from: safeFrom, to: safeTo });
+      // The text just changed underneath the page breaks measured for the
+      // old text, so they have to be measured again.
+      markDirtyRef.current();
     }
   }, [editor, content]);
 
@@ -382,8 +395,27 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
     // again.
     let dirty = true;
     const markDirty = () => { dirty = true; };
+    markDirtyRef.current = markDirty;
     editor.on('update', markDirty);
     window.addEventListener('resize', markDirty);
+
+    // `editor.on('update')` does NOT fire for content applied programmatically:
+    // the effect that writes a peer's text in passes `emitUpdate: false`, to
+    // avoid echoing it straight back out as a local edit. So a document that
+    // arrived from someone else was never marked for re-measurement, and it
+    // kept whatever page breaks the PREVIOUS text had — none at all, if this
+    // peer had not typed yet. On a device that is mostly receiving, which is
+    // the other person's device during any demo, the text simply ran on past
+    // the bottom of the page. See markDirtyRef, called wherever content is set.
+
+    // A hidden or minimised window has requestAnimationFrame suspended, so the
+    // loop below stops entirely; anything that changed while it was away needs
+    // re-measuring when it comes back.
+    document.addEventListener('visibilitychange', markDirty);
+
+    // Web fonts land after first paint and change every line's height, which
+    // moves every page boundary measured before they arrived.
+    if (document.fonts?.ready) document.fonts.ready.then(markDirty).catch(() => { });
 
     const adjustPages = () => {
       const pm = editor.view.dom as HTMLElement;
@@ -484,6 +516,7 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       cancelAnimationFrame(animFrame);
       editor.off('update', markDirty);
       window.removeEventListener('resize', markDirty);
+      document.removeEventListener('visibilitychange', markDirty);
     };
   }, [editor, margin]);
 
