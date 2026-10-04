@@ -120,6 +120,50 @@ const check = (ok, name, detail = '') => {
       'the version that lost the arbitration is still in the log, restorable');
   }
 
+  // ---- 4b. saves that change nothing a reader can see -----------------
+  {
+    const otp = String(100000 + Math.floor(Math.random() * 899999));
+    const f = 'spam-invisible';
+    const body = '<div data-margin="96"><p>Nakatira sa mabuhay</p><p>pepe</p>';
+    // What the editor actually emits as someone works: an empty paragraph
+    // left behind by Enter, re-serialised three different ways, arriving
+    // alternately as an autosave and an explicit save.
+    const steps = [
+      [body + '</div>', { isDone: true }],
+      [body + '<p></p></div>', { isSessionEnd: true }],
+      [body + '<p><br></p></div>', { isDone: true }],
+      [body + '<p>&nbsp;</p></div>', { isSessionEnd: true }],
+    ];
+    for (const [i, [content, flags]] of steps.entries()) {
+      await post('/doc', { otp, fileId: f, content, authorNodeId: 'web-A', seq: 1, committedAt: Date.now() + i, ...flags });
+    }
+    const h = await hist(otp, f);
+    const visible = (e) => (e.fullContent || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+    const distinct = new Set(h.map(visible));
+    check(h.length === distinct.size,
+      'saves that change nothing visible do not become versions',
+      `${h.length} rows for ${distinct.size} distinct pages`);
+  }
+
+  // ---- 4c. a second person's edit is still its own version -------------
+  {
+    const otp = String(100000 + Math.floor(Math.random() * 899999));
+    const f = 'spam-twoauthors';
+    const base = wrap('SHARED LINE.');
+    await doc(otp, f, base, 'web-paul', Date.now(), { isSessionEnd: true });
+    // Folding one author's successive saves must not fold away someone else.
+    await doc(otp, f, wrap('SHARED LINE. BY PAUL'), 'web-paul', Date.now(), { isSessionEnd: true, baseContent: base });
+    const mid = wrap('SHARED LINE. BY PAUL');
+    await doc(otp, f, wrap('SHARED LINE. BY PAUL AND ZYRA'), 'web-zyra', Date.now(), { isSessionEnd: true, baseContent: mid });
+
+    const h = await hist(otp, f);
+    const authors = new Set(h.map((e) => e.nodeId));
+    check(authors.has('web-paul') && authors.has('web-zyra'),
+      'both people appear in the version list', [...authors].join(', '));
+    check(h.some((e) => /ZYRA/.test((e.fullContent || '').replace(/<[^>]+>/g, ' '))),
+      'the second person’s edit is recorded as its own version');
+  }
+
   // ---- 5. the conflict feed -------------------------------------------
   {
     const otp = String(100000 + Math.floor(Math.random() * 899999));

@@ -3,6 +3,7 @@ import { diff_match_patch } from 'diff-match-patch';
 import { redis, casSetIfNewer } from '@/lib/redis';
 import { VectorClock } from '@/lib/vector-clock';
 import type { VectorClockJSON, ClockRelation } from '@/lib/vector-clock';
+import { documentSignature } from '@/lib/documentSignature';
 
 export const dynamic = 'force-dynamic';
 
@@ -598,12 +599,12 @@ export async function POST(request: Request) {
       // and can return the same words with a newline added between two tags.
       // Compared literally, that counts as a new version and the page shows
       // two rows a reader cannot tell apart.
-      // Whitespace BETWEEN tags is dropped outright, not just collapsed: the
-      // merge puts a line break between two block tags where the editor puts
-      // none, so merely collapsing runs of space leaves one side with a space
-      // between the tags and the other without, and the two still compare as
-      // different documents.
-      const normalise = (s: string) => s.replace(/>\s+</g, '><').replace(/\s+/g, ' ').trim();
+      // Compared on what the page renders, not on the markup string. Two
+      // saves can differ only by an empty paragraph the user left behind, or
+      // by `<p></p>` versus `<p><br></p>` for the same empty paragraph, or by
+      // a line break the merge inserted between block tags — all invisible,
+      // all different strings. See lib/documentSignature.ts.
+      const normalise = documentSignature;
       const finalNorm = normalise(finalContent);
       // A conflict is always recorded, even when the text it settles on
       // happens to match a version already in the log. The entry is not
@@ -660,8 +661,18 @@ export async function POST(request: Request) {
         const canFold =
           head &&
           !hadConflict &&
-          head.eventType === eventType &&
+          // Deliberately NOT also requiring the same event type. The editor
+          // alternates between an autosave and an explicit save as the user
+          // works, which arrive as 'edit' and 'session-snapshot', so
+          // requiring a match meant one person typing for a minute produced a
+          // row per keystroke-burst — the two flags took turns and nothing
+          // ever folded. What matters is that it is the same person
+          // continuing, not which flag their client happened to send.
           head.nodeId === authorNodeId &&
+          // A conflict is never folded away, in either direction: it is the
+          // one event the log exists to show.
+          head.eventType !== 'conflict-resolve' &&
+          head.eventType !== 'offline-replay' &&
           typeof head.recordedAt === 'number' &&
           recordedAt - head.recordedAt < HISTORY_FOLD_WINDOW_MS;
 

@@ -9,6 +9,7 @@ import { uGet, uSet } from '@/lib/userStorage';
 import { idbGetFile, idbSaveFile } from '@/lib/idb';
 import InteractiveConflictEditor from '@/components/InteractiveConflictEditor';
 import { diffWords } from 'diff';
+import { documentSignature } from '@/lib/documentSignature';
 
 // Two real, full-size document pages side by side — the selected
 // historical snapshot on the left, the current/latest version on the
@@ -33,19 +34,156 @@ import { diffWords } from 'diff';
 // tag level, so an unmatched tag can end up on only one side; the browser's
 // HTML parser is lenient enough that this renders as slightly odd
 // formatting on that one page rather than breaking anything.
+/** One block-level element of a stored document. */
+interface DocBlock {
+  /** The element exactly as stored, markup and all. */
+  html: string;
+  /** Its opening tag, used to rebuild it around marked-up text. */
+  open: string;
+  /** Its closing tag. */
+  close: string;
+  /** The words it shows, with tags and entities resolved. */
+  text: string;
+  /** A stable identity for alignment: the tag name plus its words. */
+  key: string;
+}
+
+const BLOCK_PATTERN = /<(p|h[1-6]|li|blockquote|pre|td|th|figcaption)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
+
+/** Text with HTML's five special characters escaped, safe to inject. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Splits a stored document into its block elements.
+ *
+ * Regex rather than DOMParser because this also has to produce the same
+ * result during server rendering, where there is no document. Block tags do
+ * not nest in what the editor emits, so a non-greedy match to the matching
+ * close tag is sufficient here; anything the pattern does not recognise is
+ * carried through verbatim as its own block, so nothing is ever dropped.
+ */
+function splitBlocks(html: string): DocBlock[] {
+  const blocks: DocBlock[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  BLOCK_PATTERN.lastIndex = 0;
+
+  const addLiteral = (chunk: string) => {
+    // Markup between blocks — the wrapping <div data-margin>, a <hr>, a
+    // stray newline. Kept exactly, never diffed, so it cannot be split.
+    if (chunk) blocks.push({ html: chunk, open: '', close: '', text: '', key: `~${chunk}` });
+  };
+
+  while ((match = BLOCK_PATTERN.exec(html)) !== null) {
+    addLiteral(html.slice(lastIndex, match.index));
+    const [full, tag, attrs = '', inner] = match;
+    const text = stripHtml(inner);
+    blocks.push({
+      html: full,
+      open: `<${tag}${attrs}>`,
+      close: `</${tag}>`,
+      text,
+      key: `${tag.toLowerCase()}:${text}`,
+    });
+    lastIndex = match.index + full.length;
+  }
+  addLiteral(html.slice(lastIndex));
+  return blocks;
+}
+
+/** Rebuilds a block around already-escaped inner HTML. */
+function wrapBlock(block: DocBlock, inner: string): string {
+  if (!block.open) return block.html;
+  return `${block.open}${inner}${block.close}`;
+}
+
+/**
+ * The block on the other side this one most likely came from.
+ *
+ * Longest shared prefix of words, which is enough to pair a paragraph with
+ * its edited self without pairing it with an unrelated one. Returns nothing
+ * when nothing is close, so a genuinely new block is marked whole rather
+ * than diffed against a stranger.
+ */
+function nearestBlock(block: DocBlock, candidates: DocBlock[]): DocBlock | null {
+  const words = block.text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return null;
+
+  let best: DocBlock | null = null;
+  let bestScore = 0;
+  for (const candidate of candidates) {
+    if (!candidate.open) continue;
+    const other = candidate.text.split(/\s+/).filter(Boolean);
+    let shared = 0;
+    while (shared < words.length && shared < other.length && words[shared] === other[shared]) shared++;
+    if (shared > bestScore) { bestScore = shared; best = candidate; }
+  }
+  // At least a third of the shorter block has to line up before two blocks
+  // are called versions of each other.
+  return bestScore > 0 && bestScore * 3 >= Math.min(words.length, 1) ? best : null;
+}
+
 function renderDiff(oldHtml: string, newHtml: string) {
-  const diffs = diffWords(oldHtml || '', newHtml || '');
+  // The diff runs block by block, and within a block on its words — never on
+  // the markup as one string.
+  //
+  // It used to diff the raw HTML and wrap each changed token in <mark>. Word
+  // boundaries fall inside tags, so a structural change split one: the two
+  // halves of `</div>` landed on opposite sides of the diff and the page
+  // rendered the orphan `div>` as literal text, next to a highlighted
+  // `<p></p>` that was never anything the author typed. The reader was shown
+  // markup, and the markup that was built was not valid.
+  //
+  // Working a block at a time means a tag is never cut in half. Unchanged
+  // blocks are emitted exactly as they were stored, so headings, bold, lists
+  // and alignment survive untouched. Only a block whose words changed has its
+  // text re-rendered with the differences marked, and only that block loses
+  // its inline formatting — a contained cost, where the previous approach
+  // could corrupt the whole document.
+  const oldBlocks = splitBlocks(oldHtml || '');
+  const newBlocks = splitBlocks(newHtml || '');
 
   const buildSide = (side: 'previous' | 'current') => {
-    const skip = side === 'previous' ? (p: any) => p.added : (p: any) => p.removed;
-    const highlight = side === 'previous' ? (p: any) => p.removed : (p: any) => p.added;
+    const blocks = side === 'previous' ? oldBlocks : newBlocks;
+    const other = side === 'previous' ? newBlocks : oldBlocks;
     const bg = side === 'previous' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)';
     const deco = side === 'previous' ? 'text-decoration:line-through;' : '';
-    return diffs
-      .filter(part => !skip(part))
-      .map(part => highlight(part)
-        ? `<mark style="background:${bg};${deco}border-radius:2px;padding:0 1px;">${part.value}</mark>`
-        : part.value)
+    const mark = (text: string) =>
+      `<mark style="background:${bg};${deco}border-radius:2px;padding:0 1px;">${escapeHtml(text)}</mark>`;
+
+    const otherTexts = new Set(other.map((b) => b.text.trim()));
+
+    return blocks
+      .map((block) => {
+        const text = block.text.trim();
+        // Present on both sides, unchanged: emit the original markup.
+        if (otherTexts.has(text)) return block.html;
+
+        // Changed or new: find its closest counterpart and mark the words
+        // that differ, inside the block's own tag.
+        const counterpart = nearestBlock(block, other);
+        if (!counterpart) {
+          return wrapBlock(block, mark(block.text));
+        }
+        const wordOps = diffWords(
+          side === 'previous' ? block.text : counterpart.text,
+          side === 'previous' ? counterpart.text : block.text,
+        );
+        const inner = wordOps
+          .filter((p: { added?: boolean; removed?: boolean }) =>
+            side === 'previous' ? !p.added : !p.removed)
+          .map((p: { added?: boolean; removed?: boolean; value: string }) =>
+            (side === 'previous' ? p.removed : p.added) ? mark(p.value) : escapeHtml(p.value))
+          .join('');
+        return wrapBlock(block, inner);
+      })
       .join('');
   };
 
@@ -147,14 +285,15 @@ function orderVersions(list: HistoryEntry[]): HistoryEntry[] {
   // does, that two people disagreed — but it still claims its text, so the
   // ordinary save holding the same words below it goes.
   //
-  // Whitespace between tags is ignored in the comparison: the server's merge
-  // emits a line break between block tags where the editor emits none, which
-  // is not a difference anyone can see on the page.
+  // Compared on what the page renders, not on the markup string: two
+  // versions can differ only by an empty paragraph the user left behind, or
+  // by a line break the merge put between block tags. Invisible on screen,
+  // different as strings — and the list filled with rows nobody could tell
+  // apart. Same rule the server uses when deciding whether to log a version.
   const seen = new Set<string>();
   const alwaysKeep = new Set(['conflict-resolve', 'offline-replay', 'merge', 'restore', 'delete']);
   return sorted.filter((ev) => {
-    const body = (ev.fullContent ?? ev.payloadPreview ?? '')
-      .replace(/>\s+</g, '><').replace(/\s+/g, ' ').trim();
+    const body = documentSignature(ev.fullContent ?? ev.payloadPreview ?? '');
     if (!body) return true;
     const keep = alwaysKeep.has(ev.eventType) || !seen.has(body);
     seen.add(body);
