@@ -1,7 +1,30 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'path';
 import { initEngine, registerIPCHandlers, cleanupIPCHandlers } from './ipc-handlers';
 import type { EngineServices } from './ipc-handlers';
+import { isNavigationAllowed } from './security';
+
+/**
+ * The origin of a URL, for logging. A blocked URL can carry a room token or
+ * a path the user would not want written to a log file, so only the origin
+ * is recorded.
+ */
+function safeOrigin(target: string): string {
+  try {
+    return new URL(target).origin;
+  } catch {
+    return '<unparseable url>';
+  }
+}
+
+/** The protocol of a URL, or the empty string when it cannot be parsed. */
+function safeProtocol(target: string): string {
+  try {
+    return new URL(target).protocol;
+  } catch {
+    return '';
+  }
+}
 
 // The built directory structure
 //
@@ -101,7 +124,63 @@ async function createWindow() {
     icon: path.join(process.env.VITE_PUBLIC!, 'favicon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      // Stated rather than inherited. These are Electron's current defaults,
+      // but they are the entire reason a remote page in this window cannot
+      // reach Node, and a default is a decision someone else can change in a
+      // future version or a stray option object. The window below loads a
+      // website and carries the privileged preload bridge, so the settings
+      // that contain it are written down.
+      contextIsolation: true,
+      nodeIntegration: false,
+      nodeIntegrationInWorker: false,
+      nodeIntegrationInSubFrames: false,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      // Nothing in this application embeds another site.
+      webviewTag: false,
     },
+  });
+
+  // ── Where the privileged window may go ──────────────────────────────────
+  //
+  // The preload bridge belongs to the WINDOW, not to the page in it. A
+  // navigation therefore hands `window.docuSync` — and through it the file
+  // and database handlers — to whatever loads next. Nothing stopped that: a
+  // link, a redirect, or an open redirect on the site was enough to take a
+  // privileged window somewhere else entirely.
+  //
+  // Navigations away from the allowlist are cancelled. Links meant for a
+  // browser are opened in the user's browser, where they have no bridge.
+  win.webContents.on('will-navigate', (event, targetUrl) => {
+    if (!isNavigationAllowed(targetUrl)) {
+      event.preventDefault();
+      console.warn('[Security] Blocked in-window navigation to a non-allowlisted origin:', safeOrigin(targetUrl));
+    }
+  });
+
+  // Same rule for a redirect, which does not raise `will-navigate`.
+  win.webContents.on('will-redirect', (event, targetUrl) => {
+    if (!isNavigationAllowed(targetUrl)) {
+      event.preventDefault();
+      console.warn('[Security] Blocked redirect to a non-allowlisted origin:', safeOrigin(targetUrl));
+    }
+  });
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    // A new Electron window would inherit this window's preload. External
+    // links go to the real browser instead; anything else is refused.
+    if (/^https?:$/.test(safeProtocol(url)) && !isNavigationAllowed(url)) {
+      shell.openExternal(url).catch(() => { /* the user simply gets nothing */ });
+    }
+    return { action: 'deny' };
+  });
+
+  // Belt and braces: if a future change re-enables <webview>, it must not
+  // silently inherit the bridge.
+  win.webContents.on('will-attach-webview', (event) => {
+    event.preventDefault();
+    console.warn('[Security] Blocked an attempt to attach a <webview> to the privileged window.');
   });
 
   // Test active push message to Renderer-process.

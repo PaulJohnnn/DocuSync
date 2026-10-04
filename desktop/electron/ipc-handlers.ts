@@ -47,6 +47,11 @@ import { mergeThreeWay } from '../src/engine/lww/line-merge-3way';
 import { createPeerManager, PeerManager } from '../src/engine/peer/peer-manager';
 import type { PeerMessage } from '../src/engine/peer/message-schema';
 import type { VectorClockJSON } from '../src/engine/vector-clock/vector-clock';
+// The privilege boundary against the renderer. In production the renderer is
+// a remote origin, so every path and name arriving over IPC is untrusted
+// input. See electron/security.ts; tests/unit/ipc-security.test.ts exercises
+// these exact functions rather than a copy of them.
+import { isPathInAllowedDirectory, resolveSafeFileName } from './security';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -148,6 +153,16 @@ function validateExtension(filePath: string): string | null {
     return `Unsupported file type: ${ext || 'none'}. Allowed: ${Array.from(ALLOWED_EXTENSIONS).filter(Boolean).join(', ')}, or no extension`;
   }
   return null;
+}
+
+/**
+ * The one directory a renderer-supplied path or name may resolve into.
+ *
+ * Read through a function rather than a constant because `app.getPath` is
+ * not available until Electron is ready.
+ */
+function allowedFileRoot(): string {
+  return path.join(app.getPath('downloads'), 'DocuSync');
 }
 
 /**
@@ -940,6 +955,27 @@ export function registerIPCHandlers(services: EngineServices): void {
         fileId = parseInt(firstArg, 10);
         filePath = openFiles.get(fileId);
       } else {
+        // ── Security boundary (Fix 2) ──────────────────────────────────────
+        // This branch accepts a direct string path from the renderer. In
+        // production the renderer is a remote Vercel origin, so an XSS
+        // payload could supply an arbitrary filesystem path here.
+        // Reject any path that is not inside the application's designated
+        // download directory. Numeric fileId and dialog-picked paths are
+        // NOT affected — this guard only applies to renderer-supplied strings.
+        if (typeof firstArg === 'string') {
+          const allowedRoot = allowedFileRoot();
+          if (!isPathInAllowedDirectory(firstArg, allowedRoot)) {
+            console.warn('[IPC] file:open rejected renderer-supplied path outside allowed directory.', {
+              operation: 'file:open',
+              allowedRoot,
+              // Log only base-name to limit exposure; full path is NOT logged.
+              requestedBase: path.basename(firstArg),
+            });
+            throw new Error(
+              'file:open: path is outside the allowed directory. Use the file dialog to select files.'
+            );
+          }
+        }
         filePath = firstArg as string | undefined;
       }
 
@@ -950,7 +986,7 @@ export function registerIPCHandlers(services: EngineServices): void {
           let recoveredPath: string | undefined;
           if (args[1] && typeof args[1] === 'string') {
             const fileName = args[1];
-            const docuSyncDir = path.join(app.getPath('downloads'), 'DocuSync');
+            const docuSyncDir = allowedFileRoot();
             const possiblePath = path.join(docuSyncDir, fileName);
             if (fs.existsSync(possiblePath)) {
               recoveredPath = possiblePath;
@@ -1172,13 +1208,16 @@ export function registerIPCHandlers(services: EngineServices): void {
       }
 
       // Create DocuSync directory in Downloads if it doesn't exist
-      const { app } = require('electron');
-      const docuSyncDir = path.join(app.getPath('downloads'), 'DocuSync');
+      const docuSyncDir = allowedFileRoot();
       if (!fs.existsSync(docuSyncDir)) {
         await fs.promises.mkdir(docuSyncDir, { recursive: true });
       }
 
-      const destPath = path.join(docuSyncDir, fileName);
+      // `fileName` arrives from the renderer, which in production is a remote
+      // website. It was joined onto the downloads directory unchecked, so a
+      // name that walked upwards — into the user's startup folder, say — sent
+      // renderer-supplied content there. It must be a plain file name.
+      const destPath = resolveSafeFileName(fileName, docuSyncDir, 'file:import-room-file');
 
       const newFileId = explicitFileId !== undefined ? explicitFileId : services.nextFileId++;
       if (explicitFileId !== undefined && explicitFileId >= services.nextFileId) {
@@ -2104,9 +2143,16 @@ export function registerIPCHandlers(services: EngineServices): void {
       };
       peerManager.broadcast(deltaPushMsg as PeerMessage);
 
+      // Closes the conflict's accounting: the interval since it was
+      // escalated is the Conflict Resolution Time the thesis reports, and
+      // the escalation entry is released. Neither happened before, so that
+      // metric stayed empty however many conflicts were resolved, and the
+      // map of open conflicts only ever grew.
+      const resolveMs = peerManager.recordConflictResolved(conflictId);
+
       console.log(
         `[IPC] conflict:resolve → ${conflictId} winner=${winner}, ` +
-          `peers=${peersNotified}`
+          `peers=${peersNotified}` + (resolveMs !== null ? `, resolved in ${resolveMs}ms` : '')
       );
 
       return {
@@ -2114,6 +2160,7 @@ export function registerIPCHandlers(services: EngineServices): void {
         winner,
         resolvedBy: localNodeId,
         peersNotified,
+        resolveMs,
         fileId: conflict.fileId,
       };
     })
@@ -2213,13 +2260,17 @@ export function registerIPCHandlers(services: EngineServices): void {
       };
       peerManager.broadcast(deltaPushMsg as PeerMessage);
 
-      console.log(`[IPC] conflict:resolve-manual → ${conflictId} peers=${peersNotified}`);
+      const resolveMs = peerManager.recordConflictResolved(conflictId);
+
+      console.log(`[IPC] conflict:resolve-manual → ${conflictId} peers=${peersNotified}`
+        + (resolveMs !== null ? `, resolved in ${resolveMs}ms` : ''));
 
       return {
         conflictId,
         winner: 'B',
         resolvedBy: localNodeId,
         peersNotified,
+        resolveMs,
         fileId: conflict.fileId,
       };
     })
