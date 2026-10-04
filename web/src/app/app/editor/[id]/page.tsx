@@ -1002,12 +1002,18 @@ export default function EditorPage() {
                   const merged = computeSignatureMerge(original, data.content, localBefore, myName);
                   if (merged !== localBefore) {
                     setContentAndRef(merged);
-                    setSyncStatusMsg('Merged Signature Edit ✓');
+                    setSyncStatusMsg('Your offline edits were added to the document');
                   }
                   // Report the divergence once, not once per poll tick.
                   if (merged !== localBefore && lastConflictAgainstRef.current !== data.content) {
                     lastConflictAgainstRef.current = data.content;
-                    toast.success('Offline edits merged automatically');
+                    // Said plainly, and left up long enough to read: this is the one
+                    // moment a user's work moves without them touching it, so
+                    // the message has to say where it went.
+                    toast.success(
+                      'Your offline edits were added to the end of the document, marked with a red banner.',
+                      { duration: 9000 }
+                    );
                     // Push conflict to Redis so all peers receive it
                     const conflictId = crypto.randomUUID();
                     fetch(`${_MATCHMAKER_URL}/conflicts`, {
@@ -1101,13 +1107,16 @@ export default function EditorPage() {
                 const merged = computeSignatureMerge(original, data.content, localBefore, myName);
                 if (merged !== localBefore) {
                   setContentAndRef(merged);
-                  setSyncStatusMsg('Merged Signature Edit ☁');
+                  setSyncStatusMsg('Your offline edits were added to the document');
                 }
                 // Same divergence, same server state: file it once. The poll
                 // below runs every tick and used to re-file it on each one.
                 if (merged !== localBefore && lastConflictAgainstRef.current !== data.content) {
                   lastConflictAgainstRef.current = data.content;
-                  toast.success('Offline edits merged via cloud');
+                  toast.success(
+                    'Your offline edits were added to the end of the document, marked with a red banner.',
+                    { duration: 9000 }
+                  );
                   // Push conflict event to Redis via Matchmaker History API
                   const conflictId = crypto.randomUUID();
                   fetch(`${_MATCHMAKER_URL}/conflicts`, {

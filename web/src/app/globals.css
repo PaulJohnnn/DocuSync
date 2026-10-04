@@ -865,3 +865,31 @@ body {
    without it being defined anywhere, so the icon sat still. */
 @keyframes ds-spin { to { transform: rotate(360deg); } }
 .spin { animation: ds-spin 0.9s linear infinite; }
+
+
+/*
+  Blocks the editor can contain that the rules above do not cover.
+
+  The pagination measurement works out every page boundary from each block's
+  height plus its margin-BOTTOM, on the assumption that nothing carries a top
+  margin. That held for paragraphs, headings and lists, which are reset above
+  — but not for <hr>, which keeps the browser's own ~8px top margin. The
+  offline merge is the one path that inserts an <hr>, which is why the text
+  only ran across the page edge after an offline edit was pushed: from that
+  divider onward every boundary was computed from an origin 8px out.
+
+  Note for anyone styling the offline banner: TipTap's schema strips `class`
+  and `style` from parsed content, so those elements arrive as a bare <hr> and
+  <h3>. They can only be styled structurally, as below.
+*/
+.tiptap hr,
+.tiptap blockquote,
+.tiptap pre,
+.tiptap li {
+  margin-top: 0;
+}
+.tiptap hr {
+  margin-bottom: 24px;
+  border: 0;
+  border-top: 2px dashed #ef4444;
+}

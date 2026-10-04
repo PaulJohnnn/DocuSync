@@ -18,9 +18,22 @@ export function computeSignatureMerge(originalHtml: string, onlineHtml: string, 
   const additions = diffs.filter(d => d.added).map(d => `<p>${d.value}</p>`).join('');
 
   if (additions.trim().length > 0) {
-    const pageBreak = `<hr class="offline-page-break" style="page-break-before: always; border: 2px dashed #ef4444; margin: 40px 0;" />`;
-    const header = `<h3 style="color: #ef4444; font-family: monospace; background: #fee2e2; padding: 8px; border-radius: 4px;">⚠️ [Offline Edit appended by ${authorName}]</h3>`;
-    
+    // Styled by class, not by inline style.
+    //
+    // These two elements used to carry `margin: 40px 0` and their own padding
+    // inline. The pagination measurement assumes every block's margin-top is
+    // zero — globals.css resets it — and works out each page break from the
+    // block's own height plus its margin-BOTTOM. An inline margin-top beats
+    // that reset, so from the moment an offline edit was merged in, every
+    // page boundary below it was computed against the wrong origin and the
+    // text ran across the page edge instead of starting a new page.
+    //
+    // The classes are defined in globals.css with margin-top: 0, which keeps
+    // the measurement's assumption true while leaving the banner just as
+    // visible.
+    const pageBreak = `<hr class="offline-page-break" />`;
+    const header = `<h3 class="offline-edit-banner">[Offline edit merged in — by ${authorName}]</h3>`;
+
     // Inject the new page right before the absolute closing tags of the online HTML, or simply append.
     const match = onlineHtml.match(/(<\/[^>]+>)+$/);
     if (match) {
