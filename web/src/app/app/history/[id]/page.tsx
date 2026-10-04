@@ -337,6 +337,13 @@ export default function HistoryPage() {
   const [restoring, setRestoring] = useState<Record<string, boolean>>({});
   const [activeConflicts, setActiveConflicts] = useState<any[]>([]);
   const [viewFullEvent, setViewFullEvent] = useState<HistoryEntry | null>(null);
+  /**
+   * The version the user has asked to restore, held while they confirm.
+   *
+   * Restoring overwrites the document for everyone in the room, so it asks
+   * first. The button used to do it on the single click with no warning.
+   */
+  const [confirmRestore, setConfirmRestore] = useState<HistoryEntry | null>(null);
   const [offlineWarning, setOfflineWarning] = useState('');
 
   const fetchHistory = useCallback(async () => {
@@ -361,26 +368,19 @@ export default function HistoryPage() {
       let fetchedData = null;
       let hostError = null;
 
-      if (room && room.hostIp) {
-        try {
-          // Use hostPort (Desktop sync port, e.g. 9000), NOT port (web port, e.g. 3000)
-          const syncPort = (room.hostPort && room.hostPort !== 3000 && room.hostPort !== 80 && room.hostPort !== 443) ? room.hostPort : 9000;
-          const baseUrl = `http://${room.hostIp}:${syncPort}`;
-          const res = await fetch(`${baseUrl}/sync/history?fileId=${fileId}`, {
-            headers: { 'X-DocuSync-Token': room.otp }
-          });
-          if (res.ok) {
-            const result = await res.json();
-            if (result.success && result.data) {
-              fetchedData = result.data.entries;
-            }
-          }
-        } catch (e: any) {
-          hostError = e;
-        }
-      }
-
-      if (!fetchedData && room && room.otp) {
+      // ── One log, for every device in the room ────────────────────────
+      //
+      // This used to ask the desktop host first and fall back to the room's
+      // log only if that failed. Those are two different logs: the host keeps
+      // its own SQLite event log for the local engine, the room keeps the
+      // shared one. So a desktop that could reach the host read its private
+      // history and a browser that could not read the shared one — and the
+      // same file showed a different list of versions on every device,
+      // which is not a history anybody can rely on.
+      //
+      // The room's log is the one all devices can see and the one every
+      // device writes to, so it is the only one this page reads.
+      if (room && room.otp) {
         try {
           const mmRes = await fetch(`/api/lobby/history?otp=${room.otp}&fileId=${fileId}`);
           if (mmRes.ok) {
@@ -388,8 +388,11 @@ export default function HistoryPage() {
             if (result.success && result.data) {
               fetchedData = result.data.entries;
             }
+          } else {
+            hostError = new Error(`The room's history could not be read (HTTP ${mmRes.status}).`);
           }
-        } catch (e) {
+        } catch (e: any) {
+          hostError = e;
         }
       }
 
@@ -489,31 +492,19 @@ export default function HistoryPage() {
       const room = roomStr ? JSON.parse(roomStr) : null;
       let finalContent = contentToRestore;
 
-      if (room && room.hostIp) {
-        try {
-          const syncPort = (room.hostPort && room.hostPort !== 3000 && room.hostPort !== 80 && room.hostPort !== 443) ? room.hostPort : 9000;
-          const baseUrl = `http://${room.hostIp}:${syncPort}`;
-          const res = await fetch(`${baseUrl}/sync/restore`, {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              'X-DocuSync-Token': room.otp
-            },
-            body: JSON.stringify({ fileId: Number(fileId), eventId: eventId })
-          });
-          const result = await res.json();
-          if (res.ok && result.success && result.data?.content) {
-            finalContent = result.data.content;
-          } else {
-            console.error("Restore API failed:", result);
-          }
-        } catch (fetchErr) {
-          console.error("Fetch to /sync/restore failed:", fetchErr);
-        }
+      // The version being restored came from the room's log, which this page
+      // already holds in full — so the text to restore is in hand and there
+      // is nothing to fetch. Asking the desktop host to rebuild it was how
+      // one device restored a version from the host's own private log while
+      // another restored a different one from the room's, leaving the two
+      // showing different documents afterwards.
+      if (!finalContent) {
+        const fromList = events.find((e) => e.eventId === eventId);
+        finalContent = fromList?.fullContent ?? fromList?.payloadPreview ?? undefined;
       }
 
       if (!finalContent) {
-        throw new Error("Failed to fetch. The host is unreachable or did not return the restored content.");
+        throw new Error("That version's content is not available to restore.");
       }
 
       try {
@@ -720,7 +711,7 @@ export default function HistoryPage() {
                         {ev.eventType !== 'merge' && (
                           <button
                             className="ds-btn ds-btn-primary ds-btn-animate"
-                            onClick={() => handleRestore(ev.eventId, ev.fullContent)}
+                            onClick={() => setConfirmRestore(ev)}
                             disabled={restoring[ev.eventId]}
                             style={{ padding: '6px 16px', fontSize: 13, gap: 6 }}
                           >
@@ -736,6 +727,64 @@ export default function HistoryPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/*
+        Restoring replaces the document for everyone in the room, so it asks
+        first. The Restore button on each row used to do it on a single click
+        with no warning at all; only the one inside the comparison view had a
+        confirmation.
+      */}
+      {confirmRestore && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-restore-title"
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}
+          onClick={() => setConfirmRestore(null)}
+        >
+          <div
+            className="ds-card"
+            style={{
+              background: 'var(--bg)', width: '100%', maxWidth: 520, padding: 24,
+              border: '1px solid var(--b1)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="confirm-restore-title" style={{ margin: '0 0 10px', fontSize: 17, color: 'var(--t1)' }}>
+              Restore this version?
+            </h3>
+            <p style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--t2)', lineHeight: 1.6 }}>
+              The document will go back to how it was at{' '}
+              <strong>{new Date(versionTime(confirmRestore)).toLocaleString()}</strong>, saved by{' '}
+              <strong style={{ fontFamily: 'monospace' }}>{confirmRestore.nodeId}</strong>.
+            </p>
+            <p style={{ margin: '0 0 20px', fontSize: 14, color: 'var(--t2)', lineHeight: 1.6 }}>
+              This replaces what everyone in the room is looking at now. The current
+              version is not lost — it stays in this list, and the restore is added to
+              it as well, so you can come back to either.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button className="ds-btn ds-btn-ghost" onClick={() => setConfirmRestore(null)}>
+                No, cancel
+              </button>
+              <button
+                className="ds-btn ds-btn-primary ds-btn-animate"
+                disabled={!!restoring[confirmRestore.eventId]}
+                onClick={() => {
+                  const target = confirmRestore;
+                  setConfirmRestore(null);
+                  handleRestore(target.eventId, target.fullContent);
+                }}
+              >
+                {restoring[confirmRestore.eventId] ? 'Restoring…' : 'Yes, restore it'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
