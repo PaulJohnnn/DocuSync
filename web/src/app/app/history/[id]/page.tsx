@@ -118,16 +118,21 @@ function nearestBlock(block: DocBlock, candidates: DocBlock[]): DocBlock | null 
 
   let best: DocBlock | null = null;
   let bestScore = 0;
+  let bestLength = 0;
   for (const candidate of candidates) {
     if (!candidate.open) continue;
     const other = candidate.text.split(/\s+/).filter(Boolean);
     let shared = 0;
     while (shared < words.length && shared < other.length && words[shared] === other[shared]) shared++;
-    if (shared > bestScore) { bestScore = shared; best = candidate; }
+    if (shared > bestScore) { bestScore = shared; bestLength = other.length; best = candidate; }
   }
-  // At least a third of the shorter block has to line up before two blocks
-  // are called versions of each other.
-  return bestScore > 0 && bestScore * 3 >= Math.min(words.length, 1) ? best : null;
+
+  // At least a third of the shorter of the two blocks has to line up before
+  // they are called versions of each other. Below that they are more likely
+  // to be different paragraphs that happen to open with the same word, and
+  // diffing them against each other marks up nearly every word in both.
+  const shorter = Math.min(words.length, bestLength || words.length);
+  return bestScore > 0 && bestScore * 3 >= shorter ? best : null;
 }
 
 function renderDiff(oldHtml: string, newHtml: string) {
