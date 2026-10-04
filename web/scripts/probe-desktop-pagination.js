@@ -33,10 +33,14 @@ const check = (ok, name, detail = '') => {
   const paras = Array.from({ length: 70 }, (_, i) =>
     `<p>Paragraph ${i + 1}: the quick brown fox jumps over the lazy dog, repeatedly, so that the document is long enough to need more than one page.</p>`
   ).join('');
+  // Seeded SHORT. The long document is pushed in later, while the desktop app
+  // is already sitting on the file — the receiving case, which is the one that
+  // failed. Opening a document that is already long always worked, because the
+  // first measurement runs regardless of whether anything marked it dirty.
   await fetch(`${API}/doc`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      otp, fileId: FILE_ID, content: `<div data-margin="96">${paras}</div>`,
+      otp, fileId: FILE_ID, content: '<div data-margin="96"><p>Short.</p></div>',
       authorNodeId: 'seed', seq: 1, committedAt: Date.now(), isSessionEnd: true,
     }),
   });
@@ -84,6 +88,23 @@ const check = (ok, name, detail = '') => {
 
     await win.goto(`${BASE}/app/editor/${FILE_ID}`, { waitUntil: 'domcontentloaded' });
     await win.waitForSelector('.ProseMirror', { timeout: 60000 });
+    await win.waitForTimeout(3000);
+
+    // Now someone else's long document arrives. The desktop app does not type.
+    await fetch(`${API}/doc`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        otp, fileId: FILE_ID, content: `<div data-margin="96">${paras}</div>`,
+        authorNodeId: 'web-paul', seq: 2, committedAt: Date.now(), isSessionEnd: true,
+      }),
+    });
+    let arrived = false;
+    for (let i = 0; i < 40; i++) {
+      const n = await win.evaluate(() => document.querySelector('.ProseMirror')?.children.length ?? 0);
+      if (n > 10) { arrived = true; break; }
+      await win.waitForTimeout(800);
+    }
+    check(arrived, 'the long document reached the desktop app');
     // The page-break measurement settles over a few animation frames.
     await win.waitForTimeout(8000);
 
