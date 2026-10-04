@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { uGet, uSet, uRemove } from '@/lib/userStorage';
 import { buildExport, toPlainText, EXPORT_FORMATS, ACCEPTED_UPLOAD_EXTS, type ExportExt } from '@/lib/exportDocument';
+import { isAcceptedUpload, rejectionReason, readUploadAsText } from '@/lib/fileIntake';
 import { idbGetFiles, idbSaveFile, idbDeleteFile } from '@/lib/idb';
 import * as mockAuthService from '@/lib/mockAuthService';
 import { useWebSync } from '@/context/WebSyncContext';
@@ -250,25 +251,51 @@ export default function FilesPage() {
         if (file.name.startsWith('.') || file.size > 5 * 1024 * 1024) continue;
         
         const ext = file.name.split('.').pop()?.toLowerCase() || '';
-        const REJECTED_TYPES = ['png', 'jpg', 'jpeg', 'mp4', 'mp3', 'exe', 'zip', 'gif', 'webp', 'bmp', 'ico', 'pdf', 'rar', '7z', 'tar', 'gz', 'dmg', 'iso', 'bin', 'dll', 'so', 'class', 'pyc'];
-        if (REJECTED_TYPES.includes(ext)) {
-          setUploadError({
-            filename: file.name,
-            reason: `This is a binary file format (.${ext}). DocuSync's collaborative engine requires text-based formats (like Word Documents) to safely stream real-time differences.`
-          });
+        // The gate used to be a list of binary extensions to refuse, so any
+        // format not on that list — .xlsx and .pptx among them — fell
+        // through to `file.text()`. That decodes bytes as UTF-8 and replaces
+        // whatever is not valid UTF-8 with U+FFFD, so the file was accepted,
+        // silently mangled, stored and synced to every peer. Measured: a
+        // 725-byte spreadsheet became 1055 bytes of replacement characters.
+        //
+        // It is now the list of formats the editor can actually read, and
+        // the bytes are verified as well as the name — see lib/fileIntake.ts.
+        if (!isAcceptedUpload(file.name)) {
+          setUploadError({ filename: file.name, reason: rejectionReason(file.name) });
           continue;
         }
 
         try {
           let content = '';
-          if (ext === 'docx') {
+          if (ext === 'docx' || ext === 'doc') {
+            // Word documents are a ZIP of XML, so they cannot be read as
+            // text; the text is extracted from them instead. The imported
+            // document is the words, not the file — the original is not
+            // retained and a download rebuilds a new .docx from the edited
+            // content.
             const formData = new FormData();
             formData.append('file', file);
             const parseRes = await fetch('/api/parse-docx', { method: 'POST', body: formData });
-            const parseData = await parseRes.json();
-            content = parseData.text || '';
+            const parseData = await parseRes.json().catch(() => null);
+            if (!parseRes.ok || typeof parseData?.text !== 'string') {
+              setUploadError({
+                filename: file.name,
+                reason: `DocuSync could not read "${file.name}" as a Word document. `
+                  + `It has not been imported. If the file opens in Word, try saving it `
+                  + `again as .docx and uploading that.`,
+              });
+              continue;
+            }
+            content = parseData.text;
           } else {
-            content = await file.text();
+            // Not `file.text()`: that cannot report a failed decode, which is
+            // exactly how damaged files got in. This refuses them instead.
+            const decoded = await readUploadAsText(file);
+            if (!decoded.ok) {
+              setUploadError({ filename: file.name, reason: decoded.reason });
+              continue;
+            }
+            content = decoded.text;
           }
 
           // Save locally

@@ -166,6 +166,37 @@ function allowedFileRoot(): string {
 }
 
 /**
+ * Reads a file's bytes as text, or refuses.
+ *
+ * Node's `readFile(path, 'utf-8')` has no failure mode: bytes that are not
+ * valid UTF-8 become U+FFFD and the call succeeds, so a binary file opens as
+ * a plausible-looking string that can never be turned back into the file.
+ * Since that string is then saved over the original and synced to peers, the
+ * damage is permanent and it spreads.
+ *
+ * The test is the round trip — the decoded text must re-encode to exactly
+ * the bytes that came in. It does not depend on the extension, so it also
+ * catches a binary file wearing a text name.
+ *
+ * @throws {Error} If the bytes are not text.
+ */
+function decodeFileAsText(buffer: Buffer, fileName: string): string {
+  if (buffer.includes(0)) {
+    throw new Error(
+      `'${fileName}' contains binary data (a zero byte) and cannot be opened as a document.`
+    );
+  }
+  const text = buffer.toString('utf-8');
+  if (!Buffer.from(text, 'utf-8').equals(buffer)) {
+    throw new Error(
+      `'${fileName}' is not valid UTF-8 text. It has not been opened, because reading it ` +
+      `would have replaced the parts that are not text and the file could not be recovered.`
+    );
+  }
+  return text;
+}
+
+/**
  * Converts TipTap HTML output to plain text, preserving paragraph and
  * line-break structure. Used when saving non-HTML files so that raw
  * `<p>` tags don't end up in `.txt`, `.csv`, `.json`, etc.
@@ -1170,7 +1201,16 @@ export function registerIPCHandlers(services: EngineServices): void {
         content = extracted.trim();
         console.log(`[IPC] file:open (rtf) → extracted ${content.length} chars from ${filePath}`);
       } else {
-        content = await fs.promises.readFile(filePath, 'utf-8');
+        // `readFile(path, 'utf-8')` decodes whatever bytes it finds and
+        // replaces anything that is not valid UTF-8 with U+FFFD. It cannot
+        // fail, so a spreadsheet, an archive or an image opened here became
+        // a string of replacement characters that was then stored, synced to
+        // every peer, and written back over the original on the next save.
+        // `validateTextFile` already describes which extensions the engine
+        // can read — it was being applied on save but not on open.
+        validateTextFile(path.basename(filePath));
+        const buffer = await fs.promises.readFile(filePath);
+        content = decodeFileAsText(buffer, path.basename(filePath));
       }
 
       // ── Register in memory ──────────────────────────────────────

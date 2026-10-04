@@ -27,12 +27,21 @@ const MATCHMAKER_KEY = '@docusync/matchmaker_url';
 const DEFAULT_MATCHMAKER = 'https://docusync-ajlqc4bys-paul-palamaras-projects.vercel.app/api/lobby';
 
 /**
- * Extensions that DocuSync's delta engine can handle (text streams).
- * Anything NOT in this set is rejected before upload.
- * Mirrors desktop/electron/ipc-handlers.ts → ALLOWED_EXTENSIONS.
+ * Extensions DocuSync's delta engine can handle on this platform.
+ *
+ * Narrower than the web and desktop lists on purpose. `docx` and `doc` used
+ * to be here, but a Word file is a ZIP of XML and mobile has no parser for
+ * it — it was read with `readAsStringAsync(..., utf8)`, which throws, and
+ * the catch below then uploaded the file with EMPTY content and reported
+ * success. The empty document was synced to every peer. Word documents are
+ * imported from the web or desktop app, where mammoth extracts their text.
+ *
+ * The empty string used to be a member too, so any file with no extension
+ * at all was treated as text whatever its contents.
  */
 const MOBILE_ALLOWED_EXTENSIONS = new Set([
-  'txt', 'md', 'json', 'csv', 'ts', 'tsx', 'js', 'jsx', 'css', 'html', 'docx', 'doc', ''
+  'txt', 'md', 'json', 'csv', 'tsv', 'xml', 'yml', 'yaml', 'log',
+  'ts', 'tsx', 'js', 'jsx', 'css', 'html', 'htm',
 ]);
 
 async function getMatchmakerUrl(): Promise<string> {
@@ -135,12 +144,18 @@ export default function FilesScreen({ navigation }: any) {
 
       const asset = result.assets[0];
 
-      // ── Binary-file guard (mirrors desktop ALLOWED_EXTENSIONS) ──
-      const pickedExt = (asset.name.split('.').pop() ?? '').toLowerCase();
+      // ── Binary-file guard (mirrors the web and desktop allowlists) ──
+      const dot = asset.name.lastIndexOf('.');
+      const pickedExt = dot > 0 ? asset.name.slice(dot + 1).toLowerCase() : '';
       if (!MOBILE_ALLOWED_EXTENSIONS.has(pickedExt)) {
+        const isWord = pickedExt === 'docx' || pickedExt === 'doc';
         Alert.alert(
-          'Unsupported File Type',
-          `Binary files (${asset.name}) are not supported. DocuSync's delta engine operates on text streams.`
+          'Cannot import this file',
+          isWord
+            ? `Word documents are imported from the DocuSync web or desktop app, where their text can be extracted. `
+              + `"${asset.name}" has not been uploaded.`
+            : `DocuSync edits documents as text so peers can merge each other's changes. `
+              + `"${asset.name}" is not a text format, so it has not been uploaded.`
         );
         return;
       }
@@ -152,7 +167,28 @@ export default function FilesScreen({ navigation }: any) {
           encoding: 'utf8' as any,
         });
       } catch {
-        // binary file – skip content
+        // The read failed, which on this path means the bytes are not text.
+        // This used to fall through with contentString still empty, so the
+        // file was uploaded EMPTY and reported as shared — the peers received
+        // a blank document and nothing said anything had gone wrong.
+        setIsSharing(false);
+        Alert.alert(
+          'Cannot import this file',
+          `"${asset.name}" could not be read as text, so it has not been uploaded.`
+        );
+        return;
+      }
+      // A zero byte survives a utf8 read on some platforms. Nothing the
+      // editor can show contains one, and it is the clearest signal that
+      // what was read is not a document.
+      if (contentString.includes('\u0000') || contentString.includes('�')) {
+        setIsSharing(false);
+        Alert.alert(
+          'Cannot import this file',
+          `"${asset.name}" contains data that is not text, so it has not been uploaded. `
+            + `Uploading it would have stored a damaged copy that could not be recovered.`
+        );
+        return;
       }
 
       const fileId = Date.now();
