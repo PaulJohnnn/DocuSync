@@ -169,15 +169,50 @@ export default function EditorPage() {
   
   // Same ts for lastLocalSaveTime — the poll guard uses this to block old snapshots
   const lastLocalSaveTime = useRef<number>(_initSaveTs);
+  // The clock slot identifies this DEVICE in the causal history, so it has
+  // to be the same slot every time this device speaks.
+  //
+  // It used to alternate between 1 and 2 on each call, saved per user. This
+  // function runs once per editor mount, so opening one document and then
+  // another moved the same device to a different slot — and its own second
+  // edit then compared as CONCURRENT WITH ITS OWN FIRST rather than
+  // following it, because the two carried different identities. Two tabs
+  // sharing one browser profile swapped slots underneath each other for the
+  // same reason.
+  //
+  // The slot is now derived from the device id the sync context already
+  // persists, so it is stable across mounts, documents and restarts for as
+  // long as that id is.
+  //
+  // Known ceiling: the clock is built with three slots — one for a desktop
+  // host and two for web peers — so a third web device in the same room
+  // shares a slot with one of the others and the two are causally
+  // indistinguishable. The server then falls back to comparing content,
+  // which is the behaviour every client had before any of this, so a large
+  // room is no worse off than it was; it simply gets no causal benefit.
+  // Raising the count means agreeing it with the desktop engine, which
+  // reads its own from DOCUSYNC_NODE_COUNT.
+  const WEB_CLOCK_SLOTS = [1, 2];
   const createInitialWebClock = () => {
-    let nodeIndex = 1;
+    let nodeIndex = WEB_CLOCK_SLOTS[0];
     try {
-      // Force alternating assignment between 1 and 2 to guarantee distinct slots for up to 2 tabs.
-      const lastAssigned = parseInt(uGet('docusync_last_assigned_index') || '2', 10);
-      nodeIndex = lastAssigned === 1 ? 2 : 1;
-      uSet('docusync_last_assigned_index', String(nodeIndex));
+      let deviceId = uGet('node_id') || '';
+      if (!deviceId) {
+        // The sync context mints this too; whichever runs first wins and
+        // the other reads it back.
+        deviceId = `web-${Math.random().toString(36).substring(2, 9)}-${Date.now()}`;
+        uSet('node_id', deviceId);
+      }
+      // FNV-1a over the device id: a stable spread across the slots that
+      // needs no coordination and no stored counter.
+      let hash = 0x811c9dc5;
+      for (let i = 0; i < deviceId.length; i++) {
+        hash ^= deviceId.charCodeAt(i);
+        hash = Math.imul(hash, 0x01000193) >>> 0;
+      }
+      nodeIndex = WEB_CLOCK_SLOTS[hash % WEB_CLOCK_SLOTS.length];
     } catch {}
-    
+
     // Safety fallback
     if (isNaN(nodeIndex) || nodeIndex < 1 || nodeIndex > 2) {
       nodeIndex = 1;

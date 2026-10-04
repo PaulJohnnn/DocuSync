@@ -1,8 +1,56 @@
 import { NextResponse } from 'next/server';
 import { diff_match_patch } from 'diff-match-patch';
 import { redis, casSetIfNewer } from '@/lib/redis';
+import { VectorClock } from '@/lib/vector-clock';
+import type { VectorClockJSON, ClockRelation } from '@/lib/vector-clock';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * How this push relates causally to the state already on the server.
+ *
+ * `null` means the question could not be asked — one of the two sides
+ * carried no usable clock, which is the case for an older client and for
+ * the very first write to a document.
+ */
+type CausalRelation = ClockRelation | null;
+
+/**
+ * Compares the pushing client's clock against the clock stored with the
+ * current snapshot.
+ *
+ * Every client already sends its vector clock on this route and the server
+ * already stores it — but nothing ever compared the two. Ordering was
+ * decided entirely by `committedAt`, a wall-clock reading taken on the
+ * client, which cannot distinguish the four cases that matter here: an
+ * update that has seen everything the server has, one the server has
+ * already incorporated, a duplicate, and a genuine concurrent edit. Two
+ * laptops whose clocks differ by a minute produce the wrong answer for all
+ * four. The clock is the thing that can answer it, so it is asked.
+ *
+ * Returning `null` rather than guessing keeps older clients working: the
+ * content-based divergence test below still runs, exactly as before.
+ *
+ * @returns The relation of INCOMING to STORED, or `null` if undecidable.
+ */
+function compareCausally(
+  incoming: VectorClockJSON | null | undefined,
+  stored: VectorClockJSON | null | undefined
+): CausalRelation {
+  if (!incoming || !stored) return null;
+  try {
+    const a = VectorClock.fromJSON(incoming);
+    const b = VectorClock.fromJSON(stored);
+    // Clocks built with different node counts describe different trees and
+    // cannot be compared component-wise; treating them as concurrent would
+    // manufacture conflicts, so this declines to answer instead.
+    if (incoming.nodeCount !== stored.nodeCount) return null;
+    return a.compare(b);
+  } catch {
+    // A malformed or truncated clock is not evidence of anything.
+    return null;
+  }
+}
 
 /**
  * How far back the history log is checked before a state is accepted as a
@@ -314,6 +362,33 @@ export async function GET(request: Request) {
   }
 }
 
+/**
+ * The clock a merged snapshot should carry.
+ *
+ * A merge result reflects BOTH sides, so the state it leaves behind has seen
+ * everything both clients had. Storing only the incoming clock — which is
+ * what happened before — throws away the server's half of that history, so
+ * the next client is compared against a clock that no longer describes the
+ * document it is being compared with, and a genuinely stale push reads as
+ * concurrent. Component-wise maximum is the merge a vector clock defines for
+ * exactly this situation.
+ */
+function mergedClock(
+  incoming: VectorClockJSON | null | undefined,
+  stored: VectorClockJSON | null | undefined
+): VectorClockJSON | null {
+  if (!incoming) return stored ?? null;
+  if (!stored) return incoming;
+  try {
+    if (incoming.nodeCount !== stored.nodeCount) return incoming;
+    const merged = VectorClock.fromJSON(incoming);
+    merged.merge(VectorClock.fromJSON(stored));
+    return merged.toJSON();
+  } catch {
+    return incoming;
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -338,16 +413,65 @@ export async function POST(request: Request) {
 
     const existing = (await redis.get(key)) as any;
 
-    if (existing && baseContent !== undefined && baseContent !== null && baseContent !== existing.content) {
+    // What the causal history says about this push, before any content is
+    // looked at. `null` where it cannot be decided — an older client, or the
+    // first write to this document — in which case everything below falls
+    // through to the content comparison that has always been here.
+    const relation = compareCausally(vectorClock, existing?.vectorClock);
+
+    // The server has already incorporated this exact state. Re-applying it
+    // is at best wasted work and at worst a second history entry for one
+    // edit, so it is acknowledged and dropped. This is what makes a
+    // duplicate delivery — a retry, a reconnect replay, a message arriving
+    // twice — harmless rather than visible.
+    if (relation === 'equal') {
+      return NextResponse.json(
+        { success: true, ignored: true, reason: 'duplicate', snapshot: existing },
+        { headers: corsHeaders }
+      );
+    }
+
+    // The stored state strictly dominates this push: the server already has
+    // everything the client knew, plus more the client has not seen. The
+    // push is stale, not concurrent. Writing it would roll the document
+    // back to a state someone has already moved past — and under the old
+    // wall-clock comparison it did exactly that whenever the stale client's
+    // clock happened to read later. The client is handed the current state
+    // instead, and will push again from it.
+    if (relation === 'dominated') {
+      return NextResponse.json(
+        { success: true, ignored: true, reason: 'stale', snapshot: existing },
+        { headers: corsHeaders }
+      );
+    }
+
+    // `relation === 'dominant'` means this client has seen everything the
+    // server has, so its push is a straightforward continuation and needs no
+    // merge however the content compares. `relation === 'concurrent'` means
+    // neither side has seen the other, which is a genuine conflict and must
+    // be merged even if the content heuristic below would have missed it.
+    const causallyConcurrent = relation === 'concurrent';
+    const causallyAhead = relation === 'dominant';
+
+    if (!causallyAhead
+        && existing
+        && (causallyConcurrent
+            || (baseContent !== undefined && baseContent !== null && baseContent !== existing.content))) {
       // The pushing client's base has diverged from the current server
       // state — someone else committed in between. Merge position-aware
       // instead of blindly picking one whole snapshot.
       mergeAttempted = true;
+      // A client whose clock says it is concurrent may still not have sent a
+      // base. Falling back to the server's current content makes the merge
+      // degenerate to applying this client's changes over it, which is the
+      // safe reading: it can add, but cannot silently revert what it never
+      // saw, which passing `undefined` here would have done.
+      const effectiveBase = typeof baseContent === 'string' ? baseContent : existing.content;
       let result;
       try {
         result = mergeConcurrentEdit(
           existing.content,
-          baseContent,
+          effectiveBase,
           content,
           existing.committedAt || 0,
           incomingCommittedAt
@@ -367,7 +491,7 @@ export async function POST(request: Request) {
       snapshot = {
         content: result.merged,
         authorNodeId,
-        vectorClock: vectorClock || null,
+        vectorClock: mergedClock(vectorClock, existing?.vectorClock),
         seq,
         committedAt: Date.now(),
       };
@@ -428,7 +552,7 @@ export async function POST(request: Request) {
           snapshot = {
             content: result.merged,
             authorNodeId,
-            vectorClock: vectorClock || null,
+            vectorClock: mergedClock(vectorClock, after?.vectorClock),
             seq,
             committedAt: Date.now(),
           };
