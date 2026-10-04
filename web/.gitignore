@@ -41,3 +41,6 @@ next-env.d.ts
 # QA fixture: contains test-account passwords, never commit
 scripts/qa-accounts.json
 web/scripts/qa-accounts.json
+
+scripts/file-integrity-results.json
+scripts/local-account.json
