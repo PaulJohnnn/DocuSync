@@ -341,5 +341,8 @@ export function buildExport(html: string, ext: ExportExt, title: string): Blob {
 /** File extensions the uploader accepts, shared with the file picker. */
 export const ACCEPTED_UPLOAD_EXTS = [
   '.txt', '.md', '.markdown', '.html', '.htm', '.json', '.csv', '.tsv',
-  '.docx', '.doc', '.rtf', '.log', '.xml', '.yml', '.yaml',
+  // `.tex` is listed as a supported format in the manuscript's Scope (p.5)
+  // but was missing here, so a LaTeX file — plain text, and perfectly safe
+  // for the delta pipeline — was refused by a system that claims to take it.
+  '.docx', '.doc', '.rtf', '.log', '.xml', '.yml', '.yaml', '.tex',
 ];
