@@ -305,5 +305,8 @@ export function buildExport(html: string, ext: ExportExt, title: string): Blob {
 /** File extensions the uploader accepts, shared with the file picker. */
 export const ACCEPTED_UPLOAD_EXTS = [
   '.txt', '.md', '.markdown', '.html', '.htm', '.json', '.csv', '.tsv',
-  '.docx', '.doc', '.rtf', '.log', '.xml', '.yml', '.yaml',
+  // `.tex` is named as a supported format in the manuscript's Scope (p.5)
+  // and the web app takes it. It was missing here, so the same LaTeX file
+  // imported on one platform and was refused on the other.
+  '.docx', '.doc', '.rtf', '.log', '.xml', '.yml', '.yaml', '.tex',
 ];

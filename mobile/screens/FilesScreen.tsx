@@ -24,7 +24,7 @@ import { uGet, uSet, uRemove } from '../utils/userStorage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MATCHMAKER_KEY = '@docusync/matchmaker_url';
-const DEFAULT_MATCHMAKER = 'https://docusync-ajlqc4bys-paul-palamaras-projects.vercel.app/api/lobby';
+const DEFAULT_MATCHMAKER = 'https://docusync-dusky.vercel.app/api/lobby';
 
 /**
  * Extensions DocuSync's delta engine can handle on this platform.
@@ -191,7 +191,13 @@ export default function FilesScreen({ navigation }: any) {
         return;
       }
 
-      const fileId = Date.now();
+      // Proposed, not decided. The room owns a file's id: when this name
+      // is already there, the server answers with THAT file's id so the
+      // upload joins the existing document instead of starting a second
+      // one with no history. Minting an id here and keeping it regardless
+      // is what detached a re-uploaded file from its own version history
+      // on the other two platforms.
+      const proposedId = Date.now();
       const mm = await getMatchmakerUrl();
       const res = await fetch(`${mm}/api/lobby/files`, {
         method: 'POST',
@@ -199,7 +205,7 @@ export default function FilesScreen({ navigation }: any) {
         body: JSON.stringify({
           otp: (currentRoom as any).otp || currentRoom.id,
           file: {
-            fileId,
+            fileId: proposedId,
             fileName: asset.name,
             contentLength: asset.size || contentString.length,
             content: contentString,
@@ -209,10 +215,14 @@ export default function FilesScreen({ navigation }: any) {
         }),
       });
 
+      const data = await res.json().catch(() => ({} as any));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || 'Server error');
       }
+
+      // The id the room assigned, which is the existing one when this name
+      // was already taken.
+      const fileId = String(data.fileId ?? proposedId);
 
       // Save locally
       const stored = await uGet('files');
@@ -227,9 +237,29 @@ export default function FilesScreen({ navigation }: any) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
-      await uSet('files', JSON.stringify([...localFiles, newLocal]));
+      // Replace the row for this id rather than appending, or the same
+      // document appears twice after being shared again.
+      await uSet('files', JSON.stringify([
+        ...localFiles.filter((f: any) => String(f.id) !== String(fileId)),
+        newLocal,
+      ]));
 
-      Alert.alert('Success', `"${asset.name}" shared to the room!`);
+      if (data.replaced) {
+        // Uploading over a name the room already has is not a silent act,
+        // least of all when people are editing it right now.
+        Alert.alert(
+          data.hadLiveContent ? 'Existing work was replaced' : 'File updated',
+          `This room already had "${asset.name}". Your upload became version `
+          + `${data.version} of that same document, and everyone in the room has `
+          + `been synced to it.`
+          + (data.hadLiveContent
+            ? ' The text it replaced was saved as its own version first, so nothing '
+              + 'was lost - open Version History to read or restore it.'
+            : '')
+        );
+      } else {
+        Alert.alert('Success', `"${asset.name}" shared to the room!`);
+      }
       loadRoomAndPeers();
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Failed to share file.');

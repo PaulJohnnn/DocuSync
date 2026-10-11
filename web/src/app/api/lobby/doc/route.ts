@@ -4,6 +4,7 @@ import { redis, casSetIfNewer } from '@/lib/redis';
 import { VectorClock } from '@/lib/vector-clock';
 import type { VectorClockJSON, ClockRelation } from '@/lib/vector-clock';
 import { documentSignature } from '@/lib/documentSignature';
+import { canEditFile, type LobbyEntry } from '../store';
 
 export const dynamic = 'force-dynamic';
 
@@ -419,10 +420,40 @@ function mergedClock(
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { otp, fileId, content, authorNodeId, vectorClock, seq, committedAt, isSessionEnd, isDone, baseContent, isOfflineReconnect, concurrentPeers } = body;
+    const { otp, fileId, content, authorNodeId, accountNodeId, vectorClock, seq, committedAt, isSessionEnd, isDone, baseContent, isOfflineReconnect, concurrentPeers } = body;
 
     if (!otp || !fileId || content === undefined) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400, headers: corsHeaders });
+    }
+
+    // A lock the client merely draws is not a lock. The editor greys itself
+    // out when a file is locked to other people, but nothing stops a stale
+    // tab, a replayed request or a second device from pushing anyway — so
+    // the refusal lives here, on the one path every write goes through.
+    // Reads are deliberately untouched: "view only" has to keep viewing.
+    // Judged on either identity this client carries. `authorNodeId` is the
+    // tab, which is what the sync rules are defined on; `accountNodeId` is
+    // the person, which is what the host actually granted access to in the
+    // peer list. Permitting either keeps the two concerns apart without
+    // letting a grant silently fail to apply.
+    const lobbyForLock = (await redis.get(`lobby:${otp}`)) as LobbyEntry | null;
+    const writerAllowed = !lobbyForLock
+      || canEditFile(lobbyForLock, fileId, authorNodeId)
+      || (!!accountNodeId && canEditFile(lobbyForLock, fileId, accountNodeId));
+    if (!writerAllowed) {
+      const snapshot = (await redis.get(`doc_snapshot:${otp}:${fileId}`)) as unknown;
+      return NextResponse.json(
+        {
+          success: false,
+          locked: true,
+          // The current server state travels with the refusal so a client
+          // that was mid-edit when the host locked the file lands back on
+          // the shared text instead of sitting on a divergent copy.
+          snapshot,
+          error: 'This file is locked. You have view-only access.',
+        },
+        { status: 403, headers: corsHeaders }
+      );
     }
 
     const key = `doc_snapshot:${otp}:${fileId}`;
@@ -624,10 +655,33 @@ export async function POST(request: Request) {
 
     const finalContent = snapshot.content;
 
-    // Record history if the user explicitly saves, or a genuine conflict
-    // hunk was just resolved — that's exactly the kind of event this log
-    // exists to make auditable.
-    if (isSessionEnd || isDone || hadConflict) {
+    // The text as a reader sees it, for deciding what this write destroys.
+    const asText = (html: unknown) =>
+      String(html || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
+        .replace(/\s+/g, ' ').trim();
+
+    // Does this write make text unrecoverable?
+    //
+    // History was recorded only on an explicit save or a conflict, which
+    // quietly assumed every intermediate state is either unimportant or
+    // still reachable. It is not. A person types a paragraph, which
+    // autosaves and is NOT logged; deletes it; then saves. The only record
+    // of that paragraph was the live snapshot, which the delete overwrote,
+    // so it existed nowhere afterwards. That is the "I typed it and the
+    // history does not have it" case, and no amount of care further down
+    // could recover from it, because the words were already gone by then.
+    //
+    // So the state about to be overwritten is examined on EVERY write.
+    // When the incoming version still contains everything the stored one
+    // said, nothing is at stake and the old gate applies -- ordinary
+    // typing stays unlogged until a save, and the list stays short. When
+    // it does not, the stored state holds words that are about to vanish,
+    // and it is recorded first whether or not anyone pressed save.
+    const priorContent = typeof existing?.content === 'string' ? existing.content : '';
+    const priorText = asText(priorContent);
+    const destroysText = !!priorText && !asText(finalContent).includes(priorText);
+
+    if (isSessionEnd || isDone || hadConflict || destroysText) {
       const historyKey = `doc_history:${otp}:${fileId}`;
       const parseEntry = (raw: any) => {
         // The Redis client sometimes auto-deserializes list entries back
@@ -650,6 +704,56 @@ export async function POST(request: Request) {
       // in the recent history is not a new version, wherever it sits.
       const recentRaw = await redis.lrange(historyKey, 0, RECENT_HISTORY_WINDOW - 1);
       const recent = recentRaw.map(parseEntry).filter(Boolean);
+
+      // Preserve the state this write is about to destroy.
+      //
+      // Logged BEFORE the new version, so it takes the lower sequence
+      // number and sits beneath it in the list, reading as "this is what
+      // was there immediately before". Skipped when the log already holds
+      // it, which is the normal case after an explicit save, so this adds
+      // a row only when it is the difference between recoverable and gone.
+      if (destroysText) {
+        const priorNorm = documentSignature(priorContent);
+        const alreadyKept = recent.some(
+          (e: any) => typeof e.fullContent === 'string' && documentSignature(e.fullContent) === priorNorm
+        );
+        if (!alreadyKept) {
+          const priorSeq = await redis.incr(`doc_history_seq:${otp}:${fileId}`);
+          const priorAt = Date.now();
+          await redis.lpush(historyKey, JSON.stringify({
+            eventId: `${priorAt}-${priorSeq}`,
+            seqNo: priorSeq,
+            fileId,
+            // Attributed to whoever's work this was, not to whoever is
+            // overwriting it.
+            nodeId: existing?.authorNodeId ?? null,
+            eventType: 'edit',
+            label: 'Before the next change',
+            logicalTimestamp: priorAt,
+            recordedAt: priorAt,
+            payloadPreview: priorContent.substring(0, 100),
+            fullContent: priorContent,
+            createdAt: new Date(priorAt).toISOString(),
+            isCompacted: false,
+          }));
+          // The row just written is now the head, so the fold check below
+          // must see it rather than the stale list read a moment ago --
+          // otherwise the new version folds straight over the state this
+          // went to the trouble of keeping.
+          recent.unshift({
+            fullContent: priorContent,
+            seqNo: priorSeq,
+            nodeId: existing?.authorNodeId ?? null,
+            eventType: 'edit',
+            recordedAt: priorAt,
+            // The fold below must never overwrite this row: it exists
+            // precisely because its text is about to stop existing
+            // anywhere else, and folding would undo that in the very next
+            // breath.
+            isPreserved: true,
+          });
+        }
+      }
       // Whitespace-insensitive, because the merge re-serialises the document
       // and can return the same words with a newline added between two tags.
       // Compared literally, that counts as a new version and the page shows
@@ -661,6 +765,53 @@ export async function POST(request: Request) {
       // all different strings. See lib/documentSignature.ts.
       const normalise = documentSignature;
       const finalNorm = normalise(finalContent);
+      /**
+       * The document as a reader sees it: tags stripped, whitespace
+       * collapsed. Comparing on this rather than on markup means
+       * re-serialising the document, or swapping one tag for another, is
+       * not mistaken for the user changing anything.
+       */
+      const visibleText = (html: unknown) =>
+        String(html || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ')
+          .replace(/\s+/g, ' ').trim();
+
+      /**
+       * Whether replacing `prev` with `next` can lose a reader anything.
+       *
+       * Folding overwrites a history row, so whatever that row held stops
+       * being recoverable. That is safe when the edit only ADDED text --
+       * everything the old row said is still on screen -- and unsafe the
+       * moment anything was removed or rewritten, because those words may
+       * exist in no other version.
+       *
+       * So the question is simply: does this edit delete anything? Asked
+       * of a real diff, not of string containment. Two weaker tests were
+       * tried first and both were wrong in opposite directions:
+       *
+       *   - Comparing LENGTHS missed same-length rewrites. Swapping a word
+       *     for another of equal length changed the text while the length
+       *     stood still, and the original wording became unrecoverable.
+       *
+       *   - Requiring the old text to be a CONTAINED substring of the new
+       *     one rejected pure insertions. Typing a character into the
+       *     middle of a sentence leaves the old text a subsequence but not
+       *     a substring, so every keystroke refused to fold and a
+       *     ten-character correction produced eleven versions.
+       *
+       * A diff answers both: inserting anywhere produces no DELETE, while
+       * a rewrite or a trim produces one wherever it happened.
+       */
+      const foldIsLossless = (prev: unknown, next: unknown) => {
+        const before = visibleText(prev);
+        if (!before) return true; // nothing there to lose
+        const after = visibleText(next);
+        if (before === after) return true;
+        const d = new diff_match_patch();
+        const diffs = d.diff_main(before, after);
+        // -1 is a deletion. Anything removed means this edit is the only
+        // place those words still exist.
+        return !diffs.some(([op]) => op === -1);
+      };
       // A conflict is always recorded, even when the text it settles on
       // happens to match a version already in the log. The entry is not
       // there to describe the resulting words — it is there to say that two
@@ -728,8 +879,25 @@ export async function POST(request: Request) {
           // one event the log exists to show.
           head.eventType !== 'conflict-resolve' &&
           head.eventType !== 'offline-replay' &&
+          // Nor is an upload. Folding REPLACES the head row in place, so
+          // folding an edit into an upload destroys the uploaded baseline
+          // -- the one state a reader most needs to get back to after
+          // someone replaces the document. Measured: uploading a file and
+          // then typing one sentence within the fold window left no way
+          // back to the file as uploaded. An upload is a version in its own
+          // right, and the edit that follows it is a new one.
+          head.eventType !== 'upload' &&
           typeof head.recordedAt === 'number' &&
-          recordedAt - head.recordedAt < HISTORY_FOLD_WINDOW_MS;
+          recordedAt - head.recordedAt < HISTORY_FOLD_WINDOW_MS &&
+          // Never over a row kept precisely because its text is about to
+          // vanish -- see where `isPreserved` is set.
+          !head.isPreserved &&
+          // And only when the edit added text rather than removing or
+          // rewriting any -- see foldIsLossless. Typing, appending and
+          // pasting still collapse into one version; a trim, a deletion
+          // or a reworded sentence becomes its own, so the words it
+          // replaced stay readable.
+          foldIsLossless(head.fullContent, finalContent);
 
         if (canFold) {
           await redis.lset(historyKey, 0, JSON.stringify({ ...historyEvent, seqNo: head.seqNo ?? seqNo }));
@@ -768,6 +936,19 @@ export async function POST(request: Request) {
           await redis.lpush(historyKey, JSON.stringify(historyEvent));
           // Trim history to 50 items
           await redis.ltrim(historyKey, 0, 49);
+
+          // A conflict outlives the rolling window. It is the one event
+          // that cannot be reconstructed from the versions around it --
+          // the text is in them, but the fact that two people disagreed
+          // and how it was settled is only here. An upload is anchored
+          // the same way in /api/lobby/files.
+          if (hadConflict) {
+            await redis.lpush(
+              `doc_history_anchors:${otp}:${fileId}`,
+              JSON.stringify(historyEvent)
+            );
+            await redis.ltrim(`doc_history_anchors:${otp}:${fileId}`, 0, 49);
+          }
         }
       }
     }

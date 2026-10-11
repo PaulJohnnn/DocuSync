@@ -239,6 +239,16 @@ interface HistoryEntry {
   recordedAt?: number;
   /** Row id, the desktop host's equivalent of `seqNo`. */
   id?: number;
+  /**
+   * Which upload of this filename produced the version. Only set on
+   * 'upload' entries -- an edit does not make a new upload version, it
+   * makes a new revision of the current one.
+   */
+  version?: number;
+  /** Server-written row label, preferred over the event-type label. */
+  label?: string;
+  /** Display name of whoever uploaded, on 'upload' entries. */
+  uploadedBy?: string | null;
 }
 
 /**
@@ -324,6 +334,10 @@ const EVENT_ICONS: Record<string, { icon: React.ElementType; color: string; bg: 
   'restore': { icon: FilePlus, color: 'var(--grn)', bg: 'rgba(16, 185, 129, 0.15)', label: 'Restored an earlier version' },
   'delete': { icon: Trash2, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', label: 'File Deleted' },
   'offline-replay': { icon: Activity, color: 'var(--tel)', bg: 'rgba(20, 184, 166, 0.15)', label: 'Offline edit merged on reconnect' },
+  // Replacing the whole document by upload is the single most destructive
+  // thing anyone can do to a shared file, so it gets its own row rather
+  // than appearing as an ordinary edit.
+  'upload': { icon: FilePlus, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', label: 'Uploaded a new copy of this file' },
 };
 
 export default function HistoryPage() {
@@ -667,8 +681,27 @@ export default function HistoryPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)' }}>v{events.length - i}</span>
                         <span style={{ fontSize: 14, fontWeight: 600, color: evInfo.color }}>
-                          {evInfo.label || ev.eventType}
+                          {/* The server's own label wins where it set one,
+                              because it knows things this page cannot infer
+                              from the event type alone -- which upload
+                              number replaced this text, for instance. */}
+                          {ev.label || evInfo.label || ev.eventType}
                         </span>
+                        {/* Panel 2 #3: uploads are versioned, and the number
+                            is the server's, not this row's position, so every
+                            device names the same upload the same way. */}
+                        {typeof ev.version === 'number' && (
+                          <span
+                            title={
+                              ev.uploadedBy
+                                ? `Upload ${ev.version} of this filename, by ${ev.uploadedBy}`
+                                : `Upload ${ev.version} of this filename`
+                            }
+                            style={{ fontSize: 10, fontWeight: 700, color: '#1d4ed8', background: 'rgba(59, 130, 246, 0.15)', padding: '2px 6px', borderRadius: 12, letterSpacing: 0.3 }}
+                          >
+                            UPLOAD v{ev.version}
+                          </span>
+                        )}
                         {/*
                           The author's own clock, which is what Last-Write-
                           Wins arbitrates on. Shown as a labelled chip rather

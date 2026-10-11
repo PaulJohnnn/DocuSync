@@ -359,7 +359,19 @@ class RoomService {
   }
 
   /** Share a file into a room by posting it to the matchmaker */
-  static async shareFileToRoom(roomId: string, file: Record<string, unknown>): Promise<void> {
+  /**
+   * Shares a file into a room and returns what the server decided.
+   *
+   * The reply matters: the room, not the uploader, owns a file's id, so a
+   * file sharing a name with one already there comes back under that file's
+   * id rather than the one sent. Discarding the reply is what left the
+   * desktop holding an id the server had already replaced — and with it a
+   * second row for one document. See web/src/app/api/lobby/files.
+   */
+  static async shareFileToRoom(
+    roomId: string,
+    file: Record<string, unknown>
+  ): Promise<{ fileId?: string | number; version?: number; replaced?: boolean; hadLiveContent?: boolean }> {
     const urlsToTry = Array.from(new Set([
       getMatchmakerUrl(),
       'http://localhost:3000/api/lobby'
@@ -374,7 +386,7 @@ class RoomService {
           body: JSON.stringify({ otp: roomId, file }),
           signal: AbortSignal.timeout(6000),
         });
-        if (res.ok) return;
+        if (res.ok) return await res.json().catch(() => ({}));
         const data = await res.json().catch(() => ({}));
         if (data.error) lastError = data.error;
       } catch {

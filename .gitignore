@@ -65,3 +65,8 @@ desktop/release/
 ~$*
 web/scripts/ui-shots/
 web/scripts/ui-shots-prod/
+
+# Provisioned test-account credentials — never commit these.
+web/scripts/live-accounts.json
+web/scripts/local-account.json
+web/scripts/qa-accounts.json

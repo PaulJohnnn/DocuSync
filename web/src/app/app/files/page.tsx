@@ -173,6 +173,15 @@ export default function FilesPage() {
   const [sharing, setSharing] = useState(false);
   const [uploadError, setUploadError] = useState<{ filename: string, reason: string } | null>(null);
   /**
+   * Shown when an upload landed on a filename the room already had. Replacing
+   * a document everyone can see is not something to do silently — especially
+   * when people are editing it at that moment, which `overwroteLiveWork`
+   * reports.
+   */
+  const [uploadNotice, setUploadNotice] = useState<
+    { filename: string; version: number; overwroteLiveWork: boolean } | null
+  >(null);
+  /**
    * The open "Download as…" menu, with the screen coordinates of the button
    * that opened it. The menu is positioned fixed rather than absolutely,
    * because the file card clips its overflow and swallowed the dropdown.
@@ -298,10 +307,41 @@ export default function FilesPage() {
             content = decoded.text;
           }
 
-          // Save locally
-          const fileIdNum = Date.now() + i;
+          // The room is asked FIRST, and the id it answers with is the one
+          // kept. Uploading used to mint an id here from the clock and save
+          // locally before the server had seen the file, so re-uploading a
+          // document under its own name produced a second local copy and a
+          // second server id — cutting the file off from its own version
+          // history. The server now owns that decision (see
+          // /api/lobby/files) and hands back the id this name already has.
+          const proposedId = Date.now() + i;
+          const res = await fetch(`${MATCHMAKER_URL}/files`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              otp: r.otp || r.id,
+              file: {
+                fileId: proposedId,
+                fileName: file.name,
+                content,
+                contentLength: content.length,
+                sharedBy: myName,
+                sharedByNodeId: localNodeId,
+                sharedAt: new Date().toISOString(),
+              }
+            }),
+          });
+
+          const data = await res.json().catch(() => null);
+          if (!res.ok) {
+            alert(`Failed to upload to room: ${data?.error || 'Server error'}. Please try rejoining the room.`);
+            continue;
+          }
+
+          const assignedId = String(data?.fileId ?? proposedId);
+
           const newLocalFile: FileRecord = {
-            id: fileIdNum.toString(),
+            id: assignedId,
             name: file.name,
             type: file.type || 'text/plain',
             size: file.size,
@@ -310,27 +350,22 @@ export default function FilesPage() {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
-          saveLocalFiles([...localFiles, newLocalFile]);
+          // Replace the local row for this id rather than appending, or the
+          // same document appears twice in My Files after a re-upload.
+          saveLocalFiles([
+            ...localFiles.filter((lf) => lf.id !== assignedId),
+            newLocalFile,
+          ]);
 
-          // Share to room
-          const res = await fetch(`${MATCHMAKER_URL}/files`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              otp: r.otp || r.id,
-              file: {
-                fileId: fileIdNum,
-                fileName: newLocalFile.name,
-                content,
-                contentLength: content.length,
-                sharedBy: myName,
-                sharedAt: new Date().toISOString(),
-              }
-            }),
-          });
-          if (!res.ok) {
-            const data = await res.json();
-            alert(`Failed to upload to room: ${data.error || 'Server error'}. Please try rejoining the room.`);
+          // Tell the uploader what their upload actually did. A file landing
+          // on a name somebody else is editing right now is the case the
+          // panel singled out, and it used to happen in complete silence.
+          if (data?.replaced) {
+            setUploadNotice({
+              filename: file.name,
+              version: Number(data.version ?? 1),
+              overwroteLiveWork: !!data.hadLiveContent,
+            });
           }
         } catch (err) {
           console.error('Failed to share file', err);
@@ -589,13 +624,67 @@ export default function FilesPage() {
             }}>
               <strong style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--t3)', letterSpacing: '0.05em', marginBottom: 8 }}>Accepted Formats:</strong>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {['.docx', '.doc', '.txt', '.md', '.html', '.json', '.csv'].map(typ => (
+                {/* The real list, not a seven-item sample of it: a user told
+                    ".csv or nothing" had no way to know .tex and .rtf were
+                    equally welcome. */}
+                {ACCEPTED_UPLOAD_EXTS.map(typ => (
                   <span key={typ} style={{ background: 'var(--s2)', padding: '4px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600, color: 'var(--t2)' }}>{typ}</span>
                 ))}
               </div>
             </div>
             <button className="ds-btn ds-btn-primary" style={{ width: '100%', justifyContent: 'center', height: 44, fontSize: 14 }} onClick={() => setUploadError(null)}>
               Understood
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Same-filename upload notice.
+          Panel 1 #1 and Panel 2 #2: an upload that lands on a name the room
+          already holds now says so, says which version it became, and says
+          whether it replaced text people had been working on. The replaced
+          text is kept as its own version, so this is recoverable rather than
+          merely reported. */}
+      {uploadNotice && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+          animation: 'fadeIn 0.2s ease'
+        }}>
+          <div style={{
+            background: 'var(--bg)', border: '1px solid var(--b1)', borderRadius: 16,
+            padding: '40px 56px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3)', width: 480, maxWidth: '90%',
+            animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}>
+            <div style={{
+              background: uploadNotice.overwroteLiveWork ? 'rgba(245, 158, 11, 0.12)' : 'rgba(59, 130, 246, 0.1)',
+              padding: 16, borderRadius: '50%', marginBottom: 16
+            }}>
+              <File style={{ color: uploadNotice.overwroteLiveWork ? '#f59e0b' : '#3b82f6' }} size={32} />
+            </div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--t1)', textAlign: 'center' }}>
+              {uploadNotice.overwroteLiveWork ? 'Existing work was replaced' : 'File updated in this room'}
+            </h2>
+            <p style={{ color: 'var(--t2)', fontSize: 14, marginTop: 12, marginBottom: 20, textAlign: 'center', lineHeight: 1.6 }}>
+              This room already had a file named <strong>&quot;{uploadNotice.filename}&quot;</strong>.
+              Your upload became <strong>version {uploadNotice.version}</strong> of that same
+              document, and everyone in the room has been synced to it.
+              {uploadNotice.overwroteLiveWork && (
+                <>
+                  <br /><br />
+                  The text it replaced has been saved as its own version first, so nothing
+                  was lost — open <strong>Version History</strong> to read or restore it.
+                </>
+              )}
+            </p>
+            <button
+              className="ds-btn ds-btn-primary"
+              style={{ width: '100%', justifyContent: 'center', height: 44, fontSize: 14 }}
+              onClick={() => setUploadNotice(null)}
+            >
+              Got it
             </button>
           </div>
         </div>

@@ -12,7 +12,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Quote, Code,
-  AlignLeft, AlignCenter, AlignRight, Highlighter, File
+  AlignLeft, AlignCenter, AlignRight, Highlighter, File, Lock
 } from 'lucide-react';
 
 import { Extension } from '@tiptap/core';
@@ -264,6 +264,15 @@ interface Props {
   margin: string;
   onMarginChange: (m: string) => void;
   onHistoryRequest?: () => void;
+  /**
+   * False when the host has locked this file and this device is not on the
+   * allowed list. The toolbar goes away and ProseMirror stops accepting
+   * input — but the document stays on screen and stays scrollable, because
+   * the request was "allow viewing only", not "hide it".
+   */
+  canEdit?: boolean;
+  /** Why editing is off, shown in place of the toolbar. */
+  lockReason?: string;
 }
 
 const ToolBtn = ({ onClick, active, children }: { onClick: () => void; active?: boolean; children: React.ReactNode }) => (
@@ -279,7 +288,7 @@ const ToolBtn = ({ onClick, active, children }: { onClick: () => void; active?: 
   </button>
 );
 
-export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate, onUndo, margin, onMarginChange, onHistoryRequest }: Props) {
+export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate, onUndo, margin, onMarginChange, onHistoryRequest, canEdit = true, lockReason }: Props) {
   const initialized = useRef(false);
   const [pasteError, setPasteError] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
@@ -321,6 +330,11 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
         onSelectionUpdate(from, to);
       }
     },
+    // Set here as the initial value, and kept in step by the effect below —
+    // useEditor does not re-run when a prop changes, so a file locked while
+    // somebody already had it open would otherwise stay editable until they
+    // navigated away.
+    editable: canEdit,
     editorProps: {
       attributes: {
         class: 'tiptap',
@@ -359,6 +373,15 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       },
     },
   });
+
+  // The host can lock or release a file while this editor is already open,
+  // so the live editor is kept in step with the prop. Without this the lock
+  // only took effect on the next page load.
+  useEffect(() => {
+    if (editor && editor.isEditable !== canEdit) {
+      editor.setEditable(canEdit);
+    }
+  }, [editor, canEdit]);
 
   /**
    * Tells the pagination loop that the layout has changed.
@@ -589,7 +612,24 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
         </div>
       )}
 
+      {/* View-only banner, in place of the toolbar.
+          Offering formatting buttons that silently do nothing is worse than
+          offering none, so when the file is locked to this device the
+          toolbar is replaced by the reason it is gone. */}
+      {!canEdit && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 12px', borderBottom: '1px solid var(--b1)',
+          background: 'rgba(245, 158, 11, 0.1)', color: 'var(--t1)',
+          fontSize: 13, fontWeight: 600,
+        }}>
+          <Lock size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+          <span>{lockReason || 'View only — the room host has locked this file.'}</span>
+        </div>
+      )}
+
       {/* Toolbar */}
+      {canEdit && (
       <div style={{
         display: 'flex', alignItems: 'center', gap: 2,
         padding: '6px 12px', borderBottom: '1px solid var(--b1)',
@@ -627,6 +667,7 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
           </select>
         </div>
       </div>
+      )}
       <style dangerouslySetInnerHTML={{ __html: `
         /* Remove internal TipTap margin as we control virtual margins programatically via the wrapper layout */
       `}} />

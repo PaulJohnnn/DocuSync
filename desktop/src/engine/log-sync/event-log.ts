@@ -152,7 +152,18 @@ function toEventLogEntry(row: PrismaEventLog): EventLogEntry {
     vcJson = typeof row.vectorClockJson === 'string'
       ? JSON.parse(row.vectorClockJson)
       : row.vectorClockJson;
-  } catch {
+  } catch (parseErr) {
+    // OBSERVABILITY (Fix 1): Log structured metadata on clock corruption.
+    // Do NOT log raw vectorClockJson — it is untrusted storage data.
+    console.warn(
+      '[EventLog] Failed to parse vectorClockJson — using zero-clock fallback.',
+      {
+        eventId: row.eventId,
+        field: 'vectorClockJson',
+        errorType: parseErr instanceof Error ? parseErr.constructor.name : typeof parseErr,
+        fallback: 'zero-vector-clock',
+      }
+    );
     vcJson = {
       nodeCount: 3,
       nodeIndex: 0,

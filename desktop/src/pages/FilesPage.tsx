@@ -17,7 +17,7 @@ import { ServiceError } from '@/services/errors/ServiceError';
 import { notify } from '@docusync/shared/utils/notifications';
 import { basename, formatSize } from '@docusync/shared/utils/formatters';
 import { uRemove } from '@/utils/userStorage';
-import { buildExport, EXPORT_FORMATS, type ExportExt } from '@/utils/exportDocument';
+import { buildExport, EXPORT_FORMATS, ACCEPTED_UPLOAD_EXTS, type ExportExt } from '@/utils/exportDocument';
 import ConfirmModal from '@/components/ConfirmModal';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -151,11 +151,26 @@ const FilesPage: React.FC = () => {
       const filename = file.fileName ?? basename(file.filePath);
       const ext = filename.split('.').pop()?.toLowerCase() || '';
       
-      const REJECTED_TYPES = ['png', 'jpg', 'jpeg', 'mp4', 'mp3', 'exe', 'zip', 'gif', 'webp', 'bmp', 'ico', 'pdf', 'rar', '7z', 'tar', 'gz', 'dmg', 'iso', 'bin', 'dll', 'so', 'class', 'pyc'];
-      if (REJECTED_TYPES.includes(ext)) {
+      // Accepted formats are a LIST OF WHAT WORKS, not a list of what is
+      // banned.
+      //
+      // This was a blocklist of 23 known-binary extensions, which answers
+      // the wrong question: anything not on it was let through. A .psd, a
+      // .sqlite, a .class under a renamed extension — all binary, all
+      // accepted here, while the web app refused them. The same file
+      // therefore imported on one platform and was rejected on the other,
+      // and the one that accepted it was the one that could not read it.
+      //
+      // Shared with the web app's list so both platforms answer
+      // identically, which is what "the changes apply to every file type
+      // the system has" requires.
+      if (!ACCEPTED_UPLOAD_EXTS.includes(`.${ext}`)) {
         setUploadError({
           filename,
-          reason: `This is a binary file format (.${ext}). DocuSync's collaborative engine requires text-based formats (like Word Documents) to safely stream real-time differences.`
+          reason: `DocuSync cannot read ".${ext}" files. The engine works on text-based `
+            + `formats, structured data and markup — binary formats have no stable line `
+            + `structure for delta encoding to compare. Accepted: `
+            + `${ACCEPTED_UPLOAD_EXTS.join(', ')}.`,
         });
         return;
       }
@@ -171,9 +186,30 @@ const FilesPage: React.FC = () => {
         sharedAt: new Date().toISOString(),
       };
       
-      await RoomService.shareFileToRoom(currentRoom.otp || currentRoom.id, newFile);
-      setRoomFiles(prev => [...prev, newFile]);
-      notify.success('File shared to room!');
+      const shared = await RoomService.shareFileToRoom(currentRoom.otp || currentRoom.id, newFile);
+
+      // The id the room assigned, which is the existing one when this name
+      // was already taken. Keeping the local id instead is what detached a
+      // re-shared file from its own version history.
+      const assignedId = shared?.fileId ?? newFile.fileId;
+      const storedFile = { ...newFile, fileId: assignedId, version: shared?.version ?? 1 };
+
+      // Replace the row for this id rather than appending, or one document
+      // appears twice in the room list after being shared again.
+      setRoomFiles(prev => [
+        ...prev.filter(f => String((f as any).fileId ?? (f as any).id) !== String(assignedId)),
+        storedFile,
+      ]);
+
+      if (shared?.replaced) {
+        notify.success(
+          shared.hadLiveContent
+            ? `Replaced "${filename}" as version ${shared.version}. The previous text is saved in Version History.`
+            : `Updated "${filename}" to version ${shared.version}.`
+        );
+      } else {
+        notify.success('File shared to room!');
+      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       if (msg.includes('cancelled by user') || msg.includes('canceled by user') || msg.includes('File selection cancelled')) {

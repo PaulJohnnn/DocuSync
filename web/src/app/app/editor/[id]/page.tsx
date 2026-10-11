@@ -153,7 +153,99 @@ export default function EditorPage() {
       }
     } catch {}
   };
-  
+
+  // ── Per-file lock (Panel 1 #4, Panel 2 #5) ────────────────────────────
+  //
+  // Distinct from the room lock above, which only stops new people joining.
+  // This one decides who may type in THIS document. Only the host can set
+  // it; everyone else just reads the answer and obeys it.
+  const [fileLock, setFileLock] = useState<{
+    locked: boolean;
+    allowedNodeIds: string[];
+  } | null>(null);
+  const [canEditFile, setCanEditFile] = useState(true);
+  const [isRoomHost, setIsRoomHost] = useState(false);
+
+  const refreshFileLock = useCallback(async () => {
+    const otp = currentRoom?.otp || currentRoom?.id;
+    if (!otp || !fileId) return;
+    try {
+      const res = await fetch(
+        `/api/lobby/lock?otp=${encodeURIComponent(otp)}&nodeId=${encodeURIComponent(accountNodeIdRef.current || localNodeIdRef.current || '')}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const lock = data.fileLocks?.[String(fileId)] ?? null;
+      setFileLock(lock);
+      setIsRoomHost(!!data.isHost);
+      // Absent from `permissions` means no lock exists for this file, which
+      // is permission to edit — not a denial.
+      const allowed = data.permissions?.[String(fileId)];
+      setCanEditFile(allowed === undefined ? true : !!allowed);
+    } catch { /* a failed poll must never lock someone out */ }
+  }, [currentRoom, fileId]);
+
+  useEffect(() => {
+    refreshFileLock();
+    // Polled, because the host can lock the file while this tab is open and
+    // there is no push channel on the web path. Slower than the document
+    // poll on purpose: a lock changes far less often than text does.
+    const t = setInterval(refreshFileLock, 4000);
+    return () => clearInterval(t);
+  }, [refreshFileLock]);
+
+  const toggleFileLock = async () => {
+    const otp = currentRoom?.otp || currentRoom?.id;
+    if (!otp || !fileId) return;
+    const nextLocked = !fileLock?.locked;
+    try {
+      const res = await fetch('/api/lobby/lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          otp,
+          nodeId: accountNodeIdRef.current || localNodeIdRef.current,
+          fileId,
+          locked: nextLocked,
+          allowedNodeIds: fileLock?.allowedNodeIds ?? [],
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) { alert(data.error); return; }
+      await refreshFileLock();
+    } catch {
+      alert('Could not change the lock. Check your connection and try again.');
+    }
+  };
+
+  /** Host grants or revokes one participant's permission to edit while locked. */
+  const toggleParticipantEdit = async (peerNodeId: string) => {
+    const otp = currentRoom?.otp || currentRoom?.id;
+    if (!otp || !fileId) return;
+    const current = fileLock?.allowedNodeIds ?? [];
+    const next = current.includes(peerNodeId)
+      ? current.filter((n) => n !== peerNodeId)
+      : [...current, peerNodeId];
+    try {
+      const res = await fetch('/api/lobby/lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          otp,
+          nodeId: accountNodeIdRef.current || localNodeIdRef.current,
+          fileId,
+          locked: fileLock?.locked ?? true,
+          allowedNodeIds: next,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) { alert(data.error); return; }
+      await refreshFileLock();
+    } catch {
+      alert('Could not update permissions. Check your connection and try again.');
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const s = uGet('current_room');
@@ -176,6 +268,43 @@ export default function EditorPage() {
   const channelRef = useRef<any>(null);
   const currentContentRef = useRef('');
   const localNodeIdRef = useRef(`web-${Math.floor(Math.random()*10000)}`);
+  /** Account-scoped id used for ownership and lock permissions only — see
+   *  where it is assigned for why it is not the author id. */
+  const accountNodeIdRef = useRef('');
+  /**
+   * The upload this editor has already announced, so a replacement is
+   * reported once rather than on every poll that still carries the marker.
+   */
+  const announcedUploadRef = useRef(0);
+
+  /**
+   * Tells the people EDITING a file that someone replaced it.
+   *
+   * The uploader gets a dialog on the Files page explaining what they did.
+   * Until this existed the people it was done to got nothing: their
+   * document changed under the cursor with no explanation, which is
+   * exactly the case Panel 1 raised about uploading while others are
+   * editing. The marker rides on the snapshot every client already polls,
+   * so it reaches a peer that reconnects later too.
+   */
+  const announceUploadIfNew = useCallback((snapshot: any) => {
+    const stamp = Number(snapshot?.uploadedAt ?? 0);
+    if (!stamp || stamp <= announcedUploadRef.current) return;
+    // Not announced to the person who did it: they already saw the dialog.
+    const mine = snapshot?.uploadedByNodeId
+      && (snapshot.uploadedByNodeId === accountNodeIdRef.current
+        || snapshot.uploadedByNodeId === localNodeIdRef.current);
+    announcedUploadRef.current = stamp;
+    if (mine) return;
+    const who = snapshot?.uploadedBy ? String(snapshot.uploadedBy) : 'Someone';
+    const ver = Number(snapshot?.uploadedVersion ?? 0);
+    toast(
+      `${who} uploaded a new copy of this file${ver ? ` (version ${ver})` : ''}. `
+      + `You are now on their version — your earlier text is saved in Version History.`,
+      { duration: 9000, icon: '⬆' }
+    );
+    setSyncStatusMsg('Replaced by a new upload');
+  }, []);
   const _syncDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const _typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isTypingRef = useRef(false);
@@ -550,6 +679,23 @@ export default function EditorPage() {
     const savedNodeId = sessionStorage.getItem('docusync_node_id');
     if (savedNodeId) localNodeIdRef.current = savedNodeId;
 
+    // The ACCOUNT's node id, which is a different thing from the author id
+    // above and must stay that way.
+    //
+    // `localNodeIdRef` identifies this tab: the server's duplicate- and
+    // stale-drop rules only ever fire when a push comes from the same
+    // author as the stored state, so two tabs sharing one author id would
+    // let a genuine edit from one be discarded as a replay of the other's.
+    // It therefore stays per-tab.
+    //
+    // Ownership, though, is recorded against `uGet('node_id')` when a room
+    // is created (see lib/mockRoomService) -- so that is the id the lock
+    // routes must be asked with, and it is why the host's own file-lock
+    // controls were invisible to them before this. Carried separately, and
+    // used only for permissions.
+    const accountId = uGet('node_id');
+    if (accountId) accountNodeIdRef.current = accountId;
+
     // Strictly rely on the Desktop Host via WebSockets for the canonical snapshot.
   }, [fileId, updateLocalStorageFile]);
 
@@ -787,6 +933,11 @@ export default function EditorPage() {
                 otp,
                 fileId,
                 authorNodeId: localNodeIdRef.current,
+                // Permission is decided on the account, not the tab: the
+                // host grants access to a person in the peer list, whose id
+                // there is the account's. Sent alongside rather than
+                // instead of `authorNodeId`, which must stay per-tab.
+                accountNodeId: accountNodeIdRef.current || undefined,
                 content: contentToSave,
                 baseContent: (offlineQueue ? uGet('docusync_offline_base') : null) || mergeBase || null,
                 vectorClock: vectorClockSnapshot,
@@ -810,6 +961,35 @@ export default function EditorPage() {
               while (samples.length > 100) samples.shift();
               localStorage.setItem('web_session_latency_samples', JSON.stringify(samples));
             } catch (_e) {}
+            // The host locked this file while we were editing.
+            //
+            // This is a refusal, not a network failure, and it must not be
+            // counted as one: three of these in a row would otherwise trip
+            // the offline threshold, raise the offline banner and start
+            // queueing edits that can never land, on a connection that is
+            // working perfectly. The server returns its current text with
+            // the refusal, so this also lands the editor back on the shared
+            // version instead of leaving it on a divergent copy.
+            if (mmRes.status === 403) {
+              const denied = await mmRes.json().catch(() => null);
+              if (denied?.locked) {
+                pushFailureStreakRef.current = 0;
+                setOfflineQueue(false);
+                hasPendingChangesRef.current = false;
+                setCanEditFile(false);
+                const serverText = denied?.snapshot?.content;
+                if (typeof serverText === 'string' && serverText !== currentContentRef.current) {
+                  setContentAndRef(serverText);
+                  lastSave.current = serverText;
+                }
+                setSaved(true);
+                setSyncStatusMsg('View only — this file is locked');
+                if (explicit) {
+                  toast.error('This file is locked by the room host. Your access is view-only.', { duration: 6000 });
+                }
+                return;
+              }
+            }
             if (mmRes.ok) {
               const mmData = await mmRes.json().catch(() => null);
               const mergedContent = mmData?.snapshot?.content;
@@ -1086,6 +1266,7 @@ export default function EditorPage() {
                 lastSave.current = data.content;
                 setSaved(true);
                 setSyncStatusMsg('☁ Live synced from cloud');
+                announceUploadIfNew(data.snapshot);
                 // Only ever advance this cursor to a timestamp the SERVER
                 // gave us. It falls back to Date.now() before, which made the
                 // client claim it had seen state as recent as its own clock —
@@ -1402,6 +1583,25 @@ export default function EditorPage() {
                     </div>
                   )}
 
+                  {/* File lock — Panel 1 #4 and Panel 2 #5.
+                      Separate control from the room lock above, because they
+                      answer different questions: that one is "who may come
+                      in", this one is "who may type in this document". When
+                      it is on, every peer below gets a toggle granting them
+                      an exception; everyone not granted one is view-only. */}
+                  {isRoomHost && (
+                    <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--b1)' }}>
+                      <button onClick={toggleFileLock} style={{ width: '100%', padding: '6px 0', background: fileLock?.locked ? '#fffbeb' : '#f8fafc', color: fileLock?.locked ? '#b45309' : '#64748b', border: '1px solid ' + (fileLock?.locked ? '#fcd34d' : '#e2e8f0'), borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: '0.15s' }}>
+                        {fileLock?.locked ? 'Unlock This File (Locked)' : 'Lock This File (Open)'}
+                      </button>
+                      {fileLock?.locked && (
+                        <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--t3)', lineHeight: 1.5 }}>
+                          Everyone is view-only except you and the people you tick below.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {peers.filter(p => p.status === 'connected').map((p, i) => {
                     const isDbOwner = (currentRoom as any)?.hostNodeId && p.id === (currentRoom as any)?.hostNodeId;
                     const defaultName = p.displayName ? p.displayName : isDbOwner ? 'Room Host' : `Peer ${i + 1}`;
@@ -1413,6 +1613,31 @@ export default function EditorPage() {
                           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{defaultName} {isDbOwner ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}</div>
                           <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
                         </div>
+
+                        {/* Per-participant edit permission, shown only while
+                            this file is locked — "lock the file to a certain
+                            participant, or allow viewing only for selected
+                            participants" (Panel 2 #5). The host is always
+                            allowed and so needs no toggle. */}
+                        {isRoomHost && fileLock?.locked && !isDbOwner && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleParticipantEdit(p.id); }}
+                            title={
+                              (fileLock?.allowedNodeIds ?? []).includes(p.id)
+                                ? 'Can edit — click to make view-only'
+                                : 'View only — click to allow editing'
+                            }
+                            style={{
+                              padding: '4px 8px',
+                              background: (fileLock?.allowedNodeIds ?? []).includes(p.id) ? '#ecfdf5' : '#f8fafc',
+                              color: (fileLock?.allowedNodeIds ?? []).includes(p.id) ? '#047857' : '#64748b',
+                              border: '1px solid ' + ((fileLock?.allowedNodeIds ?? []).includes(p.id) ? '#6ee7b7' : '#e2e8f0'),
+                              borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                            }}
+                          >
+                            {(fileLock?.allowedNodeIds ?? []).includes(p.id) ? 'Can edit' : 'View only'}
+                          </button>
+                        )}
 
                         {/* KICK BUTTON */}
                         {(currentRoom as any)?.isOwner && !isDbOwner && (
@@ -1471,9 +1696,15 @@ export default function EditorPage() {
         {/* Editor */}
         <div className="ds-editor-page-wrapper" style={{ flex: 1, borderRadius: 12, border: '1px solid var(--b1)' }}>
           <div className="ds-editor-page-view">
-            <TipTapEditor 
-              content={rawTipTapHtml} 
-              onChange={handleContentChange} 
+            <TipTapEditor
+              content={rawTipTapHtml}
+              onChange={handleContentChange}
+              canEdit={canEditFile}
+              lockReason={
+                fileLock?.locked
+                  ? 'View only — the room host has locked this file. You can read and download it, but not edit it.'
+                  : undefined
+              }
               margin={margin}
               onMarginChange={handleMarginChange}
               onHistoryRequest={() => router.push('/app/history/' + fileId)}

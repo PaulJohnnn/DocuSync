@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { rotateJoinCodeIfExpired, setJoinCodeAlias, JOIN_CODE_TTL_MS } from '@/lib/joinCode';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,7 +41,17 @@ export async function POST(request: Request) {
       const otpForLeave: string | undefined = body.hostedRoom?.otp;
       await redis.del(`user:${nodeId}`);
       if (otpForLeave) {
-        try { await redis.srem(`lobby_members_set:${otpForLeave}`, nodeId); } catch (_e) {}
+        try {
+          await redis.srem(`lobby_members_set:${otpForLeave}`, nodeId);
+        } catch (sremErr) {
+          // OBSERVABILITY (Fix 1): Redis srem failures are now visible.
+          // Do NOT log otp or nodeId values — could appear in log aggregators.
+          console.warn('[Heartbeat] Redis srem failed during member departure cleanup.', {
+            operation: 'srem',
+            hasOtp: Boolean(otpForLeave),
+            errorType: sremErr instanceof Error ? sremErr.constructor.name : typeof sremErr,
+          });
+        }
       }
       return NextResponse.json({ success: true }, { status: 200, headers: corsHeaders });
     }
@@ -55,6 +66,8 @@ export async function POST(request: Request) {
 
     let activePeers: any[] = [];
     const hostedRoom = body.hostedRoom;
+    let currentJoinCode: string | null = null;
+    let joinCodeRotated = false;
     // Desktop only sends hostedRoom when IT is the room's owner (see
     // App.tsx's pingHeartbeat) — a non-owner peer's heartbeat has no
     // hostedRoom at all, so the presence write below must stay unconditional
@@ -98,6 +111,8 @@ export async function POST(request: Request) {
           hostType: hostedRoom.hostType || 'desktop',
           createdAt: Date.now(),
           expiresAt: Date.now() + ROOM_TTL * 1000,
+          joinCode: hostedRoom.otp,
+          joinCodeExpiresAt: Date.now() + JOIN_CODE_TTL_MS,
           members: [nodeId],
           peersJoined: 1,
           files: [],
@@ -106,6 +121,7 @@ export async function POST(request: Request) {
           nodeId: nodeId
         };
         await redis.set(roomKey, newLobby, { ex: ROOM_TTL });
+        await setJoinCodeAlias(hostedRoom.otp, hostedRoom.otp);
         await redis.sadd(membersSetKey, nodeId);
         await redis.expire(membersSetKey, ROOM_TTL);
         activePeers = [{ nodeId, displayName, ip: clientIp, lastActive: Date.now() }];
@@ -145,10 +161,45 @@ export async function POST(request: Request) {
           })
         );
         activePeers = memberChecks.filter(Boolean);
+
+        // Panel 2 #4: the join code regenerates itself once it lapses.
+        //
+        // Done on the HOST's heartbeat specifically. A room nobody is
+        // hosting any more should expire, not quietly renew itself forever
+        // — so an abandoned room still dies with its TTL, while a room in
+        // active use never strands its members behind a dead code. The
+        // room's internal id is untouched by this, so not one byte of
+        // document state moves. See lib/joinCode.ts.
+        if (existingLobby.hostNodeId === nodeId) {
+          try {
+            const { joinCode, rotated } = await rotateJoinCodeIfExpired(existingLobby);
+            currentJoinCode = joinCode;
+            joinCodeRotated = rotated;
+            if (rotated) {
+              console.log(`[Heartbeat] Join code for room ${existingLobby.otp} rotated to ${joinCode}`);
+            }
+          } catch (rotErr) {
+            // A failed rotation must never fail the heartbeat: the room
+            // keeps its current code and the next beat tries again.
+            console.warn('[Heartbeat] Join code rotation failed:', rotErr);
+          }
+        } else {
+          currentJoinCode = existingLobby.joinCode || existingLobby.otp;
+        }
       }
     }
 
-    return NextResponse.json({ success: true, activePeers }, { status: 200, headers: corsHeaders });
+    return NextResponse.json(
+      {
+        success: true,
+        activePeers,
+        // Sent on every beat so a member whose code rotated can show the
+        // new one without being told to rejoin.
+        joinCode: currentJoinCode,
+        joinCodeRotated,
+      },
+      { status: 200, headers: corsHeaders }
+    );
   } catch (err) {
     console.error('[Heartbeat] Error:', err);
     return NextResponse.json(

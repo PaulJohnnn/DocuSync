@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { LobbyEntry } from '../store';
 import { redis } from '@/lib/redis';
+import { setJoinCodeAlias, JOIN_CODE_TTL_MS } from '@/lib/joinCode';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -63,6 +64,10 @@ export async function POST(request: Request) {
         algorithm,
         createdAt: now,
         expiresAt,
+        // The code starts out identical to the room id; only later
+        // rotations make them differ. See lib/joinCode.ts.
+        joinCode: otp,
+        joinCodeExpiresAt: now + JOIN_CODE_TTL_MS,
         members: [],
         peersJoined: 0,
         files: [],
@@ -73,11 +78,13 @@ export async function POST(request: Request) {
 
     // Save to Redis with 1 hour TTL
     await redis.set(`lobby:${otp}`, newLobby, { ex: TTL_SECONDS });
+    await setJoinCodeAlias(otp, otp);
 
     return NextResponse.json(
       {
         success: true,
         otp,
+        joinCode: otp,
         roomName,
         hostNodeId,
         hostIp,

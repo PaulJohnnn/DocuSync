@@ -123,6 +123,13 @@ export default function EditorScreen({ route, navigation }: any) {
     setSyncing(true);
     setSyncStatusMsg('Syncing...');
 
+    // The `try` this opens is closed by the `finally` that clears
+    // `setSyncing` below. It had gone missing, leaving a `finally` with
+    // nothing to attach to -- a syntax error, so this screen did not
+    // compile and the mobile app could not be built at all. The body was
+    // still indented as though the block were there, which is what made
+    // it easy to miss by eye.
+    try {
       let directSuccess = false;
       try {
         const baseUrl = await getSyncBaseUrl();
@@ -166,7 +173,7 @@ export default function EditorScreen({ route, navigation }: any) {
       if (!directSuccess) {
         // Fallback to Matchmaker Cloud
         try {
-          const MATCHMAKER = await AsyncStorage.getItem('@docusync/matchmaker_url') || 'https://docusync-ajlqc4bys-paul-palamaras-projects.vercel.app/api/lobby';
+          const MATCHMAKER = await AsyncStorage.getItem('@docusync/matchmaker_url') || 'https://docusync-dusky.vercel.app/api/lobby';
           const mmRes = await fetch(`${MATCHMAKER}/doc`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -252,7 +259,7 @@ export default function EditorScreen({ route, navigation }: any) {
       } catch {
         // Fetch failed — host is unreachable or down. Fallback to Matchmaker Cloud
         try {
-          const MATCHMAKER = await AsyncStorage.getItem('@docusync/matchmaker_url') || 'https://docusync-ajlqc4bys-paul-palamaras-projects.vercel.app/api/lobby';
+          const MATCHMAKER = await AsyncStorage.getItem('@docusync/matchmaker_url') || 'https://docusync-dusky.vercel.app/api/lobby';
           const mmRes = await fetch(`${MATCHMAKER}/doc?otp=${otp}&fileId=${fileId}&since=${lastSyncedAt.current}`);
           if (mmRes.ok) {
             const data = await mmRes.json();
