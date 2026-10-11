@@ -106,6 +106,15 @@ async function main() {
         push(otp, fileId, `<p>base</p><p>C round ${round}</p>`, C),
       ]);
     }
+    // Let the last round finish landing before reading.
+    //
+    // `Promise.all` resolves when the three responses arrive, not when the
+    // server has finished writing all three history rows. Over a local
+    // connection that gap is a couple of milliseconds and invisible; over
+    // a real network it is long enough that the read caught the log
+    // mid-round and reported two peers' work as missing when it was simply
+    // not written yet. The race was in this probe, not in the server.
+    await new Promise((r) => setTimeout(r, 2000));
     const rows = await hist(otp, fileId);
     const seqs = rows.map((e) => e.seqNo).filter((n) => typeof n === 'number');
     const dupeSeq = seqs.length - new Set(seqs).size;
