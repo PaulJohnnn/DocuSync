@@ -1,6 +1,18 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 
+/**
+ * The current Windows installer.
+ *
+ * `releases/latest` is resolved by GitHub at request time, so this points
+ * at the newest published release without anyone having to edit it. The
+ * asset name must match what electron-builder produces
+ * (`artifactName: "DocuSync.exe"` in desktop/package.json).
+ */
+const DESKTOP_DOWNLOAD_URL =
+  'https://github.com/PaulJohnnn/DocuSync/releases/latest/download/DocuSync.exe';
+
+
 export const metadata: Metadata = {
   title: 'Download DocuSync',
   description: 'Download the hybrid P2P file synchronization engine for Desktop, Web, and Mobile.',
@@ -74,7 +86,15 @@ export default function DownloadPage() {
             </div>
             
             <div style={{ marginTop: 'auto' }}>
-              <Link href="https://github.com/PaulJohnnn/DocuSync/releases/download/v1.0.5/DocuSync-Setup-1.0.5.exe" target="_blank" rel="noopener noreferrer" className="btn-accent" style={{
+              {/* Always the newest release, never a pinned version.
+                  This was hardcoded to v1.0.5, so the homepage kept
+                  handing out a months-old build long after newer ones
+                  were published -- the download silently went stale and
+                  nothing pointed it out. GitHub resolves
+                  /releases/latest/download/<asset> to whatever the most
+                  recent release holds, so publishing a release is now the
+                  only step needed to update this page. */}
+              <Link href={DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer" className="btn-accent" style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 background: '#4f7df8', color: '#fff', borderRadius: 10, height: 48,
                 fontSize: 15, fontWeight: 600, textDecoration: 'none', transition: 'background 0.15s',
