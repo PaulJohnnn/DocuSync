@@ -18,7 +18,32 @@ export const metadata: Metadata = {
   description: 'Download the hybrid P2P file synchronization engine for Desktop, Web, and Mobile.',
 };
 
-export default function DownloadPage() {
+/**
+ * The version label shown on the Windows card.
+ *
+ * Asked of GitHub rather than written here, because a hardcoded label
+ * drifts exactly the way the download link did: the page went on saying
+ * v1.0.5 while the button correctly served a newer build, which is worse
+ * than either being wrong on its own. Revalidated hourly, and if the call
+ * fails the card simply omits the version instead of asserting a stale
+ * one.
+ */
+async function latestVersion(): Promise<string | null> {
+  try {
+    const res = await fetch(
+      'https://api.github.com/repos/PaulJohnnn/DocuSync/releases/latest',
+      { next: { revalidate: 3600 }, headers: { Accept: 'application/vnd.github+json' } }
+    );
+    if (!res.ok) return null;
+    const tag = (await res.json())?.tag_name;
+    return typeof tag === 'string' && tag ? tag : null;
+  } catch {
+    return null;
+  }
+}
+
+export default async function DownloadPage() {
+  const version = await latestVersion();
   return (
     <div style={{ background: 'var(--bg)', color: 'var(--t1)', minHeight: 'calc(100vh - 64px)', overflowX: 'hidden' }}>
       
@@ -59,7 +84,9 @@ export default function DownloadPage() {
           }}>
             <div style={{ fontSize: 56, marginBottom: 20 }}>💻</div>
             <h2 style={{ fontSize: 24, fontWeight: 700, color: 'var(--t1)', marginBottom: 8 }}>DocuSync for Windows</h2>
-            <p style={{ fontSize: 13, color: '#4f7df8', fontWeight: 600, marginBottom: 24 }}>v1.0.5</p>
+            <p style={{ fontSize: 13, color: '#4f7df8', fontWeight: 600, marginBottom: 24 }}>
+              {version ?? 'Latest release'}
+            </p>
 
             {/* A real screenshot of the desktop editor. The card previously
                 had nothing between the requirements line and the button, so
