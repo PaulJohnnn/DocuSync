@@ -137,7 +137,17 @@ async function main() {
     await idle.locator('.ProseMirror p', { hasText: 'CHARLIE' }).first().click();
     await idle.waitForTimeout(1500);
 
-    const start = await waitForCaret(screen);
+    // Wait for the caret to settle, not merely to exist.
+    //
+    // A client publishes position 0 when it opens a document, then its
+    // real position once the person clicks. Reading the first caret that
+    // appears can catch the opening value, which is a stale reading
+    // rather than a misplaced caret -- it corrects itself a moment later.
+    let start = await waitForCaret(screen);
+    for (let t = 0; t < 30 && !(start && /CHARLIE/.test(start.text)); t++) {
+      await screen.waitForTimeout(500);
+      start = await caretAt(screen);
+    }
     check(!!start, 'the idle person’s caret is visible to the other', start ? `block ${start.index}: "${start.text}"` : 'never appeared');
     check(!!start && /CHARLIE/.test(start.text), 'and it is in the paragraph they clicked');
 
@@ -222,6 +232,13 @@ async function main() {
         await screen.waitForTimeout(500);
       }
       check(!!inTable, 'their caret is drawn while inside a cell', inTable ? JSON.stringify(inTable).slice(0, 90) : 'not drawn');
+      // Known to be imprecise: a remote caret reliably ENDS UP in the
+      // right cell, but how long it takes to resolve there varies, and
+      // over a real network it sometimes has not by the time this reads
+      // it. Waiting longer did not help -- it made more checks fail, so
+      // the caret does not simply arrive late, it settles and can move
+      // again. Left asserted rather than tuned green, because it is a
+      // real imprecision and tuning the test would only hide it.
       check(!!inTable && inTable.inCell === true,
         'and it is drawn INSIDE the cell, not loose in the document',
         inTable ? `inCell=${inTable.inCell} cell="${inTable.cellText}"` : '');
