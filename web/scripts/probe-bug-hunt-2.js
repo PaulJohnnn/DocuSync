@@ -132,6 +132,53 @@ async function main() {
     check(dupes === 0, 'the conflict produced no duplicate rows', dupes ? `${dupes} dupes` : 'clean');
   }
 
+  // ── 3b. A conflict that settles on text already in the log ──────────
+  //
+  // Conflicts are deliberately exempt from the duplicate check, because a
+  // row recording that two people disagreed cannot be reconstructed from
+  // the versions around it. The exemption has an edge: when the
+  // arbitration settles on exactly what the newest row already shows, the
+  // log gains a second row with identical text. Seen on the live system
+  // after an upload landed while two people were editing -- "Uploaded v2"
+  // and the conflict row sat one above the other, word for word the same.
+  console.log('');
+  console.log('  3b. A conflict that resolves to text the log already has');
+  {
+    const otp = await newRoom('Conflict Dedup');
+    const base = '<p>The shared paragraph.</p>';
+    const up = await share(otp, 'dedup.txt', base);
+    const fileId = up.data?.fileId;
+
+    // An upload replaces the document...
+    const replacement = '<p>Replaced wholesale by an upload.</p>';
+    await post('/files', {
+      otp, file: { fileId: Date.now() + 3, fileName: 'dedup.txt', content: replacement, sharedBy: 'H', sharedByNodeId: A },
+    });
+
+    // ...and a peer, still holding the old base, pushes the SAME text the
+    // upload just installed. That is a genuine conflict whose outcome is
+    // already the newest version.
+    await post('/doc', {
+      otp, fileId, content: replacement, authorNodeId: B, baseContent: base,
+      isSessionEnd: true, committedAt: Date.now(),
+    });
+    await new Promise((r) => setTimeout(r, 1200));
+
+    const rows = await hist(otp, fileId);
+    const bodies = rows.map((e) => text(e.fullContent));
+    const dupes = [...bodies.reduce((m, k) => m.set(k, (m.get(k) || 0) + 1), new Map()).entries()]
+      .filter(([, n]) => n > 1);
+    check(dupes.length === 0, 'the conflict did not add a row identical to the one above it',
+      dupes.length ? dupes.map(([k, n]) => `x${n}: "${k.slice(0, 44)}"`).join(' | ') : `${new Set(bodies).size} distinct of ${rows.length}`);
+
+    // The fact of the conflict must survive the de-duplication.
+    const marked = rows.filter((e) => /conflict/i.test(String(e.eventType)) || /conflict/i.test(String(e.label || '')));
+    check(marked.length >= 1, 'the disagreement is still recorded somewhere in the log',
+      marked.length ? `labelled "${marked[0].label || marked[0].eventType}"` : 'CONFLICT LOST');
+    check(rows.some((e) => text(e.fullContent).includes('The shared paragraph')),
+      'and the text that preceded it is still recoverable');
+  }
+
   // ── 4. Room codes under odd input ───────────────────────────────────
   console.log('\n  4. Room code handling');
   {

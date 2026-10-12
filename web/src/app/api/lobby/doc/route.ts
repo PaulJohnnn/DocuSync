@@ -864,6 +864,28 @@ export async function POST(request: Request) {
         // Zyra, 10:42" once instead of forty times. A conflict is never
         // folded away: that is the event the log exists to show.
         const head = recent[0];
+
+        // A conflict that settles on text already at the top of the log.
+        //
+        // Conflicts are exempt from the duplicate check above, because the
+        // row is there to record that two people disagreed and how it was
+        // decided -- something no neighbouring version reveals. But when
+        // the text it settles on is what the newest row already shows, the
+        // exemption produces two rows a reader cannot tell apart. Seen on
+        // the live system: an upload landed while two people were editing,
+        // the resulting arbitration settled on the uploaded text, and the
+        // list showed "Uploaded v2" and "Conflict resolved" one above the
+        // other with identical content.
+        //
+        // The fact is kept and the duplicate is not: the existing row is
+        // marked as the conflict instead of being twinned by one. It keeps
+        // its sequence number, so nothing below it shifts.
+        const conflictOnExistingRow =
+          hadConflict &&
+          head &&
+          typeof head.fullContent === 'string' &&
+          normalise(head.fullContent) === finalNorm;
+
         const canFold =
           head &&
           !hadConflict &&
@@ -899,7 +921,21 @@ export async function POST(request: Request) {
           // replaced stay readable.
           foldIsLossless(head.fullContent, finalContent);
 
-        if (canFold) {
+        if (conflictOnExistingRow) {
+          const marked = {
+            ...head,
+            eventType,
+            conflictHunks,
+            // Said plainly, because "Conflict resolved" on a row whose text
+            // did not change reads as though something was lost.
+            label: 'Conflict resolved — this version was kept',
+          };
+          await redis.lset(historyKey, 0, JSON.stringify(marked));
+          if (hadConflict) {
+            await redis.lpush(`doc_history_anchors:${otp}:${fileId}`, JSON.stringify(marked));
+            await redis.ltrim(`doc_history_anchors:${otp}:${fileId}`, 0, 49);
+          }
+        } else if (canFold) {
           await redis.lset(historyKey, 0, JSON.stringify({ ...historyEvent, seqNo: head.seqNo ?? seqNo }));
         } else {
           // When Last-Write-Wins settles a same-line disagreement, the text
