@@ -1,5 +1,5 @@
 'use client';
-import { useEditor, EditorContent, type Editor } from '@tiptap/react';
+import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -334,71 +334,6 @@ interface Props {
   localDocKey?: string;
 }
 
-/**
- * How much text before the caret is used to find it again after the
- * document is rewritten. Long enough to be distinctive in ordinary prose,
- * short enough that an edit a line or two above does not spoil the match.
- */
-const BLOCK_SEP = String.fromCharCode(10);
-
-const CARET_ANCHOR_CHARS = 40;
-
-/**
- * Where the caret should sit in a freshly written document.
- *
- * `setContent` replaces the document wholesale, so ProseMirror has no
- * mapping to carry the old position across -- the integer is simply an
- * offset into something that no longer exists. Keeping the number means
- * the caret stays where it was while the words move, which reads to the
- * person using it as the caret jumping on its own.
- *
- * So the caret is placed against its WORDS instead: the characters that
- * were immediately in front of it are looked for in the new document, and
- * the caret goes just after them. Where several copies of that text exist
- * -- a repeated heading, say -- the one nearest the old position wins, so
- * an unchanged document never moves the caret at all. If the text is gone
- * entirely, the old position is used, which is the best guess available.
- */
-function anchoredPosition(editor: Editor, anchorText: string, fallback: number): number {
-  if (!anchorText) return fallback;
-  const doc = editor.state.doc;
-  const full = doc.textBetween(0, doc.content.size, BLOCK_SEP, BLOCK_SEP);
-
-  // Every place the anchor text appears, as a text offset.
-  const hits: number[] = [];
-  for (let at = full.indexOf(anchorText); at !== -1; at = full.indexOf(anchorText, at + 1)) {
-    hits.push(at + anchorText.length);
-    if (hits.length > 64) break; // pathological input; the nearest is enough
-  }
-  if (!hits.length) return fallback;
-
-  // Text offsets and document positions differ, because a position counts
-  // node boundaries too. Walking the text nodes converts between them.
-  const toDocPos = (textOffset: number): number => {
-    let seen = 0;
-    let result = fallback;
-    doc.descendants((node, pos) => {
-      if (!node.isText) return true;
-      const len = node.text ? node.text.length : 0;
-      if (seen + len >= textOffset) {
-        result = pos + (textOffset - seen);
-        return false;
-      }
-      seen += len;
-      return true;
-    });
-    return result;
-  };
-
-  // The occurrence closest to where the caret already was.
-  const fallbackText = Math.max(0, Math.min(fallback, full.length));
-  let best = hits[0];
-  for (const h of hits) {
-    if (Math.abs(h - fallbackText) < Math.abs(best - fallbackText)) best = h;
-  }
-  return toDocPos(best);
-}
-
 const ToolBtn = ({ onClick, active, children }: { onClick: () => void; active?: boolean; children: React.ReactNode }) => (
   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onClick} style={{
     background: active ? 'var(--acb)' : 'transparent',
@@ -546,37 +481,29 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
     // unrelated edit finally made the two differ.
     if (visibleContentKey(content) !== visibleContentKey(editor.getHTML())) {
       const { from, to } = editor.state.selection;
-      // The words immediately before the caret, used to find it again in
-      // the rewritten document -- see `anchoredPosition`.
-      const anchor = editor.state.doc.textBetween(0, from, BLOCK_SEP, BLOCK_SEP).slice(-CARET_ANCHOR_CHARS);
-
       editor.commands.setContent(content, PARSE_KEEPING_SPACES);
-
-      // Put the caret back where its TEXT went, not where its number was.
-      //
-      // `setContent` replaces the whole document, so the old position is
-      // just an integer into a document that no longer exists. Restoring
-      // it unchanged -- clamped only to the new length -- meant that when
-      // somebody inserted text ABOVE the caret, the text slid down and the
-      // caret stayed put: it appeared to jump backwards by however much
-      // had been added. Measured: a seven-character insertion at the start
-      // of the paragraph moved the caret into the NEXT paragraph.
-      //
-      // Finding the characters that were in front of the caret puts it
-      // back against the same words, which is where its owner left it.
-      const newSize = editor.state.doc.content.size;
-      const clamp = (n: number) => Math.max(0, Math.min(n, newSize > 0 ? newSize - 1 : 0));
-      const mapped = anchoredPosition(editor, anchor, clamp(from));
-      const safeFrom = clamp(mapped);
-      const safeTo = clamp(mapped + (to - from));
+      const newDocSize = editor.state.doc.content.size;
+      const safeFrom = Math.min(from, newDocSize > 0 ? newDocSize - 1 : 0);
+      const safeTo = Math.min(to, newDocSize > 0 ? newDocSize - 1 : 0);
       editor.commands.setTextSelection({ from: safeFrom, to: safeTo });
 
-      // And tell everyone else, because the number they hold for this
-      // caret has just stopped meaning what it meant. A peer who is not
-      // touching anything never fires a selection change, so without this
-      // their caret is drawn at a stale offset on every other screen and
-      // drifts further with each edit -- the "someone else's cursor moves
-      // although they are not typing" complaint.
+      // Re-publish this caret: the number everyone else holds for it was
+      // measured against the document that has just been replaced, and
+      // somebody who is not touching anything raises no selection change
+      // of their own.
+      //
+      // Deliberately ONLY a re-publish. An earlier attempt also moved the
+      // local caret here, searching the new document for the words that
+      // had been in front of it. Right in principle, wrong in practice:
+      // where those words also appear in text that has just arrived from
+      // someone else, the caret jumps into their paragraph and the next
+      // thing typed goes there. Measured on the cross-platform session --
+      // a contribution lost in three runs out of five with it in, none
+      // without.
+      // Re-publish this caret: the number everyone else holds for it was
+      // measured against the document that has just been replaced, and a
+      // person who is not touching anything raises no selection change of
+      // their own.
       if (onSelectionUpdate) onSelectionUpdate(safeFrom, safeTo);
       // The text just changed underneath the page breaks measured for the
       // old text, so they have to be measured again.
