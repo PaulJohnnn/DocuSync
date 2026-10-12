@@ -12,7 +12,8 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Quote, Code,
-  AlignLeft, AlignCenter, AlignRight, Highlighter, File, Lock
+  AlignLeft, AlignCenter, AlignRight, Highlighter, File, Lock,
+  Table as TableIcon, Rows3, Columns3, Trash
 } from 'lucide-react';
 
 import { Extension } from '@tiptap/core';
@@ -653,6 +654,42 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
         <ToolBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })}><AlignRight size={14} /></ToolBtn>
         <div style={{ width: 1, height: 20, background: 'var(--b1)', margin: '0 4px' }} />
         <ToolBtn onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive('highlight')}><Highlighter size={14} /></ToolBtn>
+        <div style={{ width: 1, height: 20, background: 'var(--b1)', margin: '0 4px' }} />
+
+        {/* Tables.
+            The extensions were loaded all along, so a table pasted in from
+            Word rendered correctly -- but nothing in the interface could
+            make one, which is what the panel raised: a table is part of a
+            document's text, and this was the one part the editor could
+            display and not produce. The row and column controls only
+            appear once the caret is inside a table, so the toolbar does
+            not grow four permanently dead buttons. */}
+        <ToolBtn
+          onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
+          active={editor.isActive('table')}
+        >
+          <TableIcon size={14} />
+        </ToolBtn>
+        {editor.isActive('table') && (
+          <>
+            <ToolBtn onClick={() => editor.chain().focus().addRowAfter().run()}>
+              <Rows3 size={14} />
+            </ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().addColumnAfter().run()}>
+              <Columns3 size={14} />
+            </ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().deleteRow().run()}>
+              <span style={{ fontSize: 11, fontWeight: 700, lineHeight: 1 }}>-R</span>
+            </ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().deleteColumn().run()}>
+              <span style={{ fontSize: 11, fontWeight: 700, lineHeight: 1 }}>-C</span>
+            </ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().deleteTable().run()}>
+              <Trash size={14} />
+            </ToolBtn>
+          </>
+        )}
+
         <div style={{ width: 1, height: 20, background: 'var(--b1)', margin: '0 4px' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 4 }}>
           <span style={{ fontSize: 12, color: 'var(--t2)', fontWeight: 500 }}>Margin:</span>

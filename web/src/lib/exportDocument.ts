@@ -13,18 +13,38 @@
  */
 
 /** One block of the document, flattened out of the editor's HTML. */
+/** One cell's content: the same runs a paragraph is made of. */
+type Run = { text: string; bold?: boolean; italic?: boolean; underline?: boolean };
+
+/** A row of a table, and whether it is the header row. */
+export interface TableRowModel {
+  header: boolean;
+  cells: Run[][];
+}
+
 interface Block {
-  kind: 'p' | 'h1' | 'h2' | 'h3' | 'h4' | 'li' | 'oli' | 'quote' | 'code';
+  kind: 'p' | 'h1' | 'h2' | 'h3' | 'h4' | 'li' | 'oli' | 'quote' | 'code' | 'table';
   /**
    * Paragraph alignment, where the author set one. Dropped entirely before,
    * so a centred title came back left-aligned in every download — the
    * document looked rearranged rather than exported.
    */
   align?: 'left' | 'center' | 'right' | 'justify';
-  runs: { text: string; bold?: boolean; italic?: boolean; underline?: boolean }[];
+  runs: Run[];
+  /**
+   * Set only on `kind: 'table'`.
+   *
+   * A table was previously flattened: the parser walked block tags, found
+   * the paragraph TipTap puts inside each cell, and emitted them as loose
+   * paragraphs. So a downloaded document had the words but no table at
+   * all -- rows and columns silently became a list of lines. The panel's
+   * point was that a table is part of the text, and it was the one part
+   * that did not survive being exported.
+   */
+  rows?: TableRowModel[];
 }
 
-const BLOCK_TAGS = 'p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,div,tr';
+const BLOCK_TAGS = 'table,p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,div,tr';
 
 /**
  * Walks the editor HTML into a flat block list. Everything downstream works
@@ -73,6 +93,25 @@ export function parseBlocks(html: string): Block[] {
   };
 
   doc.body.querySelectorAll(BLOCK_TAGS).forEach(el => {
+    // A table is taken whole, before the nested-block guard below would
+    // reject it for containing paragraphs — those paragraphs are its
+    // cells, not siblings of it.
+    if (el.tagName.toLowerCase() === 'table') {
+      const rows: TableRowModel[] = [];
+      el.querySelectorAll('tr').forEach(tr => {
+        const cells: Run[][] = [];
+        let header = false;
+        tr.querySelectorAll('th,td').forEach(cell => {
+          if (cell.tagName.toLowerCase() === 'th') header = true;
+          cells.push(runsOf(cell));
+        });
+        if (cells.length) rows.push({ header, cells });
+      });
+      if (rows.length) out.push({ kind: 'table', runs: [], rows });
+      return;
+    }
+    // Anything inside a table was already captured as a cell above.
+    if (el.closest('table')) return;
     // Skip wrappers whose text belongs to a nested block we will visit anyway.
     if (el.querySelector(BLOCK_TAGS)) return;
     const tag = el.tagName.toLowerCase();
@@ -106,9 +145,58 @@ export function parseBlocks(html: string): Block[] {
 
 const plainOf = (b: Block) => b.runs.map(r => r.text).join('');
 
+/** A cell's text, with newlines flattened so a row stays one row. */
+const NEWLINE = String.fromCharCode(10);
+
+/** A cell's text, with newlines flattened so a row stays one row. */
+const cellText = (cell: Run[]) =>
+  cell.map(r => r.text).join('').replace(new RegExp('[ \t]*' + NEWLINE + '[ \t]*', 'g'), ' ').trim();
+
+/**
+ * A table drawn in plain text, with columns padded to line up.
+ *
+ * A downloaded .txt is often what someone prints or pastes elsewhere, so
+ * a table arriving as a run-on line is worse than no table. Padding costs
+ * nothing and keeps the rows readable.
+ */
+function tableToText(rows: TableRowModel[]): string {
+  const grid = rows.map(r => r.cells.map(cellText));
+  const width = Math.max(...grid.map(r => r.length), 0);
+  const widths: number[] = [];
+  for (let c = 0; c < width; c++) {
+    widths[c] = Math.max(...grid.map(r => (r[c] ?? '').length), 3);
+  }
+  const line = (cells: string[]) =>
+    Array.from({ length: width }, (_, c) => (cells[c] ?? '').padEnd(widths[c])).join('  ').trimEnd();
+  const out: string[] = [];
+  grid.forEach((r, i) => {
+    out.push(line(r));
+    if (i === 0 && rows[0]?.header) out.push(widths.map(w => '-'.repeat(w)).join('  '));
+  });
+  return out.join(NEWLINE);
+}
+
+/** A table as a Markdown pipe table. */
+function tableToMarkdown(rows: TableRowModel[]): string {
+  if (!rows.length) return '';
+  const esc = (t: string) => t.split('|').join('&#124;');
+  const width = Math.max(...rows.map(r => r.cells.length));
+  const row = (cells: Run[][]) =>
+    '| ' + Array.from({ length: width }, (_, c) => esc(cellText(cells[c] ?? []))).join(' | ') + ' |';
+  const out = [row(rows[0].cells)];
+  // Markdown has no table without a header rule, so one is written even
+  // when the author never marked a header row -- otherwise the table
+  // renders as literal pipes wherever the file is opened.
+  out.push('| ' + Array.from({ length: width }, () => '---').join(' | ') + ' |');
+  rows.slice(1).forEach(r => out.push(row(r.cells)));
+  return out.join(NEWLINE);
+}
+
 export function toPlainText(html: string): string {
   return parseBlocks(html)
-    .map(b => (b.kind === 'li' ? '• ' : b.kind === 'oli' ? '1. ' : '') + plainOf(b))
+    .map(b => (b.kind === 'table' && b.rows)
+      ? tableToText(b.rows)
+      : (b.kind === 'li' ? '• ' : b.kind === 'oli' ? '1. ' : '') + plainOf(b))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -117,6 +205,7 @@ export function toPlainText(html: string): string {
 export function toMarkdown(html: string): string {
   const esc = (s: string) => s.replace(/([*_`[\]])/g, '\\$1');
   return parseBlocks(html).map(b => {
+    if (b.kind === 'table' && b.rows) return tableToMarkdown(b.rows);
     const body = b.runs.map(r => {
       let t = esc(r.text);
       if (r.bold) t = `**${t}**`;
@@ -141,8 +230,32 @@ const xmlEscape = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
    .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 
+/** A cell's runs as inline HTML, so formatting inside a cell survives. */
+function cellHtml(cell: Run[]): string {
+  return cell.map(r => {
+    let t = xmlEscape(r.text).split(String.fromCharCode(10)).join('<br>');
+    if (r.bold) t = `<strong>${t}</strong>`;
+    if (r.italic) t = `<em>${t}</em>`;
+    if (r.underline) t = `<u>${t}</u>`;
+    return t;
+  }).join('');
+}
+
+/** A real HTML table, with a header row where the author marked one. */
+function tableToHtml(rows: TableRowModel[]): string {
+  const width = Math.max(...rows.map(r => r.cells.length), 0);
+  const cellsOf = (r: TableRowModel) =>
+    Array.from({ length: width }, (_, c) => {
+      const tag = r.header ? 'th' : 'td';
+      return `<${tag}>${cellHtml(r.cells[c] ?? [])}</${tag}>`;
+    }).join('');
+  const body = rows.map(r => `    <tr>${cellsOf(r)}</tr>`).join(String.fromCharCode(10));
+  return `  <table>${String.fromCharCode(10)}${body}${String.fromCharCode(10)}  </table>`;
+}
+
 export function toHtmlDocument(html: string, title: string): string {
   const body = parseBlocks(html).map(b => {
+    if (b.kind === 'table' && b.rows) return tableToHtml(b.rows);
     const inner = b.runs.map(r => {
       let t = xmlEscape(r.text).replace(/\n/g, '<br>');
       if (r.bold) t = `<strong>${t}</strong>`;
@@ -175,6 +288,11 @@ export function toHtmlDocument(html: string, title: string): string {
   body { max-width: 46rem; margin: 3rem auto; padding: 0 1rem;
          font: 16px/1.65 Calibri, Carlito, system-ui, sans-serif; color: #1a1a1a; }
   blockquote { border-left: 3px solid #ccc; margin: 0; padding-left: 1rem; color: #555; }
+  /* Without borders a saved table reads as columns of loose words, which
+     is the thing the export was meant to stop happening. */
+  table { border-collapse: collapse; margin: 1rem 0; }
+  th, td { border: 1px solid #999; padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: #f2f2f2; font-weight: 600; }
   pre { background: #f5f5f5; padding: 1rem; overflow-x: auto; }
 </style>
 </head>
@@ -258,8 +376,58 @@ function zipStore(entries: { name: string; data: string }[]): Blob {
   });
 }
 
+/**
+ * One cell's runs as OOXML, reusing the same rules as a paragraph so
+ * bold, italic and underline survive inside a table.
+ */
+function docxRuns(runs: Run[], prefix = ''): string {
+  return runs.map((r, i) => {
+    const rPr = (r.bold || r.italic || r.underline)
+      ? `<w:rPr>${r.bold ? '<w:b/>' : ''}${r.italic ? '<w:i/>' : ''}${r.underline ? '<w:u w:val="single"/>' : ''}</w:rPr>` : '';
+    const text = (i === 0 ? prefix : '') + r.text;
+    const body = text.split(String.fromCharCode(10)).map((seg, j) =>
+      (j > 0 ? '<w:br/>' : '') + `<w:t xml:space="preserve">${xmlEscape(seg)}</w:t>`
+    ).join('');
+    return `<w:r>${rPr}${body}</w:r>`;
+  }).join('');
+}
+
+/**
+ * A real Word table, not paragraphs pretending to be one.
+ *
+ * Word needs the borders stated on the table itself (`<w:tblBorders>`) --
+ * without them it opens as an invisible grid, which looks to the reader
+ * exactly like the flattened text this export exists to replace. Every
+ * cell must also contain at least one `<w:p>`, or Word reports the
+ * document as corrupt.
+ */
+function tableToDocx(rows: TableRowModel[]): string {
+  const width = Math.max(...rows.map(r => r.cells.length), 1);
+  const edge = (side: string) => `<w:${side} w:val="single" w:sz="6" w:space="0" w:color="999999"/>`;
+  const borders = `<w:tblBorders>${['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(edge).join('')}</w:tblBorders>`;
+  const grid = `<w:tblGrid>${Array.from({ length: width }, () => '<w:gridCol w:w="2400"/>').join('')}</w:tblGrid>`;
+  const tblPr = `<w:tblPr><w:tblW w:w="0" w:type="auto"/>${borders}</w:tblPr>`;
+
+  const body = rows.map(r => {
+    const cells = Array.from({ length: width }, (_, c) => {
+      const runs = docxRuns(r.cells[c] ?? []);
+      const shade = r.header ? '<w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>' : '';
+      const bold = r.header ? '<w:rPr><w:b/></w:rPr>' : '';
+      const pPr = bold ? `<w:pPr>${bold}</w:pPr>` : '';
+      // An empty cell still needs its paragraph.
+      return `<w:tc><w:tcPr><w:tcW w:w="0" w:type="auto"/>${shade}</w:tcPr><w:p>${pPr}${runs}</w:p></w:tc>`;
+    }).join('');
+    return `<w:tr>${cells}</w:tr>`;
+  }).join('');
+
+  // A table followed immediately by another table, or ending the body,
+  // needs a paragraph after it or Word runs them together.
+  return `<w:tbl>${tblPr}${grid}${body}</w:tbl><w:p/>`;
+}
+
 export function toDocx(html: string): Blob {
   const paras = parseBlocks(html).map(b => {
+    if (b.kind === 'table' && b.rows) return tableToDocx(b.rows);
     const style =
       b.kind === 'h1' ? 'Heading1' : b.kind === 'h2' ? 'Heading2' :
       b.kind === 'h3' ? 'Heading3' : b.kind === 'h4' ? 'Heading4' :
