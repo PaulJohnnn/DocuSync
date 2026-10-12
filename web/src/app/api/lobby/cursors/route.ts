@@ -15,13 +15,13 @@ export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/lobby/cursors
- * Body: { otp, nodeId, displayName, color, from, to, fileId }
+ * Body: { otp, nodeId, displayName, color, from, to, fileId, docKey }
  * Stores the cursor position in Redis with a 15-second TTL.
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { otp, nodeId, displayName, color, from, to, fileId } = body;
+    const { otp, nodeId, displayName, color, from, to, fileId, docKey } = body;
 
     if (!otp || !nodeId) {
       return NextResponse.json({ error: 'Missing otp or nodeId' }, { status: 400, headers: corsHeaders });
@@ -33,6 +33,14 @@ export async function POST(request: Request) {
       color: color || '#4f7df8',
       from: Number(from) || 0,
       to: Number(to) || 0,
+      // Which version of the document that position was measured against.
+      //
+      // A position is only meaningful against one specific text. Without
+      // this a peer drew the number against whatever it happened to be
+      // holding, and for the second or so before the edit arrived the
+      // caret landed somewhere else -- in prose a few characters out and
+      // invisible, inside a table one cell over and obvious.
+      docKey: typeof docKey === 'string' ? docKey : null,
       fileId: Number(fileId) || 0,
       ts: Date.now(),
     };

@@ -5,6 +5,7 @@ import PageShell from '@/components/PageShell';
 import { ArrowLeft, Clock } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { uGet, uSet } from '@/lib/userStorage';
+import { splitMarginWrapper } from '@/lib/documentSignature';
 import { idbGetFile, idbSaveFile } from '@/lib/idb';
 import * as mockAuthService from '@/lib/mockAuthService';
 import { useWebSync } from '@/context/WebSyncContext';
@@ -415,6 +416,22 @@ export default function EditorPage() {
 
   // ── Remote Cursors ─────────────────────────────────────────────────────────
   const cursorThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * The key a caret position is published against.
+   *
+   * Fingerprinting the stored content directly would include the
+   * `<div data-margin="N">` wrapper, and that number is each reader's own
+   * setting -- so two people reading at different margins would never
+   * produce the same key, their carets would be held back for ever, and
+   * the guard meant to stop a caret landing in the wrong cell would
+   * instead stop it moving at all. The wrapper is removed first, leaving
+   * a key about the text the positions actually index.
+   */
+  const docKeyOf = useCallback((html: string) => {
+    const { inner } = splitMarginWrapper(html);
+    return contentFingerprint(inner);
+  }, []);
+
   /** Newest caret position raised while a throttle window was open. */
   const pendingCursorRef = useRef<number | null>(null);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor & { lastUpdate: number }>>({});
@@ -442,6 +459,10 @@ export default function EditorPage() {
           color,
           from: msg.position,
           to: msg.position,
+          // The text this position was measured against. The editor draws
+          // the caret only once it holds that same text, so a position is
+          // never applied to a document it does not describe.
+          docKey: msg.docKey ?? null,
           lastUpdate: Date.now()
         }
       }));
@@ -1711,6 +1732,7 @@ export default function EditorPage() {
               onMarginChange={handleMarginChange}
               onHistoryRequest={() => router.push('/app/history/' + fileId)}
               cursors={Object.values(remoteCursors)}
+              localDocKey={docKeyOf(currentContentRef.current || '')}
               onSelectionUpdate={(from, _to) => {
                 // Throttled by COALESCING, not by discarding.
                 //
@@ -1727,14 +1749,14 @@ export default function EditorPage() {
                 // closes, so the last word is always the true one.
                 pendingCursorRef.current = from;
                 if (cursorThrottleRef.current) return;
-                pushCursor(fileId, from, 1);
+                pushCursor(fileId, from, 1, docKeyOf(currentContentRef.current || ''));
                 pendingCursorRef.current = null;
                 cursorThrottleRef.current = setTimeout(() => {
                   cursorThrottleRef.current = null;
                   const queued = pendingCursorRef.current;
                   if (queued !== null) {
                     pendingCursorRef.current = null;
-                    pushCursor(fileId, queued, 1);
+                    pushCursor(fileId, queued, 1, docKeyOf(currentContentRef.current || ''));
                   }
                 }, 200);
               }}

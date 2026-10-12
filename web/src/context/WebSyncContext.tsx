@@ -30,7 +30,7 @@ interface WebSyncContextValue {
   peers: PeerInfo[];
   connectToPeer: (address: string, port: number) => void;
   disconnectPeer: (id: string) => void;
-  pushCursor: (fileId: string, position: number, nodeIndex: number) => void;
+  pushCursor: (fileId: string, position: number, nodeIndex: number, docKey?: string) => void;
   kickPeer: (targetNodeId: string) => void;
   socket: WebSocket | null;
   /**
@@ -237,6 +237,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
                   position: c.from,
                   displayName: c.displayName,
                   color: c.color,
+                  docKey: c.docKey,
                 },
               }));
             });
@@ -453,7 +454,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const pushCursor = useCallback((fileId: string | number, position: number, nodeIndex: number) => {
+  const pushCursor = useCallback((fileId: string | number, position: number, nodeIndex: number, docKey?: string) => {
     lastCursorFileIdRef.current = fileId;
 
     if (socketRef.current?.readyState === WebSocket.OPEN) {
@@ -463,6 +464,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
         nodeIndex,
         fileId: Number(fileId),
         position,
+        docKey,
         timestamp: new Date().toISOString()
       }));
     }
@@ -488,6 +490,9 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
               from: position,
               to: position,
               fileId: Number(fileId),
+              // The document this position was measured against, so a peer
+              // holding different text can wait rather than draw it wrong.
+              docKey,
             }),
           }).catch(() => {});
         }

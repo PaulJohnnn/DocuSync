@@ -28,6 +28,17 @@ export interface RemoteCursor {
   color: string;
   from: number;
   to: number;
+  /**
+   * A fingerprint of the document the sender measured this position
+   * against, where they sent one.
+   *
+   * A position only means something relative to one specific text. While
+   * this editor holds different text -- the second or so between someone
+   * typing and the edit arriving here -- applying their number puts the
+   * caret somewhere they are not. In prose that is a few characters out
+   * and nobody notices; inside a table it is one cell over and obvious.
+   */
+  docKey?: string | null;
 }
 
 /** A remote caret as this editor currently believes it to be placed. */
@@ -35,7 +46,19 @@ interface TrackedCursor extends RemoteCursor {
   /** The exact position its owner last reported, used to spot a real move. */
   reportedFrom: number;
   reportedTo: number;
+  /**
+   * When this caret was first held back for describing a document this
+   * editor does not have. Zero when it is not being held.
+   */
+  heldSince?: number;
 }
+
+/**
+ * How long a caret may be held at its last known-good position while the
+ * two documents differ. Long enough to cover an ordinary sync, short
+ * enough that a caret never looks stuck.
+ */
+const HOLD_STALE_MS = 2000;
 
 interface RemoteCursorsState {
   byNode: Map<string, TrackedCursor>;
@@ -135,10 +158,12 @@ const RemoteCursorsExtension = Extension.create({
             // assigning `ext.options.cursors = ...` from outside silently
             // never persists. Passing the live list through the transaction's
             // own meta is the reliable way to get fresh data in here.
-            const meta = tr.getMeta('remoteCursorsUpdate') as RemoteCursor[] | undefined;
+            const meta = tr.getMeta('remoteCursorsUpdate') as
+              { cursors: RemoteCursor[]; localDocKey?: string } | undefined;
             if (meta) {
+              const here = meta.localDocKey;
               const seen = new Set<string>();
-              meta.forEach((c) => {
+              meta.cursors.forEach((c) => {
                 seen.add(c.nodeId);
                 const known = byNode.get(c.nodeId);
                 // A report identical to the last one from this peer means
@@ -149,10 +174,41 @@ const RemoteCursorsExtension = Extension.create({
                   byNode.set(c.nodeId, { ...known, color: c.color, displayName: c.displayName });
                   return;
                 }
+                // Measured against text this editor does not have yet.
+                //
+                // The number is right for the sender's document and wrong
+                // for this one, so it is held back until the edit that
+                // justifies it arrives -- the peer stays in the map, so
+                // their caret remains on screen at the last place that was
+                // genuinely true rather than jumping somewhere they have
+                // never been. Measured before this: a caret sat outside
+                // the table for about a second after its owner typed in a
+                // cell.
+                //
+                // Bounded, though. Holding it indefinitely assumes the two
+                // documents will converge promptly, and when they do not
+                // the caret simply stops moving -- which is worse than
+                // being briefly a cell out, because it never corrects. So
+                // after HOLD_STALE_MS the reported position is used
+                // regardless: a short pause while things settle, never a
+                // frozen caret. Clients too old to send a key are
+                // unaffected.
+                const heldSince = known?.heldSince ?? 0;
+                const mismatched = !!(c.docKey && here && c.docKey !== here);
+                if (known && mismatched) {
+                  const since = heldSince || Date.now();
+                  if (Date.now() - since < HOLD_STALE_MS) {
+                    byNode.set(c.nodeId, {
+                      ...known, color: c.color, displayName: c.displayName, heldSince: since,
+                    });
+                    return;
+                  }
+                }
                 byNode.set(c.nodeId, {
                   ...c,
                   reportedFrom: c.from,
                   reportedTo: c.to,
+                  heldSince: 0,
                 });
                 moved = true;
               });
@@ -274,6 +330,8 @@ interface Props {
   canEdit?: boolean;
   /** Why editing is off, shown in place of the toolbar. */
   lockReason?: string;
+  /** Fingerprint of the text THIS editor is currently showing. */
+  localDocKey?: string;
 }
 
 /**
@@ -354,7 +412,7 @@ const ToolBtn = ({ onClick, active, children }: { onClick: () => void; active?: 
   </button>
 );
 
-export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate, onUndo, margin, onMarginChange, onHistoryRequest, canEdit = true, lockReason }: Props) {
+export default function TipTapEditor({ content, onChange, cursors = [], onSelectionUpdate, onUndo, margin, onMarginChange, onHistoryRequest, canEdit = true, lockReason, localDocKey }: Props) {
   const initialized = useRef(false);
   const [pasteError, setPasteError] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
@@ -531,9 +589,15 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       // Pass the cursor list itself as the transaction meta payload (see
       // the plugin's `apply` above for why — `ext.options` mutation
       // doesn't work here).
-      editor.view.dispatch(editor.state.tr.setMeta('remoteCursorsUpdate', cursors));
+      // The whole list goes through, with this editor's own key alongside
+      // it. Filtering the list instead would have the plugin treat the
+      // missing peer as having left and delete their caret outright --
+      // a disappearing cursor in place of a misplaced one.
+      editor.view.dispatch(
+        editor.state.tr.setMeta('remoteCursorsUpdate', { cursors, localDocKey })
+      );
     }
-  }, [editor, cursors]);
+  }, [editor, cursors, localDocKey]);
 
   useEffect(() => {
     if (!editor) return;
