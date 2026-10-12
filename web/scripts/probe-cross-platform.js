@@ -106,6 +106,16 @@ async function signIn(page, acct, label) {
 
 /** Puts the room and file into this client's storage, then opens the editor. */
 async function openDoc(page, otp, fileId, fileName) {
+  // Re-read the session, and sign in again if it has gone.
+  //
+  // The app polls its own auth and will clear the session if the server
+  // stops recognising the account, so a run that signed in successfully
+  // can still find nothing here a moment later. Reading it blind threw
+  // "Cannot read properties of null" and failed the run for a reason that
+  // had nothing to do with the behaviour under test.
+  const live = await page.evaluate(() => sessionStorage.getItem('docusync_auth_user'));
+  if (!live) throw new Error('the session was dropped after signing in -- is the account still active?');
+
   await page.evaluate(({ otp, fileId, fileName }) => {
     const u = JSON.parse(sessionStorage.getItem('docusync_auth_user'));
     const k = (n) => `ds_${u.id}_${n}`;
