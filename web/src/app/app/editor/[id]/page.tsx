@@ -415,6 +415,8 @@ export default function EditorPage() {
 
   // ── Remote Cursors ─────────────────────────────────────────────────────────
   const cursorThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Newest caret position raised while a throttle window was open. */
+  const pendingCursorRef = useRef<number | null>(null);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, RemoteCursor & { lastUpdate: number }>>({});
 
   // Announce presence on this file as soon as it's opened — not just on the
@@ -1710,9 +1712,31 @@ export default function EditorPage() {
               onHistoryRequest={() => router.push('/app/history/' + fileId)}
               cursors={Object.values(remoteCursors)}
               onSelectionUpdate={(from, _to) => {
+                // Throttled by COALESCING, not by discarding.
+                //
+                // This used to return outright while a throttle window was
+                // open, so any position raised inside that window was
+                // dropped and never sent at all. The last thing peers heard
+                // could therefore be several edits out of date, and since
+                // an idle person raises no further updates, their caret sat
+                // at a stale offset on every other screen -- drifting
+                // further from where they actually left it with each change
+                // to the document.
+                //
+                // The newest position is now kept and sent when the window
+                // closes, so the last word is always the true one.
+                pendingCursorRef.current = from;
                 if (cursorThrottleRef.current) return;
-                cursorThrottleRef.current = setTimeout(() => { cursorThrottleRef.current = null; }, 200);
                 pushCursor(fileId, from, 1);
+                pendingCursorRef.current = null;
+                cursorThrottleRef.current = setTimeout(() => {
+                  cursorThrottleRef.current = null;
+                  const queued = pendingCursorRef.current;
+                  if (queued !== null) {
+                    pendingCursorRef.current = null;
+                    pushCursor(fileId, queued, 1);
+                  }
+                }, 200);
               }}
               onUndo={(discardedContent) => {
                 try {
