@@ -52,6 +52,32 @@ const EMPTY_BLOCK = new RegExp(
 const MARGIN_WRAPPER_OPEN = /^<div[^>]*data-margin=[^>]*>/i;
 const MARGIN_WRAPPER_CLOSE = /<[/]div>$/i;
 
+/**
+ * Splits a document into its page-margin wrapper and the content inside.
+ *
+ * Exported because the three-way merge needs it too, not just the
+ * signature. An upload stores the document bare, having never passed
+ * through an editor; the first save from each client adds that client's
+ * own wrapper. Diffed as raw strings, both sides therefore look like they
+ * rewrote the whole document, the merge degenerates into one
+ * whole-document conflict, and Last-Write-Wins discards one person's
+ * paragraph entirely.
+ *
+ * Measured: with two people editing a freshly uploaded file, the first
+ * edit was lost every single run.
+ */
+export function splitMarginWrapper(html: string | null | undefined): { open: string; inner: string; close: string } {
+  const text = typeof html === 'string' ? html : '';
+  const trimmed = text.trim();
+  const m = trimmed.match(MARGIN_WRAPPER_OPEN);
+  if (!m || !MARGIN_WRAPPER_CLOSE.test(trimmed)) return { open: '', inner: text, close: '' };
+  return {
+    open: m[0],
+    inner: trimmed.slice(m[0].length).replace(MARGIN_WRAPPER_CLOSE, ''),
+    close: '</div>',
+  };
+}
+
 /** Removes the wrapper, and only when both halves of it are present. */
 function stripMarginWrapper(html: string): string {
   const trimmed = html.trim();

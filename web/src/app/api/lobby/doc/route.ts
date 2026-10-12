@@ -5,6 +5,7 @@ import { VectorClock } from '@/lib/vector-clock';
 import type { VectorClockJSON, ClockRelation } from '@/lib/vector-clock';
 import { documentSignature } from '@/lib/documentSignature';
 import { canEditFile, type LobbyEntry } from '../store';
+import { splitMarginWrapper } from '@/lib/documentSignature';
 
 export const dynamic = 'force-dynamic';
 
@@ -181,8 +182,32 @@ function mergeConcurrentEdit(
    */
   existingStoredAt?: number
 ): { merged: string; hadConflict: boolean; conflictHunks: number; lostChars: number } {
+  // Merge the document, not the reader's page margin.
+  //
+  // The editor wraps everything it saves in `<div data-margin="N">`, where
+  // N is that reader's own setting. An upload stores the document bare,
+  // having never passed through an editor. So after an upload the first
+  // save from each person adds a wrapper the base does not have, and
+  // diffed as raw strings BOTH sides look like they replaced the entire
+  // document -- one enormous conflicting hunk, which Last-Write-Wins then
+  // settles by throwing one person's work away.
+  //
+  // Measured: with two people editing a freshly uploaded file, the first
+  // edit was lost on every single run. Comparing the contents and
+  // re-applying the wrapper afterwards makes those edits what they
+  // actually are -- two people appending different paragraphs.
+  //
+  // The incoming author's wrapper is the one kept, since this merge is
+  // being written on their behalf; everyone else's margin is their own
+  // setting and is reapplied when they next save.
+  const incomingWrap = splitMarginWrapper(incomingContent);
+  const baseInner = splitMarginWrapper(baseContent).inner;
+  const existingInner = splitMarginWrapper(existingContent).inner;
+  const incomingInner = incomingWrap.inner;
+  const rewrap = (body: string) => `${incomingWrap.open}${body}${incomingWrap.close}`;
+
   const { encoded: [baseEnc, incomingEnc, existingEnc], lineArray } = encodeLines(
-    baseContent, incomingContent, existingContent
+    baseInner, incomingInner, existingInner
   );
 
   const dmp = new diff_match_patch();
@@ -239,7 +264,7 @@ function mergeConcurrentEdit(
     .filter((i: number) => i >= 0);
 
   if (failedIndices.length === 0) {
-    return { merged: decodeLines(mergedEnc, lineArray), hadConflict: false, conflictHunks: 0, lostChars: 0 };
+    return { merged: rewrap(decodeLines(mergedEnc, lineArray)), hadConflict: false, conflictHunks: 0, lostChars: 0 };
   }
 
   // Some line-hunks didn't find their expected lines — those exact
@@ -319,7 +344,7 @@ function mergeConcurrentEdit(
     });
   }
 
-  return { merged: decodeLines(finalEnc, lineArray), hadConflict: true, conflictHunks: failedIndices.length, lostChars };
+  return { merged: rewrap(decodeLines(finalEnc, lineArray)), hadConflict: true, conflictHunks: failedIndices.length, lostChars };
 }
 
 const corsHeaders = {

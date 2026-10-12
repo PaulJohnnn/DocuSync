@@ -179,6 +179,40 @@ async function main() {
       'and the text that preceded it is still recoverable');
   }
 
+  // ── 3c. The first edit each person makes after an upload ────────────
+  //
+  // The editor wraps every save in <div data-margin="N">, N being that
+  // reader's own setting. An upload stores the document bare, having
+  // never passed through an editor. So the first save from each person
+  // adds a wrapper the base does not have, and diffed as raw strings both
+  // sides look like they replaced the whole document -- one enormous
+  // conflicting hunk, settled by throwing one person's work away.
+  //
+  // Measured against the deployed build before the fix: the first edit
+  // was lost in 8 runs out of 8. Deterministic, not a race, and invisible
+  // afterwards because both machines then read the same server copy.
+  console.log('');
+  console.log('  3c. Two people each making their first edit after an upload');
+  {
+    let kept = 0;
+    const RUNS = 5;
+    for (let i = 0; i < RUNS; i++) {
+      const otp = await newRoom('First Edit ' + i);
+      const bare = '<p>Chapter 3 Methodology.</p>';
+      const up = await share(otp, 'first.docx', bare);
+      const fileId = up.data?.fileId;
+      // Each client wraps with ITS OWN margin, and both base on the bare
+      // uploaded text, because neither has saved yet.
+      await post('/doc', { otp, fileId, content: `<div data-margin="96">${bare}<p>A line.</p></div>`, authorNodeId: A, baseContent: bare, isSessionEnd: true, committedAt: Date.now() });
+      await new Promise((r) => setTimeout(r, 250));
+      await post('/doc', { otp, fileId, content: `<div data-margin="48">${bare}<p>B line.</p></div>`, authorNodeId: B, baseContent: bare, isSessionEnd: true, committedAt: Date.now() });
+      await new Promise((r) => setTimeout(r, 700));
+      const doc = text((await get(`/doc?otp=${otp}&fileId=${fileId}`)).data?.snapshot?.content);
+      if (doc.includes('A line') && doc.includes('B line')) kept += 1;
+    }
+    check(kept === RUNS, 'neither person loses their first edit after an upload', `${kept}/${RUNS} runs kept both`);
+  }
+
   // ── 4. Room codes under odd input ───────────────────────────────────
   console.log('\n  4. Room code handling');
   {
