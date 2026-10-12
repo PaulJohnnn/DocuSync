@@ -36,6 +36,31 @@ const EMPTY_BLOCK = new RegExp(
 );
 
 /**
+ * The page-margin wrapper the editor puts around everything it saves.
+ *
+ * The editor serialises as `<div data-margin="96">…</div>`, where the
+ * number is the reader's own margin preference. An upload writes the
+ * document's markup bare, because it never passed through an editor. So
+ * the first save after any upload differed from the uploaded version by
+ * this wrapper alone — same words, same structure, different string — and
+ * the log gained a row nobody could tell from the one above it.
+ *
+ * It is stripped here because a margin is how one reader chose to view the
+ * page, not part of the document: two people with different margins are
+ * looking at the same version.
+ */
+const MARGIN_WRAPPER_OPEN = /^<div[^>]*data-margin=[^>]*>/i;
+const MARGIN_WRAPPER_CLOSE = /<[/]div>$/i;
+
+/** Removes the wrapper, and only when both halves of it are present. */
+function stripMarginWrapper(html: string): string {
+  const trimmed = html.trim();
+  if (!MARGIN_WRAPPER_OPEN.test(trimmed)) return html;
+  if (!MARGIN_WRAPPER_CLOSE.test(trimmed)) return html;
+  return trimmed.replace(MARGIN_WRAPPER_OPEN, '').replace(MARGIN_WRAPPER_CLOSE, '');
+}
+
+/**
  * The rendered identity of a document.
  *
  * @param html - Stored document markup.
@@ -44,7 +69,7 @@ const EMPTY_BLOCK = new RegExp(
 export function documentSignature(html: string | null | undefined): string {
   if (typeof html !== 'string') return '';
 
-  let s = html;
+  let s = stripMarginWrapper(html);
 
   // Blocks that render as nothing. Repeated, because removing one can leave
   // its parent empty in turn — an empty list item inside an otherwise empty
@@ -85,7 +110,7 @@ export function documentSignature(html: string | null | undefined): string {
 export function visibleContentKey(html: string | null | undefined): string {
   if (typeof html !== 'string') return '';
 
-  let s = html;
+  let s = stripMarginWrapper(html);
   for (let pass = 0; pass < 8; pass++) {
     const next = s.replace(EMPTY_BLOCK, '');
     if (next === s) break;

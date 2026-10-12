@@ -229,6 +229,28 @@ async function main() {
       `both read an identical history  (${dR.join(' | ')})`);
     await shot(desk, web, 'history');
 
+    // What is actually INSIDE each version, not just its label.
+    //
+    // Reading the labels alone hid a duplicate once: two adjacent rows
+    // read "Uploaded v2" and "Conflict resolved" while holding identical
+    // text. A version list is only trustworthy if the contents differ.
+    console.log('');
+    console.log('  Inside every version:');
+    const hist = await (await fetch(`${API}/history?otp=${otp}&fileId=${fileId}`)).json();
+    const entries = hist?.data?.entries ?? [];
+    const flat = (h) => String(h || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+    entries.forEach((e, i) => {
+      console.log(`    v${entries.length - i}  [${e.label || e.eventType}]`);
+      console.log(`         "${flat(e.fullContent)}"`);
+    });
+    const bodies = entries.map((e) => flat(e.fullContent));
+    note(new Set(bodies).size === bodies.length,
+      `every version holds DIFFERENT text  (${new Set(bodies).size} distinct of ${bodies.length})`);
+    note(bodies.some((b) => b.includes('Typed on the DESKTOP app')), 'the desktop edit is recoverable');
+    note(bodies.some((b) => b.includes('Typed in the WEB app')), 'the web edit is recoverable');
+    note(bodies.some((b) => b === 'Chapter 3 Methodology.'), 'the original upload is recoverable');
+    note(bodies.some((b) => b.includes('REPLACEMENT')), 'the replacement upload is recoverable');
+
   } catch (err) {
     note(false, 'walkthrough completed: ' + String(err).slice(0, 150));
   } finally {
