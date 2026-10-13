@@ -40,6 +40,11 @@ async function main() {
         viewport: { width: v.width, height: v.height },
         colorScheme: v.scheme,
       });
+      if (v.scheme === 'dark') {
+        await ctx.addInitScript(() => {
+          try { localStorage.setItem('docusync_theme', 'dark'); } catch (e) { /* ignore */ }
+        });
+      }
       for (const p of PAGES) {
         const page = await ctx.newPage();
         const errors = [];
@@ -57,9 +62,13 @@ async function main() {
         }
         await page.waitForTimeout(1600);
 
+        const theme = await page.evaluate(() => document.documentElement.className || '(none)');
+        const wrong = theme !== v.scheme;
         const file = path.join(OUT, p.tag + '-' + v.tag + '.png');
         await page.screenshot({ path: file, fullPage: p.full });
-        console.log('  shot  ' + path.basename(file) + (errors.length ? '   ' + errors.length + ' console error(s)' : ''));
+        console.log('  shot  ' + path.basename(file) + '   theme=' + theme + (wrong ? '  <-- asked for ' + v.scheme : '') +
+          (errors.length ? '   ' + errors.length + ' console error(s)' : ''));
+        if (wrong) problems++;
         for (const e of errors) { problems++; console.log('        ! ' + e); }
         await page.close();
       }
