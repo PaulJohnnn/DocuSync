@@ -205,6 +205,9 @@ async function main() {
     await screen.locator('.ProseMirror').click();
     await screen.keyboard.press('Control+End');
     await screen.locator('button:has(svg.lucide-table)').first().click();
+    await screen.waitForTimeout(600);
+    // The button opens a size grid now, so the size has to be chosen.
+    await screen.locator('button[aria-label="3 by 3"]').first().click();
     await screen.waitForTimeout(1200);
     const cellsOnScreen = await screen.locator('.ProseMirror table td').count();
     check(cellsOnScreen > 0, 'a table is added to the document', `${cellsOnScreen} body cells`);

@@ -20,6 +20,12 @@ type Run = { text: string; bold?: boolean; italic?: boolean; underline?: boolean
 export interface TableRowModel {
   header: boolean;
   cells: Run[][];
+  /**
+   * Each cell's shading colour, or null. Parallel to `cells` rather than
+   * wrapped around it, so the exporters that ignore colour -- plain text
+   * and Markdown, neither of which can express it -- need no changes.
+   */
+  fills?: (string | null)[];
 }
 
 interface Block {
@@ -100,12 +106,18 @@ export function parseBlocks(html: string): Block[] {
       const rows: TableRowModel[] = [];
       el.querySelectorAll('tr').forEach(tr => {
         const cells: Run[][] = [];
+        const fills: (string | null)[] = [];
         let header = false;
         tr.querySelectorAll('th,td').forEach(cell => {
           if (cell.tagName.toLowerCase() === 'th') header = true;
           cells.push(runsOf(cell));
+          // The editor writes shading as `data-bg` and as an inline
+          // style; the attribute is read first because a style string is
+          // the easier of the two to mangle in transit.
+          const el2 = cell as HTMLElement;
+          fills.push(el2.getAttribute('data-bg') || el2.style.backgroundColor || null);
         });
-        if (cells.length) rows.push({ header, cells });
+        if (cells.length) rows.push({ header, cells, fills });
       });
       if (rows.length) out.push({ kind: 'table', runs: [], rows });
       return;
@@ -247,7 +259,9 @@ function tableToHtml(rows: TableRowModel[]): string {
   const cellsOf = (r: TableRowModel) =>
     Array.from({ length: width }, (_, c) => {
       const tag = r.header ? 'th' : 'td';
-      return `<${tag}>${cellHtml(r.cells[c] ?? [])}</${tag}>`;
+      const fill = r.fills?.[c];
+      const style = fill ? ` style="background-color:${xmlEscape(fill)}"` : '';
+      return `<${tag}${style}>${cellHtml(r.cells[c] ?? [])}</${tag}>`;
     }).join('');
   const body = rows.map(r => `    <tr>${cellsOf(r)}</tr>`).join(String.fromCharCode(10));
   return `  <table>${String.fromCharCode(10)}${body}${String.fromCharCode(10)}  </table>`;
@@ -401,6 +415,29 @@ function docxRuns(runs: Run[], prefix = ''): string {
  * cell must also contain at least one `<w:p>`, or Word reports the
  * document as corrupt.
  */
+/**
+ * A CSS colour as Word wants it: six hex digits, no hash.
+ *
+ * The editor stores whatever the swatch set, which is a hex string today
+ * but arrives as `rgb(...)` when a browser has normalised an inline
+ * style. Anything else is dropped rather than guessed at -- a wrong fill
+ * is more obvious in a submitted document than a missing one.
+ */
+function toDocxFill(colour: string | null | undefined): string | null {
+  if (!colour) return null;
+  const hex = /^#?([0-9a-f]{6})$/i.exec(colour.trim());
+  if (hex) return hex[1].toUpperCase();
+  const short = /^#?([0-9a-f]{3})$/i.exec(colour.trim());
+  if (short) return short[1].split('').map((d) => d + d).join('').toUpperCase();
+  const rgb = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i.exec(colour.trim());
+  if (rgb) {
+    return [rgb[1], rgb[2], rgb[3]]
+      .map((n) => Math.max(0, Math.min(255, Number(n))).toString(16).padStart(2, '0'))
+      .join('').toUpperCase();
+  }
+  return null;
+}
+
 function tableToDocx(rows: TableRowModel[]): string {
   const width = Math.max(...rows.map(r => r.cells.length), 1);
   const edge = (side: string) => `<w:${side} w:val="single" w:sz="6" w:space="0" w:color="999999"/>`;
@@ -411,7 +448,12 @@ function tableToDocx(rows: TableRowModel[]): string {
   const body = rows.map(r => {
     const cells = Array.from({ length: width }, (_, c) => {
       const runs = docxRuns(r.cells[c] ?? []);
-      const shade = r.header ? '<w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>' : '';
+      // The author's own shading wins; a header with no colour set keeps
+      // the default grey so an exported table still reads as one. Word
+      // wants a bare six-digit hex, no leading hash.
+      const chosen = toDocxFill(r.fills?.[c]);
+      const fill = chosen ?? (r.header ? 'F2F2F2' : null);
+      const shade = fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : '';
       const bold = r.header ? '<w:rPr><w:b/></w:rPr>' : '';
       const pPr = bold ? `<w:pPr>${bold}</w:pPr>` : '';
       // An empty cell still needs its paragraph.

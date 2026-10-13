@@ -1,10 +1,10 @@
 'use client';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
 import Placeholder from '@tiptap/extension-placeholder';
 import TextAlign from '@tiptap/extension-text-align';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
@@ -13,7 +13,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough,
   Heading1, Heading2, List, ListOrdered, Quote, Code,
   AlignLeft, AlignCenter, AlignRight, Highlighter, File, Lock,
-  Table as TableIcon, Rows3, Columns3, Trash
+  Table as TableIcon, Rows3, Columns3, Trash, PaintBucket
 } from 'lucide-react';
 
 import { Extension } from '@tiptap/core';
@@ -334,6 +334,124 @@ interface Props {
   localDocKey?: string;
 }
 
+/**
+ * The shading colour a table cell carries.
+ *
+ * Shading is not decoration the editor can keep to itself: the colour has
+ * to travel in the document's own markup, or it is lost the moment the
+ * text syncs to someone else, is written to the version history, or is
+ * downloaded. So it is a real cell attribute, written as both an inline
+ * style (for anything that renders HTML) and a `data-bg` attribute, which
+ * gives the exporters a stable place to read it from rather than having
+ * to parse a style string.
+ */
+const shadingAttribute = {
+  backgroundColor: {
+    default: null as string | null,
+    parseHTML: (element: HTMLElement) =>
+      element.getAttribute('data-bg') || element.style.backgroundColor || null,
+    renderHTML: (attributes: Record<string, unknown>) =>
+      attributes.backgroundColor
+        ? {
+            'data-bg': String(attributes.backgroundColor),
+            style: `background-color: ${attributes.backgroundColor}`,
+          }
+        : {},
+  },
+};
+
+const ShadedTableCell = TableCell.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...shadingAttribute };
+  },
+});
+
+const ShadedTableHeader = TableHeader.extend({
+  addAttributes() {
+    return { ...this.parent?.(), ...shadingAttribute };
+  },
+});
+
+
+/**
+ * The shading colours offered, kept few and legible.
+ *
+ * Deliberately pale: a table in a thesis is read, not decorated, and text
+ * has to stay readable on top of whatever is chosen. "None" is first
+ * because clearing a colour is as common as setting one.
+ */
+/** How large a table the hover grid can reach before the prompt is needed. */
+const GRID_ROWS = 8;
+const GRID_COLS = 10;
+
+const CELL_COLORS: { label: string; value: string | null }[] = [
+  { label: 'None', value: null },
+  { label: 'Grey', value: '#e9ecef' },
+  { label: 'Yellow', value: '#fff3bf' },
+  { label: 'Green', value: '#d3f9d8' },
+  { label: 'Blue', value: '#d0ebff' },
+  { label: 'Red', value: '#ffe3e3' },
+  { label: 'Purple', value: '#e5dbff' },
+];
+
+/**
+ * Inserts a table and makes sure there is a paragraph after it.
+ *
+ * Two things go wrong without the trailing paragraph. A table placed at
+ * the very end of a document leaves nowhere to click to carry on writing,
+ * which is a long-standing annoyance in editors built on ProseMirror. And
+ * a second table inserted straight after the first ends up directly
+ * adjacent to it, where the parser reads the pair as a single table --
+ * the rows of one silently joining the other.
+ */
+function insertTableWithTrailingParagraph(
+  editor: Editor,
+  rows: number,
+  cols: number,
+): void {
+  // Never inside another table's cell.
+  //
+  // None of the four download formats can represent a table nested in a
+  // cell, and nobody has ever meant to make one. It is reachable by
+  // accident, though: the caret can still be registered inside a cell
+  // after the view has moved on -- pressing Ctrl+End, for instance,
+  // moves the visible caret below the table while the editor's own
+  // selection is left behind in it. Inserting then would bury the new
+  // table in the old one's first header cell. So when the caret is in a
+  // table, the new table goes after that table instead, on a fresh line.
+  const start = editor.state;
+  const { $from } = start.selection;
+  let tableDepth = -1;
+  for (let d = 1; d <= $from.depth; d++) {
+    if ($from.node(d).type.name === 'table') { tableDepth = d; break; }
+  }
+  if (tableDepth > 0) {
+    const after = $from.after(tableDepth);
+    editor.chain().focus()
+      .insertContentAt(after, '<p></p>')
+      .setTextSelection(after + 1)
+      .run();
+  }
+
+  editor.chain().focus().insertTable({ rows, cols, withHeaderRow: true }).run();
+
+  const { state, view } = editor;
+  const last = state.doc.lastChild;
+  if (!last || last.type.name !== 'table') return;
+
+  // Appended as a document-level sibling, not with insertContentAt.
+  //
+  // `insertContentAt(doc.content.size, ...)` resolves that position
+  // INSIDE the table's final cell, so the paragraph -- and then any table
+  // inserted after it -- ended up nested within the first table. On
+  // screen that reads as one table with the other's rows inside it.
+  // Building the node and inserting it at the document's end puts it
+  // where it belongs.
+  const paragraph = state.schema.nodes.paragraph?.create();
+  if (!paragraph) return;
+  view.dispatch(state.tr.insert(state.doc.content.size, paragraph));
+}
+
 const ToolBtn = ({ onClick, active, children }: { onClick: () => void; active?: boolean; children: React.ReactNode }) => (
   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onClick} style={{
     background: active ? 'var(--acb)' : 'transparent',
@@ -352,6 +470,30 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
   const [pasteError, setPasteError] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
   const [pageCount, setPageCount] = useState(1);
+  /** The insert-table grid picker, and the size the pointer is over. */
+  const [tableGridOpen, setTableGridOpen] = useState(false);
+  const [gridHover, setGridHover] = useState({ rows: 0, cols: 0 });
+  /**
+   * The typed-in size, for a table bigger than the grid reaches.
+   *
+   * Two boxes rather than a window.prompt: Electron refuses prompt()
+   * outright, so on the desktop app the native version did nothing at
+   * all -- the option was there and simply dead.
+   */
+  const [customSizeOpen, setCustomSizeOpen] = useState(false);
+  const [customRows, setCustomRows] = useState('12');
+  const [customCols, setCustomCols] = useState('4');
+  const insertCustomSize = useCallback((ed: Editor) => {
+    // Bounded: a thousand-cell table pushed through a sync engine is a
+    // performance problem, not a document.
+    const rows = Math.max(1, Math.min(50, Math.round(Number(customRows)) || 1));
+    const cols = Math.max(1, Math.min(20, Math.round(Number(customCols)) || 1));
+    insertTableWithTrailingParagraph(ed, rows, cols);
+    setTableGridOpen(false);
+    setCustomSizeOpen(false);
+  }, [customRows, customCols]);
+  /** The cell-shading swatches. */
+  const [cellColorOpen, setCellColorOpen] = useState(false);
 
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
@@ -373,8 +515,8 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
       PaginationExtension,
       Table.configure({ resizable: true }),
       TableRow,
-      TableHeader,
-      TableCell,
+      ShadedTableHeader,
+      ShadedTableCell,
     ],
     content: content || '<p></p>',
     onUpdate: ({ editor }) => {
@@ -740,19 +882,115 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
         <div style={{ width: 1, height: 20, background: 'var(--b1)', margin: '0 4px' }} />
 
         {/* Tables.
-            The extensions were loaded all along, so a table pasted in from
-            Word rendered correctly -- but nothing in the interface could
-            make one, which is what the panel raised: a table is part of a
-            document's text, and this was the one part the editor could
-            display and not produce. The row and column controls only
-            appear once the caret is inside a table, so the toolbar does
-            not grow four permanently dead buttons. */}
-        <ToolBtn
-          onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-          active={editor.isActive('table')}
-        >
-          <TableIcon size={14} />
-        </ToolBtn>
+            A single button that always made a 3x3 was the smallest thing
+            that could be called "you can insert a table", and it is not
+            what anyone means by one: a table is a shape the author
+            chooses. This is the grid every word processor offers — hover
+            to size it, click to place it — with the row and column
+            controls and the cell shading appearing only once the caret is
+            actually inside a table, so the toolbar does not carry a row
+            of dead buttons the rest of the time. */}
+        <div style={{ position: 'relative' }}>
+          <ToolBtn
+            onClick={() => { setTableGridOpen(o => !o); setCellColorOpen(false); setCustomSizeOpen(false); }}
+            active={editor.isActive('table') || tableGridOpen}
+          >
+            <TableIcon size={14} />
+          </ToolBtn>
+          {tableGridOpen && (
+            <div
+              onMouseLeave={() => setGridHover({ rows: 0, cols: 0 })}
+              style={{
+                position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 60,
+                background: 'var(--bg)', border: '1px solid var(--b1)', borderRadius: 10,
+                padding: 12, boxShadow: '0 10px 28px rgba(0,0,0,0.18)',
+              }}
+            >
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--t1)', marginBottom: 8 }}>
+                {gridHover.rows > 0 ? `${gridHover.rows} x ${gridHover.cols} table` : 'Insert table'}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${GRID_COLS}, 18px)`, gap: 3 }}>
+                {Array.from({ length: GRID_ROWS * GRID_COLS }, (_, i) => {
+                  const r = Math.floor(i / GRID_COLS) + 1;
+                  const c = (i % GRID_COLS) + 1;
+                  const on = r <= gridHover.rows && c <= gridHover.cols;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      aria-label={`${r} by ${c}`}
+                      onMouseEnter={() => setGridHover({ rows: r, cols: c })}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        insertTableWithTrailingParagraph(editor, r, c);
+                        setTableGridOpen(false);
+                        setGridHover({ rows: 0, cols: 0 });
+                      }}
+                      style={{
+                        width: 18, height: 18, padding: 0, cursor: 'pointer',
+                        background: on ? 'var(--acb)' : 'var(--bg2)',
+                        border: `1px solid ${on ? 'var(--acbr)' : 'var(--b1)'}`,
+                        borderRadius: 2,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+              {!customSizeOpen ? (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setCustomSizeOpen(true)}
+                  style={{
+                    marginTop: 10, width: '100%', padding: '6px 0', fontSize: 12, fontWeight: 600,
+                    background: 'var(--s1)', color: 'var(--t2)', border: '1px solid var(--b1)',
+                    borderRadius: 6, cursor: 'pointer',
+                  }}
+                >
+                  More rows and columns...
+                </button>
+              ) : (
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'flex-end', gap: 6 }}>
+                  {([
+                    ['Rows', customRows, setCustomRows, 50],
+                    ['Columns', customCols, setCustomCols, 20],
+                  ] as const).map(([label, value, set, max]) => (
+                    <label key={label} style={{ display: 'block', fontSize: 10, color: 'var(--t3)', fontWeight: 600 }}>
+                      {label}
+                      <input
+                        type="number"
+                        min={1}
+                        max={max}
+                        value={value}
+                        aria-label={label}
+                        onChange={(e) => set(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); insertCustomSize(editor); } }}
+                        style={{
+                          display: 'block', width: 56, marginTop: 3, padding: '5px 6px', fontSize: 12,
+                          background: 'var(--bg2)', color: 'var(--t1)',
+                          border: '1px solid var(--b1)', borderRadius: 5,
+                        }}
+                      />
+                    </label>
+                  ))}
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => insertCustomSize(editor)}
+                    style={{
+                      padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      background: 'var(--acb)', color: 'var(--t1)',
+                      border: '1px solid var(--acbr)', borderRadius: 6,
+                    }}
+                  >
+                    Insert
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {editor.isActive('table') && (
           <>
             <ToolBtn onClick={() => editor.chain().focus().addRowAfter().run()}>
@@ -767,6 +1005,52 @@ export default function TipTapEditor({ content, onChange, cursors = [], onSelect
             <ToolBtn onClick={() => editor.chain().focus().deleteColumn().run()}>
               <span style={{ fontSize: 11, fontWeight: 700, lineHeight: 1 }}>-C</span>
             </ToolBtn>
+            <ToolBtn onClick={() => editor.chain().focus().mergeOrSplit().run()}>
+              <span style={{ fontSize: 11, fontWeight: 700, lineHeight: 1 }}>M</span>
+            </ToolBtn>
+
+            {/* Cell shading. Applies to every cell in the selection, so a
+                whole header row can be coloured in one go. */}
+            <div style={{ position: 'relative' }}>
+              <ToolBtn
+                onClick={() => { setCellColorOpen(o => !o); setTableGridOpen(false); }}
+                active={cellColorOpen}
+              >
+                <PaintBucket size={14} />
+              </ToolBtn>
+              {cellColorOpen && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 60,
+                  background: 'var(--bg)', border: '1px solid var(--b1)', borderRadius: 10,
+                  padding: 10, boxShadow: '0 10px 28px rgba(0,0,0,0.18)',
+                  display: 'grid', gridTemplateColumns: 'repeat(4, 26px)', gap: 6,
+                }}>
+                  {CELL_COLORS.map((c) => (
+                    <button
+                      key={c.label}
+                      type="button"
+                      title={c.label}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        editor.chain().focus().setCellAttribute('backgroundColor', c.value).run();
+                        setCellColorOpen(false);
+                      }}
+                      style={{
+                        width: 26, height: 26, cursor: 'pointer', borderRadius: 5,
+                        background: c.value ?? 'var(--bg2)',
+                        border: '1px solid var(--b1)',
+                        // "None" is drawn struck through, so it reads as
+                        // clearing the colour rather than as another one.
+                        backgroundImage: c.value
+                          ? undefined
+                          : 'linear-gradient(45deg, transparent 45%, var(--t3) 45%, var(--t3) 55%, transparent 55%)',
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
             <ToolBtn onClick={() => editor.chain().focus().deleteTable().run()}>
               <Trash size={14} />
             </ToolBtn>

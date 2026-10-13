@@ -112,10 +112,17 @@ async function main() {
     const hasBtn = await tableBtn.count();
     check(hasBtn > 0, 'the toolbar offers a table button');
     if (hasBtn) await tableBtn.click();
+    await a.waitForTimeout(600);
+
+    // The author picks the size, the way every word processor does it --
+    // a 3x3 that could not be chosen is not really "inserting a table".
+    const picker = a.locator('button[aria-label="3 by 3"]');
+    check(await picker.count() > 0, 'a size grid appears to choose rows and columns');
+    await picker.first().click();
     await a.waitForTimeout(900);
 
     const tables = await a.locator('.ProseMirror table').count();
-    check(tables === 1, 'clicking it inserts a table', `${tables} table(s)`);
+    check(tables === 1, 'choosing a size inserts that table', `${tables} table(s)`);
     const headerCells = await a.locator('.ProseMirror table th').count();
     const bodyCells = await a.locator('.ProseMirror table td').count();
     check(headerCells === 3, 'with a header row', `${headerCells} header cells`);
@@ -131,9 +138,65 @@ async function main() {
       await a.keyboard.type(cellText[i], { delay: 12 });
     }
     await a.waitForTimeout(2500);
-    const shown = await a.locator('.ProseMirror table').innerText();
+    const shown = await a.locator('.ProseMirror table').first().innerText();
     check(/Year/.test(shown) && /Respondents/.test(shown) && /52%/.test(shown),
       'every cell holds what was typed into it');
+
+    // ── Shading ──────────────────────────────────────────────────────
+    //
+    // Colour has to live in the document's own markup, not in the
+    // editor's head: anything else is lost the moment the text syncs,
+    // is written to the history, or is downloaded.
+    console.log('');
+    console.log('  Shading a cell');
+    await a.locator('.ProseMirror table th').first().click();
+    await a.waitForTimeout(400);
+    const bucket = a.locator('button:has(svg.lucide-paint-bucket)').first();
+    check(await bucket.count() > 0, 'a shading control appears inside a table');
+    await bucket.click();
+    await a.waitForTimeout(400);
+    const swatch = a.locator('button[title="Blue"]').first();
+    check(await swatch.count() > 0, 'it offers colours to choose from');
+    await swatch.click();
+    await a.waitForTimeout(2200);
+
+    const shaded = await a.evaluate(() => {
+      const cell = document.querySelector('.ProseMirror table th');
+      if (!cell) return null;
+      return {
+        attr: cell.getAttribute('data-bg'),
+        style: cell.style ? cell.style.backgroundColor : '',
+      };
+    });
+    check(!!shaded && !!shaded.attr, 'the colour is written into the cell itself',
+      shaded ? `data-bg=${shaded.attr}` : 'no cell');
+    check(!!shaded && !!shaded.style, 'and renders on screen', shaded ? shaded.style : '');
+
+    // ── A size the grid cannot reach ─────────────────────────────────
+    console.log('');
+    console.log('  A larger table than the grid offers');
+    await a.locator('.ProseMirror').click();
+    await a.keyboard.press('Control+End');
+    await a.keyboard.press('Enter');
+    await a.locator('button:has(svg.lucide-table)').first().click();
+    await a.waitForTimeout(500);
+    // Typed into the panel's own boxes. A native window.prompt was the
+    // first attempt and it is dead on the desktop app -- Electron
+    // refuses prompt() -- so the size is asked for in the page.
+    await a.locator('text=More rows and columns').first().click();
+    await a.waitForTimeout(300);
+    await a.fill('input[aria-label="Rows"]', '4');
+    await a.fill('input[aria-label="Columns"]', '6');
+    await a.locator('button:has-text("Insert")').first().click();
+    await a.waitForTimeout(1200);
+    const tableCount = await a.locator('.ProseMirror table').count();
+    check(tableCount === 2, 'a custom size can be typed in', `${tableCount} tables`);
+    if (tableCount === 2) {
+      const second = a.locator('.ProseMirror table').nth(1);
+      const rows = await second.locator('tr').count();
+      const cols = await second.locator('tr').first().locator('th,td').count();
+      check(rows === 4 && cols === 6, 'and it is the size that was asked for', `${rows} x ${cols}`);
+    }
 
     // ── Does the other person see it ─────────────────────────────────
     console.log('');
@@ -147,11 +210,18 @@ async function main() {
     }
     check(seen !== null, 'the table reaches the other person', seen !== null ? `${seen}ms` : 'never');
     if (seen !== null) {
-      const theirs = await b.locator('.ProseMirror table').innerText();
+      const theirs = await b.locator('.ProseMirror table').first().innerText();
       check(/Respondents/.test(theirs) && /52%/.test(theirs),
         'with its contents, not an empty grid');
-      check(await b.locator('.ProseMirror table th').count() === 3,
-        'and its header row intact');
+      // Read after the second table has had time to arrive too, so the
+      // count is of a settled document rather than one mid-sync.
+      await b.waitForTimeout(2500);
+      const theirTables = await b.locator('.ProseMirror table').count();
+      const theirHeaders = await b.locator('.ProseMirror table').first().locator('th').count();
+      const stored = String((await get(`/doc?otp=${otp}&fileId=${fileId}`)).data?.snapshot?.content || '');
+      const storedTables = (stored.match(/<table/g) || []).length;
+      check(theirHeaders === 3, 'and its header row intact',
+        `${theirHeaders} header cells, ${theirTables} tables on screen, ${storedTables} stored`);
     }
 
     // ── Is it in the stored document and the history ─────────────────
@@ -201,6 +271,9 @@ async function main() {
       try {
         const file = await grab(label);
         const body = fs.readFileSync(file, 'utf8');
+        if (ext === 'html') {
+          check(/background-color\s*:/i.test(body), 'the html download keeps the shading');
+        }
         check(test(body), `the ${ext} download contains the table`,
           test(body) ? '' : `"${body.replace(/\s+/g, ' ').slice(0, 70)}"`);
       } catch (e) {
@@ -216,6 +289,8 @@ async function main() {
       // markup is readable straight out of the container.
       const raw = buf.toString('latin1');
       check(/<w:tbl>/.test(raw), 'the docx download contains a real Word table');
+      check(/<w:shd[^>]*w:fill="D0EBFF"/i.test(raw),
+        'and the cell shading, as a Word fill');
       check(/<w:tblBorders>/.test(raw), 'with borders, so it is visible when opened');
       check(/Respondents/.test(raw), 'and the cell text');
     } catch (e) {
