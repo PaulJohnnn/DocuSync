@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Tilt from 'react-parallax-tilt';
-import { Monitor, Globe, Smartphone } from 'lucide-react';
+import { Monitor, Globe, Smartphone, Download, Check, ArrowRight, ExternalLink, ChevronDown } from 'lucide-react';
 
 // ── Scroll animation hook ─────────────────────────────────────
 function useScrollReveal() {
@@ -88,7 +88,8 @@ function SectionLabel({ children, color = '#4f7df8' }: { children: React.ReactNo
 function GreenCheck({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--t2)', marginBottom: 8 }}>
-      <span style={{ color: '#22c55e', flexShrink: 0, fontSize: 15 }}>✓</span> {children}
+      <Check size={14} color="#22c55e" strokeWidth={3} style={{ flexShrink: 0 }} />
+      {children}
     </div>
   );
 }
@@ -161,12 +162,19 @@ const EVAL_METRICS = [
   { value: '15', label: 'Max Concurrent Nodes', desc: 'Vector clock slot ceiling per room', color: '#06b6d4' },
 ];
 
+/** Resolved by GitHub at request time, so it is always the newest release. */
+const DESKTOP_DOWNLOAD_URL =
+  'https://github.com/PaulJohnnn/DocuSync/releases/latest/download/DocuSync.exe';
+
 const PLATFORMS = [
   {
     title: 'Desktop App', subtitle: 'Windows · macOS · Linux',
     desc: 'Full Electron app with local SQLite database, native file system access, and P2P WebSocket server. The primary thesis prototype.',
     features: ['Local SQLite database', 'Native OS file picker', 'P2P WebSocket server (port 9000)', 'All 4 algorithms active', 'Offline-first'],
-    cta: 'Download for Windows →', ctaHref: '/download', ctaBg: '#4f7df8',
+    cta: 'Download for Windows', ctaHref: DESKTOP_DOWNLOAD_URL, ctaBg: '#4f7df8',
+    ctaIcon: 'download' as const,
+    ctaNote: 'Windows 10 or 11, 64-bit',
+    ctaSecondary: { label: 'Installation guide and other platforms', href: '/download' },
     accent: 'linear-gradient(90deg, #4f7df8, #8b5cf6)', featured: false,
     iconColor: '#4f7df8', glowColor: 'rgba(79,125,248,0.30)', floatDelay: '0s',
   },
@@ -174,7 +182,7 @@ const PLATFORMS = [
     title: 'Web App', subtitle: 'Any Browser · No Install',
     desc: 'Access DocuSync from any browser. Uses localStorage for persistence and browser WebSocket for P2P. Same algorithm engine.',
     features: ['No installation needed', 'Works on any device', 'Real-time sync demo', 'Shareable public URL', 'Always up to date'],
-    cta: 'Open Web App →', ctaHref: '/app/welcome', ctaBg: '#22c55e',
+    cta: 'Open the web app', ctaHref: '/app/welcome', ctaBg: '#22c55e',
     accent: '#4f7df8', featured: true, badge: 'LIVE NOW',
     iconColor: '#22c55e', glowColor: 'rgba(34,197,94,0.30)', floatDelay: '0.5s',
   },
@@ -182,7 +190,7 @@ const PLATFORMS = [
     title: 'Mobile App', subtitle: 'Android · iOS via Expo Go',
     desc: 'React Native app with AsyncStorage persistence and real WebSocket P2P. Touch-optimized UI with the same core algorithm.',
     features: ['Expo Go (no App Store needed)', 'AsyncStorage persistence', 'Touch-optimized interface', 'Same core algorithms', 'Dark theme'],
-    cta: 'Get on Expo Go →', ctaHref: 'https://expo.dev/go', ctaBg: '#7c3aed',
+    cta: 'Get Expo Go', ctaHref: 'https://expo.dev/go', ctaBg: '#7c3aed',
     accent: 'linear-gradient(90deg, #7c3aed, #4f7df8)', featured: false,
     iconColor: '#7c3aed', glowColor: 'rgba(124,58,237,0.30)', floatDelay: '1s',
   },
@@ -267,10 +275,12 @@ export default function HomePage() {
               boxShadow: '0 8px 32px rgba(79,125,248,0.40)',
               transition: 'transform 0.2s ease, box-shadow 0.2s ease',
             }}>
-              ⬇ Download for Windows
+              <Download size={18} />
+              Download for Windows
             </Link>
             <Link href="/app/welcome" className="btn-hero-ghost">
-              Try Web App →
+              Try the web app
+              <ArrowRight size={16} />
             </Link>
             <Link href="https://github.com/PaulJohnnn/DocuSync" target="_blank" rel="noopener noreferrer"
               className="btn-hero-text" style={{
@@ -278,7 +288,8 @@ export default function HomePage() {
                 color: 'var(--t2)', fontSize: 15, fontWeight: 500,
                 textDecoration: 'none', padding: '0 8px', height: 52,
               }}>
-              GitHub ↗
+              GitHub
+              <ExternalLink size={14} style={{ marginLeft: 6 }} />
             </Link>
           </div>
 
@@ -306,7 +317,7 @@ export default function HomePage() {
         <div style={{
           position: 'absolute', bottom: 28, left: '50%', transform: 'translateX(-50%)',
           color: 'var(--t3)', fontSize: 20, animation: 'bounce 2s ease-in-out infinite',
-        }}>↓</div>
+        }}><ChevronDown size={22} /></div>
       </section>
 
       {/* ══════════════════════════════════════════════════════════
@@ -349,7 +360,7 @@ export default function HomePage() {
 
           <div style={{ textAlign: 'center', marginTop: 48 }} className="scroll-hidden">
             <p style={{ fontSize: 20, fontWeight: 600, color: '#4f7df8' }}>
-              DocuSync solves all three ↓
+              DocuSync solves all three
             </p>
           </div>
         </div>
@@ -397,8 +408,8 @@ export default function HomePage() {
                     display: 'inline-flex', alignItems: 'center',
                     background: a.pillBg, color: a.pillColor,
                     borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 600,
-                  }}>✓ {a.pill}</span>
-                  <span style={{ fontSize: 12, color: 'var(--t3)', fontWeight: 500 }}>→ {a.metric}</span>
+                  }}>{a.pill}</span>
+                  <span style={{ fontSize: 12, color: 'var(--t3)', fontWeight: 500 }}>{a.metric}</span>
                 </div>
               </div>
             ))}
@@ -546,15 +557,30 @@ export default function HomePage() {
                         target={p.ctaHref.startsWith('http') ? '_blank' : undefined}
                         rel={p.ctaHref.startsWith('http') ? 'noopener noreferrer' : undefined}
                         style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                           background: p.ctaBg, color: '#fff',
                           borderRadius: 10, height: 44, width: '100%',
                           fontSize: 14, fontWeight: 600, textDecoration: 'none',
                           transition: 'opacity 0.15s',
                         }} className="platform-cta"
                       >
+                        {p.ctaIcon === 'download' ? <Download size={16} /> : null}
                         {p.cta}
+                        {p.ctaIcon === 'download' ? null : <ArrowRight size={15} />}
                       </Link>
+                      {p.ctaNote && (
+                        <p style={{ fontSize: 11.5, color: 'var(--t3)', textAlign: 'center', marginTop: 10 }}>
+                          {p.ctaNote}
+                        </p>
+                      )}
+                      {p.ctaSecondary && (
+                        <Link href={p.ctaSecondary.href} style={{
+                          display: 'block', textAlign: 'center', marginTop: 8,
+                          fontSize: 12, fontWeight: 500, color: 'var(--t2)', textDecoration: 'none',
+                        }} className="platform-secondary">
+                          {p.ctaSecondary.label}
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </Tilt>
@@ -575,6 +601,7 @@ export default function HomePage() {
         .problem-card:hover      { transform: translateY(-4px) !important; }
         .platform-card:hover     { transform: translateY(-6px) !important; }
         .platform-cta:hover      { opacity: 0.85 !important; }
+        .platform-secondary:hover { color: var(--t1) !important; text-decoration: underline !important; }
         .metrics-btn:hover       { background: rgba(79,125,248,0.16) !important; }
         .open-app-btn:hover      { background: #3d6ef0 !important; }
         .researcher-card:hover   { border-color: rgba(79,125,248,0.30) !important; transform: translateY(-3px) !important; }
