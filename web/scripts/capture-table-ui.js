@@ -56,27 +56,36 @@ async function signIn(page, acct) {
 // the room written in afterwards; both surfaces then open the editor the
 // same way.
 async function openEditor(page, otp, fileId, name) {
-  await page.evaluate(({ otp, fileId, name }) => {
+  const seed = ({ otp, fileId, name }) => {
     const u = JSON.parse(sessionStorage.getItem('docusync_auth_user'));
     const k = (x) => 'ds_' + u.id + '_' + x;
     localStorage.setItem(k('current_room'), JSON.stringify({ otp, id: otp, name: 'Tables' }));
-    localStorage.setItem(k('files'), JSON.stringify([{ id: String(fileId), name }]));
-  }, { otp, fileId, name });
-  await page.goto(BASE + '/app/editor/' + fileId, { waitUntil: 'domcontentloaded' });
-  try {
-    await page.waitForSelector('.ProseMirror', { timeout: 60000 });
-  } catch (e) {
-    // Say where it actually ended up, rather than only that it timed out.
-    const where = await page.evaluate(() => ({
-      url: location.href,
-      heading: (document.querySelector('h1,h2') || {}).textContent || '',
-      body: (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 300),
-    })).catch(() => null);
-    console.log('    stuck at: ' + JSON.stringify(where));
-    await shot(page, 'DIAG-stuck');
-    throw e;
+    const prev = JSON.parse(localStorage.getItem(k('files')) || '[]');
+    const kept = Array.isArray(prev) ? prev.filter((f) => String(f.id) !== String(fileId)) : [];
+    localStorage.setItem(k('files'), JSON.stringify(kept.concat([{ id: String(fileId), name }])));
+  };
+
+  // The desktop shell restores its own room and file list when it
+  // starts, which can land after ours and leave the editor saying "File
+  // not found". So seed, open, and if the file is not there yet, seed
+  // again on the page that is now running and reload.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.evaluate(seed, { otp, fileId, name });
+    if (attempt === 0) await page.goto(BASE + '/app/editor/' + fileId, { waitUntil: 'domcontentloaded' });
+    else await page.reload({ waitUntil: 'domcontentloaded' });
+    try {
+      await page.waitForSelector('.ProseMirror', { timeout: attempt === 2 ? 60000 : 20000 });
+      await page.waitForTimeout(1500);
+      return;
+    } catch (e) {
+      const where = await page.evaluate(() => ({
+        url: location.href,
+        body: (document.body.innerText || '').replace(/\s+/g, ' ').slice(0, 200),
+      })).catch(() => null);
+      console.log('    not open yet (' + (attempt + 1) + '/3): ' + JSON.stringify(where));
+      if (attempt === 2) { await shot(page, 'DIAG-stuck'); throw e; }
+    }
   }
-  await page.waitForTimeout(1500);
 }
 
 const SIZE_LABEL = new RegExp(String.raw`\d+ x \d+ table`);
