@@ -135,8 +135,15 @@ function getRedis(): any {
   if (_redis) return _redis;
   if (_mockRedis) return _mockRedis;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || 'https://choice-colt-108453.upstash.io';
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || 'gQAAAAAAAaelAAIgcDE5N2MxZjkxNDY1YTY0NjNjODA2ODE2NmE5ODc2MTkxMA';
+  // No hardcoded fallback.
+  //
+  // These two lines used to end with a real database URL and a real
+  // token as their default, in a public repository -- which is to say
+  // the credentials were published. Without the env vars the right
+  // behaviour is the file-backed mock below, which is what local
+  // development without secrets is supposed to use.
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
   if (!url || !token || url.startsWith('PASTE_')) {
     return getMockRedis();
