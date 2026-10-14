@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
+import { readCursors, rememberCursorNode, CURSOR_TTL_SECONDS } from '@/lib/roomCursors';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,8 +46,13 @@ export async function POST(request: Request) {
       ts: Date.now(),
     };
 
-    // 15-second TTL: if a user stops sending heartbeats, their cursor vanishes
-    await redis.set(`cursor:${otp}:${nodeId}`, cursor, { ex: 15 });
+    // 15-second TTL: if a user stops sending heartbeats, their cursor vanishes.
+    // The roster entry alongside it is what lets a reader find this caret
+    // without scanning the keyspace for it.
+    await Promise.all([
+      redis.set(`cursor:${otp}:${nodeId}`, cursor, { ex: CURSOR_TTL_SECONDS }),
+      rememberCursorNode(otp, nodeId),
+    ]);
 
     return NextResponse.json({ ok: true }, { headers: corsHeaders });
   } catch {
@@ -68,29 +74,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ cursors: [] }, { headers: corsHeaders });
   }
 
-  // Scan for all cursor keys in this room
-  const keys = await redis.keys(`cursor:${otp}:*`);
-
-  if (keys.length === 0) {
-    return NextResponse.json({ cursors: [] }, { headers: corsHeaders });
-  }
-
-  type CursorEntry = {
-    nodeId: string;
-    displayName: string;
-    color: string;
-    from: number;
-    to: number;
-    fileId: number;
-    ts: number;
-  };
-
-  const allCursors = (await redis.mget(...keys)) as CursorEntry[];
-
-  const result = allCursors
-    .filter((c): c is CursorEntry => c !== null)
-    .filter(c => c.nodeId !== myNodeId)   // skip self
-    .filter(c => c.fileId === fileId);    // same file only
-
-  return NextResponse.json({ cursors: result }, { headers: corsHeaders });
+  return NextResponse.json(
+    { cursors: await readCursors(otp, myNodeId, fileId) },
+    { headers: corsHeaders },
+  );
 }

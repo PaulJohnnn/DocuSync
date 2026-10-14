@@ -52,7 +52,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { otp, nodeId, isLocked, fileId, locked, allowedNodeIds } = body;
+    const { otp, nodeId, isLocked, fileId, locked, allowedNodeIds, grant, revoke, restricted } = body;
 
     if (!otp || !nodeId) {
       return NextResponse.json(
@@ -93,12 +93,38 @@ export async function POST(request: Request) {
     const key = String(fileId);
     if (!lobby.fileLocks) lobby.fileLocks = {};
 
-    const allowed: string[] = Array.isArray(allowedNodeIds)
+    const existing = lobby.fileLocks[key];
+    let allowed: string[] = Array.isArray(allowedNodeIds)
       ? Array.from(new Set(allowedNodeIds.map(String).filter(Boolean)))
-      : (lobby.fileLocks[key]?.allowedNodeIds ?? []);
+      : (existing?.allowedNodeIds ?? []);
+    let nextRestricted = restricted !== undefined ? !!restricted
+      : locked !== undefined ? !!locked
+      : !!existing?.locked;
+
+    // One person's role, changed on its own.
+    //
+    // The caller used to have to send the whole allowed list back, which
+    // meant reading it, editing it locally and writing it again -- two
+    // owners (or one owner in two tabs) acting at once would each
+    // overwrite the other's change with their own stale copy. Naming the
+    // single person to grant or revoke lets the server do the edit against
+    // what is actually stored.
+    if (grant) {
+      const id = String(grant);
+      if (!allowed.includes(id)) allowed = allowed.concat([id]);
+    }
+    if (revoke) {
+      const id = String(revoke);
+      allowed = allowed.filter((x) => x !== id);
+      // Making somebody view-only has to mean something. While the file is
+      // open to everyone the role list is inert, so revoking implies the
+      // file becomes restricted -- otherwise the owner sets "view only",
+      // nothing happens, and the control looks broken.
+      if (restricted === undefined && locked === undefined) nextRestricted = true;
+    }
 
     const nextLock: FileLock = {
-      locked: !!locked,
+      locked: nextRestricted,
       allowedNodeIds: allowed,
       lockedBy: nodeId,
       lockedAt: Date.now(),
@@ -116,7 +142,16 @@ export async function POST(request: Request) {
     await redis.set(`lobby:${otp}`, lobby, { ex: DAY_SECONDS });
 
     return NextResponse.json(
-      { success: true, scope: 'file', fileId: key, lock: lobby.fileLocks[key] ?? null },
+      {
+        success: true,
+        scope: 'file',
+        fileId: key,
+        lock: lobby.fileLocks[key] ?? null,
+        // Echoed so the owner's own screen can settle immediately rather
+        // than waiting for the next poll to tell it what it just did.
+        restricted: nextLock.locked,
+        editorNodeIds: nextLock.allowedNodeIds,
+      },
       { headers: corsHeaders }
     );
   } catch (error: unknown) {

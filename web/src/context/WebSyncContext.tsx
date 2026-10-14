@@ -26,8 +26,32 @@ export interface PeerInfo {
   openFileId?: string | null;
 }
 
+/**
+ * Who owns this room, and who may type in the file this client has open.
+ *
+ * Carried on the presence heartbeat rather than fetched on its own. It is
+ * the one place the room's access state is read from, so the editor's
+ * banner, the people list and the owner's controls cannot disagree with
+ * each other about who can do what.
+ */
+export interface RoomAccess {
+  hostNodeId: string | null;
+  isHost: boolean;
+  roomLocked: boolean;
+  file: {
+    fileId: string;
+    restricted: boolean;
+    editorNodeIds: string[];
+    canEdit: boolean;
+  } | null;
+}
+
 interface WebSyncContextValue {
   peers: PeerInfo[];
+  /** Null until the first heartbeat of a room has come back. */
+  access: RoomAccess | null;
+  /** Re-read the room's access state now, without waiting for the beat. */
+  refreshAccess: () => void;
   connectToPeer: (address: string, port: number) => void;
   disconnectPeer: (id: string) => void;
   pushCursor: (fileId: string, position: number, nodeIndex: number, docKey?: string) => void;
@@ -47,6 +71,8 @@ interface WebSyncContextValue {
 
 const WebSyncContext = createContext<WebSyncContextValue>({
   peers: [],
+  access: null,
+  refreshAccess: () => {},
   connectToPeer: () => {},
   disconnectPeer: () => {},
   pushCursor: () => {},
@@ -58,6 +84,7 @@ const WebSyncContext = createContext<WebSyncContextValue>({
 
 export function WebSyncProvider({ children }: { children: ReactNode }) {
   const [peers, setPeers] = useState<PeerInfo[]>([]);
+  const [access, setAccess] = useState<RoomAccess | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const lastCursorFileIdRef = useRef<string | number | null>(null);
   const activeFileIdRef = useRef<string | number | null>(null);
@@ -183,6 +210,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
             window.location.href = '/app';
             return;
           }
+          if (data.access !== undefined) setAccess(data.access ?? null);
           if (data.activePeers && Array.isArray(data.activePeers)) {
             setPeers((prev) => {
               const connected = data.activePeers.filter((p: any) => p.nodeId !== localNodeIdRef.current).map((p: any) => ({
@@ -254,7 +282,11 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
     pollCursors();
     const iv = setInterval(pollConflicts, 15000);
     const iv2 = setInterval(pollPresence, 5000);
-    const iv3 = setInterval(pollCursors, 1500);
+    // Carets now arrive on the document poll (see the editor's pollDoc),
+    // which asks the same server about the same file anyway. Keeping a
+    // second timer for them meant every open editor made 40 requests a
+    // minute that another request was already in a position to answer.
+    void pollCursors;
 
     // Covers a hard tab close / browser quit — the "Leave Room" button
     // handles the explicit case, but a closed tab never runs that click
@@ -271,7 +303,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
     window.addEventListener('beforeunload', handleUnload);
 
     return () => {
-      clearInterval(iv); clearInterval(iv2); clearInterval(iv3);
+      clearInterval(iv); clearInterval(iv2);
       window.removeEventListener('beforeunload', handleUnload);
     };
   }, []);
@@ -563,7 +595,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <WebSyncContext.Provider value={{ peers, connectToPeer, disconnectPeer, pushCursor, kickPeer, socket: socketRef.current, setActiveFileId, leaveRoom }}>
+    <WebSyncContext.Provider value={{ peers, access, refreshAccess: () => pollPresenceRef.current(), connectToPeer, disconnectPeer, pushCursor, kickPeer, socket: socketRef.current, setActiveFileId, leaveRoom }}>
       {children}
     </WebSyncContext.Provider>
   );

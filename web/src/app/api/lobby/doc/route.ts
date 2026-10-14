@@ -4,6 +4,7 @@ import { redis, casSetIfNewer } from '@/lib/redis';
 import { VectorClock } from '@/lib/vector-clock';
 import type { VectorClockJSON, ClockRelation } from '@/lib/vector-clock';
 import { documentSignature } from '@/lib/documentSignature';
+import { readCursors } from '@/lib/roomCursors';
 import { canEditFile, type LobbyEntry } from '../store';
 import { splitMarginWrapper } from '@/lib/documentSignature';
 
@@ -377,6 +378,11 @@ export async function GET(request: Request) {
   const otp = searchParams.get('otp');
   const fileId = searchParams.get('fileId');
   const since = searchParams.get('since') || '0';
+  // The caller asks for carets on some ticks and not others, so cursor
+  // freshness stays what it was while the request that carried it goes
+  // away entirely.
+  const wantCursors = searchParams.get('cursors') === '1';
+  const myNodeId = searchParams.get('nodeId');
 
   if (!otp || !fileId) {
     return NextResponse.json({ error: 'Missing otp or fileId' }, { status: 400, headers: corsHeaders });
@@ -384,10 +390,13 @@ export async function GET(request: Request) {
 
   try {
     const key = `doc_snapshot:${otp}:${fileId}`;
-    const snapshot = await redis.get(key) as any;
+    const [snapshot, cursors] = await Promise.all([
+      redis.get(key) as Promise<any>,
+      wantCursors ? readCursors(otp, myNodeId, Number(fileId)) : Promise.resolve(null),
+    ]);
 
     if (!snapshot) {
-      return NextResponse.json({ upToDate: true, snapshot: null }, { headers: corsHeaders });
+      return NextResponse.json({ upToDate: true, snapshot: null, cursors }, { headers: corsHeaders });
     }
 
     // Whether the caller already holds this exact document.
@@ -409,6 +418,7 @@ export async function GET(request: Request) {
       snapshot: isUpToDate ? null : snapshot,
       content: isUpToDate ? null : snapshot.content,
       authorNodeId: snapshot.authorNodeId,
+      cursors,
     }, { headers: corsHeaders });
   } catch (err) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500, headers: corsHeaders });

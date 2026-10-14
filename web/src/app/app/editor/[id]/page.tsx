@@ -99,6 +99,30 @@ const OFFLINE_AFTER_CONSECUTIVE_FAILURES = 3;
  * Pushing mid-burst needs the push pipeline to track in-flight bases first.
  */
 
+/**
+ * Somebody's role on this document, said in words.
+ *
+ * The panel's complaint was that you could not tell who owned the room or
+ * why you were unable to type. Three states, always visible to everyone,
+ * answers both: there is exactly one Owner, and everybody else is either
+ * editing or reading.
+ */
+function RoleChip({ owner, canEdit }: { owner: boolean; canEdit: boolean }) {
+  const [label, fg, bg, br] = owner
+    ? ['Owner', '#7c3aed', 'rgba(124,58,237,0.12)', 'rgba(124,58,237,0.35)']
+    : canEdit
+      ? ['Can edit', '#16a34a', 'rgba(34,197,94,0.12)', 'rgba(34,197,94,0.35)']
+      : ['View only', 'var(--t3)', 'var(--bg2)', 'var(--b1)'];
+  return (
+    <span style={{
+      padding: '4px 9px', borderRadius: 99, fontSize: 11, fontWeight: 600,
+      color: fg, background: bg, border: `1px solid ${br}`, whiteSpace: 'nowrap',
+    }}>
+      {label}
+    </span>
+  );
+}
+
 export default function EditorPage() {
   const params = useParams();
   const router = useRouter();
@@ -155,50 +179,63 @@ export default function EditorPage() {
     } catch {}
   };
 
-  // ── Per-file lock (Panel 1 #4, Panel 2 #5) ────────────────────────────
+  // ── Who may type in this document (Panel 1 #4, Panel 2 #5) ────────────
   //
-  // Distinct from the room lock above, which only stops new people joining.
-  // This one decides who may type in THIS document. Only the host can set
-  // it; everyone else just reads the answer and obeys it.
-  const [fileLock, setFileLock] = useState<{
-    locked: boolean;
-    allowedNodeIds: string[];
-  } | null>(null);
-  const [canEditFile, setCanEditFile] = useState(true);
-  const [isRoomHost, setIsRoomHost] = useState(false);
+  // Distinct from the room lock, which only stops new people joining. This
+  // decides who may type in THIS document. Only the owner can set it;
+  // everyone else reads the same answer and is shown it plainly.
+  const { peers, access, refreshAccess, kickPeer } = useWebSync();
+  /** The node id whose role is mid-change, so its control can show it. */
+  const [roleBusy, setRoleBusy] = useState<string | null>(null);
+  /** Alternates, so carets are asked for on every second document poll. */
+  const cursorTickRef = useRef(false);
+  /** The id the server must not send this client its own caret under. */
+  const cursorNodeIdRef = useRef('');
+  /**
+   * Read from the presence heartbeat rather than polled on its own.
+   *
+   * This was a fetch every four seconds that existed to learn two
+   * booleans. The heartbeat has already read the room, so it answers this
+   * for free -- one fewer request every four seconds, for every person in
+   * every open document.
+   */
+  const fileLock = access?.file
+    ? { locked: access.file.restricted, allowedNodeIds: access.file.editorNodeIds }
+    : null;
+  const canEditFile = access?.file ? access.file.canEdit : true;
+  const isRoomHost = !!access?.isHost;
+  const ownerNodeId = access?.hostNodeId ?? null;
+  /**
+   * The owner's name, for everybody.
+   *
+   * The roster already carries each member's account name, so the owner
+   * can be named rather than referred to as "the host" -- which in a room
+   * of five people is not information.
+   */
+  const ownerName = isRoomHost
+    ? myName
+    : (peers.find((pr) => pr.id === ownerNodeId)?.displayName || '');
+  // Also held in a ref, because the push handler that writes the status
+  // line runs from a closure created before the roster arrived -- it
+  // would otherwise always say "the room owner" even once the name is
+  // known.
+  const ownerNameRef = useRef('');
+  ownerNameRef.current = ownerName;
 
-  const refreshFileLock = useCallback(async () => {
+  /**
+   * Change one person's role on this document.
+   *
+   * The server is told WHO to change rather than being handed a rebuilt
+   * list, so two tabs doing this at once cannot overwrite each other. It
+   * is deliberately not gated on the document being locked first: being
+   * made view-only is what restricts the document, not the other way
+   * round. Having to throw a switch before the roles even appear was the
+   * thing that made this incomprehensible.
+   */
+  const setParticipantRole = async (peerNodeId: string, canEdit: boolean) => {
     const otp = currentRoom?.otp || currentRoom?.id;
     if (!otp || !fileId) return;
-    try {
-      const res = await fetch(
-        `/api/lobby/lock?otp=${encodeURIComponent(otp)}&nodeId=${encodeURIComponent(accountNodeIdRef.current || localNodeIdRef.current || '')}`
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      const lock = data.fileLocks?.[String(fileId)] ?? null;
-      setFileLock(lock);
-      setIsRoomHost(!!data.isHost);
-      // Absent from `permissions` means no lock exists for this file, which
-      // is permission to edit — not a denial.
-      const allowed = data.permissions?.[String(fileId)];
-      setCanEditFile(allowed === undefined ? true : !!allowed);
-    } catch { /* a failed poll must never lock someone out */ }
-  }, [currentRoom, fileId]);
-
-  useEffect(() => {
-    refreshFileLock();
-    // Polled, because the host can lock the file while this tab is open and
-    // there is no push channel on the web path. Slower than the document
-    // poll on purpose: a lock changes far less often than text does.
-    const t = setInterval(refreshFileLock, 4000);
-    return () => clearInterval(t);
-  }, [refreshFileLock]);
-
-  const toggleFileLock = async () => {
-    const otp = currentRoom?.otp || currentRoom?.id;
-    if (!otp || !fileId) return;
-    const nextLocked = !fileLock?.locked;
+    setRoleBusy(peerNodeId);
     try {
       const res = await fetch('/api/lobby/lock', {
         method: 'POST',
@@ -207,26 +244,24 @@ export default function EditorPage() {
           otp,
           nodeId: accountNodeIdRef.current || localNodeIdRef.current,
           fileId,
-          locked: nextLocked,
-          allowedNodeIds: fileLock?.allowedNodeIds ?? [],
+          ...(canEdit ? { grant: peerNodeId } : { revoke: peerNodeId }),
         }),
       });
       const data = await res.json();
       if (!data.success) { alert(data.error); return; }
-      await refreshFileLock();
+      refreshAccess();
     } catch {
-      alert('Could not change the lock. Check your connection and try again.');
+      alert('Could not change that person’s access. Check your connection and try again.');
+    } finally {
+      setRoleBusy(null);
     }
   };
 
-  /** Host grants or revokes one participant's permission to edit while locked. */
-  const toggleParticipantEdit = async (peerNodeId: string) => {
+  /** Switch the whole document between "anyone here" and "only chosen people". */
+  const setRestricted = async (restricted: boolean) => {
     const otp = currentRoom?.otp || currentRoom?.id;
     if (!otp || !fileId) return;
-    const current = fileLock?.allowedNodeIds ?? [];
-    const next = current.includes(peerNodeId)
-      ? current.filter((n) => n !== peerNodeId)
-      : [...current, peerNodeId];
+    setRoleBusy('__mode__');
     try {
       const res = await fetch('/api/lobby/lock', {
         method: 'POST',
@@ -235,15 +270,16 @@ export default function EditorPage() {
           otp,
           nodeId: accountNodeIdRef.current || localNodeIdRef.current,
           fileId,
-          locked: fileLock?.locked ?? true,
-          allowedNodeIds: next,
+          restricted,
         }),
       });
       const data = await res.json();
       if (!data.success) { alert(data.error); return; }
-      await refreshFileLock();
+      refreshAccess();
     } catch {
-      alert('Could not update permissions. Check your connection and try again.');
+      alert('Could not change who may edit. Check your connection and try again.');
+    } finally {
+      setRoleBusy(null);
     }
   };
 
@@ -397,7 +433,7 @@ export default function EditorPage() {
   };
   const localVectorClockRef = useRef<any>(createInitialWebClock());
 
-  const { peers, pushCursor, kickPeer, setActiveFileId } = useWebSync();
+  const { pushCursor, setActiveFileId } = useWebSync();
   const _connectedPeersCount = peers.filter((p) => p.status === 'connected').length;
   // Peers actively editing THIS file specifically — not just connected to
   // the room. A "last editor left" history checkpoint should fire when
@@ -405,6 +441,10 @@ export default function EditorPage() {
   // the room (e.g. on the file list, or editing a different file).
   const _othersEditingThisFile = peers.filter((p) => p.status === 'connected' && String(p.openFileId ?? '') === String(fileId)).length;
 
+  // Keep the poll's own view of that in step. Writing the ref every
+  // render is deliberate -- the running interval reads it -- while the
+  // state is only touched when the answer actually changes, so the timer
+  // is rebuilt once per transition rather than on every render.
   // Declare "I'm editing this file" for as long as this page is mounted,
   // so other peers' presence checks (and our own leave-detection below)
   // see accurate per-file editing counts, not just room-wide presence.
@@ -718,6 +758,9 @@ export default function EditorPage() {
     // used only for permissions.
     const accountId = uGet('node_id');
     if (accountId) accountNodeIdRef.current = accountId;
+    // The same id the caret is published under, so the server can leave
+    // this client's own caret out of what it sends back.
+    if (accountId) cursorNodeIdRef.current = accountId;
 
     // Strictly rely on the Desktop Host via WebSockets for the canonical snapshot.
   }, [fileId, updateLocalStorageFile]);
@@ -999,14 +1042,14 @@ export default function EditorPage() {
                 pushFailureStreakRef.current = 0;
                 setOfflineQueue(false);
                 hasPendingChangesRef.current = false;
-                setCanEditFile(false);
+                refreshAccess();
                 const serverText = denied?.snapshot?.content;
                 if (typeof serverText === 'string' && serverText !== currentContentRef.current) {
                   setContentAndRef(serverText);
                   lastSave.current = serverText;
                 }
                 setSaved(true);
-                setSyncStatusMsg('View only — this file is locked');
+                setSyncStatusMsg('View only — ask ' + (ownerNameRef.current || 'the room owner') + ' to let you edit');
                 if (explicit) {
                   toast.error('This file is locked by the room host. Your access is view-only.', { duration: 6000 });
                 }
@@ -1249,9 +1292,28 @@ export default function EditorPage() {
 
         // Step 2: Fallback to Matchmaker Cloud
         try {
-          const mmRes = await fetch(`${_MATCHMAKER_URL}/doc?otp=${otp}&fileId=${fileId}&since=${_lastAcceptedSeq.current}&have=${contentFingerprint(currentContentRef.current || '')}`);
+          // Carets ride along on every other tick.
+          //
+          // They used to be a poll of their own at 1.5s. Asked for here
+          // on alternate 700ms ticks they arrive just as often -- about
+          // every 1.4s -- while the request that used to carry them is
+          // gone, and the server does the same amount of cursor work it
+          // did before.
+          cursorTickRef.current = !cursorTickRef.current;
+          const wantCursors = cursorTickRef.current;
+          const mmRes = await fetch(`${_MATCHMAKER_URL}/doc?otp=${otp}&fileId=${fileId}&since=${_lastAcceptedSeq.current}&have=${contentFingerprint(currentContentRef.current || '')}${wantCursors ? `&cursors=1&nodeId=${encodeURIComponent(cursorNodeIdRef.current)}` : ''}`);
           if (mmRes.ok) {
             const data = await mmRes.json();
+            if (Array.isArray(data.cursors)) {
+              for (const c of data.cursors) {
+                window.dispatchEvent(new CustomEvent('docusync_ws_cursor', {
+                  detail: {
+                    fileId: c.fileId, nodeId: c.nodeId, position: c.from,
+                    displayName: c.displayName, color: c.color, docKey: c.docKey,
+                  },
+                }));
+              }
+            }
             // Deliberately NOT gated on authorNodeId !== ours. A snapshot the
             // server attributes to us can still carry another peer's edit:
             // any push of ours that lands after theirs is 3-way merged with
@@ -1361,6 +1423,14 @@ export default function EditorPage() {
     // deliberately skips applying remote snapshots (see the guard at the
     // top of pollDoc), since a full setContent would clobber their
     // in-progress text.
+    //
+    // Slowing this down when nobody else appears to be here was tried and
+    // taken out again. The saving was real but almost never available --
+    // anyone with the room open in another tab counts as present from any
+    // page -- and the cost was a cross-platform session losing
+    // contributions on both sides while presence caught up. The two
+    // requests that WERE pure overhead, the lock poll and the caret poll,
+    // are gone instead; this one is the sync itself.
     channelRef.current = setInterval(pollDoc, 700);
     return () => { if (channelRef.current) clearInterval(channelRef.current); };
   }, [fileId, getRoomHostInfo, getSyncBaseUrl]);
@@ -1559,116 +1629,199 @@ export default function EditorPage() {
                   <div style={{ width: 24, height: 24, borderRadius: '50%', background: '#f1f5f9', color: '#475569', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', zIndex: 3 }}>
                     {(myName[0] || 'U').toUpperCase()}
                   </div>
-                  {peers.filter(p => p.status === 'connected').slice(0, 3).map((p, i) => (
-                    <div key={i} style={{ width: 24, height: 24, borderRadius: '50%', background: ['#dcfce7', '#ffedd5', '#e0e7ff'][i % 3], color: ['#16a34a', '#ea580c', '#4f46e5'][i % 3], fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff', marginLeft: -8, zIndex: 2 - i }}>
-                      {(p.displayName?.[0] || 'P').toUpperCase()}
-                    </div>
-                  ))}
+                  {peers.filter(p => p.status === 'connected').slice(0, 3).map((p, i) => {
+                    const isOwner = !!ownerNodeId && p.id === ownerNodeId;
+                    return (
+                      <div key={p.id || i}
+                        title={(p.displayName || 'Someone') + (isOwner ? ' — room owner' : '')}
+                        style={{ width: 24, height: 24, borderRadius: '50%', background: isOwner ? '#ede9fe' : ['#dcfce7', '#ffedd5', '#e0e7ff'][i % 3], color: isOwner ? '#7c3aed' : ['#16a34a', '#ea580c', '#4f46e5'][i % 3], fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid ' + (isOwner ? '#7c3aed' : '#fff'), marginLeft: -8, zIndex: 2 - i }}>
+                        {(p.displayName?.[0] || 'P').toUpperCase()}
+                      </div>
+                    );
+                  })}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {_connectedPeersCount + 1} connected
+                {/* Your own role, on the face of it.
+                    Previously you could only find out whether you were
+                    allowed to type by trying to type, and the owner's
+                    identity was not shown at all. Both are now readable
+                    without opening anything. */}
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t2)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <RoleChip owner={isRoomHost} canEdit={canEditFile} />
+                  <span style={{ color: 'var(--t3)', fontWeight: 500 }}>{_connectedPeersCount + 1}</span>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isPeersOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </div>
               </div>
               
-              {/* Dropdown Menu */}
+              {/* People and access.
+                  Rewritten after the panel review. Three things were wrong
+                  with what was here. Nobody but the owner could tell WHO
+                  the owner was, because the badge was keyed off a field
+                  that is never present on a non-owner's stored room. The
+                  roles only appeared once the document had been locked, so
+                  the owner had to throw a switch before the thing they
+                  wanted to do was even on screen. And "Lock This File
+                  (Open)" put the state and the action in one line with no
+                  way to tell which was which.
+
+                  Now: everyone sees the same list with everyone's role on
+                  it, the owner can change a role at any time, and the mode
+                  is stated as a sentence rather than implied by a button
+                  whose label is its own opposite. */}
               {isPeersOpen && (
                 <div style={{
                   position: 'absolute', top: '100%', right: 0, marginTop: 8,
                   background: 'var(--bg)', border: '1px solid var(--b1)', borderRadius: 12,
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.1)', padding: 8, minWidth: 260, zIndex: 50,
+                  boxShadow: '0 12px 28px rgba(0,0,0,0.12)', padding: 0, width: 352, zIndex: 50,
+                  overflow: 'hidden',
                   animation: 'slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginTop: 4, background: 'var(--s1)' }}>
-                    <div className="ds-presence-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>
-                        {myName} (You) {(currentRoom as any)?.isOwner ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}
+
+                  {/* What this document's rule currently is, in a sentence,
+                      for everybody -- not only the person who set it. */}
+                  <div style={{ padding: '12px 14px', background: 'var(--s1)', borderBottom: '1px solid var(--b1)' }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--t3)', textTransform: 'uppercase', marginBottom: 6 }}>
+                      Who can edit this document
+                    </p>
+                    <p style={{ fontSize: 13, color: 'var(--t1)', lineHeight: 1.5 }}>
+                      {fileLock?.locked
+                        ? 'Only the people chosen below.'
+                        : 'Anyone in this room.'}
+                    </p>
+                    {isRoomHost && (
+                      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                        {([[false, 'Anyone here'], [true, 'Only chosen people']] as const).map(([val, label]) => {
+                          const on = !!fileLock?.locked === val;
+                          return (
+                            <button
+                              key={label}
+                              onClick={() => setRestricted(val)}
+                              disabled={roleBusy === '__mode__'}
+                              style={{
+                                flex: 1, padding: '7px 0', fontSize: 11.5, fontWeight: 600,
+                                borderRadius: 7, cursor: roleBusy === '__mode__' ? 'wait' : 'pointer',
+                                background: on ? 'var(--acb)' : 'var(--bg2)',
+                                color: on ? 'var(--t1)' : 'var(--t3)',
+                                border: '1px solid ' + (on ? 'var(--acbr)' : 'var(--b1)'),
+                                transition: 'all 0.15s',
+                              }}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
-                    </div>
+                    )}
                   </div>
 
-                  {/* LOCK ROOM BUTTON — was gated on currentRoom.hostNodeId,
-                      which is never populated on the client's locally-stored
-                      room object (it only ever carries `isOwner`), so this
-                      stayed permanently hidden for every room's actual owner.
-                      The server independently re-verifies ownership by real
-                      nodeId in /api/lobby/lock, so this is purely a display
-                      fix. */}
-                  {(currentRoom as any)?.isOwner && (
-                    <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--b1)' }}>
-                       <button onClick={toggleRoomLock} style={{ width: '100%', padding: '6px 0', background: (currentRoom as any)?.isLocked ? '#fef2f2' : '#f8fafc', color: (currentRoom as any)?.isLocked ? '#ef4444' : '#64748b', border: '1px solid ' + ((currentRoom as any)?.isLocked ? '#fca5a5' : '#e2e8f0'), borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: '0.15s' }}>
-                         {(currentRoom as any)?.isLocked ? 'Unlock Room (Locked)' : 'Lock Room (Open)'}
-                       </button>
-                    </div>
-                  )}
+                  <div style={{ padding: 8, maxHeight: 320, overflowY: 'auto' }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--t3)', textTransform: 'uppercase', padding: '4px 6px 8px' }}>
+                      In this room
+                    </p>
 
-                  {/* File lock — Panel 1 #4 and Panel 2 #5.
-                      Separate control from the room lock above, because they
-                      answer different questions: that one is "who may come
-                      in", this one is "who may type in this document". When
-                      it is on, every peer below gets a toggle granting them
-                      an exception; everyone not granted one is view-only. */}
-                  {isRoomHost && (
-                    <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--b1)' }}>
-                      <button onClick={toggleFileLock} style={{ width: '100%', padding: '6px 0', background: fileLock?.locked ? '#fffbeb' : '#f8fafc', color: fileLock?.locked ? '#b45309' : '#64748b', border: '1px solid ' + (fileLock?.locked ? '#fcd34d' : '#e2e8f0'), borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: '0.15s' }}>
-                        {fileLock?.locked ? 'Unlock This File (Locked)' : 'Lock This File (Open)'}
-                      </button>
-                      {fileLock?.locked && (
-                        <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--t3)', lineHeight: 1.5 }}>
-                          Everyone is view-only except you and the people you tick below.
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {peers.filter(p => p.status === 'connected').map((p, i) => {
-                    const isDbOwner = (currentRoom as any)?.hostNodeId && p.id === (currentRoom as any)?.hostNodeId;
-                    const defaultName = p.displayName ? p.displayName : isDbOwner ? 'Room Host' : `Peer ${i + 1}`;
-                    return (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginTop: 4 }}
-                        onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <div className="ds-presence-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{defaultName} {isDbOwner ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}</div>
-                          <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
+                    {/* Yourself, with your own role spelled out rather than
+                        left to be inferred from whether typing works. */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 8px', borderRadius: 8, background: 'var(--s1)' }}>
+                      <div className="ds-presence-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {myName} <span style={{ color: 'var(--t3)', fontWeight: 500 }}>(you)</span>
                         </div>
-
-                        {/* Per-participant edit permission, shown only while
-                            this file is locked — "lock the file to a certain
-                            participant, or allow viewing only for selected
-                            participants" (Panel 2 #5). The host is always
-                            allowed and so needs no toggle. */}
-                        {isRoomHost && fileLock?.locked && !isDbOwner && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); toggleParticipantEdit(p.id); }}
-                            title={
-                              (fileLock?.allowedNodeIds ?? []).includes(p.id)
-                                ? 'Can edit — click to make view-only'
-                                : 'View only — click to allow editing'
-                            }
-                            style={{
-                              padding: '4px 8px',
-                              background: (fileLock?.allowedNodeIds ?? []).includes(p.id) ? '#ecfdf5' : '#f8fafc',
-                              color: (fileLock?.allowedNodeIds ?? []).includes(p.id) ? '#047857' : '#64748b',
-                              border: '1px solid ' + ((fileLock?.allowedNodeIds ?? []).includes(p.id) ? '#6ee7b7' : '#e2e8f0'),
-                              borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                            }}
-                          >
-                            {(fileLock?.allowedNodeIds ?? []).includes(p.id) ? 'Can edit' : 'View only'}
-                          </button>
-                        )}
-
-                        {/* KICK BUTTON */}
-                        {(currentRoom as any)?.isOwner && !isDbOwner && (
-                          <button onClick={(e) => { e.stopPropagation(); kickPeer(p.id); }} style={{ padding: '4px 8px', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Kick</button>
-                        )}
                       </div>
-                    );
-                  })}
+                      <RoleChip owner={isRoomHost} canEdit={canEditFile} />
+                    </div>
+
+                    {peers.filter(p => p.status === 'connected').map((p, i) => {
+                      // Keyed off the room's own answer about who owns it,
+                      // which every member receives -- so the owner is
+                      // identifiable to everyone, not just to themselves.
+                      const isOwner = !!ownerNodeId && p.id === ownerNodeId;
+                      const theyCanEdit = isOwner
+                        || !fileLock?.locked
+                        || (fileLock?.allowedNodeIds ?? []).includes(p.id);
+                      const name = p.displayName && p.displayName !== 'Connecting…'
+                        ? p.displayName
+                        : (isOwner ? 'Room owner' : `Someone (${i + 1})`);
+                      const busy = roleBusy === p.id;
+                      return (
+                        <div key={p.id || i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 8px', borderRadius: 8, marginTop: 2 }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                          <div className="ds-presence-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)', flexShrink: 0 }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {name}
+                            </div>
+                          </div>
+
+                          {/* The owner changes a role here, at any time --
+                              not only once the document has been locked.
+                              Everyone else sees the same chip, read-only,
+                              so the room's rules are not a secret held by
+                              the one person who set them. */}
+                          {isRoomHost && !isOwner ? (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setParticipantRole(p.id, !theyCanEdit); }}
+                              disabled={busy}
+                              title={theyCanEdit ? 'Click to make view-only' : 'Click to let them edit'}
+                              style={{
+                                padding: '4px 9px', borderRadius: 99, fontSize: 11, fontWeight: 600,
+                                cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1,
+                                background: theyCanEdit ? 'rgba(34,197,94,0.12)' : 'var(--bg2)',
+                                color: theyCanEdit ? '#16a34a' : 'var(--t3)',
+                                border: '1px solid ' + (theyCanEdit ? 'rgba(34,197,94,0.35)' : 'var(--b1)'),
+                                transition: 'all 0.15s',
+                              }}
+                            >
+                              {theyCanEdit ? 'Can edit' : 'View only'}
+                            </button>
+                          ) : (
+                            <RoleChip owner={isOwner} canEdit={theyCanEdit} />
+                          )}
+
+                          {isRoomHost && !isOwner && (
+                            <button onClick={(e) => { e.stopPropagation(); kickPeer(p.id); }}
+                              title="Remove from the room"
+                              style={{ padding: '4px 7px', background: 'transparent', color: 'var(--t3)', border: '1px solid var(--b1)', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {peers.filter(p => p.status === 'connected').length === 0 && (
+                      <p style={{ fontSize: 12, color: 'var(--t3)', padding: '10px 8px', lineHeight: 1.5 }}>
+                        Nobody else is here yet. Share the room code and they will appear.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* The OTHER lock -- who may come in at all. Kept visually
+                      apart from the editing rule above, because the two
+                      were previously two near-identical buttons stacked on
+                      top of each other answering different questions. */}
+                  {isRoomHost && (
+                    <div style={{ padding: '10px 14px', borderTop: '1px solid var(--b1)', background: 'var(--s1)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--t1)' }}>
+                          {(currentRoom as any)?.isLocked ? 'Closed to new people' : 'Open to new people'}
+                        </p>
+                        <p style={{ fontSize: 11, color: 'var(--t3)', marginTop: 1 }}>
+                          {(currentRoom as any)?.isLocked
+                            ? 'Nobody new can join with the code.'
+                            : 'Anyone with the code can join.'}
+                        </p>
+                      </div>
+                      <button onClick={toggleRoomLock} style={{
+                        padding: '6px 11px', borderRadius: 7, fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+                        background: 'var(--bg)', color: 'var(--t2)', border: '1px solid var(--b1)',
+                      }}>
+                        {(currentRoom as any)?.isLocked ? 'Reopen' : 'Close'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1724,8 +1877,12 @@ export default function EditorPage() {
               onChange={handleContentChange}
               canEdit={canEditFile}
               lockReason={
+                // Naming the person to ask. "The host has locked this
+                // file" tells a reader what happened but not what to do
+                // about it, and in a room of five they may not know who
+                // the host is -- which was half the panel's complaint.
                 fileLock?.locked
-                  ? 'View only — the room host has locked this file. You can read and download it, but not edit it.'
+                  ? `View only. You can read and download this document, but only ${ownerName || 'the room owner'} can give you editing access.`
                   : undefined
               }
               margin={margin}

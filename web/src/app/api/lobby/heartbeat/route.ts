@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { rotateJoinCodeIfExpired, setJoinCodeAlias, JOIN_CODE_TTL_MS } from '@/lib/joinCode';
+import { canEditFile } from '../store';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -189,10 +190,43 @@ export async function POST(request: Request) {
       }
     }
 
+    // Who owns the room, and who may type in the file this caller has open.
+    //
+    // This used to be a poll of its own, every four seconds, purely to
+    // learn a handful of booleans that change a few times a session. The
+    // heartbeat has already read the lobby by this point, so answering it
+    // here costs nothing and removes a whole request from every editor.
+    //
+    // It also fixes something the separate poll could not: it reports WHO
+    // the owner is, not merely whether the caller is them. Without that,
+    // nobody but the owner could see who owned the room.
+    const lobbyForAccess = existingLobby;
+    const openKey = openFileId ? String(openFileId) : null;
+    const fileLock = openKey ? lobbyForAccess?.fileLocks?.[openKey] : null;
+
+    const access = lobbyForAccess
+      ? {
+          hostNodeId: lobbyForAccess.hostNodeId ?? null,
+          isHost: lobbyForAccess.hostNodeId === nodeId,
+          roomLocked: !!lobbyForAccess.isLocked,
+          file: openKey
+            ? {
+                fileId: openKey,
+                // "Restricted" rather than "locked": the document is not
+                // frozen, it is editable by named people.
+                restricted: !!fileLock?.locked,
+                editorNodeIds: fileLock?.allowedNodeIds ?? [],
+                canEdit: canEditFile(lobbyForAccess, openKey, nodeId),
+              }
+            : null,
+        }
+      : null;
+
     return NextResponse.json(
       {
         success: true,
         activePeers,
+        access,
         // Sent on every beat so a member whose code rotated can show the
         // new one without being told to rejoin.
         joinCode: currentJoinCode,
