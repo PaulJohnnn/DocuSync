@@ -127,12 +127,21 @@ async function main() {
   check(joinNew.data?.otp === otp, 'P2.4 it resolves to the same room id', `otp=${joinNew.data?.otp}`);
 
   const joinOld = await post('/join', { otp, memberNodeId: 'rot-joiner-old' });
-  // The old code is the room's own id here, so it still resolves directly —
-  // which is correct and deliberate: a room must stay reachable by its id.
-  // What matters is that a rotated ALIAS stops working, checked below.
+  // The first code a room hands out IS its id, and that used to keep
+  // admitting people for the life of the room however many times a new
+  // code was minted. So the code everybody had been given never stopped
+  // working, and "the code regenerates" described nothing anyone could
+  // observe. The id still identifies the room internally -- every
+  // document key is built from it -- but it no longer lets a stranger in.
   check(
-    joinOld.status === 200 && joinOld.data?.otp === otp,
-    'the room remains reachable by its permanent id'
+    joinOld.status !== 200,
+    'P2.4 the code people were first given stops working once it rotates',
+    `status=${joinOld.status}`
+  );
+  const stillThere = await get(`/history?otp=${otp}&fileId=${fileId}`);
+  check(
+    (stillThere.data?.data?.entries ?? []).length > 0,
+    'and the room itself is untouched, still addressed by that id'
   );
 
   // Rotate a second time: now the previous code is a genuine alias rather

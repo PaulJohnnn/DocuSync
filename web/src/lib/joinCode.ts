@@ -63,8 +63,22 @@ export async function setJoinCodeAlias(code: string, otp: string): Promise<void>
 export async function resolveJoinCode(code: string): Promise<string | null> {
   const aliased = (await redis.get(`joincode:${code}`)) as string | null;
   if (aliased) return aliased;
-  const direct = await redis.get(`lobby:${code}`);
-  return direct ? code : null;
+
+  // The room's id doubles as its first join code -- but only until the
+  // code has been rotated away from it.
+  //
+  // This used to accept the id forever. Since the id is also the code
+  // everyone was originally given, "the code regenerates" was not true
+  // of anything a person could observe: the first code they were handed
+  // kept working for the life of the room, however many times a new one
+  // was minted behind it. A room still has to be reachable by its id
+  // INTERNALLY -- every document key is built from it -- but that is not
+  // the same as admitting a stranger who typed it.
+  const direct = (await redis.get(`lobby:${code}`)) as LobbyEntry | null;
+  if (!direct) return null;
+  const current = direct.joinCode;
+  if (!current || current === code) return code;
+  return null;
 }
 
 /**
@@ -100,10 +114,15 @@ export async function rotateJoinCodeIfExpired(
 
   const next = await mintJoinCode();
   await setJoinCodeAlias(next, lobby.otp);
-  if (current !== lobby.otp) {
-    // Never delete the room's own id as though it were a stale alias.
-    await redis.del(`joincode:${current}`);
-  }
+  // Retire the code being replaced -- including when it is the room's own
+  // id, which is the FIRST code every room hands out.
+  //
+  // That case used to be skipped, on the reasoning that a room must stay
+  // reachable by its id. It does, but reachability lives in `lobby:<id>`,
+  // which this does not touch; the alias is only ever the door people
+  // type a code at. Leaving it standing meant the very code everyone had
+  // already been given was the one code that never expired.
+  await redis.del(`joincode:${current}`);
 
   lobby.joinCode = next;
   lobby.joinCodeExpiresAt = now + JOIN_CODE_TTL_MS;

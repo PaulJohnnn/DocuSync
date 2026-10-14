@@ -184,9 +184,10 @@ export default function EditorPage() {
   // Distinct from the room lock, which only stops new people joining. This
   // decides who may type in THIS document. Only the owner can set it;
   // everyone else reads the same answer and is shown it plainly.
-  const { peers, access, refreshAccess, kickPeer } = useWebSync();
+  const { peers, access, refreshAccess, kickPeer, joinCode } = useWebSync();
   /** The node id whose role is mid-change, so its control can show it. */
   const [roleBusy, setRoleBusy] = useState<string | null>(null);
+  const [codeCopied, setCodeCopied] = useState(false);
   /** Alternates, so carets are asked for on every second document poll. */
   const cursorTickRef = useRef(false);
   /** The id the server must not send this client its own caret under. */
@@ -1792,10 +1793,44 @@ export default function EditorPage() {
                     })}
 
                     {peers.filter(p => p.status === 'connected').length === 0 && (
-                      <p style={{ fontSize: 12, color: 'var(--t3)', padding: '10px 8px', lineHeight: 1.5 }}>
-                        Nobody else is here yet. Share the room code and they will appear.
+                      <p style={{ fontSize: 12, color: 'var(--t3)', padding: '10px 8px 4px', lineHeight: 1.5 }}>
+                        Nobody else is here yet. Give somebody the code below and they will appear.
                       </p>
                     )}
+                  </div>
+
+                  {/* The code to get in, where the people are.
+                      It is the code the server is accepting right now,
+                      not the room's id: those start out identical, and
+                      showing the id meant the screen went on displaying
+                      the first code forever while the real one was
+                      quietly replaced underneath it. */}
+                  <div style={{ padding: '10px 14px', borderTop: '1px solid var(--b1)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--t3)', textTransform: 'uppercase' }}>
+                        Code to join
+                      </p>
+                      <p style={{ fontSize: 17, fontWeight: 700, letterSpacing: '0.22em', color: 'var(--t1)', fontFamily: 'monospace', marginTop: 3 }}>
+                        {joinCode || currentRoom?.otp || currentRoom?.id || '—'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const code = joinCode || currentRoom?.otp || currentRoom?.id || '';
+                        if (code) navigator.clipboard?.writeText(String(code)).catch(() => {});
+                        setCodeCopied(true);
+                        setTimeout(() => setCodeCopied(false), 1800);
+                      }}
+                      style={{
+                        padding: '6px 11px', borderRadius: 7, fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+                        background: codeCopied ? 'rgba(34,197,94,0.12)' : 'var(--bg2)',
+                        color: codeCopied ? '#16a34a' : 'var(--t2)',
+                        border: '1px solid ' + (codeCopied ? 'rgba(34,197,94,0.35)' : 'var(--b1)'),
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {codeCopied ? 'Copied' : 'Copy'}
+                    </button>
                   </div>
 
                   {/* The OTHER lock -- who may come in at all. Kept visually

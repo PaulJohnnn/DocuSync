@@ -48,6 +48,15 @@ export interface RoomAccess {
 
 interface WebSyncContextValue {
   peers: PeerInfo[];
+  /**
+   * The code people type to get in, as it stands right now.
+   *
+   * The room's id was being shown instead. They start out identical, so
+   * it looked right -- but the id never changes, so the code on screen
+   * never changed either and the regeneration was invisible. This is the
+   * one the server is actually accepting.
+   */
+  joinCode: string | null;
   /** Null until the first heartbeat of a room has come back. */
   access: RoomAccess | null;
   /** Re-read the room's access state now, without waiting for the beat. */
@@ -71,6 +80,7 @@ interface WebSyncContextValue {
 
 const WebSyncContext = createContext<WebSyncContextValue>({
   peers: [],
+  joinCode: null,
   access: null,
   refreshAccess: () => {},
   connectToPeer: () => {},
@@ -85,6 +95,7 @@ const WebSyncContext = createContext<WebSyncContextValue>({
 export function WebSyncProvider({ children }: { children: ReactNode }) {
   const [peers, setPeers] = useState<PeerInfo[]>([]);
   const [access, setAccess] = useState<RoomAccess | null>(null);
+  const [joinCode, setJoinCode] = useState<string | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const lastCursorFileIdRef = useRef<string | number | null>(null);
   const activeFileIdRef = useRef<string | number | null>(null);
@@ -211,6 +222,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
             return;
           }
           if (data.access !== undefined) setAccess(data.access ?? null);
+          if (typeof data.joinCode === 'string' && data.joinCode) setJoinCode(data.joinCode);
           if (data.activePeers && Array.isArray(data.activePeers)) {
             setPeers((prev) => {
               const connected = data.activePeers.filter((p: any) => p.nodeId !== localNodeIdRef.current).map((p: any) => ({
@@ -595,7 +607,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <WebSyncContext.Provider value={{ peers, access, refreshAccess: () => pollPresenceRef.current(), connectToPeer, disconnectPeer, pushCursor, kickPeer, socket: socketRef.current, setActiveFileId, leaveRoom }}>
+    <WebSyncContext.Provider value={{ peers, joinCode, access, refreshAccess: () => pollPresenceRef.current(), connectToPeer, disconnectPeer, pushCursor, kickPeer, socket: socketRef.current, setActiveFileId, leaveRoom }}>
       {children}
     </WebSyncContext.Provider>
   );

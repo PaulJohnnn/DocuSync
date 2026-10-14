@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useWebSync } from '@/context/WebSyncContext';
 import PageShell from '@/components/PageShell';
 import mockRoomService, { type Room } from '@/lib/mockRoomService';
 import { uSet, uRemove } from '@/lib/userStorage';
@@ -329,6 +330,9 @@ const RoomCard: React.FC<{
 // ── Main page ─────────────────────────────────────────────────────────────
 export default function RoomsPage() {
   const router = useRouter();
+  // The code the server is currently accepting, reported on the room's
+  // own heartbeat.
+  const { joinCode: liveJoinCode } = useWebSync();
   const [view, setView] = useState<View>('list');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
@@ -632,7 +636,11 @@ export default function RoomsPage() {
             {/* OTP */}
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textAlign: 'center', marginBottom: 8 }}>INVITE CODE</div>
-              {createdRoom && <OtpDisplay otp={createdRoom.otp} />}
+              {/* The code in force, not the room's id. They are the same
+                  until the first rotation, after which the id is no
+                  longer accepted and showing it would hand people a code
+                  that does not work. */}
+              {createdRoom && <OtpDisplay otp={liveJoinCode || createdRoom.otp} />}
             </div>
 
             {/* Info pills */}

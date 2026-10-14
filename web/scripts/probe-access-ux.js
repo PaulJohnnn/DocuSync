@@ -165,6 +165,25 @@ async function main() {
         'and everyone is named, not numbered');
     }
 
+    // ── The code to get in ───────────────────────────────────────────
+    console.log('');
+    console.log('  The code to get in');
+    const shownCode = await guest.evaluate(() => {
+      const els = Array.from(document.querySelectorAll('p'));
+      const label = els.find((e) => /^Code to join$/i.test((e.textContent || '').trim()));
+      const value = label && label.parentElement
+        ? label.parentElement.querySelector('p:nth-of-type(2)')
+        : null;
+      return value ? (value.textContent || '').trim() : null;
+    });
+    check(!!shownCode && /^[A-Z0-9]{6}$/.test(shownCode),
+      'the room code is shown where the people are', shownCode || 'not shown');
+    if (shownCode) {
+      const tryIt = await post('/join', { otp: shownCode, memberNodeId: 'ux-code-' + Date.now() });
+      check(tryIt.status === 200 && tryIt.data?.otp === otp,
+        'and it is a code the server actually accepts', `status=${tryIt.status}`);
+    }
+
     // ── 2. Roles without locking first ───────────────────────────────
     console.log('');
     console.log('  Setting a role');
@@ -213,8 +232,11 @@ async function main() {
       return el ? (el.textContent || '').replace(/\s+/g, ' ').trim() : null;
     });
     console.log('    banner: ' + (editorBanner || '(none)'));
-    check(!!editorBanner && /only \S+ can give you/i.test(editorBanner),
-      'and is told WHO can give them access');
+    // A name is not one word. "Maria Santos" broke the first version of
+    // this check, which is a fair reminder that most people's are not.
+    const whoCanGrant = editorBanner && /but only (.+?) can give you editing access/i.exec(editorBanner);
+    check(!!whoCanGrant && whoCanGrant[1].trim().length > 0,
+      'and is told WHO can give them access', whoCanGrant ? whoCanGrant[1] : 'nobody named');
 
     const toolbar = await guest.locator('button:has(svg.lucide-bold)').count();
     check(toolbar === 0, 'the editing toolbar is not offered to a reader', `${toolbar} buttons`);

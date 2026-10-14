@@ -53,7 +53,11 @@ async function provision(email, password) {
   console.log(`target: ${BASE}\n`);
   const stamp = Math.floor(Math.random() * 10000);
   const out = [];
-  for (const [id, suffix] of [['A', 'alpha'], ['B', 'bravo']]) {
+  // Names can be passed in so a screenshot reads like a real room rather
+  // than like a test harness. They still start `zz-test-` so they sort to
+  // the bottom of the admin list and are obvious to revoke.
+  const names = (process.env.TEST_NAMES || 'alpha,bravo').split(',');
+  for (const [id, suffix] of [['A', names[0]], ['B', names[1] || 'bravo']]) {
     const email = `zz-test-${suffix}-${stamp}`;
     // Generated per run, never written into the repository.
     //
