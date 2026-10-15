@@ -127,8 +127,21 @@ async function main() {
     await owner.waitForTimeout(700);
     check(await owner.locator('text=Who can open this file').count() > 0,
       'the menu asks who can open it');
-    await owner.locator('button:has-text("Only chosen")').first().click();
+    await owner.locator('button:has-text("Only for")').first().click();
     await owner.waitForTimeout(2500);
+
+    // The owner is not somebody the owner grants access to.
+    const menuNames = await owner.evaluate(() => {
+      const menu = document.querySelector('div[role="menu"]');
+      if (!menu) return [];
+      return Array.from(menu.querySelectorAll('button'))
+        .map((b) => (b.textContent || '').trim())
+        .filter((t) => t && t !== 'Everyone' && t !== 'Only for');
+    });
+    check(!menuNames.some((n) => /Maria/i.test(n)),
+      'the owner is not listed as somebody to grant access to', menuNames.join(' | ') || 'none');
+    check(menuNames.some((n) => /Juan/i.test(n)),
+      'but the other people in the room are', menuNames.join(' | ') || 'none');
 
     const stored = await fetch(`${API}/lock?otp=${otp}&nodeId=${guestNode}`).then((r) => r.json());
     const lock = stored.fileLocks?.[String(privateFile)];
@@ -138,6 +151,34 @@ async function main() {
       'and the other person is not on the list');
     check(stored.openPermissions?.[String(openFile)] !== false,
       'while the other file is untouched');
+
+    // Switching back to Everyone offers no list, because there is
+    // nothing left to choose.
+    // The menu is still open from the assertions above, and clicking the
+    // dots again would close it rather than reopen it.
+    await owner.locator('button:has-text("Everyone")').first().click();
+    await owner.waitForTimeout(2200);
+    await owner.locator('body').click({ position: { x: 5, y: 500 } });
+    await owner.waitForTimeout(400);
+    await owner.locator('button[title="Who can open this file"]').nth(1).click();
+    await owner.waitForTimeout(900);
+    const namesUnderEveryone = await owner.evaluate(() => {
+      const menu = document.querySelector('div[role="menu"]');
+      if (!menu) return [];
+      return Array.from(menu.querySelectorAll('button'))
+        .map((b) => (b.textContent || '').trim())
+        .filter((t) => t && t !== 'Everyone' && t !== 'Only for');
+    });
+    check(namesUnderEveryone.length === 0,
+      'choosing Everyone offers no list of people', namesUnderEveryone.join(' | ') || 'none');
+
+    // Put it back for the rest of the run. Done through the API rather
+    // than the menu: the menu path is already proven above, and driving
+    // a toggle twice more only adds ways for the probe to trip over its
+    // own clicks.
+    await post('/lock', { otp, nodeId: ownerNode, fileId: privateFile, openRestricted: true });
+    await owner.locator('body').click({ position: { x: 5, y: 500 } });
+    await owner.waitForTimeout(2500);
 
     // ── What the other person sees ───────────────────────────────────
     console.log('');
@@ -172,7 +213,7 @@ async function main() {
     await owner.waitForTimeout(6000);
     await owner.locator('button[title="Who can open this file"]').nth(1).click();
     await owner.waitForTimeout(800);
-    const peerRow = owner.locator('div[role="menu"] button').filter({ hasNotText: 'Everyone' }).filter({ hasNotText: 'Only chosen' });
+    const peerRow = owner.locator('div[role="menu"] button').filter({ hasNotText: 'Everyone' }).filter({ hasNotText: 'Only for' });
     const rows = await peerRow.count();
     check(rows > 0, 'the people in the room are listed to pick from', `${rows} rows`);
     await peerRow.last().click();

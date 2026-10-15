@@ -344,6 +344,7 @@ export default function RoomsPage() {
 
   const [otpInput, setOtpInput] = useState('');
   const [joinError, setJoinError] = useState('');
+  const [joinErrorReason, setJoinErrorReason] = useState<string | null>(null);
 
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
@@ -412,7 +413,8 @@ export default function RoomsPage() {
       });
       setView('join_success');
     } catch (err: any) {
-      setJoinError(err?.message ?? 'Room not found.');
+      setJoinError(err?.message ?? 'No room is using that code.');
+      setJoinErrorReason(err?.reason ?? null);
       setView('join_error');
     }
   };
@@ -759,35 +761,81 @@ export default function RoomsPage() {
         );
 
       // ── JOIN: Error ────────────────────────────────────────────────────────
-      case 'join_error':
+      case 'join_error': {
+        // What actually happened, rather than one message for everything.
+        //
+        // This screen used to say "Room Does Not Exist", then print the
+        // server's real reason underneath it, then assert in a red box
+        // that the code "may have expired or been deleted" -- three
+        // claims, which for a room the owner had simply closed were two
+        // wrong ones and a right one.
+        const tone = joinErrorReason === 'closed' ? 'closed'
+          : joinErrorReason === 'full' ? 'closed'
+          : joinErrorReason === 'code_replaced' ? 'stale'
+          : 'missing';
+
+        const title = joinErrorReason === 'closed' ? 'This room is closed'
+          : joinErrorReason === 'full' ? 'This room is full'
+          : joinErrorReason === 'code_replaced' ? 'That code is out of date'
+          : joinErrorReason === 'rate_limited' ? 'Too many tries'
+          : joinErrorReason === 'expired' ? 'This room is no longer running'
+          : 'No room with that code';
+
+        const hint = joinErrorReason === 'closed'
+          ? 'The room is still there. Its owner has stopped new people joining for now -- ask them to reopen it, or to let you in.'
+          : joinErrorReason === 'full'
+            ? 'Rooms hold fifteen people. Ask whoever is in it whether somebody can leave.'
+            : joinErrorReason === 'code_replaced'
+              ? 'Codes are replaced from time to time, so an older one stops working. The room and everything in it is untouched -- you just need the current code.'
+              : joinErrorReason === 'rate_limited'
+                ? 'Give it a minute, then try the code again.'
+                : joinErrorReason === 'expired'
+                  ? 'Ask whoever set it up to start it again.'
+                  : 'Check the six characters against what you were sent. If it still will not go in, ask for the code again -- it may have been replaced since.';
+
+        const accent = tone === 'closed' ? '#f59e0b' : tone === 'stale' ? '#4f46e5' : '#dc2626';
+
         return (
           <div style={{ ...cardStyle, animation: 'fadeInUp 0.4s ease' }}>
-            <div style={{ textAlign: 'center', marginBottom: 28 }}>
-              <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(239,68,68,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" />
-                </svg>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: '50%', background: `${accent}14`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px',
+              }}>
+                {tone === 'closed' ? (
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                ) : (
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                )}
               </div>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>Room Does Not Exist</h2>
-              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.6 }}>
-                {joinError || 'No room was found with that invite code. Check the code and try again.'}
-              </p>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>{title}</h2>
+              <p style={{ fontSize: 13.5, color: '#64748b', lineHeight: 1.65 }}>{hint}</p>
             </div>
-            <div style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '12px 16px', marginBottom: 24, fontSize: 12, color: '#dc2626' }}>
-              Code <strong style={{ fontFamily: 'monospace', fontSize: 14 }}>{otpInput}</strong> was not found. It may have expired or been deleted.
+
+            <div style={{
+              background: `${accent}0a`, border: `1px solid ${accent}33`, borderRadius: 10,
+              padding: '12px 16px', marginBottom: 24, fontSize: 12.5, color: accent, textAlign: 'center',
+            }}>
+              You tried <strong style={{ fontFamily: 'monospace', fontSize: 14, letterSpacing: '0.12em' }}>{otpInput}</strong>
             </div>
-            <button onClick={() => { setOtpInput(''); setJoinError(''); setView('join_otp'); }} style={{
+
+            <button onClick={() => { setOtpInput(''); setJoinError(''); setJoinErrorReason(null); setView('join_otp'); }} style={{
               width: '100%', padding: '14px', borderRadius: 12, fontSize: 15, fontWeight: 700,
               background: 'linear-gradient(135deg, #4f46e5 0%, #2952d9 100%)', color: '#fff', border: 'none', cursor: 'pointer',
               boxShadow: '0 4px 16px rgba(79,70,229,0.35)', marginBottom: 10,
             }}>
-              Try Again
+              Try another code
             </button>
             <button onClick={() => setView('list')} style={{ width: '100%', padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 600, background: 'var(--bg-card)', color: '#475569', border: '1.5px solid var(--border)', cursor: 'pointer' }}>
               Back to Room List
             </button>
           </div>
         );
+      }
     }
   };
 

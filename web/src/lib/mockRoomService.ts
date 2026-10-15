@@ -204,8 +204,9 @@ export async function joinRoom(otp: string): Promise<Room> {
   const upperOtp = otp.toUpperCase().trim();
 
   if (upperOtp === 'FAIL01' || upperOtp.length < 5) {
-    const err = new Error('Room not found. Check the invite code and try again.');
+    const err = new Error('A room code is six characters.');
     (err as any).code = 'ROOM_NOT_FOUND';
+    (err as any).reason = 'not_found';
     throw err;
   }
 
@@ -217,6 +218,8 @@ export async function joinRoom(otp: string): Promise<Room> {
   let apiData: any = null;
   let matchmakerSuccess = false;
   let matchmakerError: string | null = null;
+  /** Which kind of refusal it was, so the screen can say the right thing. */
+  let matchmakerReason: string | null = null;
 
   for (const baseUrl of urlsToTry) {
     try {
@@ -232,7 +235,8 @@ export async function joinRoom(otp: string): Promise<Room> {
         matchmakerSuccess = true;
         break;
       } else if (res.status === 404 || res.status === 410 || data.error) {
-        matchmakerError = data.error || `Room not found. No active room with OTP "${upperOtp}".`;
+        matchmakerError = data.error || `No room is using the code ${upperOtp}.`;
+        matchmakerReason = data.reason || null;
         break;
       }
     } catch {
@@ -242,7 +246,10 @@ export async function joinRoom(otp: string): Promise<Room> {
 
   if (matchmakerError) {
     const err = new Error(matchmakerError);
+    // Carried through so the join screen can distinguish "closed" from
+    // "no such room" instead of calling everything a missing room.
     (err as any).code = 'ROOM_NOT_FOUND';
+    (err as any).reason = matchmakerReason;
     throw err;
   }
 
@@ -251,8 +258,9 @@ export async function joinRoom(otp: string): Promise<Room> {
   if (!matchmakerSuccess && !globalEntry) {
     const existingLocal = rooms.find(r => r.otp === upperOtp || r.id === otp);
     if (!existingLocal) {
-      const err = new Error(`Room not found. No active room with OTP "${upperOtp}". Ask the host to generate a new code.`);
+      const err = new Error(`No room is using the code ${upperOtp}.`);
       (err as any).code = 'ROOM_NOT_FOUND';
+      (err as any).reason = 'not_found';
       throw err;
     }
   }

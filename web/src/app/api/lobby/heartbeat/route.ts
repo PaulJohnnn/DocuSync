@@ -64,6 +64,7 @@ export async function POST(request: Request) {
     // file instead of firing whenever the room happens to empty out.
     const openFileId: string | null = body.openFileId ? String(body.openFileId) : null;
     const displayName: string | null = body.displayName ? String(body.displayName) : null;
+    const accountId: string | null = body.accountId ? String(body.accountId) : null;
 
     let activePeers: any[] = [];
     const hostedRoom = body.hostedRoom;
@@ -91,6 +92,7 @@ export async function POST(request: Request) {
     await redis.set(`user:${nodeId}`, {
       nodeId,
       displayName,
+      accountId,
       lastActive: Date.now(),
       ip: clientIp,
       openFileId
@@ -204,10 +206,23 @@ export async function POST(request: Request) {
     const openKey = openFileId ? String(openFileId) : null;
     const fileLock = openKey ? lobbyForAccess?.fileLocks?.[openKey] : null;
 
+    // The owner's account, found from whichever presence record belongs
+    // to the host node. One person on two devices is two nodes and one
+    // account, and ownership follows the account.
+    const hostRecord = (activePeers || []).find(
+      (p: any) => p && p.nodeId === lobbyForAccess?.hostNodeId
+    );
+    const hostAccountId: string | null = hostRecord?.accountId ?? null;
+    const callerIsHost = !!lobbyForAccess && (
+      lobbyForAccess.hostNodeId === nodeId
+      || (!!accountId && !!hostAccountId && accountId === hostAccountId)
+    );
+
     const access = lobbyForAccess
       ? {
           hostNodeId: lobbyForAccess.hostNodeId ?? null,
-          isHost: lobbyForAccess.hostNodeId === nodeId,
+          hostAccountId,
+          isHost: callerIsHost,
           roomLocked: !!lobbyForAccess.isLocked,
           file: openKey
             ? {

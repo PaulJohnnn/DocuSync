@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     const isAllowed = await checkRateLimit(ip, peeked?.memberNodeId ? String(peeked.memberNodeId) : undefined);
     if (!isAllowed) {
       return NextResponse.json(
-        { error: 'Too many join attempts. Please try again in a minute.' },
+        { reason: 'rate_limited', error: 'Too many attempts from here. Wait a minute and try again.' },
         { status: 429, headers: corsHeaders }
       );
     }
@@ -84,8 +84,26 @@ export async function POST(request: Request) {
       : null;
 
     if (!lobby) {
+      // A code that no longer resolves is not the same as a room that was
+      // never there. Since codes rotate, the commonest cause of this is
+      // somebody holding a code that has since been replaced -- and
+      // telling them the room does not exist sends them looking for the
+      // wrong thing entirely.
+      const roomUnderThatId = (await redis.get(`lobby:${String(otp)}`)) as LobbyEntry | null;
+      if (roomUnderThatId) {
+        return NextResponse.json(
+          {
+            reason: 'code_replaced',
+            error: 'That code has been replaced by a newer one. Ask whoever invited you for the current code.',
+          },
+          { status: 404, headers: corsHeaders }
+        );
+      }
       return NextResponse.json(
-        { error: `Room not found. No active room with OTP "${otp}". Ask the host to generate a new code.` },
+        {
+          reason: 'not_found',
+          error: 'No room is using that code. Check the six characters and try again.',
+        },
         { status: 404, headers: corsHeaders }
       );
     }
@@ -93,7 +111,7 @@ export async function POST(request: Request) {
     if (Date.now() > lobby.expiresAt) {
       await redis.del(`lobby:${lobby.otp}`);
       return NextResponse.json(
-        { error: 'This OTP has expired. Ask the host to generate a new one.' },
+        { reason: 'expired', error: 'This room is no longer active. Ask whoever set it up to start it again.' },
         { status: 410, headers: corsHeaders }
       );
     }
@@ -101,13 +119,16 @@ export async function POST(request: Request) {
     if (memberNodeId && !lobby.members.includes(memberNodeId)) {
       if (lobby.isLocked) {
         return NextResponse.json(
-          { error: 'This room has been locked by the owner. Joining is disabled.' },
+          {
+            reason: 'closed',
+            error: 'The owner has closed this room to new people. The room is still there -- ask them to reopen it, or to let you in.',
+          },
           { status: 403, headers: corsHeaders }
         );
       }
       if (lobby.members.length >= 14) {
         return NextResponse.json(
-          { error: 'Room is full. Maximum concurrent editors (15) reached.' },
+          { reason: 'full', error: 'This room already has the maximum of 15 people in it.' },
           { status: 403, headers: corsHeaders }
         );
       }

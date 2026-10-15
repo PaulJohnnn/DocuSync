@@ -24,6 +24,8 @@ export interface PeerInfo {
   connectedAt?: string;
   displayName?: string;
   openFileId?: string | null;
+  /** The signed-in account behind this session, if it reported one. */
+  accountId?: string | null;
 }
 
 /**
@@ -36,6 +38,8 @@ export interface PeerInfo {
  */
 export interface RoomAccess {
   hostNodeId: string | null;
+  /** The owner's account, so all of their sessions count as the owner. */
+  hostAccountId?: string | null;
   isHost: boolean;
   roomLocked: boolean;
   file: {
@@ -209,6 +213,12 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({
             nodeId: localNodeIdRef.current,
             displayName,
+            // Which ACCOUNT this session is. One person signed in on a
+            // laptop and a phone is two nodes but one person, and without
+            // this the room treats them as two -- so the owner's second
+            // window showed up in their own member list, and in the list
+            // of people to grant access to.
+            accountId: session?.id ?? null,
             hostedRoom: { otp: room.otp },
             openFileId: activeFileIdRef.current,
           })
@@ -244,6 +254,7 @@ export function WebSyncProvider({ children }: { children: ReactNode }) {
                 // for that split second rather than raw node-id junk.
                 displayName: p.displayName || 'Connecting…',
                 openFileId: p.openFileId || null,
+                accountId: p.accountId ?? null,
               }));
               uSet('peers', JSON.stringify(connected));
               return connected;

@@ -88,8 +88,6 @@ export default function FilesPage() {
   // that only ever exists on the OWNER's own stored room. For everybody
   // else the comparison was always false, so no owner was ever marked
   // and the other people in the room were listed as "Peer 1", "Peer 2".
-  const ownerNodeId = access?.hostNodeId ?? null;
-  const isRoomHost = !!access?.isHost;
   const [myName, setMyName] = useState('You');
   const [localNodeId, setLocalNodeId] = useState('');
   useEffect(() => {
@@ -103,6 +101,36 @@ export default function FilesPage() {
   const [connectedPeers, setConnectedPeers] = useState<any[]>([]);
   const [accessMenu, setAccessMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [accessBusy, setAccessBusy] = useState(false);
+
+  const ownerNodeId = access?.hostNodeId ?? null;
+  const ownerAccountId = access?.hostAccountId ?? null;
+  const isRoomHost = !!access?.isHost;
+  /** Every session that belongs to the owner, not just the host node. */
+  const isOwnerPeer = useCallback((p: any) => (
+    (!!ownerNodeId && p?.id === ownerNodeId)
+    || (!!ownerAccountId && !!p?.accountId && p.accountId === ownerAccountId)
+  ), [ownerNodeId, ownerAccountId]);
+
+  /**
+   * The people the owner can actually choose between.
+   *
+   * The owner is left out: they can always open their own files, so
+   * offering to grant or revoke it is a control that cannot do anything.
+   * Their other windows are left out too -- one person on two devices is
+   * two connections and still one person. And the same account is only
+   * listed once, for the same reason.
+   */
+  const pickablePeers = useCallback(() => {
+    const seen = new Set<string>();
+    return connectedPeers.filter((p) => {
+      if (p.status !== 'connected') return false;
+      if (isOwnerPeer(p)) return false;
+      const key = p.accountId || p.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [connectedPeers, isOwnerPeer]);
   const [roomFiles, setRoomFiles] = useState<any[]>([]);
   const [confirmModalState, setConfirmModalState] = useState<{
     isOpen: boolean;
@@ -235,7 +263,10 @@ export default function FilesPage() {
       const res = await fetch(`${MATCHMAKER_URL}/lock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp, nodeId: uGet('node_id'), fileId, ...change }),
+        body: JSON.stringify({
+          otp, nodeId: uGet('node_id'), accountId: mockAuthService.getCurrentUser()?.id ?? null,
+          fileId, ...change,
+        }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok || !data?.success) {
@@ -908,7 +939,7 @@ export default function FilesPage() {
                   if (idLower.includes('web')) { appName = 'Web App'; appIcon = '🌐'; }
                   else if (idLower.includes('mobile')) { appName = 'Mobile App'; appIcon = '📱'; }
                   
-                  const isDbOwner = !!ownerNodeId && p.id === ownerNodeId;
+                  const isDbOwner = isOwnerPeer(p);
                   const defaultName = p.displayName && p.displayName !== 'Connecting…'
                     ? p.displayName
                     : (isDbOwner ? 'Room owner' : `Someone (${i + 1})`);
@@ -1162,7 +1193,7 @@ export default function FilesPage() {
                                     Who can open this file
                                   </p>
                                   <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
-                                    {([[false, 'Everyone'], [true, 'Only chosen']] as const).map(([val, label]) => {
+                                    {([[false, 'Everyone'], [true, 'Only for']] as const).map(([val, label]) => {
                                       const on = restricted === val;
                                       return (
                                         <button
@@ -1184,55 +1215,51 @@ export default function FilesPage() {
                                   </div>
                                 </div>
 
-                                <div style={{ maxHeight: 230, overflowY: 'auto', padding: 6 }}>
-                                  {!restricted && (
-                                    <p style={{ fontSize: 12, color: '#94a3b8', padding: '10px 10px 6px', lineHeight: 1.5 }}>
-                                      Everyone in the room can open it. Pick
-                                      Only chosen to limit it to certain people.
-                                    </p>
-                                  )}
-                                  {connectedPeers.map((p) => {
-                                    const picked = (f.openNodeIds || []).includes(p.id);
-                                    const isOwnerRow = !!ownerNodeId && p.id === ownerNodeId;
-                                    const nm = p.displayName && p.displayName !== 'Connecting…'
-                                      ? p.displayName : 'Someone';
-                                    return (
-                                      <button
-                                        key={p.id}
-                                        disabled={accessBusy || isOwnerRow}
-                                        onClick={() => setFileOpenAccess(f, picked ? { revokeOpen: p.id } : { grantOpen: p.id })}
-                                        title={isOwnerRow ? 'The owner can always open it' : undefined}
-                                        style={{
-                                          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                                          padding: '9px 10px', background: 'transparent', border: 'none',
-                                          borderRadius: 8, cursor: accessBusy || isOwnerRow ? 'default' : 'pointer',
-                                          textAlign: 'left', opacity: accessBusy ? 0.6 : 1,
-                                        }}
-                                        onMouseEnter={(e) => { if (!isOwnerRow) e.currentTarget.style.background = '#f1f5f9'; }}
-                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                                      >
-                                        {/* A green dot is how a chosen person
-                                            reads at a glance. */}
-                                        <span style={{
-                                          width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
-                                          background: (isOwnerRow || picked) ? '#22c55e' : '#e2e8f0',
-                                          border: '1px solid ' + ((isOwnerRow || picked) ? '#16a34a' : '#cbd5e1'),
-                                        }} />
-                                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                          {nm}
-                                        </span>
-                                        {isOwnerRow
-                                          ? <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Owner</span>
-                                          : picked ? <Check size={14} style={{ color: '#16a34a' }} /> : null}
-                                      </button>
-                                    );
-                                  })}
-                                  {connectedPeers.length === 0 && (
-                                    <p style={{ fontSize: 12, color: '#94a3b8', padding: '10px', lineHeight: 1.5 }}>
-                                      Nobody else is in the room yet.
-                                    </p>
-                                  )}
-                                </div>
+                                {/* Under Everyone there is nothing to
+                                    choose, so nothing is offered: a list of
+                                    names that cannot be ticked only invites
+                                    the question of why not. */}
+                                {restricted && (
+                                  <div style={{ maxHeight: 230, overflowY: 'auto', padding: 6 }}>
+                                    {pickablePeers().map((p) => {
+                                      const picked = (f.openNodeIds || []).includes(p.id);
+                                      const nm = p.displayName && p.displayName !== 'Connecting…'
+                                        ? p.displayName : 'Someone';
+                                      return (
+                                        <button
+                                          key={p.id}
+                                          disabled={accessBusy}
+                                          onClick={() => setFileOpenAccess(f, picked ? { revokeOpen: p.id } : { grantOpen: p.id })}
+                                          style={{
+                                            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                            padding: '9px 10px', background: 'transparent', border: 'none',
+                                            borderRadius: 8, cursor: accessBusy ? 'wait' : 'pointer',
+                                            textAlign: 'left', opacity: accessBusy ? 0.6 : 1,
+                                          }}
+                                          onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
+                                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                        >
+                                          {/* A green dot is how a chosen
+                                              person reads at a glance. */}
+                                          <span style={{
+                                            width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
+                                            background: picked ? '#22c55e' : '#e2e8f0',
+                                            border: '1px solid ' + (picked ? '#16a34a' : '#cbd5e1'),
+                                          }} />
+                                          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {nm}
+                                          </span>
+                                          {picked ? <Check size={14} style={{ color: '#16a34a' }} /> : null}
+                                        </button>
+                                      );
+                                    })}
+                                    {pickablePeers().length === 0 && (
+                                      <p style={{ fontSize: 12, color: '#94a3b8', padding: '10px', lineHeight: 1.5 }}>
+                                        Nobody else is in the room yet, so only you can open it.
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

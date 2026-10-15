@@ -113,7 +113,7 @@ async function main() {
     await owner.locator('button[title="Who can open this file"]').nth(1).click();
     await owner.waitForTimeout(800);
     await shot(owner, '2-three-dots-menu');
-    await owner.locator('button:has-text("Only chosen")').first().click();
+    await owner.locator('button:has-text("Only for")').first().click();
     await owner.waitForTimeout(2500);
     await shot(owner, '3-only-chosen-people');
 
@@ -131,7 +131,7 @@ async function main() {
     await owner.waitForTimeout(6000);
     await owner.locator('button[title="Who can open this file"]').nth(1).click();
     await owner.waitForTimeout(900);
-    const rows = owner.locator('div[role="menu"] button').filter({ hasNotText: 'Everyone' }).filter({ hasNotText: 'Only chosen' });
+    const rows = owner.locator('div[role="menu"] button').filter({ hasNotText: 'Everyone' }).filter({ hasNotText: 'Only for' });
     await rows.last().click();
     await owner.waitForTimeout(1800);
     await shot(owner, '6-green-dot-means-chosen');

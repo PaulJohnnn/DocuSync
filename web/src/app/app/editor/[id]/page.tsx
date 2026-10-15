@@ -214,6 +214,18 @@ export default function EditorPage() {
   const canOpenFile = access?.file ? access.file.canOpen !== false : true;
   const isRoomHost = !!access?.isHost;
   const ownerNodeId = access?.hostNodeId ?? null;
+  const ownerAccountId = access?.hostAccountId ?? null;
+  /**
+   * Every session belonging to the owner, not just the host node.
+   *
+   * One person signed in on a laptop and a phone is two connections and
+   * still one person; without this their second window appeared in their
+   * own member list as somebody to grant or revoke.
+   */
+  const isOwnerPeer = (p: { id: string; accountId?: string | null }) => (
+    (!!ownerNodeId && p.id === ownerNodeId)
+    || (!!ownerAccountId && !!p.accountId && p.accountId === ownerAccountId)
+  );
   /**
    * The owner's name, for everybody.
    *
@@ -252,6 +264,7 @@ export default function EditorPage() {
         body: JSON.stringify({
           otp,
           nodeId: accountNodeIdRef.current || localNodeIdRef.current,
+          accountId: mockAuthService.getCurrentUser()?.id ?? null,
           fileId,
           ...(canEdit ? { grant: peerNodeId } : { revoke: peerNodeId }),
         }),
@@ -278,6 +291,7 @@ export default function EditorPage() {
         body: JSON.stringify({
           otp,
           nodeId: accountNodeIdRef.current || localNodeIdRef.current,
+          accountId: mockAuthService.getCurrentUser()?.id ?? null,
           fileId,
           restricted,
         }),
@@ -1676,7 +1690,7 @@ export default function EditorPage() {
                     {(myName[0] || 'U').toUpperCase()}
                   </div>
                   {peers.filter(p => p.status === 'connected').slice(0, 3).map((p, i) => {
-                    const isOwner = !!ownerNodeId && p.id === ownerNodeId;
+                    const isOwner = isOwnerPeer(p);
                     return (
                       <div key={p.id || i}
                         title={(p.displayName || 'Someone') + (isOwner ? ' — room owner' : '')}
@@ -1782,7 +1796,7 @@ export default function EditorPage() {
                       // Keyed off the room's own answer about who owns it,
                       // which every member receives -- so the owner is
                       // identifiable to everyone, not just to themselves.
-                      const isOwner = !!ownerNodeId && p.id === ownerNodeId;
+                      const isOwner = isOwnerPeer(p);
                       const theyCanEdit = isOwner
                         || !fileLock?.locked
                         || (fileLock?.allowedNodeIds ?? []).includes(p.id);

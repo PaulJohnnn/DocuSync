@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       otp, nodeId, isLocked, fileId, locked, allowedNodeIds, grant, revoke, restricted,
-      openRestricted, grantOpen, revokeOpen,
+      openRestricted, grantOpen, revokeOpen, accountId,
     } = body;
 
     if (!otp || !nodeId) {
@@ -77,9 +77,20 @@ export async function POST(request: Request) {
       );
     }
 
-    if (lobby.hostNodeId !== nodeId) {
+    // Ownership follows the ACCOUNT, not one device.
+    //
+    // Checking the node id alone meant the owner signed in on a second
+    // machine was refused control of their own room -- and, on the other
+    // side of the same mistake, their second session was listed as an
+    // ordinary member who had to be granted access to their own files.
+    let isOwner = lobby.hostNodeId === nodeId;
+    if (!isOwner && accountId) {
+      const hostPresence = (await redis.get(`user:${lobby.hostNodeId}`)) as { accountId?: string } | null;
+      if (hostPresence?.accountId && hostPresence.accountId === String(accountId)) isOwner = true;
+    }
+    if (!isOwner) {
       return NextResponse.json(
-        { error: 'Forbidden: Only the host of this room can change locks.' },
+        { error: 'Only the owner of this room can change who may open or edit its files.' },
         { status: 403, headers: corsHeaders }
       );
     }
