@@ -229,6 +229,39 @@ async function main() {
     check(stillLocked === 0, 'and their lock is gone, without a reload of the app',
       `${stillLocked} still locked`);
 
+    // ── Reader or editor, set from the same menu ─────────────────────
+    console.log('');
+    console.log('  Making somebody a reader, from the file list');
+    await owner.goto(`${BASE}/app/files`, { waitUntil: 'domcontentloaded' });
+    await owner.waitForTimeout(6000);
+    await owner.locator('button[title="Who can open this file"]').first().click();
+    await owner.waitForTimeout(900);
+
+    const hasEditSection = await owner.locator('text=Who can edit this file').count();
+    check(hasEditSection > 0, 'the same menu also asks who can edit it');
+
+    // The second "Only for" belongs to the editing question.
+    const onlyFor = owner.locator('button:has-text("Only for")');
+    check(await onlyFor.count() === 2, 'each question has its own choice',
+      `${await onlyFor.count()} buttons`);
+    await onlyFor.nth(1).click();
+    await owner.waitForTimeout(2500);
+
+    const lockNow = await fetch(`${API}/lock?otp=${otp}&nodeId=${guestNode}`).then((r) => r.json());
+    check(lockNow.permissions?.[String(openFile)] === false,
+      'the other person becomes view-only on that file');
+    check(lockNow.openPermissions?.[String(openFile)] !== false,
+      'and can still open it, which is the point of the two being separate');
+
+    // And back again, by name.
+    const readerRow = owner.locator('button:has-text("View only")').first();
+    check(await readerRow.count() > 0, 'the menu shows who is a reader');
+    await readerRow.click();
+    await owner.waitForTimeout(2500);
+    const lockBack = await fetch(`${API}/lock?otp=${otp}&nodeId=${guestNode}`).then((r) => r.json());
+    check(lockBack.permissions?.[String(openFile)] !== false,
+      'and the owner can make them an editor again');
+
   } finally {
     await browser.close();
   }

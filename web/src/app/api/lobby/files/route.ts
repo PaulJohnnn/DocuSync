@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { LobbyEntry, canOpenFile } from '../store';
+import { LobbyEntry, canOpenFile, canEditFile } from '../store';
 import { documentSignature } from '@/lib/documentSignature';
 
 export const dynamic = 'force-dynamic';
@@ -56,7 +56,12 @@ export async function GET(request: Request) {
         canOpen: canOpenFile(lobby, key, nodeId),
         openRestricted: !!lock?.openRestricted,
         openNodeIds: lock?.openNodeIds ?? [],
+        // The other half of the same question. Opening and editing are
+        // separate permissions, and the file list is where both of them
+        // are set, so it has to report both.
+        canEdit: canEditFile(lobby, key, nodeId),
         editRestricted: !!lock?.locked,
+        editorNodeIds: lock?.allowedNodeIds ?? [],
       };
     });
 
