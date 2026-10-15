@@ -27,6 +27,23 @@ function useScrollReveal() {
   return ref;
 }
 
+/**
+ * One ink, one accent, and the greys between them.
+ *
+ * The page used five hues at once -- a red section, an amber one, a
+ * purple one, a green one, and a blue headline that animated through a
+ * gradient. Each was doing the work a heading should do, so nothing read
+ * as more important than anything else. Colour now carries exactly one
+ * meaning: this is the thing to click. Everything else is type, rule and
+ * space.
+ */
+const INK = '#0a0a0a';
+const INK_2 = '#3f3f46';
+const INK_3 = '#71717a';
+const LINE = '#e4e4e7';
+const LINE_SOFT = '#f4f4f5';
+const ACCENT = '#1d4ed8';
+
 // ── Hero backdrop: a real depiction of the masterless P2P mesh, not a
 // generic blurred-gradient-blob background. Nodes = devices, lines = the
 // mesh topology, traveling dots = actual sync traffic (SVG <animateMotion>,
@@ -42,17 +59,17 @@ const HERO_EDGES: Array<[number, number]> = [
   [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [4, 6], [5, 7], [6, 8],
   [7, 9], [8, 9], [7, 10], [8, 11], [1, 5], [2, 9], [3, 8],
 ];
-const HERO_NODE_COLORS = ['#4f7df8', '#7c3aed', '#22c55e', '#38bdf8', '#a855f7'];
+const HERO_NODE_COLORS = ['#18181b', '#3f3f46', '#52525b', '#27272a', '#71717a'];
 
 function HeroMeshBackdrop() {
   return (
     <svg
       viewBox="0 0 1200 620" preserveAspectRatio="xMidYMid slice"
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.5, pointerEvents: 'none' }}
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.22, pointerEvents: 'none' }}
     >
       {HERO_EDGES.map(([a, b], i) => {
         const A = HERO_NODES[a], B = HERO_NODES[b];
-        return <line key={`e${i}`} x1={A.x} y1={A.y} x2={B.x} y2={B.y} stroke="rgba(79,125,248,0.14)" strokeWidth="1" />;
+        return <line key={`e${i}`} x1={A.x} y1={A.y} x2={B.x} y2={B.y} stroke="rgba(9,9,11,0.10)" strokeWidth="1" />;
       })}
       {HERO_EDGES.map(([a, b], i) => {
         const A = HERO_NODES[a], B = HERO_NODES[b];
@@ -76,19 +93,19 @@ function HeroMeshBackdrop() {
 }
 
 // ── Sub-components ────────────────────────────────────────────
-function SectionLabel({ children, color = '#4f7df8' }: { children: React.ReactNode; color?: string }) {
+function SectionLabel({ children }: { children: React.ReactNode; color?: string }) {
   return (
     <p style={{
-      fontSize: 11, fontWeight: 700, color, textTransform: 'uppercase',
-      letterSpacing: '0.12em', marginBottom: 14,
+      fontSize: 11, fontWeight: 600, color: INK_3, textTransform: 'uppercase',
+      letterSpacing: '0.16em', marginBottom: 18,
     }}>{children}</p>
   );
 }
 
 function GreenCheck({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--t2)', marginBottom: 8 }}>
-      <Check size={14} color="#22c55e" strokeWidth={3} style={{ flexShrink: 0 }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: INK_2, marginBottom: 8 }}>
+      <Check size={13} color={INK} strokeWidth={2.5} style={{ flexShrink: 0 }} />
       {children}
     </div>
   );
@@ -99,19 +116,19 @@ function GreenCheck({ children }: { children: React.ReactNode }) {
 
 const PROBLEMS = [
   {
-    color: '#ef4444', bg: 'rgba(239,68,68,0.05)', border: '#ef4444',
+    
     title: 'The Accidental Overwrite',
     types: 'Lost Time & Effort',
     desc: 'You spend hours polishing a document. A teammate opens an older version, clicks "Save", and instantly wipes out all your hard work.',
   },
   {
-    color: '#f59e0b', bg: 'rgba(245,158,11,0.05)', border: '#f59e0b',
+    
     title: 'The Duplicate Mess',
     types: 'Cluttered Folders',
     desc: 'To avoid losing work, everyone starts making copies. Before you know it, you are lost in a sea of "Project_Final_v2_John_Copy(1)".',
   },
   {
-    color: '#7c3aed', bg: 'rgba(124,58,237,0.05)', border: '#7c3aed',
+    
     title: 'The Offline Panic',
     types: 'No Internet, No Sync',
     desc: 'Your Wi-Fi drops while working on a flight or in a cafe. When you finally reconnect, your local changes clash violently with the cloud.',
@@ -120,46 +137,46 @@ const PROBLEMS = [
 
 const ALGORITHMS = [
   {
-    num: '01', numColor: 'rgba(79,125,248,0.15)', iconColor: '#4f7df8',
+    num: '01',
     algo: 'Algorithm 1',
     title: 'Never Lose a Keystroke',
     desc: 'We save every single edit invisibly in the background. Think of it as an infinite "Undo" button. No matter what happens, your work is perfectly preserved.',
-    pill: 'Powered by: Log-Based Sync', pillColor: '#4f7df8', pillBg: 'rgba(79,125,248,0.10)',
+    pill: 'Powered by: Log-Based Sync', 
     metric: '100% Recovery',
   },
   {
-    num: '02', numColor: 'rgba(124,58,237,0.15)', iconColor: '#7c3aed',
+    num: '02',
     algo: 'Algorithm 2',
     title: 'Knows What Happened Before What',
     desc: 'Every device keeps its own logical clock (a Fidge/Mattern vector clock) instead of trusting wall-clock time. Comparing two clocks tells DocuSync — with certainty — whether one edit truly came after another, or whether they happened independently at the same time.',
-    pill: 'Powered by: Vector Clocks', pillColor: '#7c3aed', pillBg: 'rgba(124,58,237,0.10)',
+    pill: 'Powered by: Vector Clocks', 
     metric: '100% Concurrency Detection',
   },
   {
-    num: '03', numColor: 'rgba(34,197,94,0.15)', iconColor: '#22c55e',
+    num: '03',
     algo: 'Algorithm 3',
     title: 'Lightning Fast Syncing',
     desc: 'Instead of uploading your whole document every time you hit save, DocuSync computes the minimal edit script with the Myers O(ND) diff algorithm and sends only what changed, checksummed for integrity.',
-    pill: 'Powered by: Delta Encoding', pillColor: '#22c55e', pillBg: 'rgba(34,197,94,0.10)',
+    pill: 'Powered by: Delta Encoding', 
     metric: '~1ms Encode Latency',
   },
   {
-    num: '04', numColor: 'rgba(245,158,11,0.15)', iconColor: '#f59e0b',
+    num: '04',
     algo: 'Algorithm 4',
     title: 'You Decide, We Never Guess',
     desc: 'When two edits are causally concurrent — neither clock came first — DocuSync flags it as a conflict and escalates to the room owner instead of silently picking a winner. From there it\'s your call: Keep Original, Accept the incoming change, or let Last-Writer-Wins auto-merge by timestamp.',
-    pill: 'Powered by: LWW Resolver', pillColor: '#f59e0b', pillBg: 'rgba(245,158,11,0.10)',
+    pill: 'Powered by: LWW Resolver', 
     metric: 'Owner-Arbitrated',
   },
 ];
 
 const EVAL_METRICS = [
-  { value: '20/20', label: 'System Tests Passed', desc: 'ISO/IEC 25010 functional suite', color: '#4f7df8' },
-  { value: '100%', label: 'Conflict Detection', desc: '30/30 concurrent vector-clock pairs correctly flagged', color: '#7c3aed' },
-  { value: '0%', label: 'Data Loss Rate', desc: 'Append-only event log, independently verified', color: '#22c55e' },
-  { value: '~1ms', label: 'Avg. Delta Latency', desc: 'Myers diff encode, P95 also 1ms', color: '#f59e0b' },
-  { value: '1,000/s', label: 'Event Throughput', desc: 'Sustained events per second in the log-based sync engine', color: '#ef4444' },
-  { value: '15', label: 'Max Concurrent Nodes', desc: 'Vector clock slot ceiling per room', color: '#06b6d4' },
+  { value: '20/20', label: 'System Tests Passed', desc: 'ISO/IEC 25010 functional suite' },
+  { value: '100%', label: 'Conflict Detection', desc: '30/30 concurrent vector-clock pairs correctly flagged' },
+  { value: '0%', label: 'Data Loss Rate', desc: 'Append-only event log, independently verified' },
+  { value: '~1ms', label: 'Avg. Delta Latency', desc: 'Myers diff encode, P95 also 1ms' },
+  { value: '1,000/s', label: 'Event Throughput', desc: 'Sustained events per second in the log-based sync engine' },
+  { value: '15', label: 'Max Concurrent Nodes', desc: 'Vector clock slot ceiling per room' },
 ];
 
 /** Resolved by GitHub at request time, so it is always the newest release. */
@@ -171,28 +188,28 @@ const PLATFORMS = [
     title: 'Desktop App', subtitle: 'Windows · macOS · Linux',
     desc: 'Full Electron app with local SQLite database, native file system access, and P2P WebSocket server. The primary thesis prototype.',
     features: ['Local SQLite database', 'Native OS file picker', 'P2P WebSocket server (port 9000)', 'All 4 algorithms active', 'Offline-first'],
-    cta: 'Download for Windows', ctaHref: DESKTOP_DOWNLOAD_URL, ctaBg: '#4f7df8',
+    cta: 'Download for Windows', ctaHref: DESKTOP_DOWNLOAD_URL, ctaBg: INK,
     ctaIcon: 'download' as const,
     ctaNote: 'Windows 10 or 11, 64-bit',
     ctaSecondary: { label: 'Installation guide and other platforms', href: '/download' },
-    accent: 'linear-gradient(90deg, #4f7df8, #8b5cf6)', featured: false,
-    iconColor: '#4f7df8', glowColor: 'rgba(79,125,248,0.30)', floatDelay: '0s',
+    accent: LINE, featured: false,
+    iconColor: INK, floatDelay: '0s',
   },
   {
     title: 'Web App', subtitle: 'Any Browser · No Install',
     desc: 'Access DocuSync from any browser. Uses localStorage for persistence and browser WebSocket for P2P. Same algorithm engine.',
     features: ['No installation needed', 'Works on any device', 'Real-time sync demo', 'Shareable public URL', 'Always up to date'],
-    cta: 'Open the web app', ctaHref: '/app/welcome', ctaBg: '#22c55e',
-    accent: '#4f7df8', featured: true, badge: 'LIVE NOW',
-    iconColor: '#22c55e', glowColor: 'rgba(34,197,94,0.30)', floatDelay: '0.5s',
+    cta: 'Open the web app', ctaHref: '/app/welcome', ctaBg: ACCENT,
+    accent: ACCENT, featured: true, badge: 'LIVE',
+    iconColor: ACCENT, floatDelay: '0.5s',
   },
   {
     title: 'Mobile App', subtitle: 'Android · iOS via Expo Go',
     desc: 'React Native app with AsyncStorage persistence and real WebSocket P2P. Touch-optimized UI with the same core algorithm.',
     features: ['Expo Go (no App Store needed)', 'AsyncStorage persistence', 'Touch-optimized interface', 'Same core algorithms', 'Dark theme'],
-    cta: 'Get Expo Go', ctaHref: 'https://expo.dev/go', ctaBg: '#7c3aed',
-    accent: 'linear-gradient(90deg, #7c3aed, #4f7df8)', featured: false,
-    iconColor: '#7c3aed', glowColor: 'rgba(124,58,237,0.30)', floatDelay: '1s',
+    cta: 'Get Expo Go', ctaHref: 'https://expo.dev/go', ctaBg: INK,
+    accent: LINE, featured: false,
+    iconColor: INK, floatDelay: '1s',
   },
 ];
 
@@ -203,7 +220,17 @@ export default function HomePage() {
   const pageRef = useScrollReveal();
 
   return (
-    <div ref={pageRef} style={{ background: 'var(--bg)', color: 'var(--t1)', overflowX: 'hidden' }}>
+    <div ref={pageRef} style={{ background: '#fff', color: INK, overflowX: 'hidden', position: 'relative' }}>
+
+      {/* Texture.
+          A single layer of very fine grain over the whole page. At 3.5%
+          it does not read as a pattern; it stops the large white areas
+          looking like flat empty screen, which is the difference between
+          spare and unfinished. */}
+      <div aria-hidden="true" style={{
+        position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', opacity: 0.035,
+        backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E\")",
+      }} />
 
       {/* ══════════════════════════════════════════════════════════
           SECTION 1 — HERO
@@ -220,10 +247,12 @@ export default function HomePage() {
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
           backgroundImage: `
-            linear-gradient(rgba(79,125,248,0.03) 1px, transparent 1px),
-            linear-gradient(90deg,rgba(79,125,248,0.03) 1px, transparent 1px)
+            linear-gradient(rgba(9,9,11,0.035) 1px, transparent 1px),
+            linear-gradient(90deg,rgba(9,9,11,0.035) 1px, transparent 1px)
           `,
-          backgroundSize: '60px 60px',
+          backgroundSize: '88px 88px',
+          maskImage: 'radial-gradient(ellipse 80% 60% at 50% 40%, #000 30%, transparent 100%)',
+          WebkitMaskImage: 'radial-gradient(ellipse 80% 60% at 50% 40%, #000 30%, transparent 100%)',
         }} />
 
         {/* The mesh IS the product — replaces the generic blurred-orb
@@ -236,24 +265,22 @@ export default function HomePage() {
 
 
           {/* Headline */}
+          {/* Set in ink.
+              It used to run through a three-colour gradient on a loop,
+              which drew the eye away from the words it was made of. Two
+              lines, one weight, one colour -- and the only motion is the
+              line itself arriving. */}
           <h1 className="hero-headline" style={{
-            fontSize: 'clamp(32px,6vw,68px)',
-            fontWeight: 800, lineHeight: 1.08, letterSpacing: '-0.03em',
-            marginBottom: 24, color: 'var(--t1)',
-            animation: 'fadeInUp 0.8s ease 0.3s both',
+            fontSize: 'clamp(34px,6.4vw,72px)',
+            fontWeight: 600, lineHeight: 1.04, letterSpacing: '-0.035em',
+            marginBottom: 26, color: INK,
           }}>
-            Hybrid P2P<br />
-            <span style={{
-              background: 'linear-gradient(135deg,#4f7df8,#7c3aed,#22c55e)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-              backgroundSize: '200%', animation: 'gradient-shift 4s ease infinite',
-            }}>
-              File Synchronization
-            </span>
+            <span className="hero-line" style={{ display: 'block', animationDelay: '0.05s' }}>Hybrid peer-to-peer</span>
+            <span className="hero-line" style={{ display: 'block', animationDelay: '0.14s', color: INK_3 }}>file synchronization</span>
           </h1>
 
           <p style={{
-            fontSize: 'clamp(15px,2vw,18px)', color: 'var(--t2)', lineHeight: 1.7,
+            fontSize: 'clamp(15px,2vw,18px)', color: INK_2, lineHeight: 1.7,
             maxWidth: 620, margin: '0 auto 28px', animation: 'fadeInUp 0.8s ease 0.4s both',
           }}>
             A masterless peer-to-peer engine that logs every edit, detects concurrent changes with
@@ -269,10 +296,10 @@ export default function HomePage() {
           }}>
             <Link href="/download" className="btn-hero-primary" style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
-              background: 'linear-gradient(135deg,#4f7df8,#3d6ef0)',
-              color: '#fff', borderRadius: 12, height: 52, padding: '0 32px',
+              background: INK,
+              color: '#fff', borderRadius: 2, height: 52, padding: '0 34px',
               fontSize: 16, fontWeight: 600, textDecoration: 'none',
-              boxShadow: '0 8px 32px rgba(79,125,248,0.40)',
+              boxShadow: 'none',
               transition: 'transform 0.2s ease, box-shadow 0.2s ease',
             }}>
               <Download size={18} />
@@ -285,7 +312,7 @@ export default function HomePage() {
             <Link href="https://github.com/PaulJohnnn/DocuSync" target="_blank" rel="noopener noreferrer"
               className="btn-hero-text" style={{
                 display: 'inline-flex', alignItems: 'center',
-                color: 'var(--t2)', fontSize: 15, fontWeight: 500,
+                color: INK_2, fontSize: 15, fontWeight: 500,
                 textDecoration: 'none', padding: '0 8px', height: 52,
               }}>
               GitHub
@@ -299,12 +326,12 @@ export default function HomePage() {
             flexWrap: 'wrap', justifyContent: 'center', marginBottom: 64,
             animation: 'fadeInUp 0.8s ease 0.6s both',
           }}>
-            <span style={{ fontSize: 12, color: 'var(--t3)' }}>Available on:</span>
+            <span style={{ fontSize: 12, color: INK_3 }}>Available on:</span>
             {['Windows', 'macOS', 'Linux', 'Web', 'Android'].map(p => (
               <span key={p} style={{
-                fontSize: 11, fontWeight: 500, color: 'var(--t2)',
-                background: 'var(--s1)',
-                border: '1px solid var(--b1)',
+                fontSize: 11, fontWeight: 500, color: INK_2,
+                background: '#fff',
+                border: `1px solid ${LINE}`,
                 borderRadius: 99, padding: '4px 12px',
               }}>{p}</span>
             ))}
@@ -316,21 +343,21 @@ export default function HomePage() {
         {/* Scroll indicator */}
         <div style={{
           position: 'absolute', bottom: 28, left: '50%', transform: 'translateX(-50%)',
-          color: 'var(--t3)', fontSize: 20, animation: 'bounce 2s ease-in-out infinite',
+          color: INK_3, fontSize: 20, animation: 'bounce 2s ease-in-out infinite',
         }}><ChevronDown size={22} /></div>
       </section>
 
       {/* ══════════════════════════════════════════════════════════
           SECTION 2 — THE PROBLEM
       ══════════════════════════════════════════════════════════ */}
-      <section style={{ background: 'var(--bg2)', padding: '100px clamp(20px,5vw,64px)' }}>
+      <section style={{ background: '#fafafa', padding: '100px clamp(20px,5vw,64px)' }}>
         <div style={{ maxWidth: 1080, margin: '0 auto' }}>
           <div className="scroll-hidden" style={{ textAlign: 'center', marginBottom: 56 }}>
-            <SectionLabel color="#ef4444">THE PROBLEM</SectionLabel>
-            <h2 style={{ fontSize: 'clamp(26px,4vw,40px)', fontWeight: 700, color: 'var(--t1)', marginBottom: 16 }}>
+            <SectionLabel>THE PROBLEM</SectionLabel>
+            <h2 style={{ fontSize: 'clamp(26px,4vw,40px)', fontWeight: 700, color: INK, marginBottom: 16 }}>
               Collaboration Shouldn&apos;t Mean Compromise
             </h2>
-            <p style={{ fontSize: 16, color: 'var(--t2)', maxWidth: 580, margin: '0 auto', lineHeight: 1.7 }}>
+            <p style={{ fontSize: 16, color: INK_2, maxWidth: 580, margin: '0 auto', lineHeight: 1.7 }}>
               Are you tired of constantly creating &quot;File_Final_v2_Copy&quot; just to avoid losing your work? 
               Traditional cloud storage wasn&apos;t built for true real-time, offline-friendly teamwork.
             </p>
@@ -341,25 +368,30 @@ export default function HomePage() {
           }}>
             {PROBLEMS.map((p, i) => (
               <div key={p.title} className="scroll-hidden problem-card" style={{
-                background: p.bg,
-                border: `1px solid ${p.border}22`,
-                borderLeft: `3px solid ${p.border}`,
-                borderRadius: 16, padding: '28px 24px',
-                transition: 'transform 0.2s ease',
-                animationDelay: `${i * 100}ms`,
+                borderTop: `1px solid ${LINE}`,
+                padding: '28px 24px 28px 0',
+                animationDelay: `${i * 90}ms`,
               }}>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--t1)', marginBottom: 8 }}>{p.title}</h3>
+                {/* The number does the work the coloured edge was doing,
+                    and says something besides. */}
                 <p style={{
-                  fontSize: 11, color: p.color, fontWeight: 600,
-                  fontFamily: 'monospace', letterSpacing: '0.05em', marginBottom: 12,
+                  fontSize: 12, fontWeight: 600, color: INK_3, marginBottom: 18,
+                  fontVariantNumeric: 'tabular-nums', letterSpacing: '0.08em',
+                }}>
+                  {String(i + 1).padStart(2, '0')}
+                </p>
+                <h3 style={{ fontSize: 19, fontWeight: 600, color: INK, marginBottom: 8, letterSpacing: '-0.015em' }}>{p.title}</h3>
+                <p style={{
+                  fontSize: 11.5, color: INK_3, fontWeight: 500,
+                  letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14,
                 }}>{p.types}</p>
-                <p style={{ fontSize: 14, color: 'var(--t2)', lineHeight: 1.7 }}>{p.desc}</p>
+                <p style={{ fontSize: 14.5, color: INK_2, lineHeight: 1.75 }}>{p.desc}</p>
               </div>
             ))}
           </div>
 
           <div style={{ textAlign: 'center', marginTop: 48 }} className="scroll-hidden">
-            <p style={{ fontSize: 20, fontWeight: 600, color: '#4f7df8' }}>
+            <p style={{ fontSize: 20, fontWeight: 600 }}>
               DocuSync solves all three
             </p>
           </div>
@@ -369,14 +401,14 @@ export default function HomePage() {
       {/* ══════════════════════════════════════════════════════════
           SECTION 3 — FOUR ALGORITHMS
       ══════════════════════════════════════════════════════════ */}
-      <section id="features" style={{ background: 'var(--bg)', padding: '100px clamp(20px,5vw,64px)' }}>
+      <section id="features" style={{ background: '#fff', padding: '100px clamp(20px,5vw,64px)' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div className="scroll-hidden" style={{ textAlign: 'center', marginBottom: 60 }}>
             <SectionLabel>THE SOLUTION</SectionLabel>
-            <h2 style={{ fontSize: 'clamp(28px,4vw,44px)', fontWeight: 700, color: 'var(--t1)', marginBottom: 14 }}>
+            <h2 style={{ fontSize: 'clamp(28px,4vw,44px)', fontWeight: 700, color: INK, marginBottom: 14 }}>
               Four Smart Tools. One Seamless Experience.
             </h2>
-            <p style={{ fontSize: 16, color: 'var(--t2)', maxWidth: 520, margin: '0 auto' }}>
+            <p style={{ fontSize: 16, color: INK_2, maxWidth: 520, margin: '0 auto' }}>
               We&apos;ve hidden complex thesis-level technology behind a beautifully simple interface. Here&apos;s how DocuSync protects your work effortlessly.
             </p>
           </div>
@@ -386,30 +418,34 @@ export default function HomePage() {
           }}>
             {ALGORITHMS.map((a, i) => (
               <div key={a.title} className="algo-card scroll-hidden" style={{
-                background: 'var(--s1)',
-                border: '1px solid var(--b1)',
-                borderRadius: 20, padding: '32px',
-                transition: 'border-color 0.3s ease, background 0.3s ease, transform 0.3s ease',
+                background: '#fff',
+                border: `1px solid ${LINE}`,
+                borderRadius: 2, padding: '34px 32px',
+                transition: 'border-color 0.4s cubic-bezier(0.16,1,0.3,1), transform 0.4s cubic-bezier(0.16,1,0.3,1)',
                 position: 'relative', overflow: 'hidden',
-                animationDelay: `${i * 100}ms`,
+                animationDelay: `${i * 90}ms`,
               }}>
+                {/* A hairline that draws itself across the top on hover --
+                    the one piece of motion each card gets. */}
+                <span className="algo-rule" style={{
+                  position: 'absolute', top: 0, left: 0, height: 1, width: '100%',
+                  background: INK, transformOrigin: 'left', transform: 'scaleX(0)',
+                  transition: 'transform 0.5s cubic-bezier(0.16,1,0.3,1)',
+                }} />
                 <div style={{
-                  position: 'absolute', top: 16, right: 20,
-                  fontSize: 64, fontWeight: 800, color: a.numColor,
+                  position: 'absolute', top: 26, right: 30,
+                  fontSize: 13, fontWeight: 500, color: LINE,
                   lineHeight: 1, userSelect: 'none', pointerEvents: 'none',
+                  fontVariantNumeric: 'tabular-nums', letterSpacing: '0.1em',
                 }}>{a.num}</div>
-                <p style={{ fontSize: 11, fontWeight: 600, color: a.iconColor, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: INK_3, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>
                   {a.algo}
                 </p>
-                <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--t1)', marginBottom: 12 }}>{a.title}</h3>
-                <p style={{ fontSize: 14, color: 'var(--t2)', lineHeight: 1.75, marginBottom: 20 }}>{a.desc}</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center',
-                    background: a.pillBg, color: a.pillColor,
-                    borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 600,
-                  }}>{a.pill}</span>
-                  <span style={{ fontSize: 12, color: 'var(--t3)', fontWeight: 500 }}>{a.metric}</span>
+                <h3 style={{ fontSize: 21, fontWeight: 600, color: INK, marginBottom: 12, letterSpacing: '-0.02em' }}>{a.title}</h3>
+                <p style={{ fontSize: 14.5, color: INK_2, lineHeight: 1.75, marginBottom: 22 }}>{a.desc}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', paddingTop: 18, borderTop: `1px solid ${LINE_SOFT}` }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: INK }}>{a.pill}</span>
+                  <span style={{ fontSize: 12, color: INK_3 }}>{a.metric}</span>
                 </div>
               </div>
             ))}
@@ -420,14 +456,14 @@ export default function HomePage() {
       {/* ══════════════════════════════════════════════════════════
           SECTION 3.5 — PROVEN BY THE NUMBERS (real ISO/IEC 25010 results)
       ══════════════════════════════════════════════════════════ */}
-      <section style={{ background: 'var(--bg2)', padding: '100px clamp(20px,5vw,64px)' }}>
+      <section style={{ background: '#fafafa', padding: '100px clamp(20px,5vw,64px)' }}>
         <div style={{ maxWidth: 1080, margin: '0 auto' }}>
           <div className="scroll-hidden" style={{ textAlign: 'center', marginBottom: 48 }}>
-            <SectionLabel color="#22c55e">NOT JUST CLAIMS</SectionLabel>
-            <h2 style={{ fontSize: 'clamp(26px,4vw,40px)', fontWeight: 700, color: 'var(--t1)', marginBottom: 14 }}>
+            <SectionLabel>NOT JUST CLAIMS</SectionLabel>
+            <h2 style={{ fontSize: 'clamp(26px,4vw,40px)', fontWeight: 700, color: INK, marginBottom: 14 }}>
               Measured, Not Marketed
             </h2>
-            <p style={{ fontSize: 16, color: 'var(--t2)', maxWidth: 560, margin: '0 auto', lineHeight: 1.7 }}>
+            <p style={{ fontSize: 16, color: INK_2, maxWidth: 560, margin: '0 auto', lineHeight: 1.7 }}>
               Every number below comes from the thesis&apos;s own ISO/IEC 25010 evaluation suite —
               20 automated tests across functional suitability, performance, reliability, and compatibility.
             </p>
@@ -438,16 +474,19 @@ export default function HomePage() {
           }}>
             {EVAL_METRICS.map((m, i) => (
               <div key={m.label} className="stat-card" style={{
-                background: 'var(--s1)', border: '1px solid var(--b1)',
-                borderRadius: 16, padding: '24px 20px',
-                transition: 'transform 0.25s cubic-bezier(0.16,1,0.3,1), border-color 0.25s, box-shadow 0.25s',
-                animationDelay: `${i * 80}ms`,
+                background: '#fff', border: `1px solid ${LINE}`,
+                borderRadius: 2, padding: '28px 24px',
+                transition: 'transform 0.4s cubic-bezier(0.16,1,0.3,1), border-color 0.4s',
+                animationDelay: `${i * 70}ms`,
               }}>
-                <div style={{ fontSize: 32, fontWeight: 800, color: m.color, lineHeight: 1, marginBottom: 8, fontVariantNumeric: 'tabular-nums' }}>
+                <div style={{
+                  fontSize: 38, fontWeight: 600, color: INK, lineHeight: 1, marginBottom: 12,
+                  fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.03em',
+                }}>
                   {m.value}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--t1)', marginBottom: 6 }}>{m.label}</div>
-                <div style={{ fontSize: 12, color: 'var(--t3)', lineHeight: 1.6 }}>{m.desc}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: INK, marginBottom: 6 }}>{m.label}</div>
+                <div style={{ fontSize: 12.5, color: INK_3, lineHeight: 1.65 }}>{m.desc}</div>
               </div>
             ))}
           </div>
@@ -458,14 +497,14 @@ export default function HomePage() {
       {/* ══════════════════════════════════════════════════════════
           SECTION 4 — THREE PLATFORMS
       ══════════════════════════════════════════════════════════ */}
-      <section id="download" style={{ background: 'var(--bg)', padding: '100px clamp(20px,5vw,64px)' }}>
+      <section id="download" style={{ background: '#fff', padding: '100px clamp(20px,5vw,64px)' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div className="scroll-hidden" style={{ textAlign: 'center', marginBottom: 56 }}>
             <SectionLabel>PLATFORMS</SectionLabel>
-            <h2 style={{ fontSize: 'clamp(28px,4vw,44px)', fontWeight: 700, color: 'var(--t1)', marginBottom: 14 }}>
+            <h2 style={{ fontSize: 'clamp(28px,4vw,44px)', fontWeight: 700, color: INK, marginBottom: 14 }}>
               One Engine. Three Platforms.
             </h2>
-            <p style={{ fontSize: 16, color: 'var(--t2)' }}>
+            <p style={{ fontSize: 16, color: INK_2 }}>
               The same hybrid algorithm runs on Desktop, Web, and Mobile.
             </p>
           </div>
@@ -498,21 +537,21 @@ export default function HomePage() {
                   <div
                     className="scroll-hidden platform-card"
                     style={{
-                      background: 'var(--s1)',
-                      border: p.featured ? '2px solid #4f7df8' : '1px solid var(--b1)',
-                      borderRadius: 20, overflow: 'hidden',
+                      background: '#fff',
+                      border: `1px solid ${p.featured ? ACCENT : LINE}`,
+                      borderRadius: 2, overflow: 'hidden',
                       display: 'flex', flexDirection: 'column',
                       position: 'relative',
-                      boxShadow: p.featured ? `0 0 40px rgba(79,125,248,0.18)` : 'none',
+                      boxShadow: 'none',
                       transition: 'box-shadow 0.3s ease',
                       animationDelay: `${i * 120}ms`,
                       height: '100%',
                     }}
                     onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.boxShadow = `0 0 30px ${p.glowColor}`;
+                      (e.currentTarget as HTMLElement).style.borderColor = p.featured ? ACCENT : '#d4d4d8';
                     }}
                     onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLElement).style.boxShadow = p.featured ? '0 0 40px rgba(79,125,248,0.18)' : 'none';
+                      (e.currentTarget as HTMLElement).style.borderColor = p.featured ? ACCENT : LINE;
                     }}
                   >
                     {/* Top accent bar */}
@@ -522,7 +561,7 @@ export default function HomePage() {
                     {p.featured && p.badge && (
                       <div style={{
                         position: 'absolute', top: 16, right: 16,
-                        background: '#22c55e', color: '#fff',
+                        background: ACCENT, color: '#fff',
                         fontSize: 10, fontWeight: 700, borderRadius: 99,
                         padding: '4px 12px', letterSpacing: '0.06em',
                       }}>{p.badge}</div>
@@ -543,9 +582,9 @@ export default function HomePage() {
                         <PlatformIcon size={28} color={p.iconColor} />
                       </div>
 
-                      <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--t1)', marginBottom: 4 }}>{p.title}</h3>
+                      <h3 style={{ fontSize: 20, fontWeight: 700, color: INK, marginBottom: 4 }}>{p.title}</h3>
                       <p style={{ fontSize: 12, color: p.iconColor, fontWeight: 600, marginBottom: 14 }}>{p.subtitle}</p>
-                      <p style={{ fontSize: 14, color: 'var(--t2)', lineHeight: 1.7, marginBottom: 20 }}>{p.desc}</p>
+                      <p style={{ fontSize: 14, color: INK_2, lineHeight: 1.7, marginBottom: 20 }}>{p.desc}</p>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                         {p.features.map(f => <GreenCheck key={f}>{f}</GreenCheck>)}
                       </div>
@@ -569,14 +608,14 @@ export default function HomePage() {
                         {p.ctaIcon === 'download' ? null : <ArrowRight size={15} />}
                       </Link>
                       {p.ctaNote && (
-                        <p style={{ fontSize: 11.5, color: 'var(--t3)', textAlign: 'center', marginTop: 10 }}>
+                        <p style={{ fontSize: 11.5, color: INK_3, textAlign: 'center', marginTop: 10 }}>
                           {p.ctaNote}
                         </p>
                       )}
                       {p.ctaSecondary && (
                         <Link href={p.ctaSecondary.href} style={{
                           display: 'block', textAlign: 'center', marginTop: 8,
-                          fontSize: 12, fontWeight: 500, color: 'var(--t2)', textDecoration: 'none',
+                          fontSize: 12, fontWeight: 500, color: INK_2, textDecoration: 'none',
                         }} className="platform-secondary">
                           {p.ctaSecondary.label}
                         </Link>
@@ -594,25 +633,46 @@ export default function HomePage() {
 
       {/* ── Responsive & hover styles ── */}
       <style>{`
-        .btn-hero-primary:hover  { transform: translateY(-2px) !important; box-shadow: 0 12px 40px rgba(79,125,248,0.50) !important; }
+        .btn-hero-primary:hover  { background: #18181b !important; }
         .btn-hero-ghost:hover    { background: var(--b1) !important; transform: translateY(-2px) !important; }
         .btn-hero-text:hover     { color: var(--t1) !important; text-decoration: underline !important; }
-        .algo-card:hover         { border-color: rgba(79,125,248,0.30) !important; background: rgba(79,125,248,0.04) !important; transform: translateY(-6px) !important; }
-        .problem-card:hover      { transform: translateY(-4px) !important; }
-        .platform-card:hover     { transform: translateY(-6px) !important; }
-        .platform-cta:hover      { opacity: 0.85 !important; }
-        .platform-secondary:hover { color: var(--t1) !important; text-decoration: underline !important; }
-        .metrics-btn:hover       { background: rgba(79,125,248,0.16) !important; }
-        .open-app-btn:hover      { background: #3d6ef0 !important; }
-        .researcher-card:hover   { border-color: rgba(79,125,248,0.30) !important; transform: translateY(-3px) !important; }
-        .metric-card:hover       { border-color: rgba(79,125,248,0.30) !important; background: rgba(79,125,248,0.06) !important; transform: translateY(-4px) !important; }
-        .stat-card:hover         { border-color: rgba(79,125,248,0.35) !important; transform: translateY(-4px) !important; box-shadow: 0 12px 32px rgba(0,0,0,0.12) !important; }
-        .cta-primary:hover       { background: #3d6ef0 !important; }
-        .cta-ghost:hover         { background: rgba(255,255,255,0.06) !important; }
-        .cta-text-link:hover     { color: var(--t1) !important; }
-
+        /* ── Motion ──────────────────────────────────────────────
+           One easing throughout, and it is a deceleration curve: things
+           arrive and settle rather than bounce. Everything is short
+           enough to feel like a response and long enough to be read as
+           deliberate. */
+        .hero-line {
+          animation: ds-rise 0.9s cubic-bezier(0.16,1,0.3,1) both;
+        }
+        @keyframes ds-rise {
+          from { opacity: 0; transform: translateY(14px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
 
+        .algo-card:hover         { border-color: #d4d4d8 !important; transform: translateY(-3px) !important; }
+        .algo-card:hover .algo-rule { transform: scaleX(1) !important; }
+        .problem-card:hover      { }
+        .platform-card:hover     { transform: translateY(-3px) !important; }
+        .platform-cta:hover      { opacity: 0.86 !important; }
+        .platform-secondary:hover { color: #0a0a0a !important; text-decoration: underline !important; }
+        .metrics-btn:hover       { background: #f4f4f5 !important; }
+        .open-app-btn:hover      { background: #18181b !important; }
+        .researcher-card:hover   { border-color: #d4d4d8 !important; transform: translateY(-2px) !important; }
+        .metric-card:hover       { border-color: #d4d4d8 !important; transform: translateY(-2px) !important; }
+        .stat-card:hover         { border-color: #d4d4d8 !important; transform: translateY(-3px) !important; }
+        .cta-primary:hover       { background: #18181b !important; }
+        .cta-ghost:hover         { background: rgba(255,255,255,0.06) !important; }
+        .cta-text-link:hover     { color: #0a0a0a !important; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .hero-line, .scroll-hidden { animation: none !important; opacity: 1 !important; transform: none !important; }
+          .algo-card:hover, .stat-card:hover, .platform-card:hover { transform: none !important; }
+        }
+
+        /* There was a stray closing brace here, and it had been here a
+           long time. CSS stops at the first thing it cannot parse, so
+           every rule after it was dead -- which is why the layout never
+           collapsed on a phone however narrow the window got. */
         @media (max-width: 900px) {
           .platforms-grid    { grid-template-columns: 1fr !important; max-width: 480px !important; margin: 0 auto !important; }
           .algo-grid         { grid-template-columns: 1fr !important; }
