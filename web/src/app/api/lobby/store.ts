@@ -44,6 +44,18 @@ export interface FileLock {
    * participants" half of the request.
    */
   allowedNodeIds: string[];
+  /**
+   * Whether opening the file at all is restricted to chosen people.
+   *
+   * Deliberately separate from `locked`, which is about typing. A
+   * supervisor's comments can be readable by everyone and editable by
+   * nobody; a draft chapter can be hidden from the rest of the group
+   * entirely. Those are different questions and the answer to one does
+   * not imply the other.
+   */
+  openRestricted?: boolean;
+  /** Node ids that may open it while `openRestricted`. */
+  openNodeIds?: string[];
   lockedBy: string;
   lockedAt: number;
 }
@@ -106,6 +118,25 @@ export function canEditFile(
   // set in a way that locks everybody out with no way back.
   if (nodeId === lobby.hostNodeId) return true;
   return (lock.allowedNodeIds || []).includes(nodeId);
+}
+
+/**
+ * Whether this person may open the file at all.
+ *
+ * Mirrors `canEditFile`: unrestricted means yes, the host always may,
+ * and otherwise it is whoever was named. Kept here beside it so the two
+ * rules cannot drift apart.
+ */
+export function canOpenFile(
+  lobby: LobbyEntry,
+  fileId: string | number,
+  nodeId: string | null | undefined
+): boolean {
+  const lock = lobby.fileLocks?.[String(fileId)];
+  if (!lock || !lock.openRestricted) return true;
+  if (!nodeId) return false;
+  if (nodeId === lobby.hostNodeId) return true;
+  return (lock.openNodeIds || []).includes(nodeId);
 }
 
 export interface UserPresence {

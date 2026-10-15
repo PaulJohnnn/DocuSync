@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { rotateJoinCodeIfExpired, setJoinCodeAlias, JOIN_CODE_TTL_MS } from '@/lib/joinCode';
-import { canEditFile } from '../store';
+import { canEditFile, canOpenFile } from '../store';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -217,6 +217,11 @@ export async function POST(request: Request) {
                 restricted: !!fileLock?.locked,
                 editorNodeIds: fileLock?.allowedNodeIds ?? [],
                 canEdit: canEditFile(lobbyForAccess, openKey, nodeId),
+                // Whether this person may have it open at all, which is
+                // a different question from whether they may type in it.
+                openRestricted: !!fileLock?.openRestricted,
+                openNodeIds: fileLock?.openNodeIds ?? [],
+                canOpen: canOpenFile(lobbyForAccess, openKey, nodeId),
               }
             : null,
         }

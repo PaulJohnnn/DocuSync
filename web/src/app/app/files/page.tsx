@@ -5,7 +5,7 @@ import PageShell from '@/components/PageShell';
 import ConfirmModal from '@/components/ConfirmModal';
 import {
   FolderOpen, FileText, FileCode, FileImage, File,
-  Trash2, FileJson, FileType, FileSpreadsheet, FileArchive,
+  Trash2, FileJson, FileType, FileSpreadsheet, FileArchive, Lock, MoreVertical, Check,
   LogOut, Loader2, ArrowLeft, Upload
 } from 'lucide-react';
 import { uGet, uSet, uRemove } from '@/lib/userStorage';
@@ -59,9 +59,37 @@ function extMeta(ext: string): { icon: React.ReactNode; color: string; bg: strin
   }
 }
 
+/**
+ * Owner, or an ordinary member.
+ *
+ * The same chip the editor uses, so the room looks like one room rather
+ * than two screens with different ideas about who is who.
+ */
+function RoomRoleChip({ owner }: { owner: boolean }) {
+  return (
+    <span style={{
+      padding: '3px 9px', borderRadius: 99, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+      color: owner ? '#7c3aed' : 'var(--t3)',
+      background: owner ? 'rgba(124,58,237,0.12)' : 'var(--bg2)',
+      border: '1px solid ' + (owner ? 'rgba(124,58,237,0.35)' : 'var(--b1)'),
+    }}>
+      {owner ? 'Owner' : 'Member'}
+    </span>
+  );
+}
+
 export default function FilesPage() {
   const router = useRouter();
-  const { kickPeer, leaveRoom } = useWebSync();
+  const { kickPeer, leaveRoom, access } = useWebSync();
+  // Who owns the room, from the room itself.
+  //
+  // This page had the same fault the editor did: it decided who the
+  // owner was by comparing against `currentRoom.hostNodeId`, a field
+  // that only ever exists on the OWNER's own stored room. For everybody
+  // else the comparison was always false, so no owner was ever marked
+  // and the other people in the room were listed as "Peer 1", "Peer 2".
+  const ownerNodeId = access?.hostNodeId ?? null;
+  const isRoomHost = !!access?.isHost;
   const [myName, setMyName] = useState('You');
   const [localNodeId, setLocalNodeId] = useState('');
   useEffect(() => {
@@ -73,6 +101,8 @@ export default function FilesPage() {
     }
   }, []);
   const [connectedPeers, setConnectedPeers] = useState<any[]>([]);
+  const [accessMenu, setAccessMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [accessBusy, setAccessBusy] = useState(false);
   const [roomFiles, setRoomFiles] = useState<any[]>([]);
   const [confirmModalState, setConfirmModalState] = useState<{
     isOpen: boolean;
@@ -127,45 +157,98 @@ export default function FilesPage() {
     return () => clearInterval(iv);
   }, []);
 
+  /**
+   * Re-read the room's file list.
+   *
+   * Sends this client's node id, because the answer is now
+   * caller-specific: each file comes back saying whether THIS person may
+   * open it. Without the id the server cannot tell who is asking and has
+   * to assume the most restrictive answer.
+   */
+  const refreshRoomFiles = useCallback(async () => {
+    const storedRoom = uGet('current_room');
+    if (!storedRoom) return;
+    try {
+      const r = JSON.parse(storedRoom);
+      const otp = r.otp || r.id;
+      if (!otp) return;
+      if (typeof window !== 'undefined' && navigator.onLine === false) return;
+      const nodeId = uGet('node_id') || '';
+      const res = await fetch(
+        `${MATCHMAKER_URL}/files?otp=${encodeURIComponent(otp)}&nodeId=${encodeURIComponent(nodeId)}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.files) {
+        setRoomFiles(data.files);
+        uSet(`docusync_cached_room_files_${otp}`, JSON.stringify(data.files));
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Load room files whenever room changes or periodically
   useEffect(() => {
-    const fetchRoomFiles = () => {
+    const seedFromCache = () => {
       const storedRoom = uGet('current_room');
       if (!storedRoom) return;
       try {
         const r = JSON.parse(storedRoom);
         const otp = r.otp || r.id;
-        
-        // Always try to load from cache first for immediate display (especially if offline)
         const cachedStr = uGet(`docusync_cached_room_files_${otp}`);
         if (cachedStr && roomFiles.length === 0) {
-          try {
-            setRoomFiles(JSON.parse(cachedStr));
-          } catch (_e) {}
+          try { setRoomFiles(JSON.parse(cachedStr)); } catch {}
         }
-        
-        // If we are definitely offline (no network at all), skip fetching to avoid throwing
-        if (typeof window !== 'undefined' && navigator.onLine === false) {
-          return;
-        }
-
-        fetch(`${MATCHMAKER_URL}/files?otp=${otp}`)
-          .then(res => res.ok ? res.json() : null)
-          .then(data => { 
-            if (data?.files) {
-              setRoomFiles(data.files); 
-              uSet(`docusync_cached_room_files_${otp}`, JSON.stringify(data.files));
-            }
-          })
-          .catch(() => {});
       } catch {}
     };
-    
-    fetchRoomFiles();
-    const iv = setInterval(fetchRoomFiles, 2000);
+
+    seedFromCache();
+    refreshRoomFiles();
+    const iv = setInterval(refreshRoomFiles, 2000);
     return () => clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomFiles.length]);
+  }, [roomFiles.length, refreshRoomFiles]);
+
+  /**
+   * Change who may open one file.
+   *
+   * The server is told which single person to add or remove rather than
+   * being handed a rebuilt list, so the owner acting from two places at
+   * once cannot overwrite their own change with a stale copy. The file
+   * list is re-read straight afterwards so the green dots and the locks
+   * settle immediately instead of on the next poll.
+   */
+  const setFileOpenAccess = useCallback(async (
+    file: any,
+    change: { openRestricted?: boolean; grantOpen?: string; revokeOpen?: string },
+  ) => {
+    // Read from storage rather than the state variable: this is defined
+    // above where that state is declared, and the stored room is the same
+    // source the rest of this page reads from anyway.
+    const storedRoom = uGet('current_room');
+    const parsed = storedRoom ? JSON.parse(storedRoom) : null;
+    const otp = parsed?.otp || parsed?.id;
+    const fileId = file?.fileId ?? file?.id;
+    if (!otp || fileId === undefined) return;
+    setAccessBusy(true);
+    try {
+      const res = await fetch(`${MATCHMAKER_URL}/lock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp, nodeId: uGet('node_id'), fileId, ...change }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        alert(data?.error || 'Could not change who can open this file.');
+        return;
+      }
+      await refreshRoomFiles();
+    } catch {
+      alert('Could not change who can open this file. Check your connection and try again.');
+    } finally {
+      setAccessBusy(false);
+    }
+  }, [refreshRoomFiles]);
 
   const [currentRoom, setCurrentRoom] = useState<{ id: string; name: string; otp?: string; hostIp?: string; hostPort?: number } | null>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -192,7 +275,7 @@ export default function FilesPage() {
   // itself open over the file list.
   useEffect(() => {
     if (!downloadMenu) return;
-    const close = () => setDownloadMenu(null);
+    const close = () => { setDownloadMenu(null); setAccessMenu(null); };
     window.addEventListener('click', close);
     window.addEventListener('scroll', close, true);
     return () => {
@@ -789,10 +872,11 @@ export default function FilesPage() {
                   <div className="ds-presence-dot" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--grn)' }} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>
-                      {myName} (You) {(currentRoom as any)?.isOwner ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}
+                      {myName} <span style={{ color: 'var(--t3)', fontWeight: 500 }}>(you)</span>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--t3)' }}>Online</div>
                   </div>
+                  <RoomRoleChip owner={isRoomHost} />
                 </div>
 
                 {/* LOCK ROOM BUTTON — was gated on currentRoom.hostNodeId, a
@@ -803,10 +887,16 @@ export default function FilesPage() {
                     The server independently re-verifies ownership by real
                     nodeId in /api/lobby/lock, so this is purely a display
                     fix — nothing to tighten security-wise. */}
-                {(currentRoom as any)?.isOwner && (
+                {/* Gated on the ROOM's answer, not on a flag in this
+                    browser's storage. The stored room carries isOwner from
+                    whoever last wrote it, so a member could be offered a
+                    control the server would refuse them. */}
+                {isRoomHost && (
                   <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--b1)' }}>
-                     <button onClick={toggleRoomLock} style={{ width: '100%', padding: '6px 0', background: (currentRoom as any)?.isLocked ? '#fef2f2' : '#f8fafc', color: (currentRoom as any)?.isLocked ? '#ef4444' : '#64748b', border: '1px solid ' + ((currentRoom as any)?.isLocked ? '#fca5a5' : '#e2e8f0'), borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: '0.15s' }}>
-                       {(currentRoom as any)?.isLocked ? 'Unlock Room (Locked)' : 'Lock Room (Open)'}
+                     <button onClick={toggleRoomLock} style={{ width: '100%', padding: '7px 0', background: access?.roomLocked ? '#fef2f2' : '#f8fafc', color: access?.roomLocked ? '#ef4444' : '#64748b', border: '1px solid ' + (access?.roomLocked ? '#fca5a5' : '#e2e8f0'), borderRadius: 6, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', transition: '0.15s' }}>
+                       {/* The old label put the state and the action in
+                           one line with no way to tell which was which. */}
+                       {access?.roomLocked ? 'Reopen the room to new people' : 'Close the room to new people'}
                      </button>
                   </div>
                 )}
@@ -818,20 +908,24 @@ export default function FilesPage() {
                   if (idLower.includes('web')) { appName = 'Web App'; appIcon = '🌐'; }
                   else if (idLower.includes('mobile')) { appName = 'Mobile App'; appIcon = '📱'; }
                   
-                  const isDbOwner = (currentRoom as any)?.hostNodeId && p.id === (currentRoom as any)?.hostNodeId;
-                  const defaultName = p.displayName ? p.displayName : isDbOwner ? 'Room Host' : `Peer ${i + 1}`;
+                  const isDbOwner = !!ownerNodeId && p.id === ownerNodeId;
+                  const defaultName = p.displayName && p.displayName !== 'Connecting…'
+                    ? p.displayName
+                    : (isDbOwner ? 'Room owner' : `Someone (${i + 1})`);
 
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, marginTop: 4 }}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                       <div className={isOnline ? 'ds-presence-dot' : undefined} style={{ width: 8, height: 8, borderRadius: '50%', background: isOnline ? 'var(--grn)' : 'var(--t3)' }} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{defaultName} {isDbOwner ? <span style={{ color: '#8b5cf6' }}>(Owner)</span> : ''}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t1)' }}>{defaultName}</div>
                         <div style={{ fontSize: 11, color: 'var(--t3)' }}>{isOnline ? 'Online' : 'Offline'}</div>
                       </div>
+
+                      <RoomRoleChip owner={isDbOwner} />
                       
                       {/* KICK BUTTON */}
-                      {(currentRoom as any)?.isOwner && !isDbOwner && isOnline && (
+                      {isRoomHost && !isDbOwner && isOnline && (
                         <button onClick={(e) => { e.stopPropagation(); showConfirm('Kick Peer', `Ban ${defaultName} from the room?`, () => { kickPeer(p.id); closeConfirm(); }) }} style={{ padding: '4px 8px', background: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Kick</button>
                       )}
                     </div>
@@ -890,6 +984,12 @@ export default function FilesPage() {
                 {activeFiles.map((f, i) => {
                   const ext = (f.fileName || f.name || '').split('.').pop() ?? '';
                   const { icon, color, bg } = extMeta(ext);
+                  const fid = String(f.fileId ?? f.id);
+                  // The server decides this; the row only draws it. Absent
+                  // means unrestricted -- a file with no rule set is open
+                  // to the room, which is what it has always been.
+                  const locked = f.canOpen === false;
+                  const restricted = !!f.openRestricted;
                   return (
                     <div
                       key={i}
@@ -907,10 +1007,15 @@ export default function FilesPage() {
                       </div>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 15, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2 }}>
+                        <div style={{ fontWeight: 600, fontSize: 15, color: locked ? '#94a3b8' : '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 7 }}>
+                          {locked && <Lock size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />}
                           {f.fileName || f.name}
                         </div>
-                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Shared by {f.sharedBy === 'Web Node' || !f.sharedBy ? myName : (f.sharedBy || 'Peer')}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                          {locked
+                            ? 'Not shared with you'
+                            : <>Shared by {f.sharedBy === 'Web Node' || !f.sharedBy ? myName : (f.sharedBy || 'Peer')}{restricted ? ' · limited to chosen people' : ''}</>}
+                        </div>
                       </div>
 
                       {/* There used to be an "N editing" badge here. It
@@ -927,15 +1032,20 @@ export default function FilesPage() {
 
                       <div className="ds-file-row-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         <button
-                          onClick={() => handleOpenRoomFile(f)}
+                          onClick={() => { if (!locked) handleOpenRoomFile(f); }}
+                          disabled={locked}
+                          title={locked ? 'The room owner has not shared this file with you' : undefined}
                           style={{
-                            background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', color: '#fff', border: 'none',
+                            background: locked ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                            color: locked ? '#94a3b8' : '#fff',
+                            border: locked ? '1px solid #cbd5e1' : 'none',
                             borderRadius: 8, padding: '0 16px', height: 36, fontSize: 13,
-                            fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
-                            display: 'flex', alignItems: 'center', boxShadow: '0 2px 6px rgba(37,99,235,0.2)', flexShrink: 0,
+                            fontWeight: 600, cursor: locked ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            boxShadow: locked ? 'none' : '0 2px 6px rgba(37,99,235,0.2)', flexShrink: 0,
                           }}
                         >
-                          Open & edit
+                          {locked ? <><Lock size={13} /> Locked</> : 'Open & edit'}
                         </button>
                         {/* Download used to fire straight away and always
                             produce a .txt, with no say in the matter. It now
@@ -1006,6 +1116,127 @@ export default function FilesPage() {
                         >
                           <Trash2 size={16} />
                         </button>
+
+                        {/* Who may open this one file.
+                            Only the owner can set it, so only the owner is
+                            offered it. Everybody else reads the answer off
+                            the row instead, as a lock. */}
+                        {isRoomHost && (
+                          <div style={{ position: 'relative', flexShrink: 0 }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (accessMenu?.id === fid) { setAccessMenu(null); return; }
+                                // Positioned against the viewport, not the
+                                // row: the file list clips its children, so
+                                // an absolutely-positioned menu is cut off
+                                // by the card it lives in.
+                                const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                setAccessMenu({ id: fid, x: r.right, y: r.bottom + 6 });
+                              }}
+                              title="Who can open this file"
+                              aria-haspopup="menu"
+                              aria-expanded={accessMenu?.id === fid}
+                              style={{
+                                background: '#fff', color: '#475569', border: '1px solid #cbd5e1',
+                                borderRadius: 8, width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+
+                            {accessMenu?.id === fid && (
+                              <div
+                                role="menu"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  position: 'fixed', left: accessMenu.x, top: accessMenu.y,
+                                  transform: 'translateX(-100%)', zIndex: 2000, width: 290,
+                                  background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+                                  boxShadow: '0 12px 30px rgba(15,23,42,0.16)', overflow: 'hidden',
+                                }}
+                              >
+                                <div style={{ padding: '12px 14px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                                  <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                    Who can open this file
+                                  </p>
+                                  <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
+                                    {([[false, 'Everyone'], [true, 'Only chosen']] as const).map(([val, label]) => {
+                                      const on = restricted === val;
+                                      return (
+                                        <button
+                                          key={label}
+                                          disabled={accessBusy}
+                                          onClick={() => setFileOpenAccess(f, { openRestricted: val })}
+                                          style={{
+                                            flex: 1, padding: '7px 0', fontSize: 11.5, fontWeight: 600, borderRadius: 7,
+                                            cursor: accessBusy ? 'wait' : 'pointer',
+                                            background: on ? '#eff6ff' : '#fff',
+                                            color: on ? '#1d4ed8' : '#64748b',
+                                            border: '1px solid ' + (on ? '#93c5fd' : '#e2e8f0'),
+                                          }}
+                                        >
+                                          {label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                <div style={{ maxHeight: 230, overflowY: 'auto', padding: 6 }}>
+                                  {!restricted && (
+                                    <p style={{ fontSize: 12, color: '#94a3b8', padding: '10px 10px 6px', lineHeight: 1.5 }}>
+                                      Everyone in the room can open it. Pick
+                                      Only chosen to limit it to certain people.
+                                    </p>
+                                  )}
+                                  {connectedPeers.map((p) => {
+                                    const picked = (f.openNodeIds || []).includes(p.id);
+                                    const isOwnerRow = !!ownerNodeId && p.id === ownerNodeId;
+                                    const nm = p.displayName && p.displayName !== 'Connecting…'
+                                      ? p.displayName : 'Someone';
+                                    return (
+                                      <button
+                                        key={p.id}
+                                        disabled={accessBusy || isOwnerRow}
+                                        onClick={() => setFileOpenAccess(f, picked ? { revokeOpen: p.id } : { grantOpen: p.id })}
+                                        title={isOwnerRow ? 'The owner can always open it' : undefined}
+                                        style={{
+                                          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                          padding: '9px 10px', background: 'transparent', border: 'none',
+                                          borderRadius: 8, cursor: accessBusy || isOwnerRow ? 'default' : 'pointer',
+                                          textAlign: 'left', opacity: accessBusy ? 0.6 : 1,
+                                        }}
+                                        onMouseEnter={(e) => { if (!isOwnerRow) e.currentTarget.style.background = '#f1f5f9'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                                      >
+                                        {/* A green dot is how a chosen person
+                                            reads at a glance. */}
+                                        <span style={{
+                                          width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
+                                          background: (isOwnerRow || picked) ? '#22c55e' : '#e2e8f0',
+                                          border: '1px solid ' + ((isOwnerRow || picked) ? '#16a34a' : '#cbd5e1'),
+                                        }} />
+                                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          {nm}
+                                        </span>
+                                        {isOwnerRow
+                                          ? <span style={{ fontSize: 11, color: '#7c3aed', fontWeight: 600 }}>Owner</span>
+                                          : picked ? <Check size={14} style={{ color: '#16a34a' }} /> : null}
+                                      </button>
+                                    );
+                                  })}
+                                  {connectedPeers.length === 0 && (
+                                    <p style={{ fontSize: 12, color: '#94a3b8', padding: '10px', lineHeight: 1.5 }}>
+                                      Nobody else is in the room yet.
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import { LobbyEntry } from '../store';
+import { LobbyEntry, canOpenFile } from '../store';
 import { documentSignature } from '@/lib/documentSignature';
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +30,7 @@ export async function OPTIONS() {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const otp = searchParams.get('otp');
+  const nodeId = searchParams.get('nodeId');
 
   if (!otp) {
     return NextResponse.json({ error: 'Lobby not found' }, { status: 404, headers: corsHeaders });
@@ -40,8 +41,30 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Lobby not found' }, { status: 404, headers: corsHeaders });
   }
 
-  const activeFiles = (lobby.files || []).filter((f) => !f.isDeleted);
-  return NextResponse.json({ files: activeFiles }, { headers: corsHeaders });
+  // Each file carries whether THIS caller may open it, and -- for the
+  // owner, who is the only one who can change it -- who is currently on
+  // the list. The file is still listed either way: somebody who cannot
+  // open a file should be told that is the case, not quietly shown a
+  // shorter list than everybody else is looking at.
+  const activeFiles = (lobby.files || [])
+    .filter((f) => !f.isDeleted)
+    .map((f) => {
+      const key = String(f.fileId ?? f.id);
+      const lock = lobby.fileLocks?.[key];
+      return {
+        ...f,
+        canOpen: canOpenFile(lobby, key, nodeId),
+        openRestricted: !!lock?.openRestricted,
+        openNodeIds: lock?.openNodeIds ?? [],
+        editRestricted: !!lock?.locked,
+      };
+    });
+
+  return NextResponse.json({
+    files: activeFiles,
+    hostNodeId: lobby.hostNodeId ?? null,
+    isHost: !!nodeId && nodeId === lobby.hostNodeId,
+  }, { headers: corsHeaders });
 }
 
 export async function POST(request: Request) {

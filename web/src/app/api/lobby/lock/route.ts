@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { LobbyEntry, FileLock, canEditFile } from '../store';
+import { LobbyEntry, FileLock, canEditFile, canOpenFile } from '../store';
 import { redis } from '@/lib/redis';
 
 const corsHeaders = {
@@ -33,8 +33,10 @@ export async function GET(request: Request) {
   // Answered per file so the caller does not have to re-implement the rule
   // and drift from it.
   const permissions: Record<string, boolean> = {};
+  const openPermissions: Record<string, boolean> = {};
   for (const key of Object.keys(fileLocks)) {
     permissions[key] = canEditFile(lobby, key, nodeId);
+    openPermissions[key] = canOpenFile(lobby, key, nodeId);
   }
 
   return NextResponse.json(
@@ -43,6 +45,8 @@ export async function GET(request: Request) {
       isLocked: !!lobby.isLocked,
       fileLocks,
       permissions,
+      openPermissions,
+      hostNodeId: lobby.hostNodeId ?? null,
       isHost: !!nodeId && nodeId === lobby.hostNodeId,
     },
     { headers: corsHeaders }
@@ -52,7 +56,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { otp, nodeId, isLocked, fileId, locked, allowedNodeIds, grant, revoke, restricted } = body;
+    const {
+      otp, nodeId, isLocked, fileId, locked, allowedNodeIds, grant, revoke, restricted,
+      openRestricted, grantOpen, revokeOpen,
+    } = body;
 
     if (!otp || !nodeId) {
       return NextResponse.json(
@@ -123,14 +130,32 @@ export async function POST(request: Request) {
       if (restricted === undefined && locked === undefined) nextRestricted = true;
     }
 
+    // Who may OPEN it, which is a separate question from who may type.
+    let openIds: string[] = Array.isArray(existing?.openNodeIds) ? existing!.openNodeIds!.slice() : [];
+    let nextOpenRestricted = openRestricted !== undefined ? !!openRestricted : !!existing?.openRestricted;
+    if (grantOpen) {
+      const id = String(grantOpen);
+      if (!openIds.includes(id)) openIds = openIds.concat([id]);
+    }
+    if (revokeOpen) {
+      const id = String(revokeOpen);
+      openIds = openIds.filter((x) => x !== id);
+      // Same reasoning as revoking an editor: taking somebody off the
+      // list has to mean something, and while the file is open to the
+      // whole room the list is inert.
+      if (openRestricted === undefined) nextOpenRestricted = true;
+    }
+
     const nextLock: FileLock = {
       locked: nextRestricted,
       allowedNodeIds: allowed,
+      openRestricted: nextOpenRestricted,
+      openNodeIds: openIds,
       lockedBy: nodeId,
       lockedAt: Date.now(),
     };
 
-    if (!nextLock.locked && allowed.length === 0) {
+    if (!nextLock.locked && allowed.length === 0 && !nextLock.openRestricted && openIds.length === 0) {
       // An unlocked file with nobody named is just an ordinary file. Dropping
       // the record keeps the room object from accumulating a dead entry per
       // file ever locked, which would eventually bloat every lobby read.
@@ -151,6 +176,8 @@ export async function POST(request: Request) {
         // than waiting for the next poll to tell it what it just did.
         restricted: nextLock.locked,
         editorNodeIds: nextLock.allowedNodeIds,
+        openRestricted: nextLock.openRestricted,
+        openNodeIds: nextLock.openNodeIds,
       },
       { headers: corsHeaders }
     );

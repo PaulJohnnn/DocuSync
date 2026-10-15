@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import PageShell from '@/components/PageShell';
-import { ArrowLeft, Clock } from 'lucide-react';
+import { ArrowLeft, Clock, Lock } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { uGet, uSet } from '@/lib/userStorage';
 import { splitMarginWrapper } from '@/lib/documentSignature';
@@ -204,6 +204,14 @@ export default function EditorPage() {
     ? { locked: access.file.restricted, allowedNodeIds: access.file.editorNodeIds }
     : null;
   const canEditFile = access?.file ? access.file.canEdit : true;
+  /**
+   * Whether this document is shared with this person at all.
+   *
+   * Undefined until the first heartbeat answers, and treated as yes
+   * until then: a slow beat must not flash a lock at somebody who is
+   * perfectly entitled to be reading.
+   */
+  const canOpenFile = access?.file ? access.file.canOpen !== false : true;
   const isRoomHost = !!access?.isHost;
   const ownerNodeId = access?.hostNodeId ?? null;
   /**
@@ -1585,6 +1593,43 @@ export default function EditorPage() {
   // Removed redundant 300ms content save effect to prevent continuous sync loop
 
   if (!file) return (<PageShell><div style={{ padding: 60 }}>File not found.</div></PageShell>);
+
+  // A file the owner has not shared with this person.
+  //
+  // The lock on the file list is the warning; this is the door. The
+  // server refuses to hand over the text either way, so arriving here by
+  // typing the URL gets the same answer as clicking the row.
+  if (!canOpenFile) return (
+    <PageShell>
+      <div style={{ maxWidth: 560, margin: '80px auto', textAlign: 'center', padding: '0 20px' }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: 20, margin: '0 auto 20px',
+          background: 'var(--s1)', border: '1px solid var(--b1)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Lock size={26} style={{ color: 'var(--t3)' }} />
+        </div>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--t1)', marginBottom: 10 }}>
+          This file is locked for you
+        </h2>
+        <p style={{ fontSize: 14.5, color: 'var(--t2)', lineHeight: 1.7, marginBottom: 24 }}>
+          {ownerName
+            ? `${ownerName} has limited this document to certain people, and you are not one of them yet. Ask them to add you.`
+            : 'The room owner has limited this document to certain people. Ask them to add you.'}
+        </p>
+        <button
+          onClick={() => router.push('/app/files')}
+          style={{
+            padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            background: 'var(--s1)', color: 'var(--t1)', border: '1px solid var(--b1)',
+          }}
+        >
+          Back to the file list
+        </button>
+      </div>
+    </PageShell>
+  );
+
 
   return (
     <>

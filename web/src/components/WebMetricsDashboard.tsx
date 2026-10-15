@@ -284,7 +284,9 @@ export default function WebMetricsDashboard() {
           borderRadius: 10, color: 'var(--amb, #f59e0b)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 10
         }}>
           <Info size={16} />
-          No sync activity recorded yet this session. Every number below is measured from real edits and pushes — make an edit in this room to start populating them.
+          Nothing has been edited in this room yet, so there is nothing to measure. Every number below
+          comes from real edits in THIS room -- open a document, type something, and they fill in. They
+          are kept for seven days, so they do not reset when you close the tab.
         </div>
       )}
 

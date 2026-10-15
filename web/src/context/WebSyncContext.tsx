@@ -43,6 +43,10 @@ export interface RoomAccess {
     restricted: boolean;
     editorNodeIds: string[];
     canEdit: boolean;
+    /** Whether opening it at all is limited to chosen people. */
+    openRestricted: boolean;
+    openNodeIds: string[];
+    canOpen: boolean;
   } | null;
 }
 

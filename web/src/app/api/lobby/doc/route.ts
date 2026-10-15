@@ -5,7 +5,7 @@ import { VectorClock } from '@/lib/vector-clock';
 import type { VectorClockJSON, ClockRelation } from '@/lib/vector-clock';
 import { documentSignature } from '@/lib/documentSignature';
 import { readCursors } from '@/lib/roomCursors';
-import { canEditFile, type LobbyEntry } from '../store';
+import { canEditFile, canOpenFile, type LobbyEntry } from '../store';
 import { splitMarginWrapper } from '@/lib/documentSignature';
 
 export const dynamic = 'force-dynamic';
@@ -389,6 +389,19 @@ export async function GET(request: Request) {
   }
 
   try {
+    // A file restricted to certain people must not hand its text to
+    // anybody else. Showing a lock in the interface while the document
+    // is still one fetch away is a picture of a lock, not a lock.
+    if (myNodeId) {
+      const lobby = (await redis.get(`lobby:${otp}`)) as LobbyEntry | null;
+      if (lobby && !canOpenFile(lobby, fileId, myNodeId)) {
+        return NextResponse.json(
+          { error: 'This file is not shared with you.', cannotOpen: true },
+          { status: 403, headers: corsHeaders },
+        );
+      }
+    }
+
     const key = `doc_snapshot:${otp}:${fileId}`;
     const [snapshot, cursors] = await Promise.all([
       redis.get(key) as Promise<any>,
@@ -472,9 +485,15 @@ export async function POST(request: Request) {
     // peer list. Permitting either keeps the two concerns apart without
     // letting a grant silently fail to apply.
     const lobbyForLock = (await redis.get(`lobby:${otp}`)) as LobbyEntry | null;
-    const writerAllowed = !lobbyForLock
+    // Being able to open it at all comes first: somebody the file is not
+    // shared with cannot write to it either, whatever the editing rule
+    // happens to say.
+    const writerMayOpen = !lobbyForLock
+      || canOpenFile(lobbyForLock, fileId, authorNodeId)
+      || (!!accountNodeId && canOpenFile(lobbyForLock, fileId, accountNodeId));
+    const writerAllowed = writerMayOpen && (!lobbyForLock
       || canEditFile(lobbyForLock, fileId, authorNodeId)
-      || (!!accountNodeId && canEditFile(lobbyForLock, fileId, accountNodeId));
+      || (!!accountNodeId && canEditFile(lobbyForLock, fileId, accountNodeId)));
     if (!writerAllowed) {
       const snapshot = (await redis.get(`doc_snapshot:${otp}:${fileId}`)) as unknown;
       return NextResponse.json(
