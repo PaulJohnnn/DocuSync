@@ -190,7 +190,7 @@ async function main() {
     await owner.locator('text=/connected|Can edit|View only|Owner/').first().click().catch(() => {});
     await owner.waitForTimeout(800);
     const ownerPanel = await readPanel(owner);
-    check(!!ownerPanel && /Anyone in this room/i.test(ownerPanel.all),
+    check(!!ownerPanel && /Everyone in this room/i.test(ownerPanel.all),
       'the document starts open to everyone in the room');
     const roleBtn = owner.locator('button:has-text("Can edit")').first();
     check(await roleBtn.count() > 0,

@@ -188,6 +188,8 @@ export default function EditorPage() {
   /** The node id whose role is mid-change, so its control can show it. */
   const [roleBusy, setRoleBusy] = useState<string | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeChanged, setCodeChanged] = useState(false);
   /** Alternates, so carets are asked for on every second document poll. */
   const cursorTickRef = useRef(false);
   /** The id the server must not send this client its own caret under. */
@@ -1747,11 +1749,16 @@ export default function EditorPage() {
                     <p style={{ fontSize: 13, color: 'var(--t1)', lineHeight: 1.5 }}>
                       {fileLock?.locked
                         ? 'Only the people chosen below.'
-                        : 'Anyone in this room.'}
+                        : 'Everyone in this room.'}
                     </p>
                     {isRoomHost && (
                       <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                        {([[false, 'Anyone here'], [true, 'Only chosen people']] as const).map(([val, label]) => {
+                        {/* The same words the file list uses. They were
+                            "Anyone here" and "Only chosen people" here
+                            and "Everyone" and "Only for" there -- one
+                            control, two vocabularies, which is most of
+                            what made this hard to follow. */}
+                        {([[false, 'Everyone'], [true, 'Only for']] as const).map(([val, label]) => {
                           const on = !!fileLock?.locked === val;
                           return (
                             <button
@@ -1891,6 +1898,65 @@ export default function EditorPage() {
                       {codeCopied ? 'Copied' : 'Copy'}
                     </button>
                   </div>
+
+                  {/* Give out a new code, now.
+                      The code already replaced itself once it lapsed,
+                      which covers a code going stale with time. It never
+                      covered the reason people actually want a new one:
+                      the old one has got out -- forwarded, written on a
+                      whiteboard, still held by somebody who left. That
+                      wants a button, not a timer. */}
+                  {isRoomHost && (
+                    <div style={{ padding: '0 14px 12px' }}>
+                      <button
+                        onClick={async () => {
+                          if (codeBusy) return;
+                          const otpNow = currentRoom?.otp || currentRoom?.id;
+                          if (!otpNow) return;
+                          setCodeBusy(true);
+                          try {
+                            const res = await fetch('/api/lobby/code', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                otp: otpNow,
+                                nodeId: accountNodeIdRef.current || localNodeIdRef.current,
+                                accountId: mockAuthService.getCurrentUser()?.id ?? null,
+                              }),
+                            });
+                            const data = await res.json().catch(() => null);
+                            if (!res.ok || !data?.success) {
+                              alert(data?.error || 'Could not change the code.');
+                              return;
+                            }
+                            refreshAccess();
+                            setCodeChanged(true);
+                            setTimeout(() => setCodeChanged(false), 3500);
+                          } catch {
+                            alert('Could not change the code. Check your connection and try again.');
+                          } finally {
+                            setCodeBusy(false);
+                          }
+                        }}
+                        disabled={codeBusy}
+                        style={{
+                          width: '100%', padding: '7px 0', borderRadius: 7,
+                          fontSize: 11.5, fontWeight: 600,
+                          cursor: codeBusy ? 'wait' : 'pointer',
+                          background: codeChanged ? 'rgba(34,197,94,0.12)' : 'var(--bg2)',
+                          color: codeChanged ? '#16a34a' : 'var(--t2)',
+                          border: '1px solid ' + (codeChanged ? 'rgba(34,197,94,0.35)' : 'var(--b1)'),
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        {codeBusy ? 'Changing…' : codeChanged ? 'New code is in force' : 'Give out a new code'}
+                      </button>
+                      <p style={{ fontSize: 10.5, color: 'var(--t3)', marginTop: 6, lineHeight: 1.5 }}>
+                        The old code stops working straight away. Everyone
+                        already in the room stays in.
+                      </p>
+                    </div>
+                  )}
 
                   {/* The OTHER lock -- who may come in at all. Kept visually
                       apart from the editing rule above, because the two

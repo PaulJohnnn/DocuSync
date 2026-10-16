@@ -537,7 +537,9 @@ body {
   table-layout: fixed;
   width: 100%;
   margin: 0 0 12px 0;
-  overflow: hidden;
+  /* Not `overflow: hidden`: that clipped the resize handle off the last
+     column, so the one edge people reach for first did nothing. */
+  position: relative;
 }
 
 .tiptap td, .tiptap th {
@@ -553,6 +555,46 @@ body {
   font-weight: bold;
   text-align: left;
   background-color: var(--b1);
+}
+
+/* Column resizing.
+   The editor has asked for resizable tables all along -- the table
+   extension is configured with `resizable: true` -- but the handle
+   ProseMirror inserts to drag had no styles, so it was a zero-width
+   invisible div. The feature was switched on and impossible to use.
+   These are the styles it needs: a grabbable strip on the right edge of
+   each cell, and the col-resize cursor while a drag is in progress. */
+.tiptap .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  z-index: 20;
+  background-color: var(--acbr, #4f7df8);
+  pointer-events: none;
+}
+
+.tiptap .tableWrapper {
+  overflow-x: auto;
+  padding: 1px 0;
+}
+
+/* While dragging, the whole editor shows the resize cursor -- otherwise
+   it flickers back to a text caret the moment the pointer leaves the
+   4px strip. */
+.tiptap.resize-cursor,
+.tiptap.resize-cursor * {
+  cursor: col-resize;
+}
+
+/* A hint that the edge is draggable before you commit to dragging it. */
+.tiptap table:hover .column-resize-handle {
+  background-color: var(--acbr, #4f7df8);
+  opacity: 0.6;
+}
+.tiptap .column-resize-handle:hover {
+  opacity: 1;
 }
 
 /* Paginated Print Layout */

@@ -189,6 +189,36 @@ async function main() {
     'P2.4 the file list survives two rotations'
   );
 
+  // ── The owner asks for a new one, on purpose ──────────────────────
+  //
+  // Rotation on expiry covers a code going stale with time. It never
+  // covered the reason people actually want a new one: the old one has
+  // got out -- forwarded, on a whiteboard, still held by somebody who
+  // left. That wants a button, not a timer.
+  const beforeManual = await redis.get(`lobby:${otp}`);
+  const liveBefore = beforeManual?.joinCode || otp;
+  const regen = await post('/code', { otp, nodeId: HOST });
+  check(regen.status === 200 && typeof regen.data?.joinCode === 'string',
+    'P2.4 the owner can ask for a new code at any time', `status=${regen.status}`);
+  const manualCode = regen.data?.joinCode;
+  check(!!manualCode && manualCode !== liveBefore,
+    'and it is a different code', `${liveBefore} -> ${manualCode}`);
+
+  const joinManual = await post('/join', { otp: manualCode, memberNodeId: 'rot-manual-' + Date.now() });
+  check(joinManual.status === 200 && joinManual.data?.otp === otp,
+    'the new code joins the same room', `status=${joinManual.status}`);
+
+  const joinSuperseded = await post('/join', { otp: liveBefore, memberNodeId: 'rot-super-' + Date.now() });
+  check(joinSuperseded.status !== 200,
+    'and the one it replaced stops working immediately', `status=${joinSuperseded.status}`);
+
+  const notOwner = await post('/code', { otp, nodeId: 'somebody-else-entirely' });
+  check(notOwner.status === 403, 'only the owner can do it', `status=${notOwner.status}`);
+
+  const survivedManual = await get(`/history?otp=${otp}&fileId=${fileId}`);
+  check((survivedManual.data?.data?.entries ?? []).length > 0,
+    'and the room keeps its documents through a manual change');
+
   const passed = results.filter((r) => r.ok).length;
   const failed = results.length - passed;
   console.log(`\n  ${passed} passed, ${failed} failed\n`);
