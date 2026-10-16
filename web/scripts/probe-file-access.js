@@ -125,18 +125,18 @@ async function main() {
     // The private file is the second one shared, so the second row.
     await dots.nth(1).click();
     await owner.waitForTimeout(700);
-    check(await owner.locator('text=Who can open this file').count() > 0,
-      'the menu asks who can open it');
-    await owner.locator('button:has-text("Only for")').first().click();
+    check(await owner.locator('text=Who can use this file').count() > 0,
+      'the menu asks who can use it');
+    await owner.locator('button:has-text("Choose people")').first().click();
     await owner.waitForTimeout(2500);
 
     // The owner is not somebody the owner grants access to.
     const menuNames = await owner.evaluate(() => {
       const menu = document.querySelector('div[role="menu"]');
       if (!menu) return [];
-      return Array.from(menu.querySelectorAll('button'))
+      return Array.from(menu.querySelectorAll('span'))
         .map((b) => (b.textContent || '').trim())
-        .filter((t) => t && t !== 'Everyone' && t !== 'Only for');
+        .filter((t) => t && !['Everyone', 'Choose people', 'Can edit', 'View only', 'No access'].includes(t));
     });
     check(!menuNames.some((n) => /Maria/i.test(n)),
       'the owner is not listed as somebody to grant access to', menuNames.join(' | ') || 'none');
@@ -167,7 +167,7 @@ async function main() {
       if (!menu) return [];
       return Array.from(menu.querySelectorAll('button'))
         .map((b) => (b.textContent || '').trim())
-        .filter((t) => t && t !== 'Everyone' && t !== 'Only for');
+        .filter((t) => t && t !== 'Everyone' && t !== 'Choose people');
     });
     check(namesUnderEveryone.length === 0,
       'choosing Everyone offers no list of people', namesUnderEveryone.join(' | ') || 'none');
@@ -187,8 +187,8 @@ async function main() {
     const lockedBtn = guest.locator('button:has-text("Locked")');
     check(await lockedBtn.count() === 1, 'exactly the restricted file shows as locked',
       `${await lockedBtn.count()} locked`);
-    const notShared = await guest.locator('text=Not shared with you').count();
-    check(notShared === 1, 'and it says so in words');
+    const notShared = await guest.locator('text=/No access/').count();
+    check(notShared >= 1, 'and it says so in words', `${notShared} rows say it`);
 
     // ── The server does not just hide it, it refuses ─────────────────
     const direct = await fetch(`${API}/doc?otp=${otp}&fileId=${privateFile}&nodeId=${guestNode}&have=x`);
@@ -213,10 +213,10 @@ async function main() {
     await owner.waitForTimeout(6000);
     await owner.locator('button[title="Who can open this file"]').nth(1).click();
     await owner.waitForTimeout(800);
-    const peerRow = owner.locator('div[role="menu"] button').filter({ hasNotText: 'Everyone' }).filter({ hasNotText: 'Only for' });
-    const rows = await peerRow.count();
-    check(rows > 0, 'the people in the room are listed to pick from', `${rows} rows`);
-    await peerRow.last().click();
+    const canEditBtn = owner.locator('div[role="menu"] button:has-text("Can edit")');
+    const rows = await canEditBtn.count();
+    check(rows > 0, 'each person gets Can edit, View only and No access', `${rows} people`);
+    await canEditBtn.first().click();
     await owner.waitForTimeout(2500);
 
     const after = await fetch(`${API}/lock?otp=${otp}&nodeId=${guestNode}`).then((r) => r.json());
@@ -229,38 +229,55 @@ async function main() {
     check(stillLocked === 0, 'and their lock is gone, without a reload of the app',
       `${stillLocked} still locked`);
 
-    // ── Reader or editor, set from the same menu ─────────────────────
+    // ── Reader, editor, or neither -- one control ────────────────────
     console.log('');
-    console.log('  Making somebody a reader, from the file list');
+    console.log('  One control with three answers');
     await owner.goto(`${BASE}/app/files`, { waitUntil: 'domcontentloaded' });
     await owner.waitForTimeout(6000);
     await owner.locator('button[title="Who can open this file"]').first().click();
     await owner.waitForTimeout(900);
 
-    const hasEditSection = await owner.locator('text=Who can edit this file').count();
-    check(hasEditSection > 0, 'the same menu also asks who can edit it');
+    // Under Everyone there is nothing to choose, which is the point --
+    // switch to the named list first.
+    const modeBtn = owner.locator('div[role="menu"] button:has-text("Choose people")');
+    if (await modeBtn.count()) {
+      await modeBtn.first().click();
+      await owner.waitForTimeout(2500);
+    }
 
-    // The second "Only for" belongs to the editing question.
-    const onlyFor = owner.locator('button:has-text("Only for")');
-    check(await onlyFor.count() === 2, 'each question has its own choice',
-      `${await onlyFor.count()} buttons`);
-    await onlyFor.nth(1).click();
-    await owner.waitForTimeout(2500);
+    const choices = await owner.evaluate(() => {
+      const menu = document.querySelector('div[role="menu"]');
+      if (!menu) return [];
+      return Array.from(menu.querySelectorAll('button')).map((b) => (b.textContent || '').trim());
+    });
+    check(choices.includes('Can edit') && choices.includes('View only') && choices.includes('No access'),
+      'one person, three answers, no second question', choices.join(' | '));
+    check(!choices.some((c) => /Who can edit/i.test(c)),
+      'and there is no longer a separate edit switch');
 
-    const lockNow = await fetch(`${API}/lock?otp=${otp}&nodeId=${guestNode}`).then((r) => r.json());
-    check(lockNow.permissions?.[String(openFile)] === false,
-      'the other person becomes view-only on that file');
-    check(lockNow.openPermissions?.[String(openFile)] !== false,
-      'and can still open it, which is the point of the two being separate');
+    // View only: they keep the file, they lose the typing.
+    await owner.locator('div[role="menu"] button:has-text("View only")').first().click();
+    await owner.waitForTimeout(2800);
+    const viewOnly = await fetch(`${API}/lock?otp=${otp}&nodeId=${guestNode}`).then((r) => r.json());
+    check(viewOnly.permissions?.[String(openFile)] === false,
+      'View only takes away editing');
+    check(viewOnly.openPermissions?.[String(openFile)] === true,
+      'and leaves them able to open it');
 
-    // And back again, by name.
-    const readerRow = owner.locator('button:has-text("View only")').first();
-    check(await readerRow.count() > 0, 'the menu shows who is a reader');
-    await readerRow.click();
-    await owner.waitForTimeout(2500);
-    const lockBack = await fetch(`${API}/lock?otp=${otp}&nodeId=${guestNode}`).then((r) => r.json());
-    check(lockBack.permissions?.[String(openFile)] !== false,
-      'and the owner can make them an editor again');
+    // No access: the file goes away for them entirely.
+    await owner.locator('div[role="menu"] button:has-text("No access")').first().click();
+    await owner.waitForTimeout(2800);
+    const noAccess = await fetch(`${API}/lock?otp=${otp}&nodeId=${guestNode}`).then((r) => r.json());
+    check(noAccess.openPermissions?.[String(openFile)] === false,
+      'No access takes the file away entirely');
+
+    // And back to editing in one click.
+    await owner.locator('div[role="menu"] button:has-text("Can edit")').first().click();
+    await owner.waitForTimeout(2800);
+    const backToEdit = await fetch(`${API}/lock?otp=${otp}&nodeId=${guestNode}`).then((r) => r.json());
+    check(backToEdit.permissions?.[String(openFile)] === true
+      && backToEdit.openPermissions?.[String(openFile)] === true,
+      'Can edit gives back both in one click');
 
   } finally {
     await browser.close();

@@ -185,8 +185,6 @@ export default function EditorPage() {
   // decides who may type in THIS document. Only the owner can set it;
   // everyone else reads the same answer and is shown it plainly.
   const { peers, access, refreshAccess, kickPeer, joinCode } = useWebSync();
-  /** The node id whose role is mid-change, so its control can show it. */
-  const [roleBusy, setRoleBusy] = useState<string | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
   const [codeBusy, setCodeBusy] = useState(false);
   const [codeChanged, setCodeChanged] = useState(false);
@@ -245,68 +243,10 @@ export default function EditorPage() {
   const ownerNameRef = useRef('');
   ownerNameRef.current = ownerName;
 
-  /**
-   * Change one person's role on this document.
-   *
-   * The server is told WHO to change rather than being handed a rebuilt
-   * list, so two tabs doing this at once cannot overwrite each other. It
-   * is deliberately not gated on the document being locked first: being
-   * made view-only is what restricts the document, not the other way
-   * round. Having to throw a switch before the roles even appear was the
-   * thing that made this incomprehensible.
-   */
-  const setParticipantRole = async (peerNodeId: string, canEdit: boolean) => {
-    const otp = currentRoom?.otp || currentRoom?.id;
-    if (!otp || !fileId) return;
-    setRoleBusy(peerNodeId);
-    try {
-      const res = await fetch('/api/lobby/lock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          otp,
-          nodeId: accountNodeIdRef.current || localNodeIdRef.current,
-          accountId: mockAuthService.getCurrentUser()?.id ?? null,
-          fileId,
-          ...(canEdit ? { grant: peerNodeId } : { revoke: peerNodeId }),
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) { alert(data.error); return; }
-      refreshAccess();
-    } catch {
-      alert('Could not change that person’s access. Check your connection and try again.');
-    } finally {
-      setRoleBusy(null);
-    }
-  };
-
-  /** Switch the whole document between "anyone here" and "only chosen people". */
-  const setRestricted = async (restricted: boolean) => {
-    const otp = currentRoom?.otp || currentRoom?.id;
-    if (!otp || !fileId) return;
-    setRoleBusy('__mode__');
-    try {
-      const res = await fetch('/api/lobby/lock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          otp,
-          nodeId: accountNodeIdRef.current || localNodeIdRef.current,
-          accountId: mockAuthService.getCurrentUser()?.id ?? null,
-          fileId,
-          restricted,
-        }),
-      });
-      const data = await res.json();
-      if (!data.success) { alert(data.error); return; }
-      refreshAccess();
-    } catch {
-      alert('Could not change who may edit. Check your connection and try again.');
-    } finally {
-      setRoleBusy(null);
-    }
-  };
+  // The two handlers that used to live here -- one to change a single
+  // person's role, one to switch the whole document between open and
+  // restricted -- are gone with the controls that called them. Access is
+  // set in the file list, in one menu, and this screen reports it.
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1740,45 +1680,34 @@ export default function EditorPage() {
                   animation: 'slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
                 }}>
 
-                  {/* What this document's rule currently is, in a sentence,
-                      for everybody -- not only the person who set it. */}
+                  {/* What YOU can do here, and nothing else.
+                      This used to carry its own copy of the access
+                      controls -- a second Everyone/Only-for switch and a
+                      second set of per-person toggles, for the same
+                      file, in different words from the file list. Two
+                      places to set one thing is how a simple rule
+                      becomes a complicated interface. Access is set in
+                      one place now; this says what the answer is. */}
                   <div style={{ padding: '12px 14px', background: 'var(--s1)', borderBottom: '1px solid var(--b1)' }}>
                     <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--t3)', textTransform: 'uppercase', marginBottom: 6 }}>
-                      Who can edit this document
+                      This document
                     </p>
                     <p style={{ fontSize: 13, color: 'var(--t1)', lineHeight: 1.5 }}>
-                      {fileLock?.locked
-                        ? 'Only the people chosen below.'
-                        : 'Everyone in this room.'}
+                      {canEditFile
+                        ? 'You can edit it.'
+                        : `View only — ask ${ownerName || 'the owner'} to let you edit.`}
                     </p>
                     {isRoomHost && (
-                      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-                        {/* The same words the file list uses. They were
-                            "Anyone here" and "Only chosen people" here
-                            and "Everyone" and "Only for" there -- one
-                            control, two vocabularies, which is most of
-                            what made this hard to follow. */}
-                        {([[false, 'Everyone'], [true, 'Only for']] as const).map(([val, label]) => {
-                          const on = !!fileLock?.locked === val;
-                          return (
-                            <button
-                              key={label}
-                              onClick={() => setRestricted(val)}
-                              disabled={roleBusy === '__mode__'}
-                              style={{
-                                flex: 1, padding: '7px 0', fontSize: 11.5, fontWeight: 600,
-                                borderRadius: 7, cursor: roleBusy === '__mode__' ? 'wait' : 'pointer',
-                                background: on ? 'var(--acb)' : 'var(--bg2)',
-                                color: on ? 'var(--t1)' : 'var(--t3)',
-                                border: '1px solid ' + (on ? 'var(--acbr)' : 'var(--b1)'),
-                                transition: 'all 0.15s',
-                              }}
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <button
+                        onClick={() => router.push('/app/files')}
+                        style={{
+                          marginTop: 10, width: '100%', padding: '7px 0', borderRadius: 7,
+                          fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+                          background: 'var(--bg2)', color: 'var(--t2)', border: '1px solid var(--b1)',
+                        }}
+                      >
+                        Change who can use it
+                      </button>
                     )}
                   </div>
 
@@ -1810,7 +1739,6 @@ export default function EditorPage() {
                       const name = p.displayName && p.displayName !== 'Connecting…'
                         ? p.displayName
                         : (isOwner ? 'Room owner' : `Someone (${i + 1})`);
-                      const busy = roleBusy === p.id;
                       return (
                         <div key={p.id || i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 8px', borderRadius: 8, marginTop: 2 }}
                           onMouseEnter={e => e.currentTarget.style.background = 'var(--s1)'}
@@ -1822,30 +1750,13 @@ export default function EditorPage() {
                             </div>
                           </div>
 
-                          {/* The owner changes a role here, at any time --
-                              not only once the document has been locked.
-                              Everyone else sees the same chip, read-only,
-                              so the room's rules are not a secret held by
-                              the one person who set them. */}
-                          {isRoomHost && !isOwner ? (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setParticipantRole(p.id, !theyCanEdit); }}
-                              disabled={busy}
-                              title={theyCanEdit ? 'Click to make view-only' : 'Click to let them edit'}
-                              style={{
-                                padding: '4px 9px', borderRadius: 99, fontSize: 11, fontWeight: 600,
-                                cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1,
-                                background: theyCanEdit ? 'rgba(34,197,94,0.12)' : 'var(--bg2)',
-                                color: theyCanEdit ? '#16a34a' : 'var(--t3)',
-                                border: '1px solid ' + (theyCanEdit ? 'rgba(34,197,94,0.35)' : 'var(--b1)'),
-                                transition: 'all 0.15s',
-                              }}
-                            >
-                              {theyCanEdit ? 'Can edit' : 'View only'}
-                            </button>
-                          ) : (
-                            <RoleChip owner={isOwner} canEdit={theyCanEdit} />
-                          )}
+                          {/* Everybody's role, read-only, for everybody.
+                              It used to be a button here for the owner
+                              and a chip for everyone else -- the same
+                              setting the file list already owns. One
+                              place to change it; every place says what
+                              it is. */}
+                          <RoleChip owner={isOwner} canEdit={theyCanEdit} />
 
                           {isRoomHost && !isOwner && (
                             <button onClick={(e) => { e.stopPropagation(); kickPeer(p.id); }}

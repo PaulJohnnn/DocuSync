@@ -113,7 +113,7 @@ async function main() {
     await owner.locator('button[title="Who can open this file"]').nth(1).click();
     await owner.waitForTimeout(800);
     await shot(owner, '2-three-dots-menu');
-    await owner.locator('button:has-text("Only for")').first().click();
+    await owner.locator('button:has-text("Choose people")').first().click();
     await owner.waitForTimeout(2500);
     await shot(owner, '3-only-chosen-people');
 
@@ -131,21 +131,25 @@ async function main() {
     await owner.waitForTimeout(6000);
     await owner.locator('button[title="Who can open this file"]').nth(1).click();
     await owner.waitForTimeout(900);
-    const rows = owner.locator('div[role="menu"] button').filter({ hasNotText: 'Everyone' }).filter({ hasNotText: 'Only for' });
+    const rows = owner.locator('div[role="menu"] button').filter({ hasNotText: 'Everyone' }).filter({ hasNotText: 'Choose people' });
     await rows.last().click();
     await owner.waitForTimeout(1800);
     await shot(owner, '6-green-dot-means-chosen');
 
     console.log('');
-    console.log('  Reader or editor, same menu');
+    console.log('  One control, three answers');
     await owner.goto(BASE + '/app/files', { waitUntil: 'domcontentloaded' });
     await owner.waitForTimeout(6000);
     await owner.locator('button[title="Who can open this file"]').first().click();
     await owner.waitForTimeout(900);
-    await shot(owner, '7-both-questions-one-menu');
-    await owner.locator('button:has-text("Only for")').nth(1).click();
+    await shot(owner, '7-one-question');
+    const mode = owner.locator('div[role="menu"] button:has-text("Choose people")');
+    if (await mode.count()) { await mode.first().click(); await owner.waitForTimeout(2500); }
+    await shot(owner, '8-three-answers-per-person');
+    await owner.locator('div[role="menu"] button:has-text("View only")').first().click();
     await owner.waitForTimeout(2500);
-    await shot(owner, '8-view-only-or-can-edit');
+    await shot(owner, '9-view-only-chosen');
+
   } finally {
     await browser.close();
   }

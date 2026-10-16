@@ -1024,7 +1024,11 @@ export default function FilesPage() {
                   // to the room, which is what it has always been.
                   const locked = f.canOpen === false;
                   const restricted = !!f.openRestricted;
-                  const editRestricted = !!f.editRestricted;
+                  // One mode, not two: the file is either open to the
+                  // room or it is a named list. Having these as separate
+                  // switches let them disagree, which is a state nobody
+                  // asked for and nobody could describe.
+                  const perPerson = !!f.openRestricted || !!f.editRestricted;
                   return (
                     <div
                       key={i}
@@ -1047,12 +1051,15 @@ export default function FilesPage() {
                           {f.fileName || f.name}
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                          {/* What YOU can do with it, in one phrase --
+                              rather than two sentences about what the
+                              rules are, which is the owner's business
+                              and not a reader's. */}
                           {locked
-                            ? 'Not shared with you'
+                            ? 'No access — ask the owner'
                             : <>Shared by {f.sharedBy === 'Web Node' || !f.sharedBy ? myName : (f.sharedBy || 'Peer')}
-                                {restricted ? ' · only some people can open it' : ''}
-                                {editRestricted ? ' · only some people can edit it' : ''}
-                                {!restricted && !editRestricted && f.canEdit === false ? ' · view only for you' : ''}</>}
+                                {f.canEdit === false ? ' · view only' : ''}
+                                {perPerson && f.canEdit !== false ? ' · chosen people only' : ''}</>}
                         </div>
                       </div>
 
@@ -1190,23 +1197,34 @@ export default function FilesPage() {
                                 onClick={(e) => e.stopPropagation()}
                                 style={{
                                   position: 'fixed', left: accessMenu.x, top: accessMenu.y,
-                                  transform: 'translateX(-100%)', zIndex: 2000, width: 290,
+                                  transform: 'translateX(-100%)', zIndex: 2000, width: 300,
                                   background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
                                   boxShadow: '0 12px 30px rgba(15,23,42,0.16)', overflow: 'hidden',
                                 }}
                               >
+                                {/* One question, not two.
+                                    This used to be two independent
+                                    switches -- who may open it, and who
+                                    may edit it -- each with its own
+                                    Everyone/Only-for pair and its own
+                                    list of names. Four buttons and two
+                                    lists to say one thing about one
+                                    person. Nobody thinks in two axes;
+                                    they think "what can this person do
+                                    with this file", and the answer has
+                                    three values. */}
                                 <div style={{ padding: '12px 14px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
                                   <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                    Who can open this file
+                                    Who can use this file
                                   </p>
                                   <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
-                                    {([[false, 'Everyone'], [true, 'Only for']] as const).map(([val, label]) => {
-                                      const on = restricted === val;
+                                    {([[false, 'Everyone'], [true, 'Choose people']] as const).map(([val, label]) => {
+                                      const on = perPerson === val;
                                       return (
                                         <button
                                           key={label}
                                           disabled={accessBusy}
-                                          onClick={() => setFileAccess(f, { openRestricted: val })}
+                                          onClick={() => setFileAccess(f, { openRestricted: val, restricted: val })}
                                           style={{
                                             flex: 1, padding: '7px 0', fontSize: 11.5, fontWeight: 600, borderRadius: 7,
                                             cursor: accessBusy ? 'wait' : 'pointer',
@@ -1220,126 +1238,68 @@ export default function FilesPage() {
                                       );
                                     })}
                                   </div>
+                                  {!perPerson && (
+                                    <p style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 8, lineHeight: 1.5 }}>
+                                      Everyone in the room can open and edit it.
+                                    </p>
+                                  )}
                                 </div>
 
-                                {/* Under Everyone there is nothing to
-                                    choose, so nothing is offered: a list of
-                                    names that cannot be ticked only invites
-                                    the question of why not. */}
-                                {restricted && (
-                                  <div style={{ maxHeight: 230, overflowY: 'auto', padding: 6 }}>
+                                {perPerson && (
+                                  <div style={{ maxHeight: 260, overflowY: 'auto', padding: 6 }}>
                                     {pickablePeers().map((p) => {
-                                      const picked = (f.openNodeIds || []).includes(p.id);
-                                      const nm = p.displayName && p.displayName !== 'Connecting…'
-                                        ? p.displayName : 'Someone';
-                                      return (
-                                        <button
-                                          key={p.id}
-                                          disabled={accessBusy}
-                                          onClick={() => setFileAccess(f, picked ? { revokeOpen: p.id } : { grantOpen: p.id })}
-                                          style={{
-                                            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                                            padding: '9px 10px', background: 'transparent', border: 'none',
-                                            borderRadius: 8, cursor: accessBusy ? 'wait' : 'pointer',
-                                            textAlign: 'left', opacity: accessBusy ? 0.6 : 1,
-                                          }}
-                                          onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
-                                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                                        >
-                                          {/* A green dot is how a chosen
-                                              person reads at a glance. */}
-                                          <span style={{
-                                            width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
-                                            background: picked ? '#22c55e' : '#e2e8f0',
-                                            border: '1px solid ' + (picked ? '#16a34a' : '#cbd5e1'),
-                                          }} />
-                                          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {nm}
-                                          </span>
-                                          {picked ? <Check size={14} style={{ color: '#16a34a' }} /> : null}
-                                        </button>
-                                      );
-                                    })}
-                                    {pickablePeers().length === 0 && (
-                                      <p style={{ fontSize: 12, color: '#94a3b8', padding: '10px', lineHeight: 1.5 }}>
-                                        Nobody else is in the room yet, so only you can open it.
-                                      </p>
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* The second question, in the same place
-                                    as the first.
-                                    Opening a file and editing it are
-                                    different permissions, and they were
-                                    set on different screens -- so from
-                                    the file list there was no way to make
-                                    somebody a reader, and no way to see
-                                    that they already were one. */}
-                                <div style={{ padding: '12px 14px', borderTop: `1px solid #e2e8f0`, background: '#f8fafc' }}>
-                                  <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                                    Who can edit this file
-                                  </p>
-                                  <div style={{ display: 'flex', gap: 6, marginTop: 9 }}>
-                                    {([[false, 'Everyone'], [true, 'Only for']] as const).map(([val, label]) => {
-                                      const on = editRestricted === val;
-                                      return (
-                                        <button
-                                          key={label}
-                                          disabled={accessBusy}
-                                          onClick={() => setFileAccess(f, { restricted: val })}
-                                          style={{
-                                            flex: 1, padding: '7px 0', fontSize: 11.5, fontWeight: 600, borderRadius: 7,
-                                            cursor: accessBusy ? 'wait' : 'pointer',
-                                            background: on ? '#eff6ff' : '#fff',
-                                            color: on ? '#1d4ed8' : '#64748b',
-                                            border: '1px solid ' + (on ? '#93c5fd' : '#e2e8f0'),
-                                          }}
-                                        >
-                                          {label}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-
-                                {editRestricted && (
-                                  <div style={{ maxHeight: 200, overflowY: 'auto', padding: 6 }}>
-                                    {pickablePeers().map((p) => {
+                                      const canOpenIt = (f.openNodeIds || []).includes(p.id);
                                       const canEditIt = (f.editorNodeIds || []).includes(p.id);
+                                      const role = !canOpenIt ? 'none' : canEditIt ? 'edit' : 'view';
                                       const nm = p.displayName && p.displayName !== 'Connecting…'
                                         ? p.displayName : 'Someone';
                                       return (
-                                        <button
-                                          key={'e' + p.id}
-                                          disabled={accessBusy}
-                                          onClick={() => setFileAccess(f, canEditIt ? { revoke: p.id } : { grant: p.id })}
-                                          style={{
-                                            display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                                            padding: '9px 10px', background: 'transparent', border: 'none',
-                                            borderRadius: 8, cursor: accessBusy ? 'wait' : 'pointer',
-                                            textAlign: 'left', opacity: accessBusy ? 0.6 : 1,
-                                          }}
-                                          onMouseEnter={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
-                                          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                                        >
-                                          <span style={{
-                                            width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
-                                            background: canEditIt ? '#22c55e' : '#e2e8f0',
-                                            border: '1px solid ' + (canEditIt ? '#16a34a' : '#cbd5e1'),
-                                          }} />
-                                          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {nm}
-                                          </span>
-                                          <span style={{ fontSize: 11, fontWeight: 600, color: canEditIt ? '#16a34a' : '#94a3b8' }}>
-                                            {canEditIt ? 'Can edit' : 'View only'}
-                                          </span>
-                                        </button>
+                                        <div key={p.id} style={{ padding: '9px 10px' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7 }}>
+                                            <span style={{
+                                              width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
+                                              background: role === 'none' ? '#e2e8f0' : '#22c55e',
+                                              border: '1px solid ' + (role === 'none' ? '#cbd5e1' : '#16a34a'),
+                                            }} />
+                                            <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                              {nm}
+                                            </span>
+                                          </div>
+                                          <div style={{ display: 'flex', gap: 4 }}>
+                                            {([
+                                              ['edit', 'Can edit'],
+                                              ['view', 'View only'],
+                                              ['none', 'No access'],
+                                            ] as const).map(([val, label]) => {
+                                              const on = role === val;
+                                              return (
+                                                <button
+                                                  key={val}
+                                                  disabled={accessBusy}
+                                                  onClick={() => setFileAccess(f,
+                                                    val === 'edit' ? { grantOpen: p.id, grant: p.id }
+                                                      : val === 'view' ? { grantOpen: p.id, revoke: p.id }
+                                                        : { revokeOpen: p.id, revoke: p.id })}
+                                                  style={{
+                                                    flex: 1, padding: '6px 0', fontSize: 11, fontWeight: 600,
+                                                    borderRadius: 6, cursor: accessBusy ? 'wait' : 'pointer',
+                                                    background: on ? '#0f172a' : '#fff',
+                                                    color: on ? '#fff' : '#64748b',
+                                                    border: '1px solid ' + (on ? '#0f172a' : '#e2e8f0'),
+                                                    transition: 'all 0.12s',
+                                                  }}
+                                                >
+                                                  {label}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
                                       );
                                     })}
                                     {pickablePeers().length === 0 && (
                                       <p style={{ fontSize: 12, color: '#94a3b8', padding: '10px', lineHeight: 1.5 }}>
-                                        Nobody else is in the room yet.
+                                        Nobody else is in the room yet, so only you can use it.
                                       </p>
                                     )}
                                   </div>

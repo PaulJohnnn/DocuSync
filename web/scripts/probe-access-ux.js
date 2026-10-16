@@ -68,7 +68,7 @@ async function enterRoom(page, otp, fileId, name, nodeId) {
 const readPanel = (page) => page.evaluate(() => {
   const txt = (el) => (el.innerText || '').replace(/\s+/g, ' ').trim();
   const panel = Array.from(document.querySelectorAll('div'))
-    .find((d) => /Who can edit this document/i.test(d.innerText || '') && d.querySelector('button'));
+    .find((d) => /In this room/i.test(d.innerText || '') && /Code to join/i.test(d.innerText || ''));
   if (!panel) return null;
   const rows = Array.from(panel.querySelectorAll('div'))
     .filter((d) => d.querySelector('.ds-presence-dot') && d.children.length <= 4)
@@ -190,14 +190,17 @@ async function main() {
     await owner.locator('text=/connected|Can edit|View only|Owner/').first().click().catch(() => {});
     await owner.waitForTimeout(800);
     const ownerPanel = await readPanel(owner);
-    check(!!ownerPanel && /Everyone in this room/i.test(ownerPanel.all),
-      'the document starts open to everyone in the room');
-    const roleBtn = owner.locator('button:has-text("Can edit")').first();
-    check(await roleBtn.count() > 0,
-      'the role control is there BEFORE anything has been locked');
+    check(!!ownerPanel && /You can edit it/i.test(ownerPanel.all),
+      'the editor tells you what YOU can do', ownerPanel ? ownerPanel.all.slice(0, 70) : 'no panel');
+    check(!!ownerPanel && !/Only for|Choose people/i.test(ownerPanel.all),
+      'and no longer carries a second copy of the access controls');
 
+    // Access is set in one place, so the change is made there.
     const clickedAt = Date.now();
-    await roleBtn.click();
+    await post('/lock', {
+      otp, nodeId: ownerNode, fileId,
+      openRestricted: true, restricted: true, grantOpen: guestNode, revoke: guestNode,
+    });
     // How long a role change takes to become true is the whole of what
     // "slow" means for this control, so it is timed rather than assumed.
     let lock = null; let stored = null;
@@ -244,9 +247,8 @@ async function main() {
     // ── 4. And it can be given back ──────────────────────────────────
     console.log('');
     console.log('  Giving it back');
-    const backBtn = owner.locator('button:has-text("View only")').first();
-    check(await backBtn.count() > 0, 'the owner sees the person is now view-only');
-    await backBtn.click();
+    // Giving it back is one call, from the one place that owns it.
+    await post('/lock', { otp, nodeId: ownerNode, fileId, grantOpen: guestNode, grant: guestNode });
     await owner.waitForTimeout(1500);
     const lock2 = await fetch(`${API}/lock?otp=${otp}&nodeId=${guestNode}`).then((r) => r.json());
     check(lock2.permissions?.[String(fileId)] !== false,

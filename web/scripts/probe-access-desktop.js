@@ -62,7 +62,7 @@ async function openEditor(page, otp, fileId, name, nodeId) {
 
 const panelText = (page) => page.evaluate(() => {
   const panel = Array.from(document.querySelectorAll('div'))
-    .find((d) => /Who can edit this document/i.test(d.innerText || '') && d.querySelector('button'));
+    .find((d) => /In this room/i.test(d.innerText || '') && /Code to join/i.test(d.innerText || ''));
   return panel ? (panel.innerText || '').replace(/\s+/g, ' ').trim() : null;
 });
 
@@ -102,8 +102,14 @@ async function main() {
     await signIn(owner, accts[0]);
     await openEditor(owner, otp, fileId, 'Chapter 3.docx', ownerNode);
 
+    // A disposable profile, so the window starts where a new install
+    // would. Electron keeps its user data between launches, so without
+    // this it came up still signed in as whoever ran this last -- an
+    // account since revoked, which the app then bounced out of in a
+    // redirect loop.
+    const userDataDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'ds-access-'));
     app = await electron.launch({
-      executablePath: EXE, args: [MAIN], cwd: DESKTOP, timeout: 120000,
+      executablePath: EXE, args: [MAIN, `--user-data-dir=${userDataDir}`], cwd: DESKTOP, timeout: 120000,
       env: { ...process.env, VITE_DEV_SERVER_URL: `${BASE}/app/login`, DOCUSYNC_WS_PORT: '9471' },
     });
     const desk = await app.firstWindow({ timeout: 120000 });
@@ -119,16 +125,17 @@ async function main() {
     check(!!seen, 'the desktop app shows the people panel');
     if (seen) {
       check(/Owner/.test(seen), 'and marks who owns the room', seen.slice(0, 150));
-      check(/Anyone in this room/i.test(seen), 'and states the editing rule in words');
+      check(/You can edit it|View only/i.test(seen), 'and tells you what you can do', seen.slice(0, 80));
       check(/Code to join/i.test(seen) && /[A-Z0-9]{6}/.test(seen),
         'and shows the code to get in');
     }
 
     // The owner makes the desktop user a reader; the desktop must say so
     // without being reloaded.
-    await owner.locator('text=/Can edit|View only|Owner/').first().click().catch(() => {});
-    await owner.waitForTimeout(900);
-    await owner.locator('button:has-text("Can edit")').first().click();
+    await post('/lock', {
+      otp, nodeId: ownerNode, fileId,
+      openRestricted: true, restricted: true, grantOpen: deskNode, revoke: deskNode,
+    });
     await owner.waitForTimeout(1500);
     await desk.waitForTimeout(9000);
 
