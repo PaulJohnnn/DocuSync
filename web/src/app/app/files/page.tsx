@@ -80,7 +80,47 @@ function RoomRoleChip({ owner }: { owner: boolean }) {
 
 export default function FilesPage() {
   const router = useRouter();
-  const { kickPeer, leaveRoom, access } = useWebSync();
+  const { kickPeer, leaveRoom, access, joinCode: liveJoinCode, refreshAccess } = useWebSync();
+
+  /**
+   * Replace the room's code, because the old one has got out.
+   *
+   * Lives beside the code it changes, on the room's own screen. It was
+   * only in the editor's panel before, which is a strange place to go
+   * looking for something about the room rather than the document.
+   */
+  const regenerateCode = useCallback(async () => {
+    const storedRoom = uGet('current_room');
+    const parsed = storedRoom ? JSON.parse(storedRoom) : null;
+    const otp = parsed?.otp || parsed?.id;
+    if (!otp) return;
+    setCodeBusy(true);
+    try {
+      const res = await fetch(`${MATCHMAKER_URL}/code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          otp,
+          nodeId: uGet('node_id'),
+          accountId: mockAuthService.getCurrentUser()?.id ?? null,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        alert(data?.error || 'Could not change the code.');
+        return;
+      }
+      if (typeof data.joinCode === 'string') setCodeJustSet(data.joinCode);
+      refreshAccess();
+      setCodeChanged(true);
+      setTimeout(() => setCodeChanged(false), 3500);
+    } catch {
+      alert('Could not change the code. Check your connection and try again.');
+    } finally {
+      setCodeBusy(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshAccess]);
   // Who owns the room, from the room itself.
   //
   // This page had the same fault the editor did: it decided who the
@@ -101,6 +141,24 @@ export default function FilesPage() {
   const [connectedPeers, setConnectedPeers] = useState<any[]>([]);
   const [accessMenu, setAccessMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [accessBusy, setAccessBusy] = useState(false);
+  const [codeMenuOpen, setCodeMenuOpen] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeChanged, setCodeChanged] = useState(false);
+  /**
+   * The new code, shown straight away.
+   *
+   * The presence poll carries the live code, but asking it to run again
+   * does nothing while one is already in flight -- so the screen went
+   * on showing the code that had just been retired until the next beat
+   * came round. The server returns the new code with the reply; there
+   * is no reason to wait for anyone to tell us what we just did.
+   */
+  const [codeJustSet, setCodeJustSet] = useState<string | null>(null);
+  useEffect(() => {
+    // Once the poll reports the same code, stop overriding it.
+    if (codeJustSet && liveJoinCode === codeJustSet) setCodeJustSet(null);
+  }, [liveJoinCode, codeJustSet]);
 
   const ownerNodeId = access?.hostNodeId ?? null;
   const ownerAccountId = access?.hostAccountId ?? null;
@@ -309,7 +367,7 @@ export default function FilesPage() {
   // itself open over the file list.
   useEffect(() => {
     if (!downloadMenu) return;
-    const close = () => { setDownloadMenu(null); setAccessMenu(null); };
+    const close = () => { setDownloadMenu(null); setAccessMenu(null); setCodeMenuOpen(false); };
     window.addEventListener('click', close);
     window.addEventListener('scroll', close, true);
     return () => {
@@ -844,21 +902,93 @@ export default function FilesPage() {
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--t1)', margin: 0, lineHeight: 1 }}>{currentRoom.name}</h1>
-            <button 
-              onClick={() => navigator.clipboard.writeText(currentRoom.otp || currentRoom.id)}
-              title="Copy OTP to clipboard"
-              style={{
-                background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 20,
-                padding: '4px 10px', fontSize: 11, fontWeight: 600, color: '#64748b',
-                fontFamily: 'monospace', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-              }}
-            >
-              <span>{currentRoom.otp || currentRoom.id}</span>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-            </button>
+            {/* The room's code, where the room's name is.
+                This showed `currentRoom.otp` -- the room's permanent id,
+                not the code the server is accepting. They start out the
+                same, so it looked right, but after any regeneration the
+                most prominent code in the app was one that no longer
+                worked. It reads the live code now, and it is also where
+                the owner replaces it: the code and the button that
+                changes it belong together. */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); setCodeMenuOpen((o) => !o); }}
+                title="Room code"
+                aria-haspopup="menu"
+                aria-expanded={codeMenuOpen}
+                style={{
+                  background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 20,
+                  padding: '4px 10px', fontSize: 11, fontWeight: 600, color: '#64748b',
+                  fontFamily: 'monospace', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <span>{codeJustSet || liveJoinCode || currentRoom.otp || currentRoom.id}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+
+              {codeMenuOpen && (
+                <div
+                  role="menu"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    position: 'absolute', left: 0, top: '100%', marginTop: 8, zIndex: 2000, width: 260,
+                    background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+                    boxShadow: '0 12px 30px rgba(15,23,42,0.16)', overflow: 'hidden',
+                  }}
+                >
+                  <div style={{ padding: '12px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Code to join
+                    </p>
+                    <p style={{ fontSize: 19, fontWeight: 700, letterSpacing: '0.22em', color: '#0f172a', fontFamily: 'monospace', marginTop: 4 }}>
+                      {codeJustSet || liveJoinCode || currentRoom.otp || currentRoom.id}
+                    </p>
+                  </div>
+                  <div style={{ padding: 8 }}>
+                    <button
+                      onClick={() => {
+                        const code = codeJustSet || liveJoinCode || currentRoom.otp || currentRoom.id || '';
+                        if (code) navigator.clipboard?.writeText(String(code)).catch(() => {});
+                        setCodeCopied(true);
+                        setTimeout(() => setCodeCopied(false), 1800);
+                      }}
+                      style={{
+                        width: '100%', padding: '8px 0', borderRadius: 8, fontSize: 12.5, fontWeight: 600,
+                        cursor: 'pointer', marginBottom: isRoomHost ? 6 : 0,
+                        background: codeCopied ? 'rgba(34,197,94,0.12)' : '#fff',
+                        color: codeCopied ? '#16a34a' : '#0f172a',
+                        border: '1px solid ' + (codeCopied ? 'rgba(34,197,94,0.35)' : '#e2e8f0'),
+                      }}
+                    >
+                      {codeCopied ? 'Copied' : 'Copy the code'}
+                    </button>
+
+                    {isRoomHost && (
+                      <>
+                        <button
+                          onClick={regenerateCode}
+                          disabled={codeBusy}
+                          style={{
+                            width: '100%', padding: '8px 0', borderRadius: 8, fontSize: 12.5, fontWeight: 600,
+                            cursor: codeBusy ? 'wait' : 'pointer',
+                            background: codeChanged ? 'rgba(34,197,94,0.12)' : '#fff',
+                            color: codeChanged ? '#16a34a' : '#0f172a',
+                            border: '1px solid ' + (codeChanged ? 'rgba(34,197,94,0.35)' : '#e2e8f0'),
+                          }}
+                        >
+                          {codeBusy ? 'Changing…' : codeChanged ? 'New code is in force' : 'Give out a new code'}
+                        </button>
+                        <p style={{ fontSize: 10.5, color: '#94a3b8', marginTop: 7, lineHeight: 1.5, padding: '0 2px' }}>
+                          The old code stops working straight away. Everyone already in the room stays in.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

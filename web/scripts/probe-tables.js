@@ -251,7 +251,9 @@ async function main() {
     await a.waitForTimeout(2500);
 
     const grab = async (label) => {
-      const menu = a.locator('button[aria-expanded]').first();
+      // Named, not "the first thing with aria-expanded on it" -- the room
+      // header now has a menu of its own, and it comes first in the DOM.
+      const menu = a.locator('button[title="Download as…"]').first();
       await menu.click();
       await a.waitForTimeout(400);
       const [dl] = await Promise.all([
