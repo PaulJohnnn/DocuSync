@@ -56,8 +56,13 @@ async function provision(email, password) {
   // Names can be passed in so a screenshot reads like a real room rather
   // than like a test harness. They still start `zz-test-` so they sort to
   // the bottom of the admin list and are obvious to revoke.
-  const names = (process.env.TEST_NAMES || 'alpha,bravo').split(',');
-  for (const [id, suffix] of [['A', names[0]], ['B', names[1] || 'bravo']]) {
+  // As many as are named, not always two: a room with five people in it
+  // is a different test from a room with two, and the only way to run it
+  // is to have five accounts.
+  const names = (process.env.TEST_NAMES || 'alpha,bravo').split(',').map((n) => n.trim()).filter(Boolean);
+  const LETTERS = 'ABCDEFGHIJ';
+  for (const [i, suffix] of names.entries()) {
+    const id = LETTERS[i] || `P${i}`;
     const email = `zz-test-${suffix}-${stamp}`;
     // Generated per run, never written into the repository.
     //
