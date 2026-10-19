@@ -69,6 +69,8 @@ web/scripts/table-shots/
 web/scripts/access-shots/
 web/scripts/home-shots/
 web/scripts/code-shots/
+web/scripts/many-accounts-shots/
+web/scripts/many-accounts-shots-prod/
 web/scripts/fix-shots/
 web/scripts/fix-shots-prod/
 web/scripts/home-shots-prod/

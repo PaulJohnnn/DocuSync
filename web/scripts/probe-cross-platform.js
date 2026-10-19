@@ -162,9 +162,14 @@ async function main() {
   let app, browser;
   try {
     // The genuine desktop shell, pointed at this machine. See the header.
+    // A disposable profile per run, as the other Electron probes get.
+    // Electron keeps its user data between launches, so the window came
+    // up still signed in as whoever ran this last -- an account since
+    // revoked -- and sat in a redirect loop instead of showing a login.
+    const userDataDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'ds-xplat-'));
     app = await electron.launch({
       executablePath: ELECTRON_EXE,
-      args: [MAIN],
+      args: [MAIN, `--user-data-dir=${userDataDir}`],
       cwd: DESKTOP,
       timeout: 120000,
       env: {
