@@ -265,15 +265,34 @@ export async function joinRoom(otp: string): Promise<Room> {
     }
   }
 
+  /**
+   * The room's id, which is not necessarily the code that was typed.
+   *
+   * They are the same until the code is replaced, and after that they
+   * are not. Storing the typed code as the room's id was the bug behind
+   * "we changed the code and now nobody can get in": the join itself
+   * succeeded, and then every request afterwards -- the file list, the
+   * documents, the presence heartbeat -- asked about a room under the
+   * CODE instead of the room. Nothing was there, and the heartbeat's
+   * self-heal then created an empty one at that name, so the person
+   * ended up alone in a room that looked right and was not.
+   *
+   * The server returns the id for exactly this reason. Use it.
+   */
+  const resolvedOtp: string = apiData?.otp || upperOtp;
   const roomName = apiData?.roomName ?? (globalEntry ? globalEntry.name : `Room ${upperOtp}`);
   const targetIp = apiData?.hostIp || globalEntry?.hostIp;
   const targetPort = apiData?.hostPort || globalEntry?.hostPort || 9000;
   const apiMemberCount = apiData?.memberCount || 1;
   const algorithm = apiData?.algorithm || 'lww';
 
-  const existing = rooms.find(r => r.otp === upperOtp || r.id === otp);
+  // Matched on the room's id as well as on what was typed, so rejoining
+  // with a newly issued code updates the room already held rather than
+  // adding a second entry for the same place.
+  const existing = rooms.find(r => r.otp === resolvedOtp || r.otp === upperOtp || r.id === otp);
   if (existing) {
     existing.name = roomName;
+    existing.otp = resolvedOtp;
     existing.hostIp = targetIp;
     existing.hostPort = targetPort;
     saveRooms(rooms);
@@ -283,7 +302,7 @@ export async function joinRoom(otp: string): Promise<Room> {
   const joined: Room = {
     id: globalEntry?.id ?? crypto.randomUUID(),
     name: roomName,
-    otp: upperOtp,
+    otp: resolvedOtp,
     createdAt: new Date().toISOString(),
     peerCount: apiMemberCount,
     isOwner: false,
