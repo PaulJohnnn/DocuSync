@@ -76,6 +76,11 @@ const storedOtp = (page) => page.evaluate(() => {
   return raw ? (JSON.parse(raw).otp || JSON.parse(raw).id) : null;
 });
 
+const storedNodeId = (page) => page.evaluate(() => {
+  const u = JSON.parse(sessionStorage.getItem('docusync_auth_user'));
+  return localStorage.getItem(`ds_${u.id}_node_id`);
+});
+
 const docText = (p) => p.evaluate(() => {
   const el = document.querySelector('.ProseMirror');
   if (!el) return '';
@@ -143,7 +148,7 @@ async function main() {
       await signIn(page, accts[step.i]);
       const ok = await joinByCode(page, code);
       check(ok, `${NAMES[step.i]} ${step.note}`, `code ${code}`);
-      joined.push({ name: NAMES[step.i], page, ctx });
+      joined.push({ name: NAMES[step.i], page, ctx, nodeId: await storedNodeId(page) });
       await page.waitForTimeout(2500);
     }
 
@@ -176,8 +181,18 @@ async function main() {
     const people = Array.from(new Set(peers.map((p) => p.displayName).filter(Boolean))).sort();
     check(people.length === 5, 'the owner sees all five people',
       `${people.length} of 5: ${people.join(', ')}  (${peers.length} connections)`);
-    for (const n of NAMES) {
-      check(people.includes(n), `${n} is in the room`);
+
+    // Each person is looked for by the node they joined from, not by the
+    // name this script calls them. The NAMES above are for reading the
+    // output; the account's real name is whatever it is on the site being
+    // tested, and on the live site that is its username. Checking for the
+    // persona instead would report four absent people who are plainly
+    // there.
+    check(peers.some((p) => p.nodeId === ownerNode), `${NAMES[0]} is in the room`);
+    for (const p of joined) {
+      const seen = peers.find((q) => q.nodeId === p.nodeId);
+      check(!!seen, `${p.name} is in the room`,
+        seen ? `the room calls them ${seen.displayName}` : `node ${p.nodeId} is not in the list`);
     }
 
     // ── And they can all write to the same document ──────────────────
