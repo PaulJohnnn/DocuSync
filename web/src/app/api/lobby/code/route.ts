@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
-import type { LobbyEntry } from '../store';
+import { isRoomOwner, type LobbyEntry } from '../store';
 import { mintJoinCode, setJoinCodeAlias, JOIN_CODE_TTL_MS } from '@/lib/joinCode';
 
 const corsHeaders = {
@@ -44,14 +44,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404, headers: corsHeaders });
     }
 
-    // Ownership follows the account, not one device -- the same rule the
-    // lock route uses, so the owner on a second machine is still the
-    // owner here.
-    let isOwner = lobby.hostNodeId === nodeId;
-    if (!isOwner && accountId) {
-      const hostPresence = (await redis.get(`user:${lobby.hostNodeId}`)) as { accountId?: string } | null;
-      if (hostPresence?.accountId && hostPresence.accountId === String(accountId)) isOwner = true;
-    }
+    // Ownership follows the account, not one device. The room records it
+    // when it is created; the presence lookup is only there for rooms
+    // made before it did, and it lapses once that browser is closed.
+    const hostPresence = (!accountId || lobby.hostNodeId === nodeId)
+      ? null
+      : ((await redis.get(`user:${lobby.hostNodeId}`)) as { accountId?: string } | null);
+    const isOwner = isRoomOwner(lobby, nodeId, accountId, hostPresence);
     if (!isOwner) {
       return NextResponse.json(
         { error: 'Only the owner of this room can change its code.' },

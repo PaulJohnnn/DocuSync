@@ -5,6 +5,7 @@
  */
 
 import { uGet, uSet } from './userStorage';
+import { getCurrentUser } from './mockAuthService';
 
 export interface Room {
   id: string;
@@ -160,6 +161,9 @@ export async function createRoom(name: string, algorithm: 'lww' | 'ot' = 'lww'):
         // later "am I the owner" check (e.g. POST /api/lobby/lock) failed
         // with 403 for literally every room ever created through this flow.
         hostNodeId: uGet('node_id') || `web-${Date.now()}`,
+        // The account, so the owner is still the owner on their other
+        // machine, in the desktop app, and after this browser is closed.
+        hostAccountId: getCurrentUser()?.id ?? null,
         hostIp: getWebHostIp(),
         hostPort: 9000,
         hostType: 'web',

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { LobbyEntry, FileLock, canEditFile, canOpenFile } from '../store';
+import { LobbyEntry, FileLock, canEditFile, canOpenFile, isRoomOwner } from '../store';
 import { redis } from '@/lib/redis';
 
 const corsHeaders = {
@@ -83,11 +83,10 @@ export async function POST(request: Request) {
     // machine was refused control of their own room -- and, on the other
     // side of the same mistake, their second session was listed as an
     // ordinary member who had to be granted access to their own files.
-    let isOwner = lobby.hostNodeId === nodeId;
-    if (!isOwner && accountId) {
-      const hostPresence = (await redis.get(`user:${lobby.hostNodeId}`)) as { accountId?: string } | null;
-      if (hostPresence?.accountId && hostPresence.accountId === String(accountId)) isOwner = true;
-    }
+    const hostPresence = (!accountId || lobby.hostNodeId === nodeId)
+      ? null
+      : ((await redis.get(`user:${lobby.hostNodeId}`)) as { accountId?: string } | null);
+    const isOwner = isRoomOwner(lobby, nodeId, accountId, hostPresence);
     if (!isOwner) {
       return NextResponse.json(
         { error: 'Only the owner of this room can change who may open or edit its files.' },

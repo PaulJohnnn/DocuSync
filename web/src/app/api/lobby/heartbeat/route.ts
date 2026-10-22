@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { rotateJoinCodeIfExpired, setJoinCodeAlias, JOIN_CODE_TTL_MS } from '@/lib/joinCode';
-import { canEditFile, canOpenFile } from '../store';
+import { canEditFile, canOpenFile, isRoomOwner } from '../store';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -212,11 +212,25 @@ export async function POST(request: Request) {
     const hostRecord = (activePeers || []).find(
       (p: any) => p && p.nodeId === lobbyForAccess?.hostNodeId
     );
-    const hostAccountId: string | null = hostRecord?.accountId ?? null;
-    const callerIsHost = !!lobbyForAccess && (
-      lobbyForAccess.hostNodeId === nodeId
-      || (!!accountId && !!hostAccountId && accountId === hostAccountId)
-    );
+    // The room's own record first; the presence record only for rooms
+    // made before rooms kept one, and it is gone five minutes after the
+    // owner closes that browser.
+    const hostAccountId: string | null =
+      lobbyForAccess?.hostAccountId ?? hostRecord?.accountId ?? null;
+    const callerIsHost = !!lobbyForAccess
+      && isRoomOwner(lobbyForAccess, nodeId, accountId, hostRecord);
+
+    // Heal a room that predates this. The moment its owner is recognised
+    // by the old rule, write down who they are, so the next time they
+    // open it from anywhere they still are.
+    if (lobbyForAccess && callerIsHost && !lobbyForAccess.hostAccountId && accountId) {
+      lobbyForAccess.hostAccountId = accountId;
+      try {
+        await redis.set(`lobby:${hostedRoom.otp}`, lobbyForAccess, { ex: ROOM_TTL });
+      } catch (e) {
+        // Not worth failing a heartbeat over; the next one tries again.
+      }
+    }
 
     const access = lobbyForAccess
       ? {

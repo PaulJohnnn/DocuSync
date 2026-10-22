@@ -18,6 +18,9 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     const hostNodeId: string = body.hostNodeId || body.nodeId;
+    // Who owns it, as a person rather than as a browser. See
+    // `isRoomOwner` for why the node id alone was not enough.
+    const hostAccountId: string | null = body.hostAccountId ? String(body.hostAccountId) : null;
     const hostIp: string     = body.hostIp     || body.ip;
     const hostPort: number   = Number(body.hostPort ?? body.port ?? 9000);
     const roomName: string   = body.roomName   || 'Unnamed Room';
@@ -58,6 +61,7 @@ export async function POST(request: Request) {
         otp,
         roomName,
         hostNodeId,
+        ...(hostAccountId ? { hostAccountId } : {}),
         hostIp,
         hostPort,
         hostType,

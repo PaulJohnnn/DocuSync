@@ -64,6 +64,21 @@ export interface LobbyEntry {
   otp: string;
   roomName: string;
   hostNodeId: string;
+  /**
+   * The ACCOUNT that owns this room, written when it is created.
+   *
+   * `hostNodeId` identifies a browser, not a person. The owner opening
+   * their own room on a second machine, or in the desktop app, arrives
+   * with a different node id and could only be recognised by looking up
+   * the original one's presence record -- which expires five minutes
+   * after that browser is closed. After which nobody was the owner of
+   * the room, including its owner: no badge, no controls, and the
+   * server refusing to change the code.
+   *
+   * Optional because rooms created before this did not record it; those
+   * still fall back to the node id and the presence lookup.
+   */
+  hostAccountId?: string;
   hostIp: string;
   hostPort: number;
   /** 'desktop' | 'web' | 'mobile' — indicates whether host has a real WS server */
@@ -137,6 +152,30 @@ export function canOpenFile(
   if (!nodeId) return false;
   if (nodeId === lobby.hostNodeId) return true;
   return (lock.openNodeIds || []).includes(nodeId);
+}
+
+/**
+ * Is this person the owner of this room?
+ *
+ * In order of how much they can be trusted: the account recorded on the
+ * room itself, which does not expire; the node that created it, which
+ * only matches on that one machine; and finally the owner's presence
+ * record, which is all an older room has and which lapses once they
+ * close the browser.
+ *
+ * Takes the presence record rather than fetching it, so the callers
+ * that already hold one do not read it twice.
+ */
+export function isRoomOwner(
+  lobby: LobbyEntry,
+  nodeId: string | null | undefined,
+  accountId?: string | null,
+  hostPresence?: { accountId?: string | null } | null,
+): boolean {
+  if (!!nodeId && lobby.hostNodeId === nodeId) return true;
+  if (accountId && lobby.hostAccountId && lobby.hostAccountId === String(accountId)) return true;
+  if (accountId && hostPresence?.accountId && hostPresence.accountId === String(accountId)) return true;
+  return false;
 }
 
 export interface UserPresence {
